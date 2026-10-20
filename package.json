@@ -4,6 +4,7 @@
   "version": "1.0.1",
   "description": "Interactive Three.js reconstruction of Munich's Allianz Arena",
   "license": "MIT",
+  "homepage": "https://allianz-arena-explorer.pages.dev/",
   "repository": {
     "type": "git",
     "url": "https://github.com/qiangua337/allianz-arena-explorer.git"

@@ -1,6 +1,17 @@
 # 验证记录
 
-日期：2026-10-20。验证对象为本地静态站点及配套源代码。
+日期：2026-10-20。验证对象为本地静态站点、Cloudflare Pages 正式网站及配套源代码。
+
+## Cloudflare 公开版本
+
+- 正式地址：<https://allianz-arena-explorer.pages.dev/>；Cloudflare 控制台确认部署成功。
+- GitHub 仓库为 Public，已识别 MIT 许可；Cloudflare 连接 `main` 分支，构建命令为 `npm run check`，发布目录为 `dist`。
+- 不携带 Cookie 或认证信息请求正式主页，返回 200，无登录重定向。
+- 主页、CSS、应用模块、Three.js 和 OrbitControls 的正式资源与推送的 Git 内容一致；JS / CSS MIME 正确。
+- 实际浏览器打开正式主页：场景 ready，默认导航隐藏，2,784 个外壳气枕与 80,544 个座椅模型正常加载。
+- 在正式网站选中草坪并切换第一人称，导航自动关闭，立即可行走。实际按住 W 1 秒，位置从 `(0, 1.7, 13)` 移到约 `(0, 1.7, 8.443)`。
+- 正式版本第一次拖动画面 160 × 45 像素，朝向变为约 `(-0.48, -0.1137)`；切换黑夜后环境状态为 `night`。
+- 正式版本第一人称截图见仓库 `docs/images/first-person.png`。
 
 ## 导航遮挡与第一人称修复复测
 
@@ -38,4 +49,4 @@
 
 未在独立手机、VR 设备或不同 GPU 上做兼容性测试；未验证浏览器下载目录中的截图文件或全屏权限。截图功能的同源 Canvas 导出代码已检查。未执行精确碰撞或建筑尺寸测绘验收；建筑与室内近似范围见 REFERENCES.md。
 
-预览 PNG 保存在交付目录中的 `allianz-arena-previews/`。部署结果由 Sites 发布工具单独确认。
+预览 PNG 保存在交付目录中的 `allianz-arena-previews/`。公开版本的部署结果以 Cloudflare Pages 为准。

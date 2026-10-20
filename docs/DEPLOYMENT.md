@@ -1,5 +1,9 @@
 # Cloudflare Pages 发布
 
+公开网站：<https://allianz-arena-explorer.pages.dev/>
+
+公开源码：<https://github.com/qiangua337/allianz-arena-explorer>
+
 这是纯静态网站。生产资源位于 `dist/`，没有构建步骤、服务端数据库或运行时密钥。
 `server.mjs` 仅用于本地预览，不需要上传到 Cloudflare。
 

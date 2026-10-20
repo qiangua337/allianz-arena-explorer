@@ -2,7 +2,7 @@
 
 使用 Three.js 0.186.1 制作的拜仁慕尼黑主场互动复原。所有几何体在浏览器内生成，Three.js 与控制器已经随项目附带；本地启动后不需要联网下载模型、贴图或脚本。
 
-[GitHub 源码](https://github.com/qiangua337/allianz-arena-explorer) · [Cloudflare 部署说明](docs/DEPLOYMENT.md) · [MIT 许可证](LICENSE)
+[在线探索](https://allianz-arena-explorer.pages.dev/) · [GitHub 源码](https://github.com/qiangua337/allianz-arena-explorer) · [Cloudflare 部署说明](docs/DEPLOYMENT.md) · [MIT 许可证](LICENSE)
 
 ![第一人称实景，区域导航默认收起](docs/images/first-person.png)
 
