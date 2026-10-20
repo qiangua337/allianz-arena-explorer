@@ -4,6 +4,9 @@
 
 | 来源 | 用途及已核实内容 |
 | --- | --- |
+| [FC Bayern — 当前一线队](https://fcbayern.com/en/teams/first-team) | 2026-10-20 核对当前赛季球衣姓名和号码。更衣室、商店共用 dist/roster.js；号码不明者不编造号码。 |
+| [FC Bayern — 官网](https://fcbayern.com/en) | 使用页面正式队徽 SVG，保持圆形原始比例，出处及权利见 THIRD_PARTY_NOTICES.md。 |
+| [Allianz Arena — 2025/26 场馆改造](https://allianz-arena.com/en/news/2025/07/allianz-arena-refurbishments-summer-2025) | 南侧主要入口经 Esplanade 到达；增设入口检查区雨棚。以此补建可见南入口与开放通行中央通道，具体门数与位置仍为近似。 |
 | [Allianz Arena — Facts & Figures](https://allianz-arena.com/en/arena/facts/general-information) | 当前页面列出外廓 258 × 227 × 52 米；外壳与屋顶共 2,784 个气枕；场地 105 × 68 米；草坪总区域 111 × 72 米；三层看台坡度约 24°、30°、34°；南广场长 543 米、宽 136 米。采用这些尺寸控制比例。 |
 | [Allianz Arena — FAQ](https://allianz-arena.com/en/faq) | 国内赛事容量 75,024，国际赛形式与站席转换不同。没有将场景座椅数量冒充售票座位数。 |
 | [Herzog & de Meuron — 205 Allianz Arena](https://www.herzogdemeuron.com/projects/205-allianz-arena/) | 发光菱形 ETFE 外壳、停车场上方的起伏绿色景观、步道、三层陡升看台与火山口般的空间关系。用于外壳轮廓与广场组织。 |
@@ -23,7 +26,7 @@
 
 一些较旧的俱乐部介绍写有 50 米建筑高度、2,760 个气枕及较早的视频屏和灯具数量。当前场馆 Facts & Figures 写有 52 米、2,784 个气枕及更新的设施统计。本项目采用场馆当前页面的外廓和气枕统计，不混用旧页的计数。
 
-更衣室参考照片有明确年份，不能据此声称它就是 2026 年完整现状。因此界面保留「2022 年公开图像参考」「球衣示意」提示。视频只用于其中实际看到的画面，不将未播放完的片段当作完整测绘证据。
+更衣室参考照片有明确年份，不能据此声称它就是 2026 年完整现状。衣柜与房间布局仍参考该时期照片，球衣名单已独立更新为 2026-10-20 官网数据。视频只用于其中实际看到的画面，不将未播放完的片段当作完整测绘证据。
 
 ## 需要进一步实测才能逐处 1:1 的部分
 

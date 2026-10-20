@@ -1,20 +1,31 @@
-import {THREE,TAU,v,mat,mesh,box,beam,sign,cylinder,superpoint,ringGeometry,curveLine,Batches,seeded,floorTexture,repeatTex} from './kit.js';
+import {THREE,TAU,v,mat,mesh,box,beam,sign,cylinder,superpoint,ringGeometry,curveLine,Batches,seeded,floorTexture,repeatTex,wallCollider} from './kit.js';
 
 export function esplanadeY(z){return -3-THREE.MathUtils.clamp((z-140)/543,0,1)*8.5;}
 export function buildWorld(scene){
- const group=new THREE.Group();group.name='Fröttmaning context | approximate surroundings';scene.add(group);const b=new Batches(group);
+ const group=new THREE.Group();group.name='Fröttmaning context | approximate surroundings';scene.add(group);const b=new Batches(group),colliders=[];
  const concrete=mat(0xa9aea9,{map:repeatTex(floorTexture(),25,25)}),edge=mat(0x8b9294),grass=mat(0x748660),road=mat(0x424b4c),pale=mat(0xd4d4c9),dark=mat(0x17252b),metal=mat(0x87959b,{metalness:.5,roughness:.55}),leaf=mat(0x34593f),stripe=mat(0xc7ccbf),red=mat(0xc61935),blue=mat(0x173f75);
  const lightMat=new THREE.MeshBasicMaterial({color:0xfff0d0,toneMapped:false});
  const terrain=mesh(new THREE.PlaneGeometry(3200,3200),grass,group,0,-12.2,0);terrain.rotation.x=-Math.PI/2;
  mesh(ringGeometry(0,0,151,169,-3,2.8,256),concrete,group);
  // The esplanade is an elevated landscape above the car parks, not a flat parking lot.
  const deckGeom=new THREE.PlaneGeometry(136,543,20,60);deckGeom.rotateX(-Math.PI/2);const p=deckGeom.attributes.position;for(let i=0;i<p.count;i++){const z=p.getZ(i)+405.5;p.setY(i,esplanadeY(z));p.setZ(i,z);}deckGeom.computeVertexNormals();const deck=mesh(deckGeom,grass,group);
- function ribbon(xs,width,material=concrete){const curve=new THREE.CatmullRomCurve3(xs.map(([x,z])=>v(x,esplanadeY(z)+.055,z)));const pts=curve.getPoints(90),pos=[],uv=[];for(let i=0;i<pts.length-1;i++){const a=pts[i],q=pts[i+1],t=q.clone().sub(a).normalize(),n=v(t.z,0,-t.x).multiplyScalar(width/2),aa=a.clone().add(n),ab=a.clone().sub(n),qa=q.clone().add(n),qb=q.clone().sub(n);for(const x of[aa,qa,ab,qa,qb,ab]){pos.push(x.x,x.y,x.z);uv.push(x.x/12,x.z/12);}}const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));g.computeVertexNormals();mesh(g,material,group);}
+ function ribbon(xs,width,material=concrete){const curve=new THREE.CatmullRomCurve3(xs.map(([x,z])=>v(x,esplanadeY(z)+.055,z)));const pts=curve.getPoints(90),pos=[],uv=[];for(let i=0;i<pts.length-1;i++){const a=pts[i],q=pts[i+1],t=q.clone().sub(a).normalize(),n=v(t.z,0,-t.x).multiplyScalar(width/2),aa=a.clone().add(n),ab=a.clone().sub(n),qa=q.clone().add(n),qb=q.clone().sub(n);for(const x of[aa,ab,qa,qa,ab,qb]){pos.push(x.x,x.y,x.z);uv.push(x.x/12,x.z/12);}}const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));g.computeVertexNormals();mesh(g,material,group);}
  ribbon([[-53,132],[-30,200],[35,290],[15,380],[-39,475],[-29,570],[0,680]],11);
  ribbon([[50,132],[29,205],[-31,295],[-13,385],[36,480],[25,575],[0,680]],11);
  ribbon([[-65,140],[-60,310],[-61,500],[-59,680]],7);
  ribbon([[65,140],[60,310],[61,500],[59,680]],7);
  for(const z of[225,365,510,625])ribbon([[-65,z],[-22,z+12],[24,z-9],[65,z+3]],7);
+ ribbon([[0,214],[0,188],[0,166]],14);
+ // South main entrance: canopy, open lanes and visible ticket-reader cabinets.
+ // The central lane is deliberately unobstructed; this is the first-person starting route.
+ const gateY=esplanadeY(178)+.055,entryMetal=mat(0xb9c1c3,{metalness:.65,roughness:.35}),entryDark=mat(0x22313d);
+ b.add(104,.22,12,0,gateY+4.8,178,entryMetal);b.add(104,.8,.35,0,gateY+4.42,184.1,entryDark);
+ sign(group,'HAUPTEINGANG SÜD',32,.85,0,gateY+4.42,184.31,{font:105,w:4096,h:128,fg:'#fff'});
+ sign(group,'SOUTH ENTRANCE  ·  EINGANG',24,.42,0,gateY+3.65,184.34,{font:74,w:4096,h:128,fg:'#fff'});
+ for(const x of[-50,-30,-10,10,30,50]){b.add(.38,4.6,.38,x,gateY+2.3,174,entryMetal);wallCollider(colliders,x,174,.38,.38,gateY,gateY+4.6);}
+ const entryGreen=new THREE.MeshBasicMaterial({color:0x35e298,toneMapped:false});
+ for(let i=0;i<10;i++)for(const side of[-1,1]){const x=side*(2.8+i*5);b.add(.45,1.13,1.7,x,gateY+.565,179,entryMetal);b.add(.32,.16,.34,x,gateY+1.22,179.55,entryDark);b.add(.25,.025,.12,x,gateY+1.315,179.55,entryGreen);wallCollider(colliders,x,179,.45,1.7,gateY,gateY+1.35);}
+ for(const x of[-25,0,25])sign(group,'↓',1.2,1.2,x,gateY+2.6,182.8,{font:135,w:128,h:128,fg:'#8df4c1'});
  // Linear lightwells and open ramps cut down to the parking decks.
  for(let i=0;i<9;i++){
   const z=200+i*49,x=i%2?28:-28,y=esplanadeY(z)+.12;const angle=(i%2?1:-1)*.18;
@@ -43,12 +54,12 @@ export function buildWorld(scene){
  for(let j=0;j<7;j++){const x=-310+(j%3)*46,z=-75+Math.floor(j/3)*52;b.add(38,7+j%3*2,35,x,-8+j%3,z,pale);b.add(39,.3,36,x,-4.4+j%3*2,z,metal);for(let k=0;k<9;k++)b.add(2,2,.08,x-16+k*4,-6.4+j%3,z+17.55,dark);}
  // Pedestrian bridges, security gates, ticket booths and entry signs.
  for(const z of[150,660]){b.add(55,.5,7,-100,-2.2,z,edge);b.add(55,1,.07,-100,-1.45,z-3.5,metal);b.add(55,1,.07,-100,-1.45,z+3.5,metal);b.add(1,9,1,-125,-7,z,edge);}
- for(let i=0;i<12;i++){const x=-45+i*8;b.add(.7,2.4,.7,x,-1.8,148,dark);b.add(6,3.1,3,x,-1.35,158,pale);b.add(4.8,1,.1,x,-.9,159.55,dark);}
+ for(let i=0;i<12;i++){const x=(i<6?-1:1)*(6+(i%6)*8);b.add(.7,2.4,.7,x,-1.8,148,dark);b.add(6,3.1,3,x,-1.35,158,pale);b.add(4.8,1,.1,x,-.9,159.55,dark);wallCollider(colliders,x,158,6,3,-2.9,.2);}
  sign(group,'WILLKOMMEN · ALLIANZ ARENA',49,2.6,0,1.45,157.9,{bg:'#bf1732',fg:'#fff',font:95,h:160});
  sign(group,'EINGANG SÜD   →',18,2.6,-60,-.2,167,{bg:'#c81a36',fg:'#fff',font:90,h:180});
  for(const z of[-164,164])for(let i=0;i<9;i++)b.add(.22,1,.22,-25+i*6,-2.5,z,metal);
  // Curved balloon-headed lamps and street furniture.
- const lampPositions=[];for(let i=0;i<20;i++){const z=157+i*25;for(const side of[-1,1])lampPositions.push(v(side*(56+Math.sin(i*.9)*3),esplanadeY(z),z));}for(let i=0;i<20;i++){const p=superpoint(143,157,i/20*TAU,2.8);p.y=-3;lampPositions.push(p);}
+ const lampPositions=[];for(let i=0;i<20;i++){const z=157+i*25;for(const side of[-1,1])lampPositions.push(v(side*(56+Math.sin(i*.9)*3),esplanadeY(z),z));}for(let i=0;i<20;i++){const p=superpoint(143,157,i/20*TAU,2.8);p.y=-3;if(p.z>140&&Math.abs(p.x)<5)continue;lampPositions.push(p);}
  const globeGeometry=new THREE.SphereGeometry(.72,8,8);const poleGeometry=new THREE.CylinderGeometry(.055,.08,7.6,6);const lamps=new THREE.InstancedMesh(globeGeometry,lightMat,lampPositions.length),poles=new THREE.InstancedMesh(poleGeometry,metal,lampPositions.length),d=new THREE.Object3D();lampPositions.forEach((p,i)=>{d.position.copy(p).add(v(0,8,0));d.scale.set(.58,1.2,.58);d.updateMatrix();lamps.setMatrixAt(i,d.matrix);d.position.copy(p).add(v(0,3.8,0));d.scale.set(1,1,1);d.updateMatrix();poles.setMatrixAt(i,d.matrix);});group.add(lamps,poles);
  for(let j=0;j<24;j++){const z=175+j*20,x=j%2?50:-50,y=esplanadeY(z);b.add(2,.12,.55,x,y+.5,z,mat(0x78664f));b.add(.1,.5,.45,x-.75,y+.25,z,metal);b.add(.1,.5,.45,x+.75,y+.25,z,metal);b.add(.65,.9,.65,x+3,y+.45,z,dark);}
  for(let j=0;j<12;j++){const x=-58+j*10.5;b.add(.07,13,.07,x,3.5,135,metal);const flag=box(group,2.5,4,.04,x+1.25,7.5,135,j%2?whiteFlag():red);}
@@ -66,6 +77,6 @@ export function buildWorld(scene){
  const trunks=new THREE.InstancedMesh(new THREE.CylinderGeometry(.18,.28,4,5),mat(0x706650),treePositions.length),crowns=new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1,1),leaf,treePositions.length);treePositions.forEach((p,i)=>{d.position.set(p.x,p.y+p.s*.35,p.z);d.scale.set(1,p.s/4,1);d.rotation.set(0,random()*TAU,0);d.updateMatrix();trunks.setMatrixAt(i,d.matrix);d.position.y=p.y+p.s;d.scale.set(p.s*.65,p.s*.85,p.s*.65);d.updateMatrix();crowns.setMatrixAt(i,d.matrix);crowns.setColorAt(i,new THREE.Color().setHSL(.27+random()*.1,.22,.22+random()*.13));});crowns.castShadow=true;group.add(trunks,crowns);
  b.flush();
  const nightLights=[];for(const p of lampPositions.filter((_,i)=>i%5===0)){const l=new THREE.PointLight(0xffdda3,0,20,1.8);l.position.copy(p).add(v(0,6,0));group.add(l);nightLights.push(l);}
- return {group,rotor,night(n){lightMat.color.set(n?0xffd99d:0xf5f0e2);nightLights.forEach(l=>{l.intensity=n?14:0;l.visible=n;});}};
+ return {group,rotor,colliders,night(n){lightMat.color.set(n?0xffd99d:0xf5f0e2);nightLights.forEach(l=>{l.intensity=n?14:0;l.visible=n;});}};
  function whiteFlag(){return pale;}
 }

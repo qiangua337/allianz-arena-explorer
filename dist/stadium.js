@@ -36,7 +36,10 @@ export function buildStadium(scene){
  // The recessed dark entrance level and evenly spaced concrete supports.
  mesh(ringGeometry(42,60,106,121,5.4),darkConcrete,root);
  mesh(ringGeometry(42,60,116,132,-2.9),concrete,root);
- for(let i=0;i<132;i++){const t=i/132*TAU,p=superpoint(105,120,t,2.65),n=supernormal(105,120,t,2.65),yaw=Math.atan2(n.x,n.z);batch.add(.65,7,.65,p.x,1.8,p.z,concrete,yaw);batch.add(3.7,3.6,.12,p.x-n.x*.8,1.8,p.z-n.z*.8,dark,yaw);}
+ for(let i=0;i<132;i++){const t=i/132*TAU,p=superpoint(105,120,t,2.65),n=supernormal(105,120,t,2.65),yaw=Math.atan2(n.x,n.z);if(p.z>116&&Math.abs(p.x)<4)continue;batch.add(.65,7,.65,p.x,1.8,p.z,concrete,yaw);batch.add(3.7,3.6,.12,p.x-n.x*.8,1.8,p.z-n.z*.8,dark,yaw);}
+ for(const x of[-3.8,3.8])batch.add(.35,6.1,.45,x,.15,120.7,steel);
+ batch.add(8,.8,.5,0,2.8,120.7,red);
+ sign(root,'ARENA · EINGANG',7.5,.56,0,2.8,121,{font:90,w:1536,h:128,fg:'#fff'});
  // Cascading exterior stairs visible through the lower edge of the skin.
  for(let i=0;i<16;i++){const t=(i+.5)/16*TAU,n=supernormal(113,128,t,2.65);for(let k=0;k<24;k++){const p=superpoint(107+k*.35,122+k*.35,t,2.65);batch.add(4.1,.22,.65,p.x,-2.6+k*.25,p.z,concrete,Math.atan2(n.x,n.z));}}
  // A three-tier bowl. Angles follow the published 24 / 30 / 34 degree sections.
@@ -89,7 +92,7 @@ export function buildStadium(scene){
  const logo=sign(root,'Allianz Arena',40,5.4,0,26.7,129.7,{fg:'#164c94',w:2048,h:256,font:185,weight:650});
  const logoBack=sign(root,'Allianz Arena',40,5.4,0,26.7,-129.7,{fg:'#164c94',w:2048,h:256,font:185,weight:650});logoBack.rotation.y=Math.PI;const logoDayMap=logo.material.map,logoNightMap=textTexture('Allianz Arena',{fg:'#ffffff',w:2048,h:256,font:185,weight:650});
  // LED scoreboards hang above the goal ends, facing the pitch.
- const scoreboards=[];for(const z of[-78,78]){const group=new THREE.Group();group.position.set(0,40.8,z);if(z>0)group.rotation.y=Math.PI;root.add(group);box(group,19.4,11.3,.55,0,0,0,dark);const front=sign(group,'FC BAYERN',18.8,10.6,0,0,.3,{fg:'#ffffff',bg:'#c71a36',font:108,h:600,sub:'MÜNCHEN     |     MIA SAN MIA'});addCrest(group,4.5,0,1.5,.32);sign(group,'0 : 0',7.5,1.8,0,-2.6,.33,{font:150});scoreboards.push(front);for(const x of[-7,7])batch.add(.16,6,.16,x,46,z,steel);}
+ const scoreboards=[];for(const z of[-78,78]){const group=new THREE.Group();group.position.set(0,40.8,z);if(z>0)group.rotation.y=Math.PI;root.add(group);box(group,19.4,11.3,.55,0,0,0,dark);const front=sign(group,'',18.8,10.6,0,0,.3,{bg:'#c71a36',h:600});front.material.transparent=false;front.material.needsUpdate=true;addCrest(group,3.6,-5.8,1.4,.38);sign(group,'FC BAYERN',10.4,1.5,2.1,2,.38,{font:100});sign(group,'MÜNCHEN',10.4,.9,2.1,.3,.38,{font:100});sign(group,'0 : 0',7.5,1.8,0,-2.6,.38,{font:150});sign(group,'MIA SAN MIA',12,.55,0,-4.2,.38,{font:80});scoreboards.push(front);for(const x of[-7,7])batch.add(.16,6,.16,x,46,z,steel);}
  // Continuous advertising boards around the edge of the grass.
  const adDefs=[['T',0xe22286],['Allianz',0x164c92],['adidas',0x111820],['Audi',0xefefee],['FC BAYERN',0xca1c37],['PAULANER',0x103f76]];
  for(const side of[-1,1])for(let j=0;j<12;j++){const [label,color]=adDefs[j%adDefs.length],z=-52+j*9.45;if(side<0&&Math.abs(z)<7)continue;const ad=sign(closeLabels,label,9.25,.95,side*40.5,.6,z,{bg:'#'+color.toString(16).padStart(6,'0'),fg:label==='Audi'?'#202632':'#ffffff',font:100});ad.rotation.y=side<0?Math.PI/2:-Math.PI/2;}
