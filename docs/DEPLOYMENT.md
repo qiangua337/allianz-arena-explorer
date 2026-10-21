@@ -24,7 +24,7 @@ Cloudflare 配置：框架预设 `None`，构建命令 `npm run check`，输出�
 
 ## 手动发布
 
-也可以使用 Node.js 22 或更新版本，在项目根目录运行 `npm run deploy`。
+也可以使用 Node.js 24 或更新版本，在项目根目录运行 `npm run deploy`。
 命令使用固定版本 Wrangler 4.151.2，上传 `dist/` 至 Pages 项目
 `allianz-arena-explorer` 的生产分支 `main`。首次运行会通过 npm 获取官方 Wrangler。
 账号需已登录并拥有对应项目的 Pages 写入权限；登录命令：
@@ -59,3 +59,7 @@ npx --yes wrangler@4.151.2 pages deploy dist --project-name YOUR_PROJECT_NAME --
 
 官方说明：[Direct Upload](https://developers.cloudflare.com/pages/get-started/direct-upload/)、
 [Wrangler 配置](https://developers.cloudflare.com/pages/functions/wrangler-configuration/)。
+
+## 早期 Sites 入口
+
+早期 Sites 地址保留原访问范围，入口页会保留查询参数和 URL 片段，自动跳转到上面的 Cloudflare 生产地址。后续版本以公开 GitHub main 和 Cloudflare 为准，避免两份站点版本混淆。Sites 私有部署身份与配置不写入此开源仓库。

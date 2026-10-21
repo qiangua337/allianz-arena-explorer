@@ -3,7 +3,13 @@ export {THREE};
 export const TAU=Math.PI*2;
 export const v=(x=0,y=0,z=0)=>new THREE.Vector3(x,y,z);
 export const mats={};
-export function mat(color,options={}){return new THREE.MeshStandardMaterial({color,roughness:.8,metalness:0,...options});}
+let metalEnvironment;
+export function mat(color,options={}){return new THREE.MeshStandardMaterial({color,roughness:.8,metalness:0,...((options.metalness??0)>.2&&metalEnvironment?{envMap:metalEnvironment,envMapIntensity:.65}:{}),...options});}
+export function prepareMaterialLighting(renderer){
+ const studio=new THREE.Scene();studio.background=new THREE.Color(0x555b61);const cards=[];
+ for(const [x,y,z,w,h]of[[-5,3,1,3,6],[4,4,-3,4,5],[0,7,0,8,5]]){const material=new THREE.MeshBasicMaterial({color:new THREE.Color(2.5,2.35,2.15)}),card=new THREE.Mesh(new THREE.PlaneGeometry(w,h),material);card.position.set(x,y,z);card.lookAt(0,0,0);studio.add(card);cards.push(card);}
+ const pmrem=new THREE.PMREMGenerator(renderer),target=pmrem.fromScene(studio,.05,.1,60,{size:128});metalEnvironment=target.texture;pmrem.dispose();cards.forEach(c=>{c.geometry.dispose();c.material.dispose();});return target;
+}
 export function mesh(g,m,parent,x=0,y=0,z=0){const o=new THREE.Mesh(g,m);o.position.set(x,y,z);o.receiveShadow=true;parent.add(o);return o;}
 export function box(parent,w,h,d,x,y,z,m){return mesh(new THREE.BoxGeometry(w,h,d),m,parent,x,y,z);}
 export function cylinder(parent,r,h,x,y,z,m,n=12){return mesh(new THREE.CylinderGeometry(r,r,h,n),m,parent,x,y,z);}
@@ -19,7 +25,8 @@ export function sign(parent,text,w,h,x,y,z,options={}){
  const g=new THREE.PlaneGeometry(w,h),uv=g.attributes.uv;for(let i=0;i<uv.count;i++)uv.setXY(i,(cell.cx+2+uv.getX(i)*508)/2048,1-(cell.cy+2+(1-uv.getY(i))*124)/2048);
  return mesh(g,cell.page.materials[options.bg&&options.bg!=='transparent'?1:0],parent,x,y,z);
 }
-export function floorTexture(type='concrete'){return canvasTexture(512,512,(ctx,w,h)=>{let seed=144;const rand=()=>{seed=(seed*1664525+1013904223)>>>0;return seed/4294967296;};ctx.fillStyle=type==='wood'?'#a47a50':type==='red'?'#8b1b2c':'#a2a39f';ctx.fillRect(0,0,w,h);for(let i=0;i<15000;i++){const a=rand()*.1;ctx.fillStyle=`rgba(${type==='wood'?'30,15,5':'0,0,0'},${a})`;ctx.fillRect(rand()*w,rand()*h,type==='wood'?rand()*85+4:rand()*3+1,type==='wood'?.5:rand()*2+1);}if(type==='wood'){ctx.strokeStyle='#50341e65';for(let i=0;i<8;i++){ctx.beginPath();ctx.moveTo(0,i*64);ctx.lineTo(512,i*64);ctx.stroke();}}else{ctx.strokeStyle=type==='red'?'#e83a4b30':'#535c6135';ctx.lineWidth=1;for(let i=0;i<=4;i++){ctx.beginPath();ctx.moveTo(i*128,0);ctx.lineTo(i*128,512);ctx.moveTo(0,i*128);ctx.lineTo(512,i*128);ctx.stroke();}}});}
+export function floorTexture(type='concrete'){return canvasTexture(512,512,(ctx,w,h)=>{let seed=144;const random=()=>{seed=(seed*1664525+1013904223)>>>0;return seed/4294967296;};ctx.fillStyle=type==='wood'?'#b59263':type==='red'?'#ae2638':'#a3a5a0';ctx.fillRect(0,0,w,h);for(let i=0;i<11000;i++){const value=random();ctx.fillStyle=value>.5?'rgba(255,255,245,.045)':'rgba(25,22,20,.045)';ctx.fillRect(random()*w,random()*h,random()*1.4+.3,random()*1.1+.2);}if(type==='wood'){for(let i=0;i<1200;i++){const y=random()*512;ctx.strokeStyle='rgba(60,37,19,'+(random()*.14+.015)+')';ctx.lineWidth=random()*.9+.25;ctx.beginPath();ctx.moveTo(-10,y);ctx.bezierCurveTo(130,y+Math.sin(y*.03)*5,340,y-Math.sin(y*.027)*7,522,y+random()*3);ctx.stroke();}for(let j=0;j<3;j++){const x=65+j*188,y=100+j*137;for(let k=0;k<5;k++){ctx.strokeStyle='rgba(68,41,20,'+(.05-k*.007)+')';ctx.lineWidth=.7;ctx.beginPath();ctx.ellipse(x,y,18+k*12,2+k*.9,.04,0,Math.PI*2);ctx.stroke();}}}else if(type==='red'){for(let y=8;y<512;y+=16)for(let x=8;x<512;x+=16){ctx.fillStyle='#7118253d';ctx.beginPath();ctx.arc(x+.4,y+.6,4.9,0,Math.PI*2);ctx.fill();ctx.fillStyle='#d4495529';ctx.beginPath();ctx.arc(x-.3,y-.4,4.2,0,Math.PI*2);ctx.fill();}}else{ctx.lineWidth=.8;ctx.strokeStyle='#6f73673b';for(let i=0;i<=2;i++){ctx.beginPath();ctx.moveTo(i*256,0);ctx.lineTo(i*256,512);ctx.moveTo(0,i*256);ctx.lineTo(512,i*256);ctx.stroke();}}});}
+
 export function repeatTex(t,x,y){t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(x,y);return t;}
 export function superpoint(a,b,t,n=2.8){const c=Math.cos(t),s=Math.sin(t),p=2/n;return v(a*Math.sign(c)*Math.abs(c)**p,0,b*Math.sign(s)*Math.abs(s)**p);}
 export function supernormal(a,b,t,n=2.8){const p=superpoint(a,b,t,n),q=superpoint(a,b,t+.0001,n);return v(q.z-p.z,0,p.x-q.x).normalize();}

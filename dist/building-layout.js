@@ -1,6 +1,7 @@
 // Shared by the visible building, walking floors and route graph. Metres.
 // These connections are an explorable interpretation, not a surveyed plan.
 export const roomSpecs={homeRoom:{x:-82,z:0,y:-2.7,w:19,d:20},guestRoom:{x:-82,z:28,y:-2.7,w:19,d:18},press:{x:-82,z:-31,y:-2.7,w:21,d:18},lounge:{x:90,z:0,y:23.6,w:10,d:28},museum:{x:-96,z:58,y:12,w:15,d:25},store:{x:0,z:118,y:12.2,w:29,d:14}};
+export const roomAt=position=>Object.entries(roomSpecs).find(([,s])=>Math.abs(position.y-s.y)<1.2&&Math.abs(position.x-s.x)<s.w/2-.12&&Math.abs(position.z-s.z)<s.d/2-.12)?.[0];
 export const core={left:100,right:103,width:2.45,start:-8,front:-13,minX:98.45,maxX:104.55};
 export const coreLevels=[-2.9,12.2,23.6,40];
 export const seatingTiers=[{a:43,b:61,y:.7,rows:30,depth:.76,angle:24},{a:66,b:84,y:13.2,rows:24,depth:.76,angle:30},{a:85,b:103,y:27.1,rows:26,depth:.73,angle:34}];

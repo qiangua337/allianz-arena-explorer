@@ -33,7 +33,8 @@ export function floorHeight(x,z,feetY,{tiers=[],rooms={}}={}){
   const rise=key==='press'&&z>-32.64?Math.max(0,Math.min(5,Math.floor((z+32.64)/1.28)))*.14:0;
   floors.push(s.y+rise);
  }
- if(!inCoreShaft(x,z)&&within(x,z,105,122,2.8)&&!within(x,z,85,103,2.8)&&(!stair||stair.along>stair.stair.run-.45))floors.push(ACCESS_TOP);
+ const roomFloor=Object.values(rooms).some(s=>inRoom(x,z,s)&&Math.abs(feetY-s.y)<1.2);
+ if(!roomFloor&&!inCoreShaft(x,z)&&within(x,z,105,122,2.8)&&!within(x,z,85,103,2.8)&&(!stair||stair.along>stair.stair.run-.45))floors.push(ACCESS_TOP);
  for(const tier of tiers){
   if(inCoreShaft(x,z,.15))continue;
   if(passageFloor!==null&&tier.y<1)continue;

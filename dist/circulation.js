@@ -1,3 +1,4 @@
+import {finishReception,finishedBox} from './finishes.js';
 import {inCoreShaft,publicWallOpening,clearCore,roomFootprint} from './building-layout.js';
 import {THREE,TAU,v,mat,mesh,box,beam,canvasTexture,repeatTex,ringGeometry,Batches,mergeGeometry,addCrest} from './kit.js';
 import {ACCESS_BASE,ACCESS_TOP,accessStairs,perimeterFrames,perimeterPoint,perimeterNormal,stairwellAt,orientedCollider} from './access-layout.js';
@@ -67,7 +68,7 @@ export function buildCirculation(parent){
  const roof=new THREE.Group();roof.name='Entrance arcade ceiling';root.add(roof);
  const atlas=new SignAtlas(),batch=new Batches(root),roofBatch=new Batches(roof),colliders=[],lamps=[],stairSlabs=[];let lightingNight=false;
  const floor=mat(0xc4c8c4,{map:repeatTex(architecturalTexture('floor'),1,1),roughness:.86,side:THREE.DoubleSide});
- const wall=mat(0xc2c6c2,{map:repeatTex(architecturalTexture('wall'),2,2),roughness:.9,side:THREE.DoubleSide});
+ const wall=mat(0xc2c6c2,{map:repeatTex(architecturalTexture('wall'),2,2),roughness:.9,bumpMap:floor.map,bumpScale:.012,side:THREE.DoubleSide});
  const column=mat(0x9b9e99,{roughness:.87}),edge=mat(0x555f63,{roughness:.6}),metal=mat(0x9faeb1,{metalness:.65,roughness:.35}),red=mat(0xb41b36,{roughness:.48}),pale=mat(0xe1e0d5),dark=mat(0x26343e),wood=mat(0x977954,{roughness:.7});
  const glass=mat(0xb3d0d8,{transparent:true,opacity:.24,depthWrite:false,metalness:.18,roughness:.14,side:THREE.DoubleSide});
  const glow=new THREE.MeshBasicMaterial({color:0xfff1d5,toneMapped:false}),green=new THREE.MeshBasicMaterial({color:0x76d7a8,toneMapped:false});
@@ -215,14 +216,14 @@ export function buildCirculation(parent){
  mesh(mergeGeometry(stairSlabs),mat(0x9b9e99,{roughness:.87,side:THREE.DoubleSide}),root).name='Sloped reinforced concrete stair soffits';
 
  // Arrival information islands sit on the sides, not in the central entrance lane.
- batch.add(12,3,.12,0,ACCESS_BASE+2.55,104.3,red);
- addCrest(root,2.25,-4.1,ACCESS_BASE+2.55,104.38);
- atlas.add(root,'ALLIANZ ARENA','WILLKOMMEN · MIA SAN MIA',7.4,1.25,1.4,ACCESS_BASE+2.55,104.38,0,{bg:'#b41b36',accent:'#b41b36'});
+ finishedBox(root,12,2.9,.16,0,ACCESS_BASE+2.55,104.3,pale,.035);batch.add(12.05,.055,.18,0,ACCESS_BASE+1.05,104.3,red);
+ addCrest(root,2.25,-4.1,ACCESS_BASE+2.55,104.415);
+ atlas.add(root,'ALLIANZ ARENA','WILLKOMMEN · MIA SAN MIA',7.4,1.25,1.4,ACCESS_BASE+2.55,104.415,0,{bg:'#e1e0d5',fg:'#30373a',accent:'#e1e0d5'});
  atlas.add(root,'参观导航 →','公共大厅 · 看台 · 球员区',5,1.8,0,ACCESS_BASE+.035,112,0,{bg:'#805f26',tilt:-Math.PI/2});
  for(const x of[-8,8]){
-  batch.add(4.6,1.0,1.1,x,ACCESS_BASE+.5,107.5,red);batch.add(4.8,.12,1.3,x,ACCESS_BASE+1.06,107.5,pale);
+
   atlas.add(root,x<0?'参观咨询':'接待中心','公共楼梯 / 草坪参观',4.35,.65,x,ACCESS_BASE+.57,108.08,0,{bg:'#aa1833'});
-  batch.add(.9,.55,.1,x,ACCESS_BASE+1.4,107.2,dark);
+
   colliders.push(orientedCollider(x,107.5,4.8,1.3,ACCESS_BASE,ACCESS_BASE+1.3));
  }
  // A real, lit opening leads under the lower seating tier and onto the pitch.
@@ -249,6 +250,7 @@ export function buildCirculation(parent){
  }
  for(const side of[-1,1]){beam(root,v(visit.x+side*(clear/2-.08),ACCESS_BASE+1.05,visit.rampZ),v(visit.x+side*(clear/2-.08),1.05,visit.exitZ),.035,metal);colliders.push(orientedCollider(visit.x+side*(clear/2+.1),(visit.rampZ+visit.exitZ)/2,.18,visit.rampZ-visit.exitZ,ACCESS_BASE,1.1));}
  atlas.add(root,'草坪与看台 ↑','前方出通道后即可进入球场',clear-.6,.62,visit.x,ACCESS_BASE+2.75,68.4,0,{bg:'#9b6c20'});
+ finishReception(root,batch,atlas,{floorY:ACCESS_BASE,pale,red,metal,dark});colliders.push(orientedCollider(4,110,.74,.62,ACCESS_BASE,ACCESS_BASE+1.8));
  atlas.add(root,'↑ 室内公共楼梯','公共大厅 · 商店 · 展厅 · 包厢 · 看台',6.4,.9,95.8,.8,10,0,{bg:'#996e24'});
  batch.flush();roofBatch.flush();atlas.finish(root);
 

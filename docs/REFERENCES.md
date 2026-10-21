@@ -12,6 +12,7 @@
 | [Herzog & de Meuron — 205 Allianz Arena](https://www.herzogdemeuron.com/projects/205-allianz-arena/) | 发光菱形 ETFE 外壳、停车场上方的起伏绿色景观、步道、三层陡升看台与火山口般的空间关系。用于外壳轮廓与广场组织。 |
 | [Allianz Arena — 官方航拍照片页面](https://allianz-arena.com/de/news/2019/einsatzuebung-zur-europameisterschaft-2020) | 实际查看航拍图，识别球场下部柱列、南广场步道、停车场采光口、邻近道路、轨道与维护设施。周边建筑采用近似体块，未逐栋测量。 |
 | [Allianz Arena — Team areas open again for tours，2022-10-05](https://allianz-arena.com/en/news/2022/10/fc-bayern-team-areas-open-again-for-tours) | 实际查看页面所用更衣室图像。红色柜体、木质连续长凳、上层收纳格、挂衣杆、球衣、球鞋、水瓶、顶面白色带状照明与电子时钟是主要视觉依据。 |
+| [Allianz Arena — 更衣室整修公告，2026-05](https://allianz-arena.com/en/news/2026/05/renovation-work-in-fc-bayern-dressing-room) | 官方公告说明 2026 年 5 月 18 日至 6 月 5 日更衣室整修。2022 年照片可参考材质与构件关系，不能据此宣称精确代表整修后现状。 |
 | [FC Bayern — Die Allianz Arena im neuen Gewand，2018-08-04](https://fcbayern.com/de/bilder/2018/08/galerie-die-allianz-arena-im-neuen-gewand) | 内场红白座椅改造、俱乐部色彩与装饰。使用红色为主的看台，并程序化生成字样。 |
 | [FC Bayern — Hospitality general information](https://fcbayern.com/en/tickets/fc-bayern-hospitality-tickets/general-information) | 官方楼层图与场地地图入口，用于理解公共、接待、商店及不同楼层的功能关系。精确柜台位置及房间尺寸仍作近似。 |
 | [FC Bayern — Level 2 map](https://fcbayern.com/binaries/content/assets/downloads/allianz-arena/events/logenkunden-portal/lageplaene/englisch/location-map-level-2) | 分区、Welcome Zones、球迷商店、餐饮、FC Bayern Store、Arena Tour / Museum 等设施的存在与环形组织。 |
@@ -36,3 +37,9 @@
 ## 需要进一步实测才能逐处 1:1 的部分
 
 外壳每个真实气枕的裁切、接缝、厚度及节点；看台每一块座位表与踏步构造；各室内房间的精确尺寸、灯具、门窗、吊顶及连接动线；所有公共设施与设备间；场外逐栋建筑与地形。现有场景提供这些重点空间的可探索视觉复原，不作工程精度承诺。
+
+## 版本 1.5 的材质与室内细化
+
+再次查看官方 2022 年更衣室照片，细化柜体凹槽与侧板、连续木质座面及支撑、低处鞋格、上部折叠装备和毛巾、白色顶面带与暗藏灯带。球衣增加衣服轮廓、薄厚与褶皱，空余装备位展示无号码训练服，不虚构新球员姓名或号码。
+
+木纹、织物微纹、橡胶地面、柜体倒角、通风口、探测器、接待台及通道收口为程序化艺术化表达。材质纹理与 PMREM 金属反射由代码生成；没有把官方照片作为可再分发的场景纹理。接触阴影为静态近似，非完整光线追踪。
