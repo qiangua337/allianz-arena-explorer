@@ -77,6 +77,7 @@ export function buildWorld(scene){
  const trunks=new THREE.InstancedMesh(new THREE.CylinderGeometry(.18,.28,4,5),mat(0x706650),treePositions.length),crowns=new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1,1),leaf,treePositions.length);treePositions.forEach((p,i)=>{d.position.set(p.x,p.y+p.s*.35,p.z);d.scale.set(1,p.s/4,1);d.rotation.set(0,random()*TAU,0);d.updateMatrix();trunks.setMatrixAt(i,d.matrix);d.position.y=p.y+p.s;d.scale.set(p.s*.65,p.s*.85,p.s*.65);d.updateMatrix();crowns.setMatrixAt(i,d.matrix);crowns.setColorAt(i,new THREE.Color().setHSL(.27+random()*.1,.22,.22+random()*.13));});crowns.castShadow=true;group.add(trunks,crowns);
  b.flush();
  const nightLights=[];for(const p of lampPositions.filter((_,i)=>i%5===0)){const l=new THREE.PointLight(0xffdda3,0,20,1.8);l.position.copy(p).add(v(0,6,0));group.add(l);nightLights.push(l);}
- return {group,rotor,colliders,night(n){lightMat.color.set(n?0xffd99d:0xf5f0e2);nightLights.forEach(l=>{l.intensity=n?14:0;l.visible=n;});}};
+ let isNight=false;
+ return {group,rotor,colliders,update(position){for(const l of nightLights)l.visible=isNight&&l.position.distanceTo(position)<45;},night(n){isNight=n;lightMat.color.set(n?0xffd99d:0xf5f0e2);nightLights.forEach(l=>{l.intensity=n?14:0;l.visible=n;});}};
  function whiteFlag(){return pale;}
 }

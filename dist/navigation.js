@@ -1,3 +1,4 @@
+import {accessAt,accessHeight,ACCESS_BASE,ACCESS_TOP} from './access-layout.js';
 // Heights are in metres. Pick the floor reachable from the current level,
 // rather than the topmost stand whose footprint overlaps the player.
 export const EYE_HEIGHT=1.7;
@@ -16,7 +17,9 @@ export function groundHeight(x,z){
 
 export function floorHeight(x,z,feetY,{tiers=[],rooms={}}={}){
  const ground=groundHeight(x,z),floors=[ground];
- if(within(x,z,116,132,2.8)&&!within(x,z,42,60,2.8))floors.push(-2.9);
+ if(within(x,z,121,139,2.8)&&!within(x,z,72,90,2.8))floors.push(ACCESS_BASE);
+ const stair=accessAt(x,z),stairFloor=accessHeight(x,z);
+ if(stairFloor!==null)floors.push(stairFloor);
  if(Math.abs(x)<41.5&&Math.abs(z)<60)floors.push(0);
  if(x>-72.8&&x<-40.45&&Math.abs(z)<2.5){
   floors.push(x<-45.9?-2.7:Math.min(0,-2.7+(Math.floor((x+45.9)/.36)+1)*.18));
@@ -27,7 +30,7 @@ export function floorHeight(x,z,feetY,{tiers=[],rooms={}}={}){
   const rise=key==='press'&&z>-32.64?Math.max(0,Math.min(5,Math.floor((z+32.64)/1.28)))*.14:0;
   floors.push(s.y+rise);
  }
- if(within(x,z,105,122,2.8)&&!within(x,z,77,95,2.8))floors.push(12.2);
+ if(within(x,z,105,122,2.8)&&!within(x,z,85,103,2.8)&&(!stair||stair.along>stair.stair.run-.45))floors.push(ACCESS_TOP);
  for(const tier of tiers){
   const depth=tier.rows*tier.depth;
   if(within(x,z,tier.a+depth,tier.b+depth,3.35)&&!within(x,z,tier.a,tier.b,3.35)){
@@ -41,5 +44,17 @@ export function floorHeight(x,z,feetY,{tiers=[],rooms={}}={}){
 }
 
 export function hitsWall(x,z,eyeY,colliders,isVisible=()=>true){
- return colliders.some(b=>isVisible(b.owner)&&x>b.x0&&x<b.x1&&z>b.z0&&z<b.z1&&eyeY>b.y0+.2&&eyeY-EYE_HEIGHT<b.y1);
+ return colliders.some(b=>{
+  if(!isVisible(b.owner)||eyeY<=b.y0+.2||eyeY-EYE_HEIGHT>=b.y1)return false;
+  if(b.cx===undefined)return x>b.x0&&x<b.x1&&z>b.z0&&z<b.z1;
+  const dx=x-b.cx,dz=z-b.cz,c=Math.cos(b.yaw),s=Math.sin(b.yaw);
+  return Math.abs(dx*c-dz*s)<b.halfW&&Math.abs(dx*s+dz*c)<b.halfD;
+ });
+}
+
+export function canStandAt(x,z,feetY,{rooms={}}={}){
+ if(accessAt(x,z)||Object.values(rooms).some(s=>inRoom(x,z,s)&&Math.abs(feetY-s.y)<2))return true;
+ if(feetY>9)return within(x,z,105,122,2.8)&&!within(x,z,85,103,2.8);
+ if(!within(x,z,86,104,2.8)||Math.abs(x)<41.5&&Math.abs(z)<60)return true;
+ return x>-72.8&&x<-40.45&&Math.abs(z)<2.5||x>-72.8&&x<-66.7&&z>-41&&z<49||x>-91.5&&x<-72.5&&z>37&&z<47;
 }

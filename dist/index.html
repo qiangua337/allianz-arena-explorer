@@ -5,7 +5,7 @@
  <meta name="theme-color" content="#0d151c"><meta name="description" content="走进拜仁慕尼黑的主场。自由探索安联球场的外壳、看台、草坪、更衣室与球员通道，切换白天与黑夜。">
  <title>安联球场 · ARENA EXPLORER</title>
  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%23db1839'/%3E%3Cellipse cx='32' cy='32' rx='24' ry='17' fill='none' stroke='white' stroke-width='4'/%3E%3Cellipse cx='32' cy='28' rx='14' ry='7' fill='none' stroke='white' stroke-width='3'/%3E%3C/svg%3E">
- <link rel="stylesheet" href="style.css?v=20261020-entry3">
+ <link rel="stylesheet" href="style.css?v=20261021-circulation">
  <script type="importmap">{"imports":{"three":"./vendor/three.module.js"}}</script>
 </head>
 <body>
@@ -22,18 +22,20 @@
   <nav aria-label="场景区域" id="locations">
    <button class="location active" data-place="exterior"><span class="loc-no">01</span><span><b>球场全景</b><small>标志性气枕外壳</small></span><span class="loc-arrow">↗</span></button>
    <button class="location" data-place="esplanade"><span class="loc-no">02</span><span><b>南广场与周边</b><small>ESPLANADE</small></span><span class="loc-arrow">↗</span></button>
-   <button class="location" data-place="stands"><span class="loc-no">03</span><span><b>三层看台</b><small>感受主场的尺度</small></span><span class="loc-arrow">↗</span></button>
-   <button class="location" data-place="pitch"><span class="loc-no">04</span><span><b>走上草坪</b><small>105 × 68 米的舞台</small></span><span class="loc-arrow">↗</span></button>
-   <button class="location" data-place="tunnel"><span class="loc-no">05</span><span><b>球员入场通道</b><small>迈向比赛的最后一步</small></span><span class="loc-arrow">↗</span></button>
-   <button class="location" data-place="homeRoom"><span class="loc-no">06</span><span><b>拜仁主队更衣室</b><small>红色衣柜 · 比赛准备</small></span><span class="loc-arrow">↗</span></button>
-   <button class="location" data-place="guestRoom"><span class="loc-no">07</span><span><b>客队更衣室</b><small>客队区域 · 淋浴间</small></span><span class="loc-arrow">↗</span></button>
-   <button class="location" data-place="press"><span class="loc-no">08</span><span><b>新闻发布厅</b><small>赛后的另一座舞台</small></span><span class="loc-arrow">↗</span></button>
-   <button class="location" data-place="lounge"><span class="loc-no">09</span><span><b>贵宾包厢</b><small>透过落地窗看球场</small></span><span class="loc-arrow">↗</span></button>
-   <button class="location" data-place="museum"><span class="loc-no">10</span><span><b>荣誉陈列空间</b><small>奖杯与俱乐部历史</small></span><span class="loc-arrow">↗</span></button>
-   <button class="location" data-place="concourse"><span class="loc-no">11</span><span><b>环形公共大厅</b><small>餐饮 · 分区入口 · 导视</small></span><span class="loc-arrow">↗</span></button>
-   <button class="location" data-place="store"><span class="loc-no">12</span><span><b>球迷商店</b><small>球衣 · 围巾 · 装备</small></span><span class="loc-arrow">↗</span></button>
+   <button class="location" data-place="arcade"><span class="loc-no">03</span><span><b>入口环廊</b><small>服务窗口 · 休息区 · 导视</small></span><span class="loc-arrow">↗</span></button>
+   <button class="location" data-place="access"><span class="loc-no">04</span><span><b>入场楼梯</b><small>从入口层步行上楼</small></span><span class="loc-arrow">↗</span></button>
+   <button class="location" data-place="stands"><span class="loc-no">05</span><span><b>三层看台</b><small>感受主场的尺度</small></span><span class="loc-arrow">↗</span></button>
+   <button class="location" data-place="pitch"><span class="loc-no">06</span><span><b>走上草坪</b><small>105 × 68 米的舞台</small></span><span class="loc-arrow">↗</span></button>
+   <button class="location" data-place="tunnel"><span class="loc-no">07</span><span><b>球员入场通道</b><small>迈向比赛的最后一步</small></span><span class="loc-arrow">↗</span></button>
+   <button class="location" data-place="homeRoom"><span class="loc-no">08</span><span><b>拜仁主队更衣室</b><small>红色衣柜 · 比赛准备</small></span><span class="loc-arrow">↗</span></button>
+   <button class="location" data-place="guestRoom"><span class="loc-no">09</span><span><b>客队更衣室</b><small>客队区域 · 淋浴间</small></span><span class="loc-arrow">↗</span></button>
+   <button class="location" data-place="press"><span class="loc-no">10</span><span><b>新闻发布厅</b><small>赛后的另一座舞台</small></span><span class="loc-arrow">↗</span></button>
+   <button class="location" data-place="lounge"><span class="loc-no">11</span><span><b>贵宾包厢</b><small>透过落地窗看球场</small></span><span class="loc-arrow">↗</span></button>
+   <button class="location" data-place="museum"><span class="loc-no">12</span><span><b>荣誉陈列空间</b><small>奖杯与俱乐部历史</small></span><span class="loc-arrow">↗</span></button>
+   <button class="location" data-place="concourse"><span class="loc-no">13</span><span><b>环形公共大厅</b><small>餐饮 · 分区入口 · 导视</small></span><span class="loc-arrow">↗</span></button>
+   <button class="location" data-place="store"><span class="loc-no">14</span><span><b>球迷商店</b><small>球衣 · 围巾 · 装备</small></span><span class="loc-arrow">↗</span></button>
   </nav>
-  <button class="tour-button" id="tour"><span>▷</span> 自动巡游 <small>12 个视角</small></button>
+  <button class="tour-button" id="tour"><span>▷</span> 自动巡游 <small>14 个视角</small></button>
   <button class="reference-button" id="references">建模说明与参考资料 <span>↗</span></button>
  </aside>
  <section class="view-controls glass" aria-label="视角设置"><button id="orbit-mode" class="active"><svg viewBox="0 0 20 20"><ellipse cx="10" cy="10" rx="8" ry="4"/><circle cx="10" cy="10" r="2"/></svg>第三人称</button><button id="walk-mode"><svg viewBox="0 0 20 20"><circle cx="10" cy="4" r="2"/><path d="M6 18l2-6V7h4v5l2 6m-6-9-4 4m8-4 4 4"/></svg>第一人称</button></section>
@@ -47,5 +49,5 @@
  <div class="toast" id="toast" role="status"></div>
  <dialog id="info-dialog"><button class="close-dialog" aria-label="关闭对话框">×</button><div id="dialog-content"></div></dialog>
  <section class="loading" id="loading"><div class="loading-arena"><i></i><i></i><i></i></div><small>MÜNCHEN · HOME OF FC BAYERN</small><h2>主场，即将呈现。</h2><p id="load-status">正在构建球场与内部空间…</p><div class="load-track"><span></span></div><noscript>需要启用 JavaScript 才能探索球场。</noscript></section>
- <script type="module" src="app.js?v=20261020-entry3"></script>
+ <script type="module" src="app.js?v=20261021-circulation"></script>
 </body></html>
