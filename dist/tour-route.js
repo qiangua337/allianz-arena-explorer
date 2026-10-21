@@ -21,8 +21,8 @@ function join(a,b){links.push([a,b]);}
 node('entrance',0,-4.103,214,'南侧正门','沿正门中央开放通道前行');
 node('security',0,-3.7,180,'穿过正门','沿金色地线进入大厅');
 node('forecourt',0,ACCESS_BASE,132,'大厅入口','从中间的开放门进入');
-node('door',0,ACCESS_BASE,122,'进入接待大厅','继续前行，参观入口在右侧');
-node('reception',0,ACCESS_BASE,113,'接待大厅','右转，沿金色地线前往参观入口');
+node('door',0,ACCESS_BASE,122,'进入接待大厅','进入接待大厅，跟随所选目的地的路线');
+node('reception',0,ACCESS_BASE,113,'接待大厅','沿金色路线右转，前往对应入口或公共楼梯');
 node('turn',22,ACCESS_BASE,113,'球场参观入口','右转后，从红色开放门进入');
 node('visitorGate',22,ACCESS_BASE,101,'进入球场参观通道','沿灯带直行，前方通往草坪与看台');
 node('passage',22,ACCESS_BASE,81,'球场参观通道','继续直行，前方是上行踏步');
