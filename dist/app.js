@@ -52,7 +52,7 @@ async function init(){
  $('load-status').textContent='正在加载队徽与场景…';await loadBrandAssets();
  world=buildWorld(scene);stadium=buildStadium(scene);interiors=buildInteriors(scene,stadium.circulation);
  building=buildWalkBuilding(scene);walkGuide=buildWalkGuide(scene,{tiers:stadium.tiers,rooms:roomSpecs});interactions=buildInteractions(scene,interiors,{toast,navigate:id=>goPlace(id),setEye:y=>desiredEye=y,showInfo:showInteractiveInfo});lightBudget=buildLightBudget(scene);
- buildHotspots();bindUI();setNavOpen(false);document.body.dataset.mode=mode;setDayNight(false);clock.time=performance.now();document.body.dataset.version='1.5.0';document.body.dataset.ready='true';document.body.dataset.seats=stadium.seatCount;document.body.dataset.panels=stadium.panelCount;
+ buildHotspots();bindUI();setNavOpen(false);document.body.dataset.mode=mode;setDayNight(false);clock.time=performance.now();document.body.dataset.version='1.5.1';document.body.dataset.ready='true';document.body.dataset.seats=stadium.seatCount;document.body.dataset.panels=stadium.panelCount;
  const initial=new URLSearchParams(location.search);if(initial.get('night')==='1')setDayNight(true);const place=initial.get('place');if(initial.get('view')==='walk')setMode('walk',{place:place&&places[place]?place:'exterior'});else if(place&&places[place])goPlace(place,false);
  renderer.setAnimationLoop(render);requestAnimationFrame(()=>{$('loading').classList.add('finished');$('load-status').textContent='场景已就绪';});
  window.addEventListener('resize',resize);canvas.addEventListener('webglcontextlost',e=>{e.preventDefault();toast('图形上下文已暂停，请重新加载页面恢复。');});

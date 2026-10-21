@@ -37,4 +37,7 @@ test('return instructions describe leaving a room and going up to the pitch',()=
  const platform={id:'flight0Out',level:'core',x:100,y:5,z:0,label:'楼梯'};
  assert.match(movementInstruction({x:100,y:1,z:-2},0,platform,{id:'flight0Turn',x:103,y:5,z:0}).action,/上行/);
  assert.equal(movementInstruction({x:82,y:23.6,z:-30.1},0,{id:'upperStands',x:82,y:23.6,z:-30.1,label:'上层看台'}).action,'上层看台');
+ const turn={id:'turn',x:22,y:-2.9,z:113,label:'入口',hint:'右转'};
+ assert.doesNotMatch(movementInstruction({x:22,y:-2.9,z:101},Math.PI,turn,reception).hint,/左转|右转/);
+ assert.match(movementInstruction({x:0,y:10.6,z:-90},Math.PI,{id:'lowerEntry',x:0,y:12.2,z:-104,label:'看台入口'},{id:'upper24'}).hint,/前往公共大厅/);
 });
