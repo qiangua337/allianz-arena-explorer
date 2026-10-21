@@ -1,5 +1,6 @@
 import {THREE,TAU,v,mat,mesh,box,beam,canvasTexture,repeatTex,ringGeometry,Batches,mergeGeometry,addCrest} from './kit.js';
 import {ACCESS_BASE,ACCESS_TOP,accessStairs,perimeterFrames,perimeterPoint,perimeterNormal,stairwellAt,orientedCollider} from './access-layout.js';
+import {visitorPassage,visitorWallOpening} from './tour-route.js';
 
 // One shared sign atlas and instanced architectural parts keep the pedestrian
 // level detailed without adding a separate draw call for every door or label.
@@ -63,7 +64,7 @@ export function accessRingGeometry(a,b,aa,bb,y,holes=true){
 export function buildCirculation(parent){
  const root=new THREE.Group();root.name='Detailed entrance arcade and eight access stairs';parent.add(root);
  const roof=new THREE.Group();roof.name='Entrance arcade ceiling';root.add(roof);
- const atlas=new SignAtlas(),batch=new Batches(root),roofBatch=new Batches(roof),colliders=[],lamps=[],stairSlabs=[];
+ const atlas=new SignAtlas(),batch=new Batches(root),roofBatch=new Batches(roof),colliders=[],lamps=[],stairSlabs=[];let lightingNight=false;
  const floor=mat(0xc4c8c4,{map:repeatTex(architecturalTexture('floor'),1,1),roughness:.86,side:THREE.DoubleSide});
  const wall=mat(0xc2c6c2,{map:repeatTex(architecturalTexture('wall'),2,2),roughness:.9,side:THREE.DoubleSide});
  const column=mat(0x9b9e99,{roughness:.87}),edge=mat(0x555f63,{roughness:.6}),metal=mat(0x9faeb1,{metalness:.65,roughness:.35}),red=mat(0xb41b36,{roughness:.48}),pale=mat(0xe1e0d5),dark=mat(0x26343e),wood=mat(0x977954,{roughness:.7});
@@ -75,14 +76,15 @@ export function buildCirculation(parent){
  mesh(ringGeometry(111.2,128.2,111.45,128.45,ACCESS_BASE+.025),red,root);
  mesh(ringGeometry(116,133,116.5,133.5,ACCESS_BASE+.027),edge,root);
  mesh(accessRingGeometry(86,104,116,132,5.4),wall,roof).name='Closed double-sided entrance soffit';
- const innerWall=[];
- for(let i=0;i<384;i++){
-  const p=perimeterPoint(86,104,i/384*TAU),q=perimeterPoint(86,104,(i+1)/384*TAU),y0=ACCESS_BASE,y1=5.4;
+ const innerWall=[],wallAngles=Array.from({length:385},(_,i)=>i/384*TAU);
+ for(const x of[visitorPassage.x-visitorPassage.width/2,visitorPassage.x+visitorPassage.width/2])wallAngles.push(Math.acos(Math.sign(x)*Math.abs(x/86)**1.4));wallAngles.sort((a,b)=>a-b);
+ for(let i=0;i<wallAngles.length-1;i++){
+  const t=wallAngles[i],u=wallAngles[i+1],p=perimeterPoint(86,104,t),q=perimeterPoint(86,104,u),cx=(p.x+q.x)/2,cz=(p.z+q.z)/2,y0=visitorWallOpening(cx,cz)?visitorPassage.head:ACCESS_BASE,y1=5.4;
   innerWall.push(p.x,y0,p.z,q.x,y0,q.z,p.x,y1,p.z,q.x,y0,q.z,q.x,y1,q.z,p.x,y1,p.z);
+  colliders.push(orientedCollider(cx,cz,Math.hypot(p.x-q.x,p.z-q.z)+.02,.18,y0,y1,Math.atan2(q.z-p.z,p.x-q.x)*-1));
  }
  const wallGeometry=new THREE.BufferGeometry();wallGeometry.setAttribute('position',new THREE.Float32BufferAttribute(innerWall,3));
  const wallUV=[];for(let i=0;i<innerWall.length;i+=3)wallUV.push((innerWall[i]+innerWall[i+2])/6,innerWall[i+1]/4);wallGeometry.setAttribute('uv',new THREE.Float32BufferAttribute(wallUV,2));wallGeometry.computeVertexNormals();mesh(wallGeometry,wall,root).name='Continuous enclosure below the seating bowl';
- for(const frame of perimeterFrames(86,104,96))colliders.push(orientedCollider(frame.x,frame.z,frame.spacing+.15,.24,ACCESS_BASE,5.4,frame.yaw));
 
  const frames=perimeterFrames(105,120,66),entries=new Set([0,5,16,27,38,49,60]);
  const services=['INFORMATION','ARENA TOUR','FAN SERVICE','WC','GETRÄNKE','FAN SHOP'];
@@ -155,10 +157,11 @@ export function buildCirculation(parent){
  // Inner service enclosure has joints, actual door leaves and human-scale maps.
  for(const frame of perimeterFrames(86.2,104.2,32)){
   const n=frame.normal,p={x:frame.x+n.x*.16,z:frame.z+n.z*.16};
+  if(p.z>95&&Math.abs(p.x-visitorPassage.x)<7)continue;
   batch.add(.1,6.5,.1,p.x,ACCESS_BASE+3.25,p.z,metal,frame.yaw);
   if(frame.index%4===0){
    batch.add(2.05,3.2,.17,p.x+n.x*.12,ACCESS_BASE+1.6,p.z+n.z*.12,edge,frame.yaw);
-   atlas.add(root,'TECHNIK','PERSONAL',1.6,.5,p.x+n.x*.23,ACCESS_BASE+2.38,p.z+n.z*.23,frame.yaw,{bg:'#566469'});
+   atlas.add(root,'设备间','仅工作人员',1.6,.5,p.x+n.x*.23,ACCESS_BASE+2.38,p.z+n.z*.23,frame.yaw,{bg:'#566469'});
   }else if(frame.index%4===2){
    atlas.add(root,'ARENA PLAN','EINGÄNGE  ·  WC  ·  SERVICE',2.2,1.45,p.x+n.x*.18,ACCESS_BASE+2.0,p.z+n.z*.18,frame.yaw,{bg:'#e5e3d9',fg:'#263b46',style:'map'});
    const x=p.x+2.5*n.z+n.x*.55,z=p.z-2.5*n.x+n.z*.55;bNewMachine(x,z,frame);
@@ -213,13 +216,37 @@ export function buildCirculation(parent){
  batch.add(12,3,.12,0,ACCESS_BASE+2.55,104.3,red);
  addCrest(root,2.25,-4.1,ACCESS_BASE+2.55,104.38);
  atlas.add(root,'ALLIANZ ARENA','WILLKOMMEN · MIA SAN MIA',7.4,1.25,1.4,ACCESS_BASE+2.55,104.38,0,{bg:'#b41b36',accent:'#b41b36'});
- atlas.add(root,'← WC · SERVICE →','TRIBÜNE · BISTRO',3.8,1.6,0,ACCESS_BASE+.035,112,0,{bg:'#6e7772',tilt:-Math.PI/2});
+ atlas.add(root,'球场参观入口 →','草坪 · 看台 · 球员区',5,1.8,0,ACCESS_BASE+.035,112,0,{bg:'#805f26',tilt:-Math.PI/2});
  for(const x of[-8,8]){
   batch.add(4.6,1.0,1.1,x,ACCESS_BASE+.5,107.5,red);batch.add(4.8,.12,1.3,x,ACCESS_BASE+1.06,107.5,pale);
-  atlas.add(root,x<0?'ARENA TOUR':'WELCOME CENTER','INFORMATION',4.35,.65,x,ACCESS_BASE+.57,108.08,0,{bg:'#aa1833'});
+  atlas.add(root,x<0?'参观咨询':'接待中心','右侧红门 → 球场参观',4.35,.65,x,ACCESS_BASE+.57,108.08,0,{bg:'#aa1833'});
   batch.add(.9,.55,.1,x,ACCESS_BASE+1.4,107.2,dark);
   colliders.push(orientedCollider(x,107.5,4.8,1.3,ACCESS_BASE,ACCESS_BASE+1.3));
  }
+ // A real, lit opening leads under the lower seating tier and onto the pitch.
+ const visit=visitorPassage,clear=visit.width,wallDepth=visit.backZ-visit.rampZ;
+ batch.add(clear,.16,wallDepth,visit.x,ACCESS_BASE-.08,(visit.backZ+visit.rampZ)/2,floor);
+ roofBatch.add(clear+.35,.16,wallDepth,visit.x,visit.head-.08,(visit.backZ+visit.rampZ)/2,pale);
+ for(const side of[-1,1]){
+  const x=visit.x+side*(clear/2+.1);batch.add(.2,visit.head-ACCESS_BASE,wallDepth,x,(visit.head+ACCESS_BASE)/2,(visit.backZ+visit.rampZ)/2,wall);
+  batch.add(.08,.12,wallDepth,x-side*.13,ACCESS_BASE+.28,(visit.backZ+visit.rampZ)/2,red);
+  batch.add(.36,4.5,.75,visit.x+side*(clear/2+.12),ACCESS_BASE+2.25,visit.entryZ+.15,red);
+  colliders.push(orientedCollider(x,(visit.backZ+visit.rampZ)/2,.24,wallDepth,ACCESS_BASE,visit.head));
+  for(let i=0;i<5;i++){const z=99-i*6.7;batch.add(.07,1.9,3.8,x-side*.13,ACCESS_BASE+1.55,z,red);atlas.add(root,i%2?'MIA SAN MIA':'FC BAYERN','球场参观 →',3.4,.75,x-side*.18,ACCESS_BASE+1.6,z,side<0?Math.PI/2:-Math.PI/2,{bg:'#b41b36'});}
+ }
+ batch.add(clear+.65,.85,.78,visit.x,ACCESS_BASE+4.05,visit.entryZ+.15,red);
+ atlas.add(root,'球场参观入口','草坪 · 看台 · 球员通道',clear+.1,.73,visit.x,ACCESS_BASE+4.05,visit.entryZ+.56,0,{bg:'#b41b36'});
+ atlas.add(root,'↑ 向前进入球场','VISITOR PASSAGE · PITCH',clear-.6,.62,visit.x,ACCESS_BASE+2.85,98,0,{bg:'#9b6c20'});
+ atlas.add(root,'返回接待大厅 ↑','LOBBY · SOUTH ENTRANCE',clear-.4,.62,visit.x,ACCESS_BASE+2.8,102.8,Math.PI,{bg:'#366b58'});
+ for(let i=0;i<7;i++){const z=102-i*5.3;roofBatch.add(.16,.035,3.3,visit.x-2.65,visit.head-.19,z,glow);roofBatch.add(.16,.035,3.3,visit.x+2.65,visit.head-.19,z,glow);}
+ const passageLights=[];for(const z of[99,85,71]){const light=new THREE.PointLight(0xffe9d2,32,17,1.7);light.position.set(visit.x,visit.head-.35,z);root.add(light);passageLights.push(light);}
+ for(let i=0;i<visit.steps;i++){
+  const d=(visit.rampZ-visit.exitZ)/visit.steps,y=ACCESS_BASE+(i+1)*(-ACCESS_BASE)/visit.steps,z=visit.rampZ-(i+.5)*d;
+  batch.add(clear,.23,d+.015,visit.x,y-.115,z,column);batch.add(clear-.12,.015,.04,visit.x,y+.013,z-d*.43,pale);
+  for(const side of[-1,1]){batch.add(.18,1.08,d+.02,visit.x+side*(clear/2+.12),y+.54,z,wall);if(i%4===0)batch.add(.04,.98,.04,visit.x+side*(clear/2-.08),y+.49,z,metal);}
+ }
+ for(const side of[-1,1]){beam(root,v(visit.x+side*(clear/2-.08),ACCESS_BASE+1.05,visit.rampZ),v(visit.x+side*(clear/2-.08),1.05,visit.exitZ),.035,metal);colliders.push(orientedCollider(visit.x+side*(clear/2+.1),(visit.rampZ+visit.exitZ)/2,.18,visit.rampZ-visit.exitZ,ACCESS_BASE,1.1));}
+ atlas.add(root,'草坪与看台 ↑','前方出通道后即可进入球场',clear-.6,.62,visit.x,ACCESS_BASE+2.75,68.4,0,{bg:'#9b6c20'});
  batch.flush();roofBatch.flush();atlas.finish(root);
 
  function decorateConcourse(g){
@@ -262,7 +289,7 @@ export function buildCirculation(parent){
  }
  function update(position,privateEnclosed=false){
   const nearby=position.y<9&&((Math.abs(position.x)/122)**2.8+(Math.abs(position.z)/140)**2.8<1.2);
-  root.visible=!privateEnclosed;for(const light of lamps)light.visible=nearby&&light.position.distanceTo(position)<32;
+  root.visible=!privateEnclosed;for(const light of lamps)light.visible=lightingNight&&nearby&&light.position.distanceTo(position)<32;
  }
- return{root,roof,colliders,decorateConcourse,update,night(on){glow.color.set(on?0xffe0ad:0xfff3dd);lamps.forEach(l=>l.intensity=on?68:28);},setRoof(on){roof.visible=on;},stats:{entranceBays:66,accessStairs:8,sharedSignTextures:1}};
+ return{root,roof,colliders,decorateConcourse,update,night(on){lightingNight=on;glow.color.set(on?0xffe0ad:0xfff3dd);lamps.forEach(l=>l.intensity=on?68:28);},setRoof(on){roof.visible=on;},stats:{entranceBays:66,accessStairs:8,sharedSignTextures:1}};
 }

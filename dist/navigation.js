@@ -1,4 +1,5 @@
 import {accessAt,accessHeight,ACCESS_BASE,ACCESS_TOP} from './access-layout.js';
+import {visitorFloor,inVisitorPassage} from './tour-route.js';
 // Heights are in metres. Pick the floor reachable from the current level,
 // rather than the topmost stand whose footprint overlaps the player.
 export const EYE_HEIGHT=1.7;
@@ -20,6 +21,7 @@ export function floorHeight(x,z,feetY,{tiers=[],rooms={}}={}){
  if(within(x,z,121,139,2.8)&&!within(x,z,72,90,2.8))floors.push(ACCESS_BASE);
  const stair=accessAt(x,z),stairFloor=accessHeight(x,z);
  if(stairFloor!==null)floors.push(stairFloor);
+ const passageFloor=visitorFloor(x,z);if(passageFloor!==null)floors.push(passageFloor);
  if(Math.abs(x)<41.5&&Math.abs(z)<60)floors.push(0);
  if(x>-72.8&&x<-40.45&&Math.abs(z)<2.5){
   floors.push(x<-45.9?-2.7:Math.min(0,-2.7+(Math.floor((x+45.9)/.36)+1)*.18));
@@ -32,6 +34,7 @@ export function floorHeight(x,z,feetY,{tiers=[],rooms={}}={}){
  }
  if(within(x,z,105,122,2.8)&&!within(x,z,85,103,2.8)&&(!stair||stair.along>stair.stair.run-.45))floors.push(ACCESS_TOP);
  for(const tier of tiers){
+  if(passageFloor!==null&&tier.y<1)continue;
   const depth=tier.rows*tier.depth;
   if(within(x,z,tier.a+depth,tier.b+depth,3.35)&&!within(x,z,tier.a,tier.b,3.35)){
    let lo=0,hi=depth;
@@ -53,6 +56,7 @@ export function hitsWall(x,z,eyeY,colliders,isVisible=()=>true){
 }
 
 export function canStandAt(x,z,feetY,{rooms={}}={}){
+ if(inVisitorPassage(x,z))return true;
  if(accessAt(x,z)||Object.values(rooms).some(s=>inRoom(x,z,s)&&Math.abs(feetY-s.y)<2))return true;
  if(feetY>9)return within(x,z,105,122,2.8)&&!within(x,z,85,103,2.8);
  if(!within(x,z,86,104,2.8)||Math.abs(x)<41.5&&Math.abs(z)<60)return true;

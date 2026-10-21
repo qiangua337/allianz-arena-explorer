@@ -1,6 +1,7 @@
 import {THREE,TAU,v,mat,mesh,box,beam,sign,cylinder,canvasTexture,textTexture,superpoint,supernormal,ringGeometry,curveLine,mergeGeometry,compactGroup,Batches,addCrest,seeded} from './kit.js';
 import {buildCirculation} from './circulation.js';
 import {accessStairs,ACCESS_BASE,ACCESS_TOP} from './access-layout.js';
+import {visitorPassage,bowlOpening} from './tour-route.js';
 
 export function buildStadium(scene){
  const root=new THREE.Group();root.name='Allianz Arena | metres';scene.add(root);
@@ -45,20 +46,20 @@ export function buildStadium(scene){
  // A three-tier bowl. Angles follow the published 24 / 30 / 34 degree sections.
  const tiers=[{a:43,b:61,y:.7,rows:30,depth:.76,angle:24},{a:66,b:84,y:13.2,rows:24,depth:.76,angle:30},{a:85,b:103,y:27.1,rows:26,depth:.73,angle:34}];
  const rowGeometries=[];const seats=[];const closeLabels=new THREE.Group();root.add(closeLabels);const textCanvas=document.createElement('canvas');textCanvas.width=1200;textCanvas.height=260;const tx=textCanvas.getContext('2d');tx.fillStyle='#000';tx.fillRect(0,0,1200,260);tx.fillStyle='#fff';tx.textAlign='center';tx.textBaseline='middle';tx.font='bold 165px Arial';tx.fillText('FC BAYERN MÜNCHEN',600,130,1170);const textPixels=tx.getImageData(0,0,1200,260).data;
- function openTunnelRing(a,b,aa,bb,y){const limit=Math.asin((2.6/b)**(3.35/2)),ts=Array.from({length:193},(_,i)=>i/192*TAU);ts.push(Math.PI-limit,Math.PI+limit);ts.sort((a,b)=>a-b);const ps=[];for(let i=0;i<ts.length-1;i++){const t=ts[i],u=ts[i+1];if(t>=Math.PI-limit-.00001&&u<=Math.PI+limit+.00001)continue;const pts=[superpoint(a,b,t,3.35),superpoint(aa,bb,t,3.35),superpoint(aa,bb,u,3.35),superpoint(a,b,u,3.35)];for(const k of[0,2,1,0,3,2])ps.push(pts[k].x,y,pts[k].z);}const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(ps,3));g.computeVertexNormals();return g;}
+ function openTunnelRing(a,b,aa,bb,y,row){const limit=Math.asin((2.6/b)**(3.35/2)),ts=Array.from({length:385},(_,i)=>i/384*TAU);ts.push(Math.PI-limit,Math.PI+limit);if(row<8)for(const x of[visitorPassage.x-visitorPassage.width/2-.35,visitorPassage.x+visitorPassage.width/2+.35])ts.push(Math.acos(Math.sign(x)*Math.abs(x/a)**(3.35/2)));ts.sort((a,b)=>a-b);const ps=[];for(let i=0;i<ts.length-1;i++){const t=ts[i],u=ts[i+1],mid=superpoint(a,b,(t+u)/2,3.35);if(bowlOpening(mid.x,mid.z,row))continue;const pts=[superpoint(a,b,t,3.35),superpoint(aa,bb,t,3.35),superpoint(aa,bb,u,3.35),superpoint(a,b,u,3.35)];for(const k of[0,2,1,0,3,2])ps.push(pts[k].x,y,pts[k].z);}const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(ps,3));g.computeVertexNormals();return g;}
  tiers.forEach((tier,ti)=>{
   const rise=tier.depth*Math.tan(tier.angle*Math.PI/180);
   for(let r=0;r<tier.rows;r++){
    const a=tier.a+r*tier.depth,b=tier.b+r*tier.depth,y=tier.y+r*rise;
-   rowGeometries.push(ti===0&&r<17?openTunnelRing(a-.1,b-.1,a+tier.depth+.02,b+tier.depth+.02,y):ringGeometry(a-.1,b-.1,a+tier.depth+.02,b+tier.depth+.02,y,3.35,192));
+   rowGeometries.push(ti===0&&r<17?openTunnelRing(a-.1,b-.1,a+tier.depth+.02,b+tier.depth+.02,y,r):ringGeometry(a-.1,b-.1,a+tier.depth+.02,b+tier.depth+.02,y,3.35,192));
    // A low vertical riser creates readable horizontal shadow lines.
-   const positions=[];for(let j=0;j<192;j++){const t=j/192*TAU,u=(j+1)/192*TAU,p=superpoint(a,b,t,3.35),q=superpoint(a,b,u,3.35);if(ti===0&&r<17&&p.x<0&&(Math.abs(p.z)<3||Math.abs(q.z)<3))continue;positions.push(p.x,y,p.z,q.x,y,q.z,p.x,y-rise,p.z,q.x,y,q.z,q.x,y-rise,q.z,p.x,y-rise,p.z);}const rg=new THREE.BufferGeometry();rg.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));rg.computeVertexNormals();rowGeometries.push(rg);
+   const positions=[];for(let j=0;j<192;j++){const t=j/192*TAU,u=(j+1)/192*TAU,p=superpoint(a,b,t,3.35),q=superpoint(a,b,u,3.35);if(ti===0&&(bowlOpening(p.x,p.z,r)||bowlOpening(q.x,q.z,r)))continue;positions.push(p.x,y,p.z,q.x,y,q.z,p.x,y-rise,p.z,q.x,y,q.z,q.x,y-rise,q.z,p.x,y-rise,p.z);}const rg=new THREE.BufferGeometry();rg.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));rg.computeVertexNormals();rowGeometries.push(rg);
    let last=superpoint(a+.3,b+.3,0,3.35),length=0;const path=[{p:last,t:0,d:0}];for(let j=1;j<=768;j++){const t=j/768*TAU,p=superpoint(a+.3,b+.3,t,3.35);length+=p.distanceTo(last);path.push({p,t,d:length});last=p;}
    const count=Math.floor(length/.5);let idx=0;for(let j=0;j<count;j++){
     const d=j/count*length;while(idx<path.length-2&&path[idx+1].d<d)idx++;const f=(d-path[idx].d)/(path[idx+1].d-path[idx].d),t=THREE.MathUtils.lerp(path[idx].t,path[idx+1].t,f);const p=path[idx].p.clone().lerp(path[idx+1].p,f);const block=(j/count*48)%1;
     if(block<.055||block>.945)continue;
     // Keep the player entrance open through the lowest western rows.
-    if(p.x<0&&Math.abs(p.z)<3&&ti===0&&r<17)continue;
+    if(ti===0&&bowlOpening(p.x,p.z,r))continue;
     const n=supernormal(a,b,t,3.35);let color=0xc91c36;
     if(ti===1&&p.x>0&&Math.abs(p.z)<64){const px=Math.floor((p.z+64)/128*1199),py=Math.floor((tier.rows-1-r)/(tier.rows-1)*259);if(textPixels[(py*1200+px)*4]>100)color=0xefefea;}
     if(ti===2&&p.z<-80&&r>3&&r<10&&Math.abs(p.x)<46){if((Math.floor((p.x+46)/4)+r)%5<2)color=0xe9e9e4;}
@@ -67,11 +68,11 @@ export function buildStadium(scene){
   }
   // Continuous red fascias, handrails, glass balustrades and section identifiers.
   const innerA=tier.a-.2,innerB=tier.b-.2,fasciaY=tier.y-.4;
-  const fasPos=[];for(let j=0;j<192;j++){const p=superpoint(innerA,innerB,j/192*TAU,3.35),q=superpoint(innerA,innerB,(j+1)/192*TAU,3.35);fasPos.push(p.x,fasciaY,p.z,q.x,fasciaY,q.z,p.x,fasciaY-1,p.z,q.x,fasciaY,q.z,q.x,fasciaY-1,q.z,p.x,fasciaY-1,p.z);}const fg=new THREE.BufferGeometry();fg.setAttribute('position',new THREE.Float32BufferAttribute(fasPos,3));fg.computeVertexNormals();mesh(fg,red,root);
-  const pts=[];for(let j=0;j<=256;j++){const p=superpoint(innerA,innerB,j/256*TAU,3.35);p.y=tier.y+.95;pts.push(p);}curveLine(root,pts,0xbec9cd,.8);
-  for(let j=0;j<48;j++){const t=(j+.5)/48*TAU,p=superpoint(innerA,innerB,t,3.35),n=supernormal(innerA,innerB,t,3.35),yaw=Math.atan2(n.x,n.z);batch.add(.04,1,.04,p.x,tier.y+.45,p.z,steel);const lab=sign(closeLabels,String(100+ti*100+j+1),1.8,.58,p.x-n.x*.06,tier.y-.66,p.z-n.z*.06,{w:128,h:64,font:38,fg:'#ffffff',bg:'#b51632'});lab.rotation.y=yaw+Math.PI;}
+  const fasPos=[];for(let j=0;j<192;j++){const p=superpoint(innerA,innerB,j/192*TAU,3.35),q=superpoint(innerA,innerB,(j+1)/192*TAU,3.35);if(ti===0&&(bowlOpening(p.x,p.z,0)||bowlOpening(q.x,q.z,0)))continue;fasPos.push(p.x,fasciaY,p.z,q.x,fasciaY,q.z,p.x,fasciaY-1,p.z,q.x,fasciaY,q.z,q.x,fasciaY-1,q.z,p.x,fasciaY-1,p.z);}const fg=new THREE.BufferGeometry();fg.setAttribute('position',new THREE.Float32BufferAttribute(fasPos,3));fg.computeVertexNormals();mesh(fg,red,root);
+  let pts=[];for(let j=0;j<=512;j++){const p=superpoint(innerA,innerB,j/512*TAU,3.35);p.y=tier.y+.95;if(ti===0&&bowlOpening(p.x,p.z,0)){if(pts.length>1)curveLine(root,pts,0xbec9cd,.8);pts=[];}else pts.push(p);}if(pts.length>1)curveLine(root,pts,0xbec9cd,.8);
+  for(let j=0;j<48;j++){const t=(j+.5)/48*TAU,p=superpoint(innerA,innerB,t,3.35),n=supernormal(innerA,innerB,t,3.35),yaw=Math.atan2(n.x,n.z);if(ti===0&&bowlOpening(p.x,p.z,0))continue;batch.add(.04,1,.04,p.x,tier.y+.45,p.z,steel);const lab=sign(closeLabels,String(100+ti*100+j+1),1.8,.58,p.x-n.x*.06,tier.y-.66,p.z-n.z*.06,{w:128,h:64,font:38,fg:'#ffffff',bg:'#b51632'});lab.rotation.y=yaw+Math.PI;}
   // Radial stair aisles with intermediate handrail posts.
-  for(let j=0;j<48;j++)for(let r=0;r<tier.rows;r++){const t=j/48*TAU,p=superpoint(tier.a+r*tier.depth+.25,tier.b+r*tier.depth+.25,t,3.35),n=supernormal(tier.a,tier.b,t,3.35);batch.add(1.05,.08,tier.depth+.1,p.x,tier.y+r*rise+.045,p.z,concrete,Math.atan2(n.x,n.z));if(r%4===0)batch.add(.035,.9,.035,p.x,tier.y+r*rise+.45,p.z,steel);}
+  for(let j=0;j<48;j++)for(let r=0;r<tier.rows;r++){const t=j/48*TAU,p=superpoint(tier.a+r*tier.depth+.25,tier.b+r*tier.depth+.25,t,3.35),n=supernormal(tier.a,tier.b,t,3.35);if(ti===0&&bowlOpening(p.x,p.z,r))continue;batch.add(1.05,.08,tier.depth+.1,p.x,tier.y+r*rise+.045,p.z,concrete,Math.atan2(n.x,n.z));if(r%4===0)batch.add(.035,.9,.035,p.x,tier.y+r*rise+.45,p.z,steel);}
  });
  const steps=mesh(mergeGeometry(rowGeometries),concrete,root);steps.castShadow=true;
  const seatBottom=new THREE.BoxGeometry(.435,.1,.4).translate(0,0,0),seatBack=new THREE.BoxGeometry(.435,.46,.085).translate(0,.23,.17),seatGeom=mergeGeometry([seatBottom,seatBack]);
@@ -96,7 +97,7 @@ export function buildStadium(scene){
  // Continuous advertising boards around the edge of the grass.
  const adDefs=[['T',0xe22286],['Allianz',0x164c92],['adidas',0x111820],['Audi',0xefefee],['FC BAYERN',0xca1c37],['PAULANER',0x103f76]];
  for(const side of[-1,1])for(let j=0;j<12;j++){const [label,color]=adDefs[j%adDefs.length],z=-52+j*9.45;if(side<0&&Math.abs(z)<7)continue;const ad=sign(closeLabels,label,9.25,.95,side*40.5,.6,z,{bg:'#'+color.toString(16).padStart(6,'0'),fg:label==='Audi'?'#202632':'#ffffff',font:100});ad.rotation.y=side<0?Math.PI/2:-Math.PI/2;}
- for(const side of[-1,1])for(let j=0;j<8;j++){const[label,color]=adDefs[j%6],x=-33+j*9.45;const ad=sign(closeLabels,label,9.2,.95,x,.6,side*59.7,{bg:'#'+color.toString(16).padStart(6,'0'),fg:label==='Audi'?'#202632':'#ffffff',font:100});ad.rotation.y=side>0?Math.PI:0;}
+ for(const side of[-1,1])for(let j=0;j<8;j++){const[label,color]=adDefs[j%6],x=-33+j*9.45;if(side>0&&Math.abs(x-visitorPassage.x)<6)continue;const ad=sign(closeLabels,label,9.2,.95,x,.6,side*59.7,{bg:'#'+color.toString(16).padStart(6,'0'),fg:label==='Audi'?'#202632':'#ffffff',font:100});ad.rotation.y=side>0?Math.PI:0;}
  buildPitch(root,batch,{white,dark,red,steel});
  // Double bank of dugouts with individual seats and transparent shelters.
  for(const z0 of[-18,18]){

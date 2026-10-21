@@ -57,3 +57,10 @@ body[data-mode=walk] .vignette{background:linear-gradient(180deg,#0b141c30,trans
  .movement{left:12px;bottom:19px}.movement button{width:36px;height:36px}
  .walk-prompt{bottom:166px;white-space:nowrap;min-width:0;padding:8px 12px}
 }
+
+/* A small walking guide stays below the view; its route follows the model floor. */
+.walk-guide{position:absolute;z-index:6;left:50%;bottom:82px;transform:translateX(-50%);width:min(358px,calc(100vw - 34px));padding:9px 13px;border-color:#ffd36b55;box-shadow:0 5px 24px #0003}
+.guide-header{display:flex;align-items:center;gap:9px;font-size:10px;color:#b7c3c9}.guide-header label{white-space:nowrap}.guide-header select{flex:1;min-width:0;border:0;background:#ffffff0c;color:#f7e6b7;padding:4px 7px;border-radius:4px;font:inherit}.guide-header option{background:#17252e}.guide-header button{color:#aebbc5;font-size:10px;padding:2px 0 2px 6px}
+.guide-instruction{display:flex;align-items:center;gap:11px;margin-top:8px}.guide-arrow{display:grid;place-items:center;flex-shrink:0;width:28px;height:28px;border:1px solid #ffd36b65;color:#ffd36b;border-radius:50%;font-size:22px;line-height:1}.guide-instruction b{font-size:12px;font-weight:500;color:#ffedc5}.guide-instruction p{margin:2px 0 0;font-size:10px;color:#bdc9cf}.guide-next{display:block;margin:8px 0 0 auto;padding:5px 9px;background:#c79435;color:#14212b;font-size:10px;border-radius:4px}
+.walk-guide.collapsed{width:248px;padding:7px 11px}.walk-guide.collapsed .guide-instruction,.walk-guide.collapsed .guide-next{display:none}.walk-guide.collapsed .guide-header label{color:#ffd36b}
+@media(max-width:760px){.walk-guide{bottom:170px;width:min(335px,calc(100vw - 24px));padding:8px 10px}.guide-instruction b{font-size:11px}.guide-instruction p{font-size:9px}.guide-header{font-size:9px}}

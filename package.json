@@ -1,7 +1,7 @@
 {
   "name": "allianz-arena-explorer",
   "private": true,
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "Interactive Three.js reconstruction of Munich's Allianz Arena",
   "license": "MIT",
   "homepage": "https://allianz-arena-explorer.pages.dev/",
@@ -12,7 +12,7 @@
   "type": "module",
   "scripts": {
     "start": "node server.mjs",
-    "check": "node --check dist/app.js && node --check dist/stadium.js && node --check dist/interiors.js && node --check dist/world.js && node --check dist/kit.js && node --check dist/navigation.js && node --check dist/roster.js && node --check dist/access-layout.js && node --check dist/circulation.js && node --test tests/*.test.js",
+    "check": "node --check dist/app.js && node --check dist/stadium.js && node --check dist/interiors.js && node --check dist/world.js && node --check dist/kit.js && node --check dist/navigation.js && node --check dist/roster.js && node --check dist/access-layout.js && node --check dist/circulation.js && node --check dist/tour-route.js && node --check dist/walk-guide.js && node --test tests/*.test.js",
     "deploy": "npx --yes wrangler@4.151.2 pages deploy dist --branch main"
   }
 }
