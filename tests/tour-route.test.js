@@ -36,7 +36,7 @@ test('all advertised walking destinations connect to reception and back',()=>{
 
 test('upper concourse routes descend a real staircase rather than crossing levels',()=>{
  const route=planTour({x:94,y:12.2,z:-47},'pitch');
- assert.ok(route.some(n=>n.level==='stairs'));assert.ok(route.some(n=>n.id.endsWith('Bottom')));assert.ok(route.some(n=>n.id==='forecourt'));assert.ok(route.some(n=>n.id==='visitorGate'));
+ assert.ok(route.some(n=>n.level==='stairs'||n.level==='core'));assert.ok(route.some(n=>n.id.endsWith('Bottom')||n.id==='landing0'));assert.ok(route.some(n=>n.id==='visitorGate'));
 });
 
 test('a lost visitor in the lower hall follows the ring instead of crossing staff walls',()=>{

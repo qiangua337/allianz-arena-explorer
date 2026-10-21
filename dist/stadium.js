@@ -2,6 +2,7 @@ import {THREE,TAU,v,mat,mesh,box,beam,sign,cylinder,canvasTexture,textTexture,su
 import {buildCirculation} from './circulation.js';
 import {accessStairs,ACCESS_BASE,ACCESS_TOP} from './access-layout.js';
 import {visitorPassage,bowlOpening} from './tour-route.js';
+import {tierEntryOpening,inCoreShaft,seatingTiers} from './building-layout.js';
 
 export function buildStadium(scene){
  const root=new THREE.Group();root.name='Allianz Arena | metres';scene.add(root);
@@ -44,7 +45,7 @@ export function buildStadium(scene){
  // The pedestrian level stays present when the outer bowl is culled indoors.
  const circulation=buildCirculation(scene);
  // A three-tier bowl. Angles follow the published 24 / 30 / 34 degree sections.
- const tiers=[{a:43,b:61,y:.7,rows:30,depth:.76,angle:24},{a:66,b:84,y:13.2,rows:24,depth:.76,angle:30},{a:85,b:103,y:27.1,rows:26,depth:.73,angle:34}];
+ const tiers=seatingTiers;
  const rowGeometries=[];const seats=[];const closeLabels=new THREE.Group();root.add(closeLabels);const textCanvas=document.createElement('canvas');textCanvas.width=1200;textCanvas.height=260;const tx=textCanvas.getContext('2d');tx.fillStyle='#000';tx.fillRect(0,0,1200,260);tx.fillStyle='#fff';tx.textAlign='center';tx.textBaseline='middle';tx.font='bold 165px Arial';tx.fillText('FC BAYERN MÜNCHEN',600,130,1170);const textPixels=tx.getImageData(0,0,1200,260).data;
  function openTunnelRing(a,b,aa,bb,y,row){const limit=Math.asin((2.6/b)**(3.35/2)),ts=Array.from({length:385},(_,i)=>i/384*TAU);ts.push(Math.PI-limit,Math.PI+limit);if(row<8)for(const x of[visitorPassage.x-visitorPassage.width/2-.35,visitorPassage.x+visitorPassage.width/2+.35])ts.push(Math.acos(Math.sign(x)*Math.abs(x/a)**(3.35/2)));ts.sort((a,b)=>a-b);const ps=[];for(let i=0;i<ts.length-1;i++){const t=ts[i],u=ts[i+1],mid=superpoint(a,b,(t+u)/2,3.35);if(bowlOpening(mid.x,mid.z,row))continue;const pts=[superpoint(a,b,t,3.35),superpoint(aa,bb,t,3.35),superpoint(aa,bb,u,3.35),superpoint(a,b,u,3.35)];for(const k of[0,2,1,0,3,2])ps.push(pts[k].x,y,pts[k].z);}const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(ps,3));g.computeVertexNormals();return g;}
  tiers.forEach((tier,ti)=>{
@@ -59,7 +60,7 @@ export function buildStadium(scene){
     const d=j/count*length;while(idx<path.length-2&&path[idx+1].d<d)idx++;const f=(d-path[idx].d)/(path[idx+1].d-path[idx].d),t=THREE.MathUtils.lerp(path[idx].t,path[idx+1].t,f);const p=path[idx].p.clone().lerp(path[idx+1].p,f);const block=(j/count*48)%1;
     if(block<.055||block>.945)continue;
     // Keep the player entrance open through the lowest western rows.
-    if(ti===0&&bowlOpening(p.x,p.z,r))continue;
+    if(ti===0&&bowlOpening(p.x,p.z,r)||tierEntryOpening(p.x,p.z,ti,r)||ti===2&&inCoreShaft(p.x,p.z,.5))continue;
     const n=supernormal(a,b,t,3.35);let color=0xc91c36;
     if(ti===1&&p.x>0&&Math.abs(p.z)<64){const px=Math.floor((p.z+64)/128*1199),py=Math.floor((tier.rows-1-r)/(tier.rows-1)*259);if(textPixels[(py*1200+px)*4]>100)color=0xefefea;}
     if(ti===2&&p.z<-80&&r>3&&r<10&&Math.abs(p.x)<46){if((Math.floor((p.x+46)/4)+r)%5<2)color=0xe9e9e4;}
@@ -90,10 +91,10 @@ export function buildStadium(scene){
  const rim=[];for(let j=0;j<=384;j++){const p=superpoint(66.8,77.8,j/384*TAU,2.65);p.y=47.1;rim.push(p);}curveLine(roof,rim,0xff274a);
  // Roof lights use broad sources; the 288 modelled luminaires remain visible as individual units.
  const stadiumLights=[];for(const [x,z]of[[-42,-37],[-42,37],[42,-37],[42,37]]){const l=new THREE.SpotLight(0xe4edff,0,180,1.1,.65,2);l.position.set(x,45,z);l.target.position.set(x*.2,0,z*.2);root.add(l,l.target);stadiumLights.push(l);}
- const logo=sign(root,'Allianz Arena',40,5.4,0,26.7,129.7,{fg:'#164c94',w:2048,h:256,font:185,weight:650});
- const logoBack=sign(root,'Allianz Arena',40,5.4,0,26.7,-129.7,{fg:'#164c94',w:2048,h:256,font:185,weight:650});logoBack.rotation.y=Math.PI;const logoDayMap=logo.material.map,logoNightMap=textTexture('Allianz Arena',{fg:'#ffffff',w:2048,h:256,font:185,weight:650});
+ const logo=sign(root,'Allianz Arena',40,5.4,0,26.7,129.7,{fg:'#164c94',w:2048,h:256,font:185,weight:650,unique:true});
+ const logoBack=sign(root,'Allianz Arena',40,5.4,0,26.7,-129.7,{fg:'#164c94',w:2048,h:256,font:185,weight:650,unique:true});logoBack.rotation.y=Math.PI;const logoDayMap=logo.material.map,logoNightMap=textTexture('Allianz Arena',{fg:'#ffffff',w:2048,h:256,font:185,weight:650});
  // LED scoreboards hang above the goal ends, facing the pitch.
- const scoreboards=[];for(const z of[-78,78]){const group=new THREE.Group();group.position.set(0,40.8,z);if(z>0)group.rotation.y=Math.PI;root.add(group);box(group,19.4,11.3,.55,0,0,0,dark);const front=sign(group,'',18.8,10.6,0,0,.3,{bg:'#c71a36',h:600});front.material.transparent=false;front.material.needsUpdate=true;addCrest(group,3.6,-5.8,1.4,.38);sign(group,'FC BAYERN',10.4,1.5,2.1,2,.38,{font:100});sign(group,'MÜNCHEN',10.4,.9,2.1,.3,.38,{font:100});sign(group,'0 : 0',7.5,1.8,0,-2.6,.38,{font:150});sign(group,'MIA SAN MIA',12,.55,0,-4.2,.38,{font:80});scoreboards.push(front);for(const x of[-7,7])batch.add(.16,6,.16,x,46,z,steel);}
+ const scoreboards=[];for(const z of[-78,78]){const group=new THREE.Group();group.position.set(0,40.8,z);if(z>0)group.rotation.y=Math.PI;root.add(group);box(group,19.4,11.3,.55,0,0,0,dark);const front=sign(group,'',18.8,10.6,0,0,.3,{bg:'#c71a36',h:600});front.material.transparent=false;front.material.needsUpdate=true;addCrest(group,3.6,-5.8,1.4,.38);sign(group,'FC BAYERN',10.4,1.5,2.1,2,.38,{font:100});sign(group,'MÜNCHEN',10.4,.9,2.1,.3,.38,{font:100});sign(group,'0 : 0',7.5,1.8,0,-2.6,.38,{font:150});sign(group,'MIA SAN MIA',12,.55,0,-4.2,.38,{font:80});compactGroup(group);scoreboards.push(front);for(const x of[-7,7])batch.add(.16,6,.16,x,46,z,steel);}
  // Continuous advertising boards around the edge of the grass.
  const adDefs=[['T',0xe22286],['Allianz',0x164c92],['adidas',0x111820],['Audi',0xefefee],['FC BAYERN',0xca1c37],['PAULANER',0x103f76]];
  for(const side of[-1,1])for(let j=0;j<12;j++){const [label,color]=adDefs[j%adDefs.length],z=-52+j*9.45;if(side<0&&Math.abs(z)<7)continue;const ad=sign(closeLabels,label,9.25,.95,side*40.5,.6,z,{bg:'#'+color.toString(16).padStart(6,'0'),fg:label==='Audi'?'#202632':'#ffffff',font:100});ad.rotation.y=side<0?Math.PI/2:-Math.PI/2;}
@@ -103,9 +104,9 @@ export function buildStadium(scene){
  for(const z0 of[-18,18]){
   const g=new THREE.Group();g.position.set(-38.1,0,z0);root.add(g);const gb=new Batches(g);gb.add(3.2,.2,17,0,.08,0,dark);
   for(let row=0;row<2;row++)for(let j=0;j<12;j++){gb.add(.72,.2,.7,-.65+row*1.15,.5+row*.45,-7.1+j*1.28,red);gb.add(.15,1,.72,-.95+row*1.15,1.1+row*.45,-7.1+j*1.28,red);}gb.flush();
-  const glass=mat(0xa5c6d9,{transparent:true,opacity:.21,metalness:.2,roughness:.2,side:THREE.DoubleSide,depthWrite:false});box(g,.08,2.5,17,-1.6,1.55,0,glass);box(g,3.3,.08,17,0,2.8,0,glass);for(let j=0;j<7;j++){const z=-8.5+j*17/6;beam(g,v(-1.65,.2,z),v(-1.65,2.8,z),.035,steel);beam(g,v(-1.65,2.8,z),v(1.65,2.8,z),.035,steel);}const a=sign(g,'FC BAYERN MÜNCHEN',15,.36,-1.71,2.65,0,{font:65,h:128});a.rotation.y=-Math.PI/2;
+  const glass=mat(0xa5c6d9,{transparent:true,opacity:.21,metalness:.2,roughness:.2,side:THREE.DoubleSide,depthWrite:false});box(g,.08,2.5,17,-1.6,1.55,0,glass);box(g,3.3,.08,17,0,2.8,0,glass);for(let j=0;j<7;j++){const z=-8.5+j*17/6;beam(g,v(-1.65,.2,z),v(-1.65,2.8,z),.035,steel);beam(g,v(-1.65,2.8,z),v(1.65,2.8,z),.035,steel);}const a=sign(g,'FC BAYERN MÜNCHEN',15,.36,-1.71,2.65,0,{font:65,h:128});a.rotation.y=-Math.PI/2;compactGroup(g);
  }
- batch.flush();
+ batch.flush();compactGroup(closeLabels);
  return {root,roof,circulation,seatCount:seats.length,panelCount,tiers,update(camera){closeLabels.visible=camera.position.length()<180;for(const inst of seatInstances){const center=inst.boundingSphere.center;inst.geometry=camera.position.distanceTo(center)>70?coarseSeat:seatGeom;}},night(n){circulation.night(n);shellMaterials[0].color.set(n?0xe52a49:0xe5e8e4);shellMaterials[0].emissive.set(n?0xd7082c:0x000000);shellMaterials[0].emissiveIntensity=n?.52:0;shellMaterials[1].color.set(n?0xcfc0c4:0xf4f4ed);shellMaterials[1].emissive.set(n?0x9d1736:0x000000);shellMaterials[1].emissiveIntensity=n?.22:0;stadiumLights.forEach(l=>l.intensity=n?2400:100);logo.material.map=logoBack.material.map=n?logoNightMap:logoDayMap;}};
 }
 

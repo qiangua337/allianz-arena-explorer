@@ -1,3 +1,4 @@
+import {inCoreShaft,publicWallOpening,clearCore,roomFootprint} from './building-layout.js';
 import {THREE,TAU,v,mat,mesh,box,beam,canvasTexture,repeatTex,ringGeometry,Batches,mergeGeometry,addCrest} from './kit.js';
 import {ACCESS_BASE,ACCESS_TOP,accessStairs,perimeterFrames,perimeterPoint,perimeterNormal,stairwellAt,orientedCollider} from './access-layout.js';
 import {visitorPassage,visitorWallOpening} from './tour-route.js';
@@ -55,7 +56,7 @@ export function accessRingGeometry(a,b,aa,bb,y,holes=true){
   const t=i/segments*TAU,u=(i+1)/segments*TAU,f=r/bands,ff=(r+1)/bands;
   const p=perimeterPoint(a+(aa-a)*f,b+(bb-b)*f,t),q=perimeterPoint(a+(aa-a)*ff,b+(bb-b)*ff,t),s=perimeterPoint(a+(aa-a)*ff,b+(bb-b)*ff,u),v0=perimeterPoint(a+(aa-a)*f,b+(bb-b)*f,u);
   const cx=(p.x+q.x+s.x+v0.x)/4,cz=(p.z+q.z+s.z+v0.z)/4;
-  if(holes&&stairwellAt(cx,cz,y))continue;
+  if(holes&&(stairwellAt(cx,cz,y)||inCoreShaft(cx,cz,.4)))continue;
   const vertices=[p,s,q,p,v0,s];for(const vertex of vertices){points.push(vertex.x,y,vertex.z);uv.push(vertex.x/12,vertex.z/12);}
  }
  const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(points,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));g.computeVertexNormals();return g;
@@ -94,6 +95,7 @@ export function buildCirculation(parent){
  function collision(frame,w,d,x,z,y0=ACCESS_BASE,y1=2){const p=placement(frame,x,z);colliders.push(orientedCollider(p.x,p.z,w,d,y0,y1,frame.yaw));}
 
  for(const frame of frames){
+  if(clearCore(frame.x,frame.z))continue;
   const i=frame.index,w=frame.spacing-.35,half=w/2,letter='ABCDEFGHJKLMNPRS'[Math.floor(i/4)%16],entry=entries.has(i),kind=services[Math.floor(i/3)%services.length];
   solid(frame,.58,8.3,.72,-half-.18,4.15,0,column);solid(frame,.8,.28,.95,-half-.18,.14,0,edge);
   solid(frame,w,.6,.74,0,8.0,0,column);if(!entry)solid(frame,w,.34,.34,0,.17,-.4,edge);
@@ -216,10 +218,10 @@ export function buildCirculation(parent){
  batch.add(12,3,.12,0,ACCESS_BASE+2.55,104.3,red);
  addCrest(root,2.25,-4.1,ACCESS_BASE+2.55,104.38);
  atlas.add(root,'ALLIANZ ARENA','WILLKOMMEN · MIA SAN MIA',7.4,1.25,1.4,ACCESS_BASE+2.55,104.38,0,{bg:'#b41b36',accent:'#b41b36'});
- atlas.add(root,'球场参观入口 →','草坪 · 看台 · 球员区',5,1.8,0,ACCESS_BASE+.035,112,0,{bg:'#805f26',tilt:-Math.PI/2});
+ atlas.add(root,'参观导航 →','公共大厅 · 看台 · 球员区',5,1.8,0,ACCESS_BASE+.035,112,0,{bg:'#805f26',tilt:-Math.PI/2});
  for(const x of[-8,8]){
   batch.add(4.6,1.0,1.1,x,ACCESS_BASE+.5,107.5,red);batch.add(4.8,.12,1.3,x,ACCESS_BASE+1.06,107.5,pale);
-  atlas.add(root,x<0?'参观咨询':'接待中心','右侧红门 → 球场参观',4.35,.65,x,ACCESS_BASE+.57,108.08,0,{bg:'#aa1833'});
+  atlas.add(root,x<0?'参观咨询':'接待中心','公共楼梯 / 草坪参观',4.35,.65,x,ACCESS_BASE+.57,108.08,0,{bg:'#aa1833'});
   batch.add(.9,.55,.1,x,ACCESS_BASE+1.4,107.2,dark);
   colliders.push(orientedCollider(x,107.5,4.8,1.3,ACCESS_BASE,ACCESS_BASE+1.3));
  }
@@ -247,11 +249,12 @@ export function buildCirculation(parent){
  }
  for(const side of[-1,1]){beam(root,v(visit.x+side*(clear/2-.08),ACCESS_BASE+1.05,visit.rampZ),v(visit.x+side*(clear/2-.08),1.05,visit.exitZ),.035,metal);colliders.push(orientedCollider(visit.x+side*(clear/2+.1),(visit.rampZ+visit.exitZ)/2,.18,visit.rampZ-visit.exitZ,ACCESS_BASE,1.1));}
  atlas.add(root,'草坪与看台 ↑','前方出通道后即可进入球场',clear-.6,.62,visit.x,ACCESS_BASE+2.75,68.4,0,{bg:'#9b6c20'});
+ atlas.add(root,'↑ 室内公共楼梯','公共大厅 · 商店 · 展厅 · 包厢 · 看台',6.4,.9,95.8,.8,10,0,{bg:'#996e24'});
  batch.flush();roofBatch.flush();atlas.finish(root);
 
  function decorateConcourse(g){
   const b=new Batches(g);
-  for(const [a,bb]of[[85,103],[105,122]])for(const frame of perimeterFrames(a,bb,96))colliders.push(orientedCollider(frame.x,frame.z,frame.spacing+.12,.18,12.2,16.8,frame.yaw));
+  for(const [a,bb]of[[85,103],[105,122]])for(const frame of perimeterFrames(a,bb,256)){if(publicWallOpening(frame.x,frame.z))continue;colliders.push(orientedCollider(frame.x,frame.z,frame.spacing+.12,.18,12.2,16.8,frame.yaw));}
   mesh(ringGeometry(85.2,103.2,85.5,103.5,12.24),red,g);
   mesh(ringGeometry(91,109,91.3,109.3,12.235),edge,g);
   for(const frame of perimeterFrames(92,110,48)){
@@ -269,6 +272,7 @@ export function buildCirculation(parent){
   }
   for(const frame of perimeterFrames(85.2,103.2,16)){
    const n=frame.normal,x=frame.x+n.x*.16,z=frame.z+n.z*.16;
+   if(publicWallOpening(x,z))continue;
    b.add(3.8,3.25,.12,x,13.825,z,edge,frame.yaw);
    for(const side of[-1,1]){b.add(.09,3.4,.17,x+side*1.96*n.z,13.9,z-side*1.96*n.x,metal,frame.yaw);b.add(.1,.55,.1,x+side*.2*n.z+n.x*.12,13.6,z-side*.2*n.x+n.z*.12,metal,frame.yaw);}
    b.add(.035,3.3,.16,x+n.x*.03,13.85,z+n.z*.03,metal,frame.yaw);
