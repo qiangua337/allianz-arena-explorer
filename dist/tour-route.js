@@ -77,7 +77,7 @@ node('loungeDoor',95.5,23.6,-10.5,'贵宾包厢入口','靠近自动门后步行
 node('middleBridgeStart',101.5,23.6,-30.1,'中层看台连廊','沿带扶手的连廊前往看台','gallery');node('stands',82.55,23.6,-30.1,'中层看台','沿座椅间过道上下，也可按 F 坐下','gallery');join('landing2','middleBridgeStart');join('middleBridgeStart','stands');
 node('upperBridgeStart',104,40,-36.5,'上层看台连廊','沿连廊进入上层看台','gallery');node('upperStands',102.75,40,-36.5,'上层看台','沿过道自由探索','gallery');join('landing3','upperBridgeStart');join('upperBridgeStart','upperStands');
 node('lowerEntry',0,12.2,-104,'下层看台入口','沿缓坡步行进入下层看台','upper');node('lowerStands',0,10.512,-83.2,'下层看台','沿阶梯过道上下探索','stands');join('upper24','lowerEntry');join('lowerEntry','lowerStands');
-for(const[id,from,x,y,z,label]of[['arcade','reception',36,-2.9,110,'接待大厅'],['visitorEntry','turn',22,-2.9,111,'参观通道入口'],['concourse','upper31',94,12.2,-47,'公共大厅'],['access','coreFront',101.5,-2.9,-14,'室内公共楼梯'],['esplanade','entrance',-32,-5.14,280,'南侧广场']]){node(id,x,y,z,label,'沿地线继续步行',y>9?'upper':'lower');join(id,from);}
+for(const[id,from,x,y,z,label]of[['arcade','reception',0,-2.9,113,'接待大厅'],['visitorEntry','turn',22,-2.9,111,'参观通道入口'],['concourse','upper31',94,12.2,-47,'公共大厅'],['access','coreFront',101.5,-2.9,-14,'室内公共楼梯'],['esplanade','entrance',-32,-5.14,280,'南侧广场']]){node(id,x,y,z,label,'沿地线继续步行',y>9?'upper':'lower');join(id,from);}
 node('exterior',0,-4.103,214,'南侧正门','正门外的出发位置');join('exterior','entrance');
 const bypass=links.findIndex(([a,b])=>a==='upper14'&&b==='upper15');links.splice(bypass,1);node('museumBypass',-85.5,12.2,43.5,'展厅外侧环廊','沿展厅外侧绕行','upper');join('upper15','museumBypass');join('museumBypass','upper14');
 // Once a visitor walks down an aisle, returning to the public corridor must

@@ -58,9 +58,10 @@ export function hitsWall(x,z,eyeY,colliders,isVisible=()=>true){
  });
 }
 
-export function canStandAt(x,z,feetY,{rooms={}}={}){
+export function canStandAt(x,z,feetY,{rooms={},tiers=[]}={}){
  if(inVisitorPassage(x,z)||inCoreShaft(x,z)||bridges.some(b=>onBridge(x,z,b)!==null)||platforms.some(p=>Math.abs(x-p.x)<p.w/2&&Math.abs(z-p.z)<p.d/2))return true;
  if(accessAt(x,z)||Object.values(rooms).some(s=>inRoom(x,z,s)&&Math.abs(feetY-s.y)<2))return true;
+ if(tiers.some(t=>feetY>=t.y-.15&&feetY<t.y+t.rows*t.depth*Math.tan(t.angle*Math.PI/180)+.9&&within(x,z,t.a+t.rows*t.depth,t.b+t.rows*t.depth,3.35)&&!within(x,z,t.a,t.b,3.35)))return true;
  if(feetY>9)return within(x,z,105,122,2.8)&&!within(x,z,85,103,2.8);
  if(!within(x,z,86,104,2.8)||Math.abs(x)<41.5&&Math.abs(z)<60)return true;
  return x>-72.8&&x<-40.45&&Math.abs(z)<2.5||x>-72.8&&x<-66.7&&z>-41&&z<49||x>-91.5&&x<-72.5&&z>37&&z<47;

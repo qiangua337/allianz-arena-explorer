@@ -16,7 +16,12 @@ const {floorHeight,hitsWall}=await import('../dist/navigation.js');
 const {buildInteractions}=await import('../dist/interactions.js');
 const {furnitureBlocksSegment}=await import('../dist/furniture-layout.js');
 const {buildWalkGuide}=await import('../dist/walk-guide.js');
+const {planWalkPath,navigationObstacles,walkSegmentClear,routeOnCurrentLevel}=await import('../dist/walk-path.js');
+const {destinationArrival}=await import('../dist/arrivals.js');
+const {canStandAt}=await import('../dist/navigation.js');
+const {advanceWalker}=await import('../dist/walk-motion.js');
 await loadBrandAssets();const scene=new THREE.Scene(),world=buildWorld(scene),stadium=buildStadium(scene),interiors=buildInteriors(scene,stadium.circulation),building=buildWalkBuilding(scene),geometry={rooms:roomSpecs,tiers:stadium.tiers};
+const obstacleGroups={world:world.colliders,building:building.colliders,interiors:interiors.colliders,circulation:stadium.circulation.colliders};
 test('real room walls, fixtures and handrails leave all advertised routes clear',()=>{
  for(const goal of Object.keys(tourGoals)){
   const path=planTour(tourNodes.entrance,goal);let feet=path[0].y;
@@ -58,13 +63,58 @@ test('routes from inside rooms use the door and avoid preparation tables, racks,
 });
 
 test('arrival stays complete while exploring; selecting a new destination resumes navigation',()=>{
- const guide=buildWalkGuide(scene,geometry),at=new THREE.Vector3(-76,-1,0);
+ const guide=buildWalkGuide(scene,geometry,{obstacles:obstacleGroups}),at=new THREE.Vector3(-76,-1,0);
  guide.setGoal('homeRoom',at);guide.update(at,0,.2,'walk');assert.equal(guide.getRoute().length,0);
  const exploring=new THREE.Vector3(-88,-1,7);guide.update(exploring,0,2.5,'walk');assert.equal(guide.getRoute().length,0);
- guide.setGoal('entrance',exploring);guide.update(exploring,0,.2,'walk');assert.ok(guide.getRoute().length>1);assert.ok(guide.getRoute()[0].id.startsWith('homeRoomWalk'));
+ guide.setGoal('entrance',exploring);guide.update(exploring,0,.2,'walk');assert.ok(guide.getRoute().length>1);assert.ok(guide.getRoute().some(n=>n.id==='homeDoor'));
+ const start={x:exploring.x,y:exploring.y-1.7,z:exploring.z};assert.equal(walkSegmentClear(start,guide.getRoute()[0],geometry,navigationObstacles(start,obstacleGroups)),true,'the next instruction uses a clear aisle from the actual position');
 });
 
 test('the overlapping public ring cannot render through a private room or raise its floor',()=>{
  for(const key of ['store','museum']){const s=roomSpecs[key],p=new THREE.Vector3(s.x,s.y+1.7,s.z);interiors.update(p,key);assert.equal(interiors.rooms[key].visible,true);assert.equal(interiors.rooms.concourse.visible,false);assert.equal(floorHeight(s.x,s.z,s.y,geometry),s.y);}
  interiors.update(new THREE.Vector3(94,13.9,-47),'concourse');assert.equal(interiors.rooms.concourse.visible,true);
+});
+
+test('museum guidance joins a walkable route from either side of the reception kiosk and counters',()=>{
+ const samples=[[6.082,109.726],[0,113],[2,110],[6,110],[4,113],[4,106],[8,111],[-8,111],[-8,104],[8,104],[-5,108],[11,108],[0,118]];
+ for(const[x,z]of samples){const p={x,y:-2.9,z},walls=navigationObstacles(p,obstacleGroups);if(hitsWall(x,z,-1.2,walls))continue;
+  const result=planWalkPath(p,'museum',geometry,obstacleGroups);assert.equal(result.blocked,false,`route from ${x},${z}`);assert.equal(result.path.at(-1).id,'museum');
+  let a=p;for(const b of result.path){assert.equal(walkSegmentClear(a,b,geometry,navigationObstacles(a,obstacleGroups)),true,`${x},${z}: ${a.id||'visitor'} → ${b.id} must avoid actual fixtures and height jumps`);a=b;}
+ }
+});
+
+test('all teleport arrivals stand on the correct floor and outside walls and furniture',()=>{
+ for(const id of Object.keys(tourGoals)){
+  const at=destinationArrival(id,geometry),[x,y,z]=at.position,p={x,y:at.feet,z},walls=navigationObstacles(p,obstacleGroups);
+  assert.equal(canStandAt(x,z,at.feet,geometry),true,id+' has a floor');assert.equal(hitsWall(x,z,y,walls),false,id+' is outside walls');
+  const room=Object.keys(roomSpecs).find(key=>key===id);if(room)assert.equal(furnitureBlocksSegment(p,p,room),false,id+' is outside furniture');
+  assert.ok(Math.abs(floorHeight(x,z,at.feet,geometry)-at.feet)<.01,id+' stays on arrival floor');
+ }
+});
+
+test('every selectable arrival can resume walking toward every other destination',()=>{
+ for(const source of Object.keys(tourGoals).filter(id=>id!=='exterior'))for(const target of Object.keys(tourGoals).filter(id=>id!=='exterior')){
+  const a=destinationArrival(source,geometry),p={x:a.position[0],y:a.feet,z:a.position[2]},result=planWalkPath(p,target,geometry,obstacleGroups);
+  assert.equal(result.blocked,false,source+' → '+target+' finds a route');assert.equal(result.path.at(-1).id,target);
+  assert.equal(walkSegmentClear(p,result.path[0],geometry,navigationObstacles(p,obstacleGroups)),true,source+' → '+target+' has a clear first connector');
+ }
+});
+
+test('the map stops at the next floor transition instead of overlaying the upper loop',()=>{
+ const path=planTour(tourNodes.reception,'museum'),lower=routeOnCurrentLevel(path,-2.9);
+ assert.ok(lower.length>3);assert.ok(lower.length<path.length);assert.ok(lower.every(p=>Math.abs(p.y+2.9)<=1.1));assert.equal(lower.some(p=>p.id==='museum'),false);
+});
+
+test('sprinting at four frames per second climbs the complete indoor staircase without dropping a storey',()=>{
+ const targets=['flight0Out','flight0Turn','flight0End','landing1','flight1Start','flight1Out','flight1Turn','flight1End','landing2','flight2Start','flight2Out','flight2Turn','flight2End','landing3'].map(id=>tourNodes[id]);
+ const p={x:100,z:-8.1};let feet=-2.9;
+ for(const target of targets){for(let frame=0;frame<100;frame++){const dx=target.x-p.x,dz=target.z-p.z,d=Math.hypot(dx,dz);if(d<.02)break;const stride=Math.min(2.5,d),old=feet;feet=advanceWalker(p,feet,dx/d*stride,dz/d*stride,geometry,(x,z,eye)=>hitsWall(x,z,eye,[...world.colliders,...building.colliders,...interiors.colliders,...stadium.circulation.colliders]));assert.ok(feet>=old-.4,'ascending cannot drop back to the lower floor');}
+  assert.ok(Math.hypot(p.x-target.x,p.z-target.z)<.05,target.id+' physically reachable');assert.ok(Math.abs(feet-target.y)<.4,target.id+' has the correct storey');
+ }
+ assert.equal(feet,40);
+ for(const target of [tourNodes.flight2End,...targets.slice(0,-1).reverse(),tourNodes.flight0Start]){
+  for(let frame=0;frame<100;frame++){const dx=target.x-p.x,dz=target.z-p.z,d=Math.hypot(dx,dz);if(d<.02)break;const stride=Math.min(2.5,d);feet=advanceWalker(p,feet,dx/d*stride,dz/d*stride,geometry,(x,z,eye)=>hitsWall(x,z,eye,[...world.colliders,...building.colliders,...interiors.colliders,...stadium.circulation.colliders]));}
+  assert.ok(Math.hypot(p.x-target.x,p.z-target.z)<.05,target.id+' reachable on return');assert.ok(Math.abs(feet-target.y)<.4,target.id+' returns on the correct floor');
+ }
+ assert.equal(feet,-2.9);
 });

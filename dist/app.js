@@ -6,13 +6,16 @@ import {inCoreShaft} from './building-layout.js';
 import * as THREE from 'three';
 import {OrbitControls} from './vendor/OrbitControls.js';
 import {v,TAU,superpoint,seeded,loadBrandAssets,prepareMaterialLighting} from './kit.js';
-import {EYE_HEIGHT,MAX_STEP,mainEntrance,esplanadeHeight,floorHeight,hitsWall,canStandAt} from './navigation.js';
+import {EYE_HEIGHT,mainEntrance,esplanadeHeight,floorHeight,hitsWall} from './navigation.js';
 import {accessStairs} from './access-layout.js';
 import {rosterInfo} from './roster.js';
 import {buildStadium} from './stadium.js';
 import {buildWorld,esplanadeY} from './world.js';
 import {buildInteriors,roomSpecs} from './interiors.js';
-import {buildWalkGuide} from './walk-guide.js';
+import {buildWalkGuide,floorLabel} from './walk-guide.js';
+import {routeOnCurrentLevel} from './walk-path.js';
+import {normalizeDestination,destinationArrival} from './arrivals.js';
+import {advanceWalker} from './walk-motion.js';
 
 const $=id=>document.getElementById(id),canvas=$('scene');
 const places={
@@ -36,8 +39,12 @@ let building,lightBudget,interactions,qualityScale=1,pixelBudget=1,recoveryFrame
 let renderer,scene,camera,controls,stadium,world,interiors,walkGuide,sky,stars,dayLight,hemi,ambient;
 let active='exterior',mode='orbit',night=false,transition=null,tourOn=false,tourElapsed=0,tourIndex=0,toastTimer;
 let yaw=0,pitch=0,dragging=false,lastPointer=null,walkReady=false,clock={time:performance.now(),getDelta(){const now=performance.now(),d=(now-this.time)/1000;this.time=now;return d;}},elapsed=0,frames=0,lastPerf=0,frameMs=0;
-let desiredEye=EYE_HEIGHT,pointerLockPending=false;const keys=new Set(),moveFlags=new Set(),movementPointers=new Map();const forward=v(),right=v(),step=v(),temp=v();const ray=new THREE.Raycaster();
+let desiredEye=EYE_HEIGHT,walkFeet=null,pointerLockPending=false;const keys=new Set(),moveFlags=new Set(),movementPointers=new Map();const forward=v(),right=v(),step=v(),temp=v(),walkPosition=v();const ray=new THREE.Raycaster();
 const mediaReduced=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+// Orbit previews must never become the starting point of a walking route.
+const walker={position:v(...places.exterior.walk),yaw:0,pitch:0,visited:false};
+const walkGeometry=()=>({tiers:stadium.tiers,rooms:roomSpecs});
+const navigationPosition=()=>mode==='walk'?walkPosition.set(camera.position.x,(walkFeet??camera.position.y-desiredEye)+desiredEye,camera.position.z):walker.position;
 const toast=text=>{clearTimeout(toastTimer);$('toast').textContent=text;$('toast').classList.add('visible');toastTimer=setTimeout(()=>$('toast').classList.remove('visible'),3500);};
 
 async function init(){
@@ -51,9 +58,9 @@ async function init(){
  buildSky();
  $('load-status').textContent='正在加载队徽与场景…';await loadBrandAssets();
  world=buildWorld(scene);stadium=buildStadium(scene);interiors=buildInteriors(scene,stadium.circulation);
- building=buildWalkBuilding(scene);walkGuide=buildWalkGuide(scene,{tiers:stadium.tiers,rooms:roomSpecs});interactions=buildInteractions(scene,interiors,{toast,navigate:id=>goPlace(id),setEye:y=>desiredEye=y,showInfo:showInteractiveInfo});lightBudget=buildLightBudget(scene);
- buildHotspots();bindUI();setNavOpen(false);document.body.dataset.mode=mode;setDayNight(false);clock.time=performance.now();document.body.dataset.version='1.5.1';document.body.dataset.ready='true';document.body.dataset.seats=stadium.seatCount;document.body.dataset.panels=stadium.panelCount;
- const initial=new URLSearchParams(location.search);if(initial.get('night')==='1')setDayNight(true);const place=initial.get('place');if(initial.get('view')==='walk')setMode('walk',{place:place&&places[place]?place:'exterior'});else if(place&&places[place])goPlace(place,false);
+ building=buildWalkBuilding(scene);walkGuide=buildWalkGuide(scene,walkGeometry(),{obstacles:{world:world.colliders,building:building.colliders,interiors:interiors.colliders,circulation:stadium.circulation.colliders},onSelect:id=>{stopTour();goPlace(id,false);},onWalk:followDestination,onTeleport:teleportToDestination});interactions=buildInteractions(scene,interiors,{toast,navigate:id=>goPlace(id),setEye:y=>desiredEye=y,showInfo:showInteractiveInfo});lightBudget=buildLightBudget(scene);
+ buildHotspots();bindUI();setNavOpen(false);document.body.dataset.mode=mode;setDayNight(false);clock.time=performance.now();document.body.dataset.version='1.6.0';document.body.dataset.ready='true';document.body.dataset.seats=stadium.seatCount;document.body.dataset.panels=stadium.panelCount;
+ const initial=new URLSearchParams(location.search);if(initial.get('night')==='1')setDayNight(true);const place=initial.get('place');if(initial.get('view')==='walk')setMode('walk',{place:place&&(places[place]||tourGoals[place])?place:'arcade'});else if(place&&(places[place]||tourGoals[place]))goPlace(place,false);
  renderer.setAnimationLoop(render);requestAnimationFrame(()=>{$('loading').classList.add('finished');$('load-status').textContent='场景已就绪';});
  window.addEventListener('resize',resize);canvas.addEventListener('webglcontextlost',e=>{e.preventDefault();toast('图形上下文已暂停，请重新加载页面恢复。');});
 }
@@ -69,13 +76,15 @@ function buildSky(){
 function setDayNight(n){night=n;document.body.dataset.environment=n?'night':'day';$('day').classList.toggle('active',!n);$('night').classList.toggle('active',n);$('day').setAttribute('aria-pressed',String(!n));$('night').setAttribute('aria-pressed',String(n));hemi.intensity=n?.72:1.25;hemi.color.set(n?0x7193c2:0xdae9ff);hemi.groundColor.set(n?0x242b3b:0x686f54);ambient.intensity=n?.30:.22;dayLight.intensity=n?.22:2.65;dayLight.color.set(n?0x7497d1:0xffeed5);scene.fog.color.set(n?0x081423:0xb8cbd6);scene.fog.density=n?.0012:.00082;sky.material.uniforms.top.value.set(n?0x020817:0x7e9db4);sky.material.uniforms.bottom.value.set(n?0x14243b:0xdfe8e6);sky.material.uniforms.night.value=n?1:0;stars.visible=n;renderer.toneMappingExposure=n?1.12:1.05;stadium.night(n);world.night(n);interiors.night(n);}
 
 function goPlace(id,animate=true){
- const p=places[id];if(!p)return;setNavOpen(false);clearWalkInput();active=id;document.body.dataset.place=id;document.querySelectorAll('.location').forEach(b=>{const on=b.dataset.place===id;b.classList.toggle('active',on);b.setAttribute('aria-current',on?'location':'false');});$('place-title').textContent=p.title;$('place-tag').textContent=p.tag;$('place-desc').textContent=p.desc;$('accuracy-tag').textContent=p.accuracy;
- if(mode==='walk'){walkGuide.setGoal(id,camera.position);setWalkReady(true);canvas.focus({preventScroll:true});transition=null;toast('已设置步行路线：'+(tourGoals[id]||p.title));}else{
+ const p=places[id]||(tourGoals[id]?{...(id==='entrance'?places.exterior:places.stands),title:tourGoals[id]}:null);if(!p)return;setNavOpen(false);clearWalkInput();active=id;document.body.dataset.place=id;document.querySelectorAll('.location').forEach(b=>{const on=b.dataset.place===id;b.classList.toggle('active',on);b.setAttribute('aria-current',on?'location':'false');});$('place-title').textContent=p.title;$('place-tag').textContent=p.tag;$('place-desc').textContent=p.desc;$('accuracy-tag').textContent=p.accuracy;
+ walkGuide.setGoal(normalizeDestination(id),navigationPosition(),mode==='walk'?desiredEye:EYE_HEIGHT);
+ if(mode==='walk'){setWalkReady(true);canvas.focus({preventScroll:true});transition=null;toast('已设置步行路线：'+(tourGoals[id]||p.title));}else{
   controls.maxPolarAngle=roomSpecs[id]||id==='tunnel'||id==='concourse'?Math.PI*.8:Math.PI*.61;
   const dest=v(...p.pos),target=v(...p.target);if(animate&&!mediaReduced&&!roomSpecs[id]&&id!=='tunnel'&&id!=='concourse'){transition={from:camera.position.clone(),to:dest,startTarget:controls.target.clone(),target,time:0,duration:1.65};}else{camera.position.copy(dest);controls.target.copy(target);controls.update();transition=null;}
+  if(!tourOn)toast('已选择：'+(tourGoals[id]||p.title)+' · 可步行或传送');
  }
+ walkGuide.update(navigationPosition(),mode==='walk'?yaw:walker.yaw,.12,mode,mode==='walk'?desiredEye:EYE_HEIGHT);
  $('autorotate').checked=false;controls.autoRotate=false;updateLocationURL();
- walkGuide?.reset(camera.position);
 }
 
 function syncAngles(){const e=new THREE.Euler().setFromQuaternion(camera.quaternion,'YXZ');yaw=e.y;pitch=e.x;}
@@ -83,18 +92,26 @@ function clearWalkInput(){keys.clear();moveFlags.clear();movementPointers.clear(
 function setNavOpen(open){$('explore').hidden=!open;$('nav-trigger').setAttribute('aria-expanded',String(open));document.body.classList.toggle('nav-open',open);if(open){clearWalkInput();if(document.pointerLockElement===canvas)document.exitPointerLock?.();}}
 function setWalkReady(ready){walkReady=mode==='walk'&&ready;document.body.dataset.walking=String(walkReady);$('walk-prompt').hidden=mode!=='walk'||walkReady;if(!walkReady)clearWalkInput();}
 function updateLookHint(){const locked=document.pointerLockElement===canvas;document.body.dataset.look=locked?'locked':'drag';const label=$('look-hint'),button=$('lock-pointer');if(label)label.textContent=locked?'移动鼠标转头':'按住画面转头 · Q/E 转向';if(button){button.textContent=locked?'释放鼠标':'锁定鼠标';button.disabled=pointerLockPending;}}
-function setMode(next,{place='exterior'}={}){
+function setMode(next,{place}={}){
  if(!camera)return;if(next===mode){if(next==='walk')beginWalk();return;}
+ if(mode==='walk'){walker.position.copy(navigationPosition());walker.position.y+=EYE_HEIGHT-desiredEye;walker.yaw=yaw;walker.pitch=pitch;walker.visited=true;interactions.stand();desiredEye=EYE_HEIGHT;}
  mode=next;document.body.dataset.mode=next;transition=null;clearWalkInput();setNavOpen(false);controls.enabled=next==='orbit';controls.autoRotate=false;$('autorotate').checked=false;
  $('orbit-mode').classList.toggle('active',next==='orbit');$('walk-mode').classList.toggle('active',next==='walk');$('orbit-mode').setAttribute('aria-pressed',String(next==='orbit'));$('walk-mode').setAttribute('aria-pressed',String(next==='walk'));$('movement').hidden=next!=='walk';$('crosshair').hidden=next!=='walk';
  if(next==='walk'){
-  stopTour();camera.fov=66;camera.updateProjectionMatrix();$('hint').innerHTML='<span>WASD 移动 · Shift 加速</span><i></i><span id="look-hint">按住画面转头 · Q/E 转向</span><i></i><button id="lock-pointer">锁定鼠标</button><i></i><button id="entrance">回到正门</button>';$('lock-pointer').onclick=lockMouse;$('entrance').onclick=spawnEntrance;spawnEntrance();goPlace(place==='exterior'?'arcade':place,false);updateLookHint();
+  stopTour();camera.fov=66;camera.updateProjectionMatrix();$('hint').innerHTML='<span>WASD 移动 · Shift 加速</span><i></i><span id="look-hint">按住画面转头 · Q/E 转向</span><i></i><button id="lock-pointer">锁定鼠标</button><i></i><button id="entrance">回到正门</button>';$('lock-pointer').onclick=lockMouse;$('entrance').onclick=spawnEntrance;camera.position.copy(walker.position);walkFeet=walker.position.y-EYE_HEIGHT;yaw=walker.yaw;pitch=walker.pitch;camera.rotation.set(pitch,yaw,0,'YXZ');desiredEye=EYE_HEIGHT;goPlace(place||((active==='exterior'&&!walker.visited)?'arcade':walkGuide.getGoal()),false);updateLookHint();
  }else{
   document.exitPointerLock?.();setWalkReady(false);camera.fov=48;camera.updateProjectionMatrix();$('hint').innerHTML='<span>↔ 拖动环绕</span><i></i><span>⌕ 滚轮缩放</span><i></i><button id="reset">↺ 重置视角</button>';$('reset').onclick=()=>goPlace(active);goPlace(active,false);
  }
  updateLocationURL();
 }
-function spawnEntrance(){interactions?.stand();desiredEye=EYE_HEIGHT;camera.position.fromArray(places.exterior.walk);camera.lookAt(v(...mainEntrance.look));syncAngles();walkGuide?.setGoal('arcade',camera.position);setWalkReady(true);canvas.focus({preventScroll:true});}
+function spawnEntrance(){interactions?.stand();desiredEye=EYE_HEIGHT;camera.position.fromArray(places.exterior.walk);walkFeet=camera.position.y-EYE_HEIGHT;camera.lookAt(v(...mainEntrance.look));syncAngles();goPlace('arcade',false);setWalkReady(true);canvas.focus({preventScroll:true});}
+function followDestination(){if(mode!=='walk')setMode('walk',{place:walkGuide.getGoal()});else{walkGuide.reset(navigationPosition());beginWalk();}}
+function teleportToDestination(id=walkGuide.getGoal()){
+ const arrival=destinationArrival(id,walkGeometry());stopTour();if(mode!=='walk')setMode('walk',{place:arrival.goal});
+ clearWalkInput();interactions.stand();desiredEye=EYE_HEIGHT;transition=null;camera.position.fromArray(arrival.position);walkFeet=arrival.feet;camera.lookAt(v(...arrival.look));syncAngles();
+ goPlace(arrival.goal,false);walkGuide.arrive(arrival.goal,camera.position);walker.position.copy(camera.position);walker.yaw=yaw;walker.pitch=pitch;walker.visited=true;
+ beginWalk();toast('已传送到：'+tourGoals[arrival.goal]);
+}
 function beginWalk(){if(mode!=='walk')return;setNavOpen(false);setWalkReady(true);canvas.focus({preventScroll:true});updateLookHint();}
 async function lockMouse(){
  if(mode!=='walk'||pointerLockPending)return;if(document.pointerLockElement===canvas){document.exitPointerLock?.();return;}
@@ -102,10 +119,10 @@ async function lockMouse(){
  pointerLockPending=true;updateLookHint();try{await canvas.requestPointerLock();}catch{toast('鼠标未锁定，可继续按住画面转头。');}finally{pointerLockPending=false;updateLookHint();}
 }
 function turn(dx,dy,sensitivity=.003){yaw-=dx*sensitivity;pitch=THREE.MathUtils.clamp(pitch-dy*sensitivity,-1.44,1.44);camera.rotation.set(pitch,yaw,0,'YXZ');}
-function keyCode(event){const aliases={w:'KeyW',a:'KeyA',s:'KeyS',d:'KeyD',q:'KeyQ',e:'KeyE',p:'KeyP',n:'KeyN',h:'KeyH',f:'KeyF',up:'ArrowUp',down:'ArrowDown',left:'ArrowLeft',right:'ArrowRight',escape:'Escape',esc:'Escape',shift:'ShiftLeft'};return event.code&&event.code!=='Unidentified'?event.code:(aliases[(event.key||'').toLowerCase()]||event.key);}
+function keyCode(event){const aliases={w:'KeyW',a:'KeyA',s:'KeyS',d:'KeyD',q:'KeyQ',e:'KeyE',p:'KeyP',n:'KeyN',h:'KeyH',f:'KeyF',t:'KeyT',up:'ArrowUp',down:'ArrowDown',left:'ArrowLeft',right:'ArrowRight',escape:'Escape',esc:'Escape',shift:'ShiftLeft'};return event.code&&event.code!=='Unidentified'?event.code:(aliases[(event.key||'').toLowerCase()]||event.key);}
 
 function inside(x,z,spec,margin=0){return x>spec.x-spec.w/2-margin&&x<spec.x+spec.w/2+margin&&z>spec.z-spec.d/2-margin&&z<spec.z+spec.d/2+margin;}
-function floorAt(x,z,feetY=camera.position.y-desiredEye){return floorHeight(x,z,feetY,{tiers:stadium.tiers,rooms:roomSpecs});}
+function floorAt(x,z,feetY=walkFeet??camera.position.y-desiredEye){return floorHeight(x,z,feetY,{tiers:stadium.tiers,rooms:roomSpecs});}
 function blocked(x,z,y){
  return hitsWall(x,z,y,interactions.colliders)||hitsWall(x,z,y,building.colliders)||hitsWall(x,z,y,interiors.colliders,owner=>!owner||interiors.rooms[owner]?.visible)||hitsWall(x,z,y,world.colliders)||hitsWall(x,z,y,stadium.circulation.colliders,()=>stadium.circulation.root.visible);
 }
@@ -116,10 +133,10 @@ function moveWalk(dt){
  const f=(keys.has('KeyW')||keys.has('ArrowUp')||moveFlags.has('forward')?1:0)-(keys.has('KeyS')||keys.has('ArrowDown')||moveFlags.has('back')?1:0),s=(keys.has('KeyD')||keys.has('ArrowRight')||moveFlags.has('right')?1:0)-(keys.has('KeyA')||keys.has('ArrowLeft')||moveFlags.has('left')?1:0);
  forward.set(-Math.sin(yaw),0,-Math.cos(yaw));right.set(Math.cos(yaw),0,-Math.sin(yaw));step.set(0,0,0).addScaledVector(forward,f).addScaledVector(right,s);
  if(step.lengthSq()){interactions.stand();
-  const duration=Math.min(dt,.25),steps=Math.max(1,Math.ceil(duration/.025)),speed=keys.has('ShiftLeft')||keys.has('ShiftRight')?10:4.5;step.normalize().multiplyScalar(speed*duration/steps);
-  for(let i=0;i<steps;i++){const feet=camera.position.y-desiredEye,x=THREE.MathUtils.clamp(camera.position.x+step.x,-600,700),z=THREE.MathUtils.clamp(camera.position.z+step.z,-650,850);if(!blocked(x,camera.position.z,camera.position.y)&&floorAt(x,camera.position.z,feet)<=feet+MAX_STEP+.001)camera.position.x=x;if(!blocked(camera.position.x,z,camera.position.y)&&floorAt(camera.position.x,z,feet)<=feet+MAX_STEP+.001)camera.position.z=z;}
+  const duration=Math.min(dt,.25),speed=keys.has('ShiftLeft')||keys.has('ShiftRight')?10:4.5;step.normalize().multiplyScalar(speed*duration);
+  walkFeet=advanceWalker(camera.position,walkFeet??camera.position.y-desiredEye,step.x,step.z,walkGeometry(),blocked);
  }
- const y=floorAt(camera.position.x,camera.position.z)+desiredEye;camera.position.y=THREE.MathUtils.lerp(camera.position.y,y,Math.min(1,dt*15));camera.rotation.set(pitch,yaw,0,'YXZ');
+ walkFeet=floorAt(camera.position.x,camera.position.z);const y=walkFeet+desiredEye;camera.position.y=THREE.MathUtils.lerp(camera.position.y,y,Math.min(1,dt*15));camera.rotation.set(pitch,yaw,0,'YXZ');
 }
 
 const hotspotDefs=[{name:'探索球场内部',id:'stands',p:[0,52,0],outside:true},{name:'南广场',id:'esplanade',p:[0,2,190],outside:true},{name:'草坪与看台',id:'pitch',p:[0,2,0],inside:true},{name:'球员通道',id:'tunnel',p:[-39,3,0],inside:true},{name:'主队更衣室',id:'homeRoom',p:[-78,3,-2],inside:true}];
@@ -129,10 +146,10 @@ function updateHotspots(){const on=$('markers').checked&&mode==='orbit';const ou
 const map=$('map'),ctx=map.getContext('2d');
 function drawMap(){const w=220,h=170,cx=110,cz=76,scale=.48;ctx.clearRect(0,0,w,h);ctx.lineWidth=1;ctx.strokeStyle='#ffffff05';for(let x=0;x<w;x+=20){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke();}for(let y=0;y<h;y+=20){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();}
  ctx.strokeStyle='#344754';ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(203,0);ctx.lineTo(203,170);ctx.moveTo(0,8);ctx.lineTo(220,8);ctx.stroke();ctx.fillStyle='#273b39';ctx.fillRect(cx-32,137,64,33);ctx.strokeStyle='#70818a';ctx.lineWidth=1;ctx.beginPath();for(let i=0;i<=120;i++){const p=superpoint(113.5,129,i/120*TAU,2.65);if(i===0)ctx.moveTo(cx+p.x*scale,cz+p.z*scale);else ctx.lineTo(cx+p.x*scale,cz+p.z*scale);}ctx.closePath();ctx.fillStyle=night?'#5c2639':'#354851';ctx.fill();ctx.stroke();ctx.beginPath();for(let i=0;i<=120;i++){const p=superpoint(67,78,i/120*TAU,2.65);if(i===0)ctx.moveTo(cx+p.x*scale,cz+p.z*scale);else ctx.lineTo(cx+p.x*scale,cz+p.z*scale);}ctx.closePath();ctx.fillStyle='#213b37';ctx.fill();ctx.strokeStyle='#687b80';ctx.stroke();ctx.strokeStyle='#87a6a055';ctx.strokeRect(cx-34*scale,cz-52.5*scale,68*scale,105*scale);ctx.beginPath();ctx.moveTo(cx-34*scale,cz);ctx.lineTo(cx+34*scale,cz);ctx.ellipse(cx,cz,9.15*scale,9.15*scale,0,0,TAU);ctx.stroke();
- if(mode==='walk'&&walkGuide){ctx.strokeStyle='#ffd36b';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(cx+camera.position.x*scale,cz+camera.position.z*scale);for(const p of walkGuide.getRoute())ctx.lineTo(cx+p.x*scale,cz+p.z*scale);ctx.stroke();} let x=THREE.MathUtils.clamp(cx+camera.position.x*scale,7,w-7),y=THREE.MathUtils.clamp(cz+camera.position.z*scale,9,h-8);const dir=v();camera.getWorldDirection(dir);const a=Math.atan2(dir.x,-dir.z);ctx.save();ctx.translate(x,y);ctx.rotate(a);ctx.fillStyle='#fa315555';ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(-9,-20);ctx.lineTo(9,-20);ctx.closePath();ctx.fill();ctx.fillStyle='#fb4260';ctx.beginPath();ctx.arc(0,0,3.5,0,TAU);ctx.fill();ctx.strokeStyle='#ffd7df';ctx.lineWidth=1;ctx.stroke();ctx.restore();$('elevation').textContent='高度 '+Math.round(camera.position.y*10)/10+' m';}
+ if(mode==='walk'&&walkGuide){ctx.strokeStyle='#ffd36b';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(cx+camera.position.x*scale,cz+camera.position.z*scale);for(const p of routeOnCurrentLevel(walkGuide.getRoute(),camera.position.y-desiredEye))ctx.lineTo(cx+p.x*scale,cz+p.z*scale);ctx.stroke();} let x=THREE.MathUtils.clamp(cx+camera.position.x*scale,7,w-7),y=THREE.MathUtils.clamp(cz+camera.position.z*scale,9,h-8);const dir=v();camera.getWorldDirection(dir);const a=Math.atan2(dir.x,-dir.z);ctx.save();ctx.translate(x,y);ctx.rotate(a);ctx.fillStyle='#fa315555';ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(-9,-20);ctx.lineTo(9,-20);ctx.closePath();ctx.fill();ctx.fillStyle='#fb4260';ctx.beginPath();ctx.arc(0,0,3.5,0,TAU);ctx.fill();ctx.strokeStyle='#ffd7df';ctx.lineWidth=1;ctx.stroke();ctx.restore();$('elevation').textContent=mode==='walk'?floorLabel(camera.position.y-desiredEye):'全馆总览';}
 
 function render(){const raw=Math.min(clock.getDelta(),1),dt=Math.min(raw,.05);elapsed+=raw;frames++;if(transition){transition.time+=raw;const a=Math.min(transition.time/transition.duration,1),t=1-(1-a)**3;camera.position.lerpVectors(transition.from,transition.to,t);controls.target.lerpVectors(transition.startTarget,transition.target,t);if(a===1)transition=null;}if(mode==='orbit')controls.update();else moveWalk(raw);if(tourOn){tourElapsed+=raw;if(tourElapsed>7.5){tourElapsed=0;tourIndex=(tourIndex+1)%Object.keys(places).length;goPlace(Object.keys(places)[tourIndex]);}}
- world.rotor.rotation.z=elapsed*.13;building.update(camera.position,mode);interactions.update(camera.position,raw,mode);interiors.update(camera.position,active);walkGuide.update(camera.position,yaw,raw,mode,desiredEye);
+ world.rotor.rotation.z=elapsed*.13;building.update(camera.position,mode);interactions.update(camera.position,raw,mode);interiors.update(camera.position,active);walkGuide.update(navigationPosition(),mode==='walk'?yaw:walker.yaw,raw,mode,mode==='walk'?desiredEye:EYE_HEIGHT);
  const privateEnclosed=Object.entries(roomSpecs).some(([key,s])=>key!=='lounge'&&inside(camera.position.x,camera.position.z,s)&&Math.abs(camera.position.y-s.y)<6)||(camera.position.x>-80&&camera.position.x<-66&&camera.position.z>-43&&camera.position.z<50&&camera.position.y<3);
  const outer=(Math.abs(camera.position.x)/105)**2.8+(Math.abs(camera.position.z)/122)**2.8,inner=(Math.abs(camera.position.x)/85)**2.8+(Math.abs(camera.position.z)/103)**2.8;
  const inPublicConcourse=(outer<1&&inner>1&&camera.position.y>12.9&&camera.position.y<17.8)||(camera.position.y>-2&&camera.position.y<44&&inCoreShaft(camera.position.x,camera.position.z)),inBowl=inner<1&&camera.position.y<46;
@@ -180,15 +197,15 @@ function bindUI(){
   if(code==='Escape'){if(!$('explore').hidden){setNavOpen(false);canvas.focus({preventScroll:true});}else if(mode==='walk'){document.exitPointerLock?.();setWalkReady(false);}return;}
   if(movement&&mode==='walk'){e.preventDefault();if(!walkReady)beginWalk();keys.add(code);}else if(code==='ShiftLeft'||code==='ShiftRight')keys.add(code);
   if(e.repeat)return;
-  if(code==='KeyF'&&mode==='walk')interactions.activate();if(code==='KeyN'){setDayNight(!night);updateLocationURL();}if(code==='KeyP')setMode(mode==='orbit'?'walk':'orbit');if(code==='Home'){if(mode==='walk')spawnEntrance();else goPlace(active);};if(code==='KeyH')openDialog('help');
+ if(code==='KeyF'&&mode==='walk')interactions.activate();if(code==='KeyT')teleportToDestination();if(code==='KeyN'){setDayNight(!night);updateLocationURL();}if(code==='KeyP')setMode(mode==='orbit'?'walk':'orbit');if(code==='Home'){if(mode==='walk')spawnEntrance();else goPlace(active);};if(code==='KeyH')openDialog('help');
  });
  window.addEventListener('keyup',e=>keys.delete(keyCode(e)));
  $('info-dialog').addEventListener('close',()=>{if(mode==='walk')beginWalk();});
- map.addEventListener('click',e=>{const r=map.getBoundingClientRect(),mx=(e.clientX-r.left)/r.width*220,my=(e.clientY-r.top)/r.height*170,x=(mx-110)/.48,z=(my-76)/.48;if(mode==='walk'){const goals=Object.keys(tourGoals).map(id=>tourNodes[id]),target=goals.reduce((a,b)=>Math.hypot(a.x-x,a.z-z,2*(a.y-camera.position.y+desiredEye))<Math.hypot(b.x-x,b.z-z,2*(b.y-camera.position.y+desiredEye))?a:b);walkGuide.setGoal(target.id,camera.position);toast('已规划步行路线：'+tourGoals[target.id]);}else goPlace(Math.abs(x)<40&&Math.abs(z)<59?'pitch':'stands');});
+ map.addEventListener('click',e=>{const r=map.getBoundingClientRect(),mx=(e.clientX-r.left)/r.width*220,my=(e.clientY-r.top)/r.height*170,x=(mx-110)/.48,z=(my-76)/.48;if(mode==='walk'){const goals=Object.keys(tourGoals).map(id=>tourNodes[id]),target=goals.reduce((a,b)=>Math.hypot(a.x-x,a.z-z,2*(a.y-camera.position.y+desiredEye))<Math.hypot(b.x-x,b.z-z,2*(b.y-camera.position.y+desiredEye))?a:b);goPlace(target.id,false);}else goPlace(Math.abs(x)<40&&Math.abs(z)<59?'pitch':'stands');});
 }
 
-function showInteractiveInfo(title,text,goals=[]){clearWalkInput();document.exitPointerLock?.();$('dialog-content').replaceChildren();const h=document.createElement('h2');h.textContent=title;const p=document.createElement('p');p.textContent=text;$('dialog-content').append(h,p);for(const id of goals){const b=document.createElement('button');b.className='destination-button';b.textContent='步行前往 '+tourGoals[id];b.onclick=()=>{walkGuide.setGoal(id,camera.position);$('info-dialog').close();};$('dialog-content').append(b);}$('info-dialog').showModal();}
-function openDialog(type){clearWalkInput();document.exitPointerLock?.();if(type==='help')$('dialog-content').innerHTML=`<div class="eyebrow">MAKE YOURSELF AT HOME</div><h2>以你的方式，探索安联。</h2><h3>第三人称</h3><p>按住鼠标左键拖动环绕，滚轮缩放；鼠标右键拖动平移。触摸屏使用单指旋转、双指缩放和平移。左上角「选择区域」可打开导航，切换后自动收起，可直达 15 个空间，自动巡游会依次切换视角。</p><h3>第一人称</h3><p>切换第一人称会从南侧正门外出发，面向入口；也可用底部「回到正门」返回。之后可直接使用 <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 或方向键移动，按住画面拖动转头，<kbd>Q</kbd> / <kbd>E</kbd> 也可转向。<kbd>Shift</kbd> 加速，<kbd>Esc</kbd> 暂停；按移动键或点击画面即可继续。底部可选「锁定鼠标」，不支持锁定的浏览器仍可直接拖动转头。屏幕方向按钮也可移动。</p><p>脚下高度会随看台台阶和球员通道调整，更衣室主墙带有碰撞。接待大厅右侧红色「球场参观入口」可步行到草坪；跟随金色地线，底部选择目的地后会显示下一站、方向和距离，可继续前往球员通道、更衣室或返回正门。东侧室内公共楼梯连续连接入口层、公共大厅、包厢、中层与上层看台。公共大厅北侧缓坡通往下层看台；商店与展厅均有可走入的自动门。「选择区域」和小地图在第一人称中设置目的地，不会移动你的位置。靠近展品、球衣陈列、战术板和座位按 F 互动。</p><h3>场景与快捷键</h3><p><kbd>N</kbd> 切换白天 / 黑夜；<kbd>P</kbd> 切换视角；<kbd>Home</kbd> 返回正门；<kbd>H</kbd> 显示说明。关闭建筑屋顶可观察内部构造；相机图标保存当前 3D 画面。默认使用自适应流畅画质；可自行选择精细画质。</p>`;
+function showInteractiveInfo(title,text,goals=[]){clearWalkInput();document.exitPointerLock?.();$('dialog-content').replaceChildren();const h=document.createElement('h2');h.textContent=title;const p=document.createElement('p');p.textContent=text;$('dialog-content').append(h,p);for(const id of goals){const b=document.createElement('button');b.className='destination-button';b.textContent='步行前往 '+tourGoals[id];b.onclick=()=>{goPlace(id,false);$('info-dialog').close();};$('dialog-content').append(b);}$('info-dialog').showModal();}
+function openDialog(type){clearWalkInput();document.exitPointerLock?.();if(type==='help')$('dialog-content').innerHTML=`<div class="eyebrow">MAKE YOURSELF AT HOME</div><h2>以你的方式，探索安联。</h2><h3>第三人称</h3><p>按住鼠标左键拖动环绕，滚轮缩放；鼠标右键拖动平移。触摸屏使用单指旋转、双指缩放和平移。左上角「选择区域」可打开导航，切换后自动收起，可直达 15 个空间，自动巡游会依次切换视角。</p><h3>第一人称</h3><p>首次进入第一人称从南侧正门外出发；之后切回会恢复上次步行位置。也可用底部「回到正门」返回。之后可直接使用 <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 或方向键移动，按住画面拖动转头，<kbd>Q</kbd> / <kbd>E</kbd> 也可转向。<kbd>Shift</kbd> 加速，<kbd>Esc</kbd> 暂停；按移动键或点击画面即可继续。底部可选「锁定鼠标」，不支持锁定的浏览器仍可直接拖动转头。屏幕方向按钮也可移动。</p><p>脚下高度会随看台台阶和球员通道调整，更衣室主墙带有碰撞。接待大厅右侧红色「球场参观入口」可步行到草坪；跟随金色地线，底部选择目的地后会显示下一站、方向和距离，可继续前往球员通道、更衣室或返回正门。东侧室内公共楼梯连续连接入口层、公共大厅、包厢、中层与上层看台。公共大厅北侧缓坡通往下层看台；商店与展厅均有可走入的自动门。咨询台、左上「选择区域」、底部目的地与小地图共用同一条路线。选区后会展开方向和距离；黄线从当前位置开始，绕开大厅柜台与导览机，小地图仅绘制当前楼层。第三人称选好目的地后可点「步行前往」。点「传送到目的地」或按 <kbd>T</kbd> 可直接抵达，并继续第一人称探索。靠近展品、球衣陈列、战术板和座位按 F 互动。</p><h3>场景与快捷键</h3><p><kbd>N</kbd> 切换白天 / 黑夜；<kbd>P</kbd> 切换视角；<kbd>Home</kbd> 返回正门；<kbd>H</kbd> 显示说明。关闭建筑屋顶可观察内部构造；相机图标保存当前 3D 画面。默认使用自适应流畅画质；可自行选择精细画质。</p>`;
  else $('dialog-content').innerHTML=`<div class="eyebrow">BUILT FROM PUBLIC REFERENCES</div><h2>尽量走近真实的安联。</h2><p>这是以公开照片、建筑介绍、官方平面图和用户视频为参考的程序化三维复原。采用米制坐标，主要外形与草坪遵循公布的尺寸；并非测绘模型，未取得施工图、摄影测量数据或完整室内尺寸，因此无法保证逐处 1:1。</p><div class="fact-grid"><div><b>258 × 227 m</b><small>建筑外廓参考</small></div><div><b>105 × 68 m</b><small>标准比赛草坪</small></div><div><b>2,784</b><small>官方气枕数量参考</small></div></div><h3>本次还原的细节</h3><p>鼓起的菱形气枕、红色夜间外壳、屋顶开口与悬挑桁架、环形照明、三层阶梯看台、${stadium.seatCount.toLocaleString()} 个独立座椅模型、楼梯过道与分区牌、场边广告、替补席、球门网、角旗、摄像机，以及南广场、停车场采光口、道路、轨道与周边建筑。</p><p>室内包含主客队更衣室、球衣球鞋与装备、更衣长凳、战术板、淋浴区、红色球员通道、新闻发布厅、代表性贵宾包厢、荣誉展厅、环形公共大厅与球迷商店。更衣室以 2022 年官方照片的红色衣柜与木凳为主要视觉参考；场馆于 2026 年另有更衣室整修公告，尚未取得整修后完整室内参考，因此不能把本模型视为 2026 年现状的精确记录。球衣姓名和号码按拜仁官网 2026-10-20 的一线队名单核对，更衣室与商店共用同一份名单。所有内部房间的精确尺寸、连接方式、包厢陈设和博物馆布展均有近似。看台文字和座椅数为视觉建模，不等同于售票座位清单。</p><h3>主要参考资料</h3><ol><li><a href="https://fcbayern.com/en/teams/first-team" target="_blank" rel="noopener">拜仁官方 · 当前一线队名单</a>：球员姓名与号码，核对日期 2026-10-20。</li><li><a href="https://allianz-arena.com/en/arena/facts/general-information" target="_blank" rel="noopener">安联球场官方 · Facts & Figures</a>：建筑尺寸、气枕数、草坪、看台坡度与场馆设施。</li><li><a href="https://www.herzogdemeuron.com/projects/205-allianz-arena/" target="_blank" rel="noopener">Herzog & de Meuron · Allianz Arena</a>：外壳形态、三层看台与广场设计。</li><li><a href="https://allianz-arena.com/en/news/2022/10/fc-bayern-team-areas-open-again-for-tours" target="_blank" rel="noopener">球场官方 · 2022 年更衣室图像</a>：红色衣柜、球衣与木质长凳。</li><li><a href="https://allianz-arena.com/en/news/2026/05/renovation-work-in-fc-bayern-dressing-room" target="_blank" rel="noopener">球场官方 · 2026 年更衣室整修公告</a>：室内现状可能与早期照片不同。</li><li><a href="https://fcbayern.com/de/bilder/2018/08/galerie-die-allianz-arena-im-neuen-gewand" target="_blank" rel="noopener">拜仁官方 · 2018 年内场改造照片</a>：红白座椅与主场装饰。</li><li><a href="https://fcbayern.com/en/tickets/fc-bayern-hospitality-tickets/general-information" target="_blank" rel="noopener">拜仁官方 · 各层平面图与场地地图</a>：设施与接待区位置参考。</li><li><a href="https://allianz-arena.com/de/news/2019/einsatzuebung-zur-europameisterschaft-2020" target="_blank" rel="noopener">球场官方 · 外观航拍</a>：南广场步道、停车设施和周边环境。</li><li><a href="https://www.douyin.com/video/7491434777543806266" target="_blank" rel="noopener">NancyChoU · 球员入场通道（用户提供）</a>：白色顶灯、红色墙面与上行台阶。</li><li><a href="https://v.douyin.com/2j99UtAX4TY/" target="_blank" rel="noopener">凯罗同学 · 安联球场参观（用户提供）</a>。</li><li><a href="https://v.douyin.com/ixGw7sUOSUg/" target="_blank" rel="noopener">🌈把爱留在阿根廷 · 球场视频（用户提供）</a>。</li><li><a href="https://github.com/mrdoob/three.js" target="_blank" rel="noopener">Three.js · 官方开源引擎</a>，版本 0.186.1，MIT 许可。</li></ol><p>建模说明：白天使用自然色外壳，黑夜使用拜仁红与场内照明；光照为艺术化实时效果。项目为非官方球迷探索作品，与 FC Bayern、Allianz 及球场运营方无隶属关系。</p>`;
  $('info-dialog').showModal();}
 

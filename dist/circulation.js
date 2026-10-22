@@ -219,7 +219,7 @@ export function buildCirculation(parent){
  finishedBox(root,12,2.9,.16,0,ACCESS_BASE+2.55,104.3,pale,.035);batch.add(12.05,.055,.18,0,ACCESS_BASE+1.05,104.3,red);
  addCrest(root,2.25,-4.1,ACCESS_BASE+2.55,104.415);
  atlas.add(root,'ALLIANZ ARENA','WILLKOMMEN · MIA SAN MIA',7.4,1.25,1.4,ACCESS_BASE+2.55,104.415,0,{bg:'#e1e0d5',fg:'#30373a',accent:'#e1e0d5'});
- atlas.add(root,'参观导航 →','公共大厅 · 看台 · 球员区',5,1.8,0,ACCESS_BASE+.035,112,0,{bg:'#805f26',tilt:-Math.PI/2});
+ atlas.add(root,'接待大厅','导览与咨询 · INFORMATION',5,1.8,0,ACCESS_BASE+.035,112,0,{bg:'#626361',tilt:-Math.PI/2});
  for(const x of[-8,8]){
 
   atlas.add(root,x<0?'参观咨询':'接待中心','公共楼梯 / 草坪参观',4.35,.65,x,ACCESS_BASE+.57,108.08,0,{bg:'#aa1833'});

@@ -94,3 +94,15 @@ dialog{background:var(--panel);color:var(--ink);border-color:var(--rule);border-
 .performance{display:none}.hotspot{background:var(--panel);color:var(--ink);border-color:var(--rule);box-shadow:0 3px 12px #0001}.hotspot .dot{background:var(--accent)}.hotspot:hover{background:var(--subtle)}
 @media(pointer:fine){.movement{display:none!important}}
 @media(max-width:760px){.brand{padding:7px 9px}.brand b,body[data-mode=walk] .brand b{font-size:11px}.brand small{font-size:7px}.top-actions{padding:3px}.icon-button{height:27px;width:27px}.environment,body[data-mode=walk] .environment{width:161px}.environment.expanded,body[data-mode=walk] .environment.expanded{width:182px}.place-caption{padding:10px 12px;max-width:calc(100vw - 150px)}.place-caption h1{font-size:21px}.place-caption p{font-size:10px;line-height:1.65}.model-tag{display:none}.walk-guide{bottom:160px;padding:9px 11px}.guide-instruction b{font-size:11px}.guide-instruction p{font-size:10px}.environment .day-night button{padding:5px 4px}.guide-header{font-size:10px}}
+
+/* Keep both travel choices visible, including when the directions are folded. */
+.guide-actions{display:flex;align-items:center;gap:7px;margin-top:10px;padding-top:9px;border-top:1px solid var(--rule)}
+.guide-actions button{padding:7px 10px;border-radius:4px;font-size:11px;background:var(--subtle);color:var(--ink);white-space:nowrap}
+.guide-actions #guide-teleport{border:1px solid var(--rule);margin-left:auto}
+.guide-actions #guide-walk{background:var(--accent);color:#fff}
+.guide-actions .guide-next{margin:0;padding:7px 8px;font-size:10px}
+.guide-actions kbd{font-size:9px;margin-left:5px;border-color:var(--rule);background:transparent}
+.walk-guide.collapsed{width:min(375px,calc(100vw - 26px))}
+.walk-guide.collapsed .guide-actions{margin-top:6px;padding-top:6px}
+.walk-guide.collapsed .guide-next{display:none}
+@media(max-width:760px){.guide-actions button{font-size:10px;padding:7px 8px}.guide-actions kbd{display:none}}

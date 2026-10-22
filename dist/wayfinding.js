@@ -1,7 +1,7 @@
 export function relativeBearing(position,yaw,target){const targetYaw=Math.atan2(position.x-target.x,position.z-target.z),angle=yaw-targetYaw;return Math.atan2(Math.sin(angle),Math.cos(angle));}
 export function waypointReached(position,target,anchor,next,isFinal=false){
  if(Math.abs(position.y-target.y)>.9)return false;
- const tight=target.level==='core'||/^landing|Door|Start|Out|Turn|End/.test(target.id),radius=isFinal?1.7:tight?.95:/^(lower|upper)\d+$/.test(target.id)?3:1.4;
+ const tight=target.level==='core'||target.level==='clearance'||/^landing|Door|Start|Out|Turn|End/.test(target.id),radius=isFinal?1.7:tight?.65:/^(lower|upper)\d+$/.test(target.id)?3:1.4;
  if(Math.hypot(position.x-target.x,position.z-target.z)<=radius)return true;
  if(anchor&&Math.abs(anchor.y-target.y)<.45){const dx=target.x-anchor.x,dz=target.z-anchor.z,length=Math.hypot(dx,dz);if(length>2){const along=((position.x-anchor.x)*dx+(position.z-anchor.z)*dz)/(length*length),cross=Math.abs((position.x-anchor.x)*dz-(position.z-anchor.z)*dx)/length;if(along>1&&cross<(tight?.55:1.7))return true;}}
  // A visitor already following the next corridor need not return to its exact corner.
