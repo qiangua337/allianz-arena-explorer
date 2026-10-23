@@ -24,8 +24,9 @@ export function floorHeight(x,z,feetY,{tiers=[],rooms={}}={}){
  const stair=accessAt(x,z),stairFloor=accessHeight(x,z);
  if(stairFloor!==null)floors.push(stairFloor);
  const passageFloor=visitorFloor(x,z);if(passageFloor!==null)floors.push(passageFloor);
- if(Math.abs(x)<41.5&&Math.abs(z)<60)floors.push(0);
- if(x>-72.8&&x<-40.45&&Math.abs(z)<2.5){
+ const inPlayerTunnel=x>-72.8&&x<-40.45&&Math.abs(z)<2.5;
+ if(Math.abs(x)<41.5&&Math.abs(z)<60&&!inPlayerTunnel)floors.push(0);
+ if(inPlayerTunnel){
   floors.push(x<-45.9?-2.7:Math.min(0,-2.7+(Math.floor((x+45.9)/.36)+1)*.18));
  }
  if(x>-72.8&&x<-66.7&&z>-41&&z<49)floors.push(-2.7);

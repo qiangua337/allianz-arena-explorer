@@ -14,7 +14,7 @@ export function buildWalkGuide(scene,geometry,{obstacles={},onChoose,onSelect,on
  const walkButton=$('guide-walk'),teleportButton=$('guide-teleport'),goalName=$('guide-goal-name'),distanceText=$('guide-distance');
  const group=new THREE.Group();scene.add(group);const positions=new Float32Array(4096*6*3),geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.BufferAttribute(positions,3).setUsage(THREE.DynamicDrawUsage));
  const line=new THREE.Mesh(geo,new THREE.MeshBasicMaterial({color:0xffd36b,side:THREE.DoubleSide,depthTest:true,depthWrite:false,transparent:true,opacity:.85,toneMapped:false}));line.frustumCulled=false;line.renderOrder=2;group.add(line);
- let path=[],goal='arcade',arrived=false,blocked=false,selected=false,collapsed=true,timer=0,planClock=0,anchor=null,eyeHeight=EYE_HEIGHT,lastMode='orbit';
+ let path=[],goal='arcade',arrived=false,blocked=false,selected=false,collapsed=true,suppressed=false,timer=0,planClock=0,anchor=null,eyeHeight=EYE_HEIGHT,lastMode='orbit';
  const lastPosition=v(0,-2.4,214);let lastDraw=null;
  const feet=p=>({x:p.x,y:p.y-eyeHeight,z:p.z});
  function expand(){collapsed=true;panel.classList.toggle('collapsed',true);$('guide-collapse').textContent='详情';}
@@ -26,7 +26,7 @@ export function buildWalkGuide(scene,geometry,{obstacles={},onChoose,onSelect,on
  walkButton.onclick=()=>{expand();onWalk?.();};teleportButton.onclick=()=>onTeleport?.(goal);
  next.onclick=()=>choose(goal==='arcade'?'concourse':goal==='concourse'?'store':goal==='store'?'museum':goal==='museum'?'lounge':goal==='lounge'?'stands':goal==='pitch'?'tunnel':goal==='tunnel'?'homeRoom':'arcade');
  function refresh(yaw=0){
-  panel.hidden=lastMode!=='walk'&&!selected;group.visible=lastMode==='walk'&&!blocked&&!arrived;
+  panel.hidden=suppressed||lastMode!=='walk'&&!selected;group.visible=!suppressed&&lastMode==='walk'&&!blocked&&!arrived;
   const p=feet(lastPosition);document.body.dataset.destination=goal;document.body.dataset.guideState=arrived?'arrived':blocked?'blocked':'routing';
   walkButton.hidden=lastMode==='walk';teleportButton.title='传送到'+tourGoals[goal]+'（T）';next.hidden=!arrived;distanceText.textContent=arrived?floorLabel(p.y,p):lastMode==='walk'?'沿地面指引前行':'步行 / 直接传送';
   if(arrived){title.textContent='已到达 · '+tourGoals[goal];detail.textContent='自由探索，靠近门、展品与设施可按 F 互动。';arrow.textContent='✓';arrow.style.transform='none';next.textContent='下一站 →';document.body.dataset.guideTarget=goal;delete document.body.dataset.guidePoint;}
@@ -36,7 +36,7 @@ export function buildWalkGuide(scene,geometry,{obstacles={},onChoose,onSelect,on
  }
  function draw(p){let count=0;const points=ribbonPoints(p,path,geometry);for(let i=1;i<points.length&&count+6<4096*6;i++){const a=points[i-1],b=points[i],dx=b.x-a.x,dz=b.z-a.z,length=Math.hypot(dx,dz)||1,nx=dz/length*.075,nz=-dx/length*.075;for(const [point,side]of[[a,1],[a,-1],[b,1],[b,1],[a,-1],[b,-1]]){positions[count*3]=point.x+nx*side;positions[count*3+1]=point.y;positions[count*3+2]=point.z+nz*side;count++;}}geo.setDrawRange(0,count);geo.attributes.position.needsUpdate=true;lastDraw={...p};}
  function update(position,yaw,dt,mode,currentEyeHeight=EYE_HEIGHT){
-  eyeHeight=currentEyeHeight;lastPosition.copy(position);lastMode=mode;timer+=dt;planClock+=dt;if(timer<.12)return;timer=0;const p=feet(position);
+  eyeHeight=currentEyeHeight;lastPosition.copy(position);lastMode=mode;if(suppressed){panel.hidden=true;group.visible=false;return;}timer+=dt;planClock+=dt;if(timer<.12)return;timer=0;const p=feet(position);
   if(!anchor)reset(position);
   const walls=navigationObstacles(p,obstacles);
   // Never advance a corner if the resulting shortcut crosses a fixture.
@@ -49,5 +49,6 @@ export function buildWalkGuide(scene,geometry,{obstacles={},onChoose,onSelect,on
   if(mode==='walk'&&!blocked&&!arrived&&(!lastDraw||Math.hypot(p.x-lastDraw.x,p.y-lastDraw.y,p.z-lastDraw.z)>.15))draw(p);
  }
  function arrive(id,position){setGoal(id,position);path=[];blocked=false;arrived=true;geo.setDrawRange(0,0);refresh();}
- return{update,reset,setGoal,arrive,getGoal:()=>goal,getRoute:()=>path};
+ function restoreState(saved,position,currentEyeHeight=EYE_HEIGHT){setGoal(saved.goal,position,currentEyeHeight);selected=saved.selected;collapsed=saved.collapsed;if(saved.arrived){arrived=true;blocked=false;path=[];geo.setDrawRange(0,0);}panel.classList.toggle('collapsed',collapsed);$('guide-collapse').textContent=collapsed?'详情':'收起';refresh();}
+ return{update,reset,setGoal,arrive,setSuppressed(value){suppressed=value;refresh();},captureState:()=>({goal,selected,collapsed,arrived}),restoreState,getGoal:()=>goal,getRoute:()=>path};
 }

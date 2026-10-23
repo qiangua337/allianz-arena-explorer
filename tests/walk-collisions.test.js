@@ -25,9 +25,17 @@ const {buildServiceRooms}=await import('../dist/service-rooms.js');
 const {serviceRooms:serviceLayout,serviceWorld}=await import('../dist/service-layout.js');
 const {ribbonPoints}=await import('../dist/ribbon-path.js');
 const {coreFlights,platforms}=await import('../dist/building-layout.js');
+const {entranceSample}=await import('../dist/matchday-route.js');
+const {sampleQueuePlayer}=await import('../dist/entrance-choreography.js');
 await loadBrandAssets();const scene=new THREE.Scene(),world=buildWorld(scene),stadium=buildStadium(scene),interiors=buildInteriors(scene,stadium.circulation),building=buildWalkBuilding(scene),geometry={rooms:roomSpecs,tiers:stadium.tiers};
 const obstacleGroups={world:world.colliders,building:building.colliders,interiors:interiors.colliders,circulation:stadium.circulation.colliders};
 const service=buildServiceRooms(scene);obstacleGroups.service=service.walls;
+
+test('the cinematic and all six NPCs use the existing walkable tunnel and treads',()=>{
+ const walls=[...world.colliders,...interiors.colliders,...building.colliders,...stadium.circulation.colliders];
+ for(let t=0;t<32;t+=.025){const p=entranceSample(t),floor=floorHeight(p.x,p.z,p.feet,geometry);assert.ok(Math.abs(floor-p.feet)<.025,'camera has the actual floor at '+p.x);assert.equal(hitsWall(p.x,p.z,p.feet+1.7,walls),false,'camera route is clear');}
+ for(let i=0;i<6;i++)for(let t=0;t<32;t+=.04){const p=sampleQueuePlayer(t,i);if(p.x>-31)continue;const feet=floorHeight(p.x,p.z,-2.7,geometry);assert.equal(hitsWall(p.x,p.z,feet+1.6,walls),false,'NPC '+i+' can pass through the tunnel');}
+});
 test('real room walls, fixtures and handrails leave all advertised routes clear',()=>{
  for(const goal of Object.keys(tourGoals)){
   const path=planTour(tourNodes.entrance,goal);let feet=path[0].y;
@@ -74,6 +82,12 @@ test('arrival stays complete while exploring; selecting a new destination resume
  const exploring=new THREE.Vector3(-88,-1,7);guide.update(exploring,0,2.5,'walk');assert.equal(guide.getRoute().length,0);
  guide.setGoal('entrance',exploring);guide.update(exploring,0,.2,'walk');assert.ok(guide.getRoute().length>1);assert.ok(guide.getRoute().some(n=>n.id==='homeDoor'));
  const start={x:exploring.x,y:exploring.y-1.7,z:exploring.z};assert.equal(walkSegmentClear(start,guide.getRoute()[0],geometry,navigationObstacles(start,obstacleGroups)),true,'the next instruction uses a clear aisle from the actual position');
+});
+
+test('leaving a temporary experience restores the prior guide selection and arrival',()=>{
+ const guide=buildWalkGuide(scene,geometry,{obstacles:obstacleGroups}),p=new THREE.Vector3(-76,-1,0),initial=guide.captureState();assert.equal(initial.selected,false);
+ guide.arrive('homeRoom',p);const visited=guide.captureState();guide.setGoal('pitch',p);guide.restoreState(visited,p);assert.equal(guide.getGoal(),'homeRoom');assert.equal(guide.captureState().arrived,true);
+ guide.restoreState(initial,p);assert.equal(guide.captureState().selected,false);
 });
 
 test('the overlapping public ring cannot render through a private room or raise its floor',()=>{

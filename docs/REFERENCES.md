@@ -43,3 +43,11 @@
 再次查看官方 2022 年更衣室照片，细化柜体凹槽与侧板、连续木质座面及支撑、低处鞋格、上部折叠装备和毛巾、白色顶面带与暗藏灯带。球衣增加衣服轮廓、薄厚与褶皱，空余装备位展示无号码训练服，不虚构新球员姓名或号码。
 
 木纹、织物微纹、橡胶地面、柜体倒角、通风口、探测器、接待台及通道收口为程序化艺术化表达。材质纹理与 PMREM 金属反射由代码生成；没有把官方照片作为可再分发的场景纹理。接触阴影为静态近似，非完整光线追踪。
+
+## 版本 1.8 的入场体验
+
+入场体验使用现有西侧球员通道、逐级台阶和场边地面，增加 36 秒的连续第一人称入场、独立队友路线、看台观众、旗帜、灯光及声景。队列、队友最终站位、观众服色与动画为艺术化组织，不是某场真实比赛的同步复刻。
+
+人物研究参考 [EA Sports FC 官方 Gameplay Deep Dive](https://www.ea.com/en-au/games/ea-sports-fc/pitch-notes/news/fc-24-gameplay-deepdive) 对身体移动的介绍，及 [Konami 官方对 Motion Matching 的说明](https://www.konami.com/games/us/en/topics/1756/)。这些页面仅用于理解动作与画面方向，没有提取游戏资产或声轨。人物基于可再分发的 MakeHuman 通用人体；来源、许可与生成过程见 [PLAYER-ASSETS.md](PLAYER-ASSETS.md)。人物并非球星扫描脸模，骨骼动作与布料细节也未达到这些商业游戏的制作精度。
+
+看台声音采用 Work With Sounds / Torsten Nilsson 的 [足球现场录音](https://commons.wikimedia.org/wiki/File:WWS_FootballAustriavs.Sweden.ogg)，CC BY 4.0，截取并重新混音为通用球场声景；原场地为恩斯特·哈佩尔球场，不能当作安联球场或拜仁比赛的实录。详细归属和修改声明见根目录第三方说明以及随音频附带的 README。

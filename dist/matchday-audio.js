@@ -1,0 +1,35 @@
+import {matchdayAcoustics} from './matchday-route.js';
+
+// A credited live football recording, loaded only after an explicit sound gesture.
+// Footsteps and countdown tones are original procedural effects.
+export function createMatchdayAudio({onState=()=>{}}={}){
+ let context,master,filter,bed,wet,panner,analyser,source,buffer,noise,loading,active=false,paused=false,muted=false,failed=false,volume=.65,generation=0,level=0,parameterClock=0,loudest=0;
+ const effects=new Set();
+ const samples=new Float32Array(256);
+ function currentState(){return !active?'off':failed?'unavailable':paused?'paused':!source?'loading':muted||volume===0?'muted':'playing';}
+ function report(){onState({state:currentState(),muted:muted||volume===0,volume,level:paused||muted?0:level,duration:buffer?.duration||0});}
+ function ensure(){
+  if(context)return;const Audio=globalThis.AudioContext||globalThis.webkitAudioContext;if(!Audio)throw Error('Web Audio unavailable');context=new Audio();
+  master=context.createGain();master.gain.value=0;const compressor=context.createDynamicsCompressor();compressor.threshold.value=-12;compressor.knee.value=14;compressor.ratio.value=4;compressor.attack.value=.015;compressor.release.value=.3;
+  analyser=context.createAnalyser();analyser.fftSize=512;master.connect(compressor);compressor.connect(analyser);analyser.connect(context.destination);
+  filter=context.createBiquadFilter();filter.type='lowpass';filter.frequency.value=850;filter.Q.value=.55;bed=context.createGain();bed.gain.value=.25;panner=context.createStereoPanner();filter.connect(bed);bed.connect(panner);panner.connect(master);
+  const convolver=context.createConvolver(),impulse=context.createBuffer(2,Math.floor(context.sampleRate*.85),context.sampleRate);let seed=3517;for(let channel=0;channel<2;channel++){const data=impulse.getChannelData(channel);for(let i=0;i<data.length;i++){seed=(seed*1664525+1013904223)>>>0;data[i]=(seed/4294967296*2-1)*Math.exp(-i/data.length*7)*.44;}}convolver.buffer=impulse;wet=context.createGain();wet.gain.value=.25;filter.connect(convolver);convolver.connect(wet);wet.connect(master);
+  noise=context.createBuffer(1,Math.floor(context.sampleRate*.13),context.sampleRate);const data=noise.getChannelData(0);for(let i=0;i<data.length;i++){seed=(seed*1664525+1013904223)>>>0;data[i]=(seed/4294967296*2-1)*Math.exp(-i/data.length*7);}
+ }
+ function gain(){if(context)master.gain.setTargetAtTime(active&&!paused&&!muted?volume:0,context.currentTime,.09);}
+ async function load(){if(buffer)return buffer;if(!loading)loading=(async()=>{const response=await fetch(new URL('./assets/audio/stadium-crowd.mp3',import.meta.url),{signal:AbortSignal.timeout(20000)});if(!response.ok)throw Error('Crowd audio '+response.status);buffer=await context.decodeAudioData(await response.arrayBuffer());
+   // Short fades remove discontinuities at the frame-trimmed loop boundary.
+   const fade=Math.min(512,Math.floor(buffer.length/8));for(let c=0;c<buffer.numberOfChannels;c++){const pcm=buffer.getChannelData(c);for(let i=0;i<fade;i++){pcm[i]*=i/fade;pcm[pcm.length-1-i]*=i/fade;}}
+   const pcm=buffer.getChannelData(0),stride=Math.floor(buffer.sampleRate),window=stride*4;let best=0;for(let offset=0;offset<pcm.length-window;offset+=stride){let energy=0;for(let i=offset;i<offset+window;i+=32)energy+=pcm[i]*pcm[i];if(energy>best){best=energy;loudest=offset/buffer.sampleRate;}}return buffer;
+  })().catch(error=>{loading=null;throw error;});return loading;}
+ async function start(){active=true;paused=false;failed=false;const id=++generation;try{ensure();const resume=context.resume();report();await resume;await load();if(!active||id!==generation)return false;if(!source){source=context.createBufferSource();source.buffer=buffer;source.loop=true;source.connect(filter);source.start();}gain();if(paused)await context.suspend();report();return true;}catch(error){if(active&&id===generation){failed=true;report();}return false;}}
+ function stop(){active=false;paused=false;generation++;if(source){try{source.stop();}catch{}source.disconnect();source=null;}for(const effect of effects){try{effect.stop();}catch{}effect.disconnect();}effects.clear();level=0;gain();context?.suspend().catch(()=>{});report();}
+ function setPaused(value){paused=value;if(value)level=0;gain();report();const id=generation;if(context&&active)(value?context.suspend():context.resume()).then(()=>{if(id===generation)report();}).catch(()=>{if(active&&id===generation){failed=true;report();}});}
+ function setVolume(value){volume=Math.max(0,Math.min(1,value));if(volume>0)muted=false;gain();report();}
+ function setMuted(value){muted=value;if(!value&&volume===0)volume=.65;if(value)level=0;gain();report();}
+ function cue(count){if(!context||paused||!active)return;const tone=context.createOscillator(),g=context.createGain(),t=context.currentTime;tone.type='sine';tone.frequency.value=count?440:660;g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(.055,t+.015);g.gain.exponentialRampToValueAtTime(.0001,t+.16);tone.connect(g);g.connect(master);effects.add(tone);tone.start(t);tone.stop(t+.17);tone.onended=()=>{effects.delete(tone);tone.disconnect();g.disconnect();};}
+ function footstep(index){if(!context||paused||!active)return;const s=context.createBufferSource(),f=context.createBiquadFilter(),g=context.createGain(),p=context.createStereoPanner();s.buffer=noise;f.type='lowpass';f.frequency.value=500;g.gain.value=.15;p.pan.value=index%2?.23:-.23;s.connect(f);f.connect(g);g.connect(p);p.connect(master);effects.add(s);s.start();s.onended=()=>{effects.delete(s);s.disconnect();f.disconnect();g.disconnect();p.disconnect();};}
+ function cheer(){if(!context||!buffer||paused||!active)return;const s=context.createBufferSource(),g=context.createGain(),t=context.currentTime;s.buffer=buffer;g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(.55,t+.38);g.gain.linearRampToValueAtTime(.18,t+3);g.gain.linearRampToValueAtTime(0,t+4.8);s.connect(g);g.connect(filter);effects.add(s);s.start(t,loudest,Math.min(4.9,buffer.duration-loudest));s.onended=()=>{effects.delete(s);s.disconnect();g.disconnect();};}
+ function update(position,yaw,dt){parameterClock+=dt;if(!context||!active||paused||parameterClock<.1)return;parameterClock=0;const mix=matchdayAcoustics(position),t=context.currentTime;filter.frequency.setTargetAtTime(mix.cutoff,t,.22);bed.gain.setTargetAtTime(mix.gain,t,.25);wet.gain.setTargetAtTime(mix.reverb,t,.3);panner.pan.setTargetAtTime(Math.sin(yaw)*.15,t,.2);analyser.getFloatTimeDomainData(samples);let energy=0;for(const x of samples)energy+=x*x;level=Math.min(1,Math.sqrt(energy/samples.length)*4.5);}
+ return{start,stop,setPaused,setVolume,setMuted,cue,footstep,cheer,update,get muted(){return muted||volume===0;},get level(){return paused||muted||volume===0?0:level;},get state(){return currentState();},get duration(){return buffer?.duration||0;}};
+}
