@@ -1,6 +1,7 @@
-import {finishReception,finishedBox} from './finishes.js';
+import {compactStaticMeshes} from './scene-budget.js';
+import {finishReception,finishedBox,contactShadow} from './finishes.js';
 import {inCoreShaft,publicWallOpening,clearCore,roomFootprint} from './building-layout.js';
-import {THREE,TAU,v,mat,mesh,box,beam,canvasTexture,repeatTex,ringGeometry,Batches,mergeGeometry,addCrest} from './kit.js';
+import {THREE,TAU,v,mat,mesh,box,beam,canvasTexture,repeatTex,floorTexture,ringGeometry,Batches,mergeGeometry,addCrest} from './kit.js';
 import {ACCESS_BASE,ACCESS_TOP,accessStairs,perimeterFrames,perimeterPoint,perimeterNormal,stairwellAt,orientedCollider} from './access-layout.js';
 import {visitorPassage,visitorWallOpening} from './tour-route.js';
 
@@ -67,9 +68,9 @@ export function buildCirculation(parent){
  const root=new THREE.Group();root.name='Detailed entrance arcade and eight access stairs';parent.add(root);
  const roof=new THREE.Group();roof.name='Entrance arcade ceiling';root.add(roof);
  const atlas=new SignAtlas(),batch=new Batches(root),roofBatch=new Batches(roof),colliders=[],lamps=[],stairSlabs=[];let lightingNight=false;
- const floor=mat(0xc4c8c4,{map:repeatTex(architecturalTexture('floor'),1,1),roughness:.86,side:THREE.DoubleSide});
- const wall=mat(0xc2c6c2,{map:repeatTex(architecturalTexture('wall'),2,2),roughness:.9,bumpMap:floor.map,bumpScale:.012,side:THREE.DoubleSide});
- const column=mat(0x9b9e99,{roughness:.87}),edge=mat(0x555f63,{roughness:.6}),metal=mat(0x9faeb1,{metalness:.65,roughness:.35}),red=mat(0xb41b36,{roughness:.48}),pale=mat(0xe1e0d5),dark=mat(0x26343e),wood=mat(0x977954,{roughness:.7});
+ const floor=mat(0xf1f2ed,{map:repeatTex(architecturalTexture('floor'),1,1),roughness:.86,bumpMap:null,side:THREE.DoubleSide});
+ const wall=mat(0xe3e6e1,{map:repeatTex(architecturalTexture('wall'),2,2),roughness:.9,bumpMap:floor.map,bumpScale:.008,side:THREE.DoubleSide});
+ const column=mat(0xadb3ac,{roughness:.87}),edge=mat(0x555f63,{roughness:.6}),metal=mat(0x9faeb1,{metalness:.65,roughness:.35}),red=mat(0xb41b36,{roughness:.48}),pale=mat(0xe1e0d5),dark=mat(0x26343e),wood=mat(0xffffff,{map:repeatTex(floorTexture('wood'),2,1),roughness:.7});
  const glass=mat(0xb3d0d8,{transparent:true,opacity:.24,depthWrite:false,metalness:.18,roughness:.14,side:THREE.DoubleSide});
  const glow=new THREE.MeshBasicMaterial({color:0xfff1d5,toneMapped:false}),green=new THREE.MeshBasicMaterial({color:0x76d7a8,toneMapped:false});
  const ground=mesh(accessRingGeometry(72,90,121,139,ACCESS_BASE,false),floor,root);ground.name='Jointed concrete entrance paving';
@@ -77,7 +78,8 @@ export function buildCirculation(parent){
  mesh(accessRingGeometry(91,108,99,116,ACCESS_BASE+.012,false),mat(0x8f9793,{map:floor.map,roughness:.9}),root);
  mesh(ringGeometry(111.2,128.2,111.45,128.45,ACCESS_BASE+.025),red,root);
  mesh(ringGeometry(116,133,116.5,133.5,ACCESS_BASE+.027),edge,root);
- mesh(accessRingGeometry(86,104,116,132,5.4),wall,roof).name='Closed double-sided entrance soffit';
+ const soffit=mat(0xd5d8d0,{roughness:.96,emissive:0x5c5c52,emissiveIntensity:.22,side:THREE.DoubleSide});
+ mesh(accessRingGeometry(86,104,116,132,5.4),soffit,roof).name='Closed double-sided entrance soffit';
  const innerWall=[],wallAngles=Array.from({length:385},(_,i)=>i/384*TAU);
  for(const x of[visitorPassage.x-visitorPassage.width/2,visitorPassage.x+visitorPassage.width/2])wallAngles.push(Math.acos(Math.sign(x)*Math.abs(x/86)**1.4));wallAngles.sort((a,b)=>a-b);
  for(let i=0;i<wallAngles.length-1;i++){
@@ -99,6 +101,7 @@ export function buildCirculation(parent){
   if(clearCore(frame.x,frame.z))continue;
   const i=frame.index,w=frame.spacing-.35,half=w/2,letter='ABCDEFGHJKLMNPRS'[Math.floor(i/4)%16],entry=entries.has(i),kind=services[Math.floor(i/3)%services.length];
   solid(frame,.58,8.3,.72,-half-.18,4.15,0,column);solid(frame,.8,.28,.95,-half-.18,.14,0,edge);
+  const columnFoot=placement(frame,-half-.18,0);contactShadow(root,1.8,1.8,columnFoot.x,ACCESS_BASE+.009,columnFoot.z,.24);
   solid(frame,w,.6,.74,0,8.0,0,column);if(!entry)solid(frame,w,.34,.34,0,.17,-.4,edge);
   solid(frame,w-.4,1.5,.3,0,6.75,-.3,pale);
   for(let slot=0;slot<8;slot++)solid(frame,w-.7,.035,.055,0,6.16+slot*.16,-.09,metal);
@@ -252,7 +255,7 @@ export function buildCirculation(parent){
  atlas.add(root,'草坪与看台 ↑','前方出通道后即可进入球场',clear-.6,.62,visit.x,ACCESS_BASE+2.75,68.4,0,{bg:'#9b6c20'});
  finishReception(root,batch,atlas,{floorY:ACCESS_BASE,pale,red,metal,dark});colliders.push(orientedCollider(4,110,.74,.62,ACCESS_BASE,ACCESS_BASE+1.8));
  atlas.add(root,'↑ 室内公共楼梯','公共大厅 · 商店 · 展厅 · 包厢 · 看台',6.4,.9,95.8,.8,10,0,{bg:'#996e24'});
- batch.flush();roofBatch.flush();atlas.finish(root);
+ batch.flush();roofBatch.flush();atlas.finish(root);compactStaticMeshes(root,[roof]);compactStaticMeshes(roof);
 
  function decorateConcourse(g){
   const b=new Batches(g);
@@ -274,10 +277,7 @@ export function buildCirculation(parent){
   }
   for(const frame of perimeterFrames(85.2,103.2,16)){
    const n=frame.normal,x=frame.x+n.x*.16,z=frame.z+n.z*.16;
-   if(publicWallOpening(x,z))continue;
-   b.add(3.8,3.25,.12,x,13.825,z,edge,frame.yaw);
-   for(const side of[-1,1]){b.add(.09,3.4,.17,x+side*1.96*n.z,13.9,z-side*1.96*n.x,metal,frame.yaw);b.add(.1,.55,.1,x+side*.2*n.z+n.x*.12,13.6,z-side*.2*n.x+n.z*.12,metal,frame.yaw);}
-   b.add(.035,3.3,.16,x+n.x*.03,13.85,z+n.z*.03,metal,frame.yaw);
+   if(roomFootprint(x,z,.45)||(z<-98&&Math.abs(x)<2.5))continue;
    atlas.add(g,'SERVICE','PERSONAL',2.0,.46,x+n.x*.09,14.9,z+n.z*.09,frame.yaw,{bg:'#485e68'});
    const px=x+4.5*n.z,pz=z-4.5*n.x;b.add(2.6,2.1,.08,px,14.1,pz,red,frame.yaw);
    atlas.add(g,frame.index%2?'MIA SAN MIA':'ALLIANZ ARENA',frame.index%2?'FC BAYERN MÜNCHEN':'WILLKOMMEN IM STADION',2.4,1.9,px+n.x*.06,14.1,pz+n.z*.06,frame.yaw,{bg:'#a91c35',accent:'#f1dfbe'});

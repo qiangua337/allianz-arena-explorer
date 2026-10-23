@@ -1,5 +1,6 @@
 // Shared by the visible building, walking floors and route graph. Metres.
 // These connections are an explorable interpretation, not a surveyed plan.
+import {serviceRoomAt,serviceDoorOpening} from './service-layout.js';
 export const roomSpecs={homeRoom:{x:-82,z:0,y:-2.7,w:19,d:20},guestRoom:{x:-82,z:28,y:-2.7,w:19,d:18},press:{x:-82,z:-31,y:-2.7,w:21,d:18},lounge:{x:90,z:0,y:23.6,w:10,d:28},museum:{x:-96,z:58,y:12,w:15,d:25},store:{x:0,z:118,y:12.2,w:29,d:14}};
 export const roomAt=position=>Object.entries(roomSpecs).find(([,s])=>Math.abs(position.y-s.y)<1.2&&Math.abs(position.x-s.x)<s.w/2-.12&&Math.abs(position.z-s.z)<s.d/2-.12)?.[0];
 export const core={left:100,right:103,width:2.45,start:-8,front:-13,minX:98.45,maxX:104.55};
@@ -23,12 +24,12 @@ export const bridges=[
 ];
 export function onBridge(x,z,b,margin=0){const dx=b.b[0]-b.a[0],dz=b.b[2]-b.a[2],d=dx*dx+dz*dz,t=((x-b.a[0])*dx+(z-b.a[2])*dz)/(d||1);return t>=-.03&&t<=1.03&&Math.abs((x-b.a[0])*dz-(z-b.a[2])*dx)/Math.sqrt(d||1)<b.width/2+margin?t:null;}
 export function inCoreShaft(x,z,margin=0){return x>core.minX-margin&&x<core.maxX+margin&&z>core.start-.01&&z<10+margin;}
-export function buildingFloors(x,z){const out=[];
+export function buildingFloors(x,z){const out=[];if(serviceRoomAt({x,y:12.2,z}))out.push(12.2);
  for(const p of platforms)if(Math.abs(x-p.x)<p.w/2&&Math.abs(z-p.z)<p.d/2+.01)out.push(p.y);
  for(const f of coreFlights){const a=(z-f.z)*f.dir;if(Math.abs(x-f.x)<f.width/2&&a>=-.01&&a<=f.run+.01)out.push(f.base+(f.top-f.base)*Math.min(f.steps,Math.max(1,Math.floor(a/.34)+1))/f.steps);}
  for(const b of bridges){const t=onBridge(x,z,b);if(t!==null)out.push(b.a[1]+(b.b[1]-b.a[1])*Math.max(0,Math.min(1,t)));}return out;
 }
 export function roomFootprint(x,z,margin=0){return ['museum','store'].some(id=>{const s=roomSpecs[id];return Math.abs(x-s.x)<s.w/2+margin&&Math.abs(z-s.z)<s.d/2+margin;});}
-export const publicWallOpening=(x,z)=>roomFootprint(x,z,.45)||(z<-98&&Math.abs(x)<2.5);
+export const publicWallOpening=(x,z)=>roomFootprint(x,z,.45)||(z<-98&&Math.abs(x)<2.5)||serviceDoorOpening(x,z);
 export const clearCore=(x,z)=>x>94&&Math.abs(z)<24;
 export const tierEntryOpening=(x,z,tier,row)=>tier===0&&row>=27&&Math.abs(x)<1.8&&z<-78||tier===1&&row>=21&&x>79&&Math.abs(z+30.1)<1.8||tier===2&&row>=24&&x>99&&Math.abs(z+36.5)<1.8;

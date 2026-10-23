@@ -1,6 +1,7 @@
 import {buildingFloors,inCoreShaft,onBridge,bridges,platforms} from './building-layout.js';
 import {accessAt,accessHeight,ACCESS_BASE,ACCESS_TOP} from './access-layout.js';
 import {visitorFloor,inVisitorPassage} from './tour-route.js';
+import {serviceRoomAt} from './service-layout.js';
 // Heights are in metres. Pick the floor reachable from the current level,
 // rather than the topmost stand whose footprint overlaps the player.
 export const EYE_HEIGHT=1.7;
@@ -59,6 +60,7 @@ export function hitsWall(x,z,eyeY,colliders,isVisible=()=>true){
 }
 
 export function canStandAt(x,z,feetY,{rooms={},tiers=[]}={}){
+ if(serviceRoomAt({x,y:feetY,z}))return true;
  if(inVisitorPassage(x,z)||inCoreShaft(x,z)||bridges.some(b=>onBridge(x,z,b)!==null)||platforms.some(p=>Math.abs(x-p.x)<p.w/2&&Math.abs(z-p.z)<p.d/2))return true;
  if(accessAt(x,z)||Object.values(rooms).some(s=>inRoom(x,z,s)&&Math.abs(feetY-s.y)<2))return true;
  if(tiers.some(t=>feetY>=t.y-.15&&feetY<t.y+t.rows*t.depth*Math.tan(t.angle*Math.PI/180)+.9&&within(x,z,t.a+t.rows*t.depth,t.b+t.rows*t.depth,3.35)&&!within(x,z,t.a,t.b,3.35)))return true;

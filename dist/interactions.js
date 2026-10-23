@@ -1,7 +1,7 @@
 import {THREE,v,mat,mesh,box,sign,canvasTexture} from './kit.js';
 import {roomSpecs} from './building-layout.js';
 import {playerByNumber} from './roster.js';
-export function buildInteractions(scene,interiors,{toast,navigate,showInfo,setEye}){
+export function buildInteractions(scene,interiors,{toast,navigate,showInfo,setEye,serviceRooms}){
  const root=new THREE.Group();root.name='Working doors and interactive exhibits';scene.add(root);const button=document.getElementById('interact'),colliders=[],doors=[],items=[];let selected=null,clock=0,seated=false,shirt=0,tactic=0;
  const red=mat(0x9b1a34),glass=mat(0xa1c6cc,{transparent:true,opacity:.19,roughness:.2}),metal=mat(0xa9b9bd,{metalness:.6});
  const names={homeRoom:'主队更衣室',guestRoom:'客队更衣室',press:'新闻发布厅',lounge:'贵宾包厢',store:'球迷商店',museum:'荣誉展厅'};
@@ -22,9 +22,10 @@ export function buildInteractions(scene,interiors,{toast,navigate,showInfo,setEy
  button.onclick=()=>activate();
  function activate(){if(selected?.door){selected.door.hold=!selected.door.hold;toast(selected.door.hold?'自动门保持开启。':'自动门恢复感应。');}else selected?.act();document.getElementById('scene').focus({preventScroll:true});}
  function stand(){if(seated){seated=false;setEye(1.7);}}
- return{colliders,activate,stand,update(position,dt,mode){root.visible=true;for(const d of doors){const distance=Math.hypot(position.x-d.x,position.z-d.z),close=distance<3.3&&Math.abs(position.y-d.y-1.7)<2.2,target=d.hold||close?Math.PI/2:0;d.angle=THREE.MathUtils.damp(d.angle,target,9,dt);d.hinge.rotation.y=d.angle;d.collider.enabled=d.angle<1.05;}
+ return{colliders,activate,stand,isAnimating:()=>doors.some(d=>Math.abs(d.angle-(d.target||0))>.003),update(position,dt,mode){root.visible=true;for(const d of doors){const distance=Math.hypot(position.x-d.x,position.z-d.z),close=distance<3.3&&Math.abs(position.y-d.y-1.7)<2.2,target=d.hold||close?Math.PI/2:0;d.target=target;d.angle=THREE.MathUtils.damp(d.angle,target,9,dt);d.hinge.rotation.y=d.angle;d.collider.enabled=d.angle<1.05;}
   clock+=dt;if(clock<.15)return;clock=0;if(mode!=='walk'){button.hidden=true;return;}const nearby=items.filter(i=>position.distanceTo(i.p)<i.radius).sort((a,b)=>position.distanceToSquared(a.p)-position.distanceToSquared(b.p));selected=nearby[0]||null;
   if(!selected){const d=doors.find(d=>Math.hypot(position.x-d.x,position.z-d.z)<3&&Math.abs(position.y-d.y-1.7)<1.8);if(d)selected={door:d,label:d.hold?'恢复感应自动门':'让自动门保持开启'};}
+  if(!selected&&serviceRooms){const d=serviceRooms.nearest(position);if(d)selected={id:d.id,label:d.open?'关闭服务间双门':'打开服务间双门',act:()=>toast(serviceRooms.toggle(d)?'服务间双门已打开，可以走进去查看。':'服务间双门将关闭。')};}
   button.hidden=!selected;if(selected)button.textContent='F · '+selected.label;document.body.dataset.interaction=selected?.id||selected?.door?.id||'';
  }};
 }

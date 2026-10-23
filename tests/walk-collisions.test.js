@@ -20,8 +20,14 @@ const {planWalkPath,navigationObstacles,walkSegmentClear,routeOnCurrentLevel}=aw
 const {destinationArrival}=await import('../dist/arrivals.js');
 const {canStandAt}=await import('../dist/navigation.js');
 const {advanceWalker}=await import('../dist/walk-motion.js');
+const {accessStairs,accessHeight}=await import('../dist/access-layout.js');
+const {buildServiceRooms}=await import('../dist/service-rooms.js');
+const {serviceRooms:serviceLayout,serviceWorld}=await import('../dist/service-layout.js');
+const {ribbonPoints}=await import('../dist/ribbon-path.js');
+const {coreFlights,platforms}=await import('../dist/building-layout.js');
 await loadBrandAssets();const scene=new THREE.Scene(),world=buildWorld(scene),stadium=buildStadium(scene),interiors=buildInteriors(scene,stadium.circulation),building=buildWalkBuilding(scene),geometry={rooms:roomSpecs,tiers:stadium.tiers};
 const obstacleGroups={world:world.colliders,building:building.colliders,interiors:interiors.colliders,circulation:stadium.circulation.colliders};
+const service=buildServiceRooms(scene);obstacleGroups.service=service.walls;
 test('real room walls, fixtures and handrails leave all advertised routes clear',()=>{
  for(const goal of Object.keys(tourGoals)){
   const path=planTour(tourNodes.entrance,goal);let feet=path[0].y;
@@ -117,4 +123,45 @@ test('sprinting at four frames per second climbs the complete indoor staircase w
   assert.ok(Math.hypot(p.x-target.x,p.z-target.z)<.05,target.id+' reachable on return');assert.ok(Math.abs(feet-target.y)<.4,target.id+' returns on the correct floor');
  }
  assert.equal(feet,-2.9);
+});
+
+test('all outdoor stair walking heights have a rendered tread directly beneath them',()=>{
+ scene.updateMatrixWorld(true);const ray=new THREE.Raycaster();ray.far=.5;
+ for(const stair of accessStairs)for(const r of[8,24,43,64,79]){const a=(r+.5)*stair.run/stair.steps,x=stair.x-stair.nx*a,z=stair.z-stair.nz*a,y=accessHeight(x,z);ray.set(new THREE.Vector3(x,y+.25,z),new THREE.Vector3(0,-1,0));const hits=ray.intersectObject(stadium.circulation.root,true);assert.ok(hits.some(hit=>Math.abs(hit.point.y-y)<.035),stair.id+' step '+r+' has actual visible tread geometry');}
+});
+
+test('every indoor flight and landing renders the same surface used by walking physics',()=>{
+ scene.updateMatrixWorld(true);const ray=new THREE.Raycaster();ray.far=.2;
+ for(const flight of coreFlights)for(let i=0;i<flight.steps;i++){
+  const x=flight.x,z=flight.z+flight.dir*(i+.5)*.34,y=flight.base+(i+1)*(flight.top-flight.base)/flight.steps;
+  ray.set(new THREE.Vector3(x,y+.1,z),new THREE.Vector3(0,-1,0));assert.ok(ray.intersectObject(building.root,true).some(hit=>Math.abs(hit.point.y-y)<.025),flight.id+' step '+i+' is actually visible');
+ }
+ for(const p of platforms){ray.set(new THREE.Vector3(p.x,p.y+.1,p.z),new THREE.Vector3(0,-1,0));assert.ok(ray.intersectObject(building.root,true).some(hit=>Math.abs(hit.point.y-p.y)<.025),p.id+' renders a landing');}
+});
+
+test('service doors open into furnished rooms and their real doorway is walkable both ways',()=>{
+ const all=[...interiors.colliders,...stadium.circulation.colliders,...building.colliders,...service.colliders];
+ for(const d of service.doors){const outside=serviceWorld(d,0,2.5),visitor=new THREE.Vector3(outside.x,d.y+1.7,outside.z);service.update(visitor,1);assert.equal(hitsWall(d.x,d.z,d.y+1.7,service.colliders),true,d.id+' closes the opening');
+  service.toggle(d);for(let i=0;i<50;i++)service.update(visitor,.025);assert.ok(d.angle>1.4,d.id+' visibly swings open');assert.equal(hitsWall(d.x,d.z,d.y+1.7,service.colliders),false,d.id+' clears the doorway');
+  let feet=d.y;for(let depth=-1.5;depth<=2.9;depth+=.1){const p=serviceWorld(d,0,-depth);feet=floorHeight(p.x,p.z,feet,geometry);assert.ok(Math.abs(feet-d.y)<.02,d.id+' keeps the room floor');assert.equal(hitsWall(p.x,p.z,feet+1.7,all),false,d.id+' has no invisible wall in its central aisle');}
+  const inside=serviceWorld(d,0,-2.6),route=planWalkPath({...inside,y:d.y},'museum',geometry,obstacleGroups);assert.equal(route.blocked,false);assert.equal(route.path[0].id,d.id+'Exit');assert.equal(route.path.at(-1).id,'museum');
+  service.toggle(d);for(let i=0;i<50;i++)service.update(visitor,.025);assert.ok(d.angle<.02);assert.equal(hitsWall(d.x,d.z,d.y+1.7,service.colliders),true,d.id+' closes again');
+ }
+});
+
+test('service room exit guidance avoids shelving from free positions throughout each room',()=>{
+ const checked=new Map();
+ for(const room of serviceLayout)for(const x of[-1.05,0,1.05])for(const z of[-.9,-2.1,-3.8]){
+  const p={...serviceWorld(room,x,z),y:room.y},walls=navigationObstacles(p,obstacleGroups);if(hitsWall(p.x,p.z,p.y+1.7,walls))continue;
+  const result=planWalkPath(p,'entrance',geometry,obstacleGroups);assert.equal(result.blocked,false,room.id+' can exit');
+  let a=p;for(const b of result.path){assert.equal(walkSegmentClear(a,b,geometry,navigationObstacles(a,obstacleGroups)),true,room.id+' exit stays clear of shelves');a=b;if(b.id===room.id+'Outside')break;}checked.set(room.id,(checked.get(room.id)||0)+1);
+ }
+ for(const room of serviceLayout)assert.ok(checked.get(room.id)>=3,room.id+' tests several free positions');
+ service.update(new THREE.Vector3(0,-1,214),.1);assert.ok(service.doors.every(d=>!d.front.visible),'occluded upper doors do not render from the ground-level entrance');
+});
+
+test('navigation ribbon stays on supported floors and stops before a false storey jump',()=>{
+ const points=ribbonPoints(tourNodes.flight0Start,['flight0Out','flight0Turn','flight0End'].map(id=>tourNodes[id]),geometry,40);
+ assert.ok(points.length>30);for(let i=1;i<points.length;i++)assert.ok(Math.abs(points[i].y-points[i-1].y)<.81,'no vertical strip between storeys');
+ const sky=ribbonPoints({x:0,y:0,z:0},[{x:0,y:20,z:12}],geometry,30);assert.ok(sky.every(p=>Math.abs(p.y-.055)<.001),'future waypoint height cannot pull the line into mid-air');assert.ok(sky.at(-1).z<12);
 });

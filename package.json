@@ -1,7 +1,7 @@
 {
   "name": "allianz-arena-explorer",
   "private": true,
-  "version": "1.6.0",
+  "version": "1.7.0",
   "description": "Interactive Three.js reconstruction of Munich's Allianz Arena",
   "license": "MIT",
   "homepage": "https://allianz-arena-explorer.pages.dev/",
@@ -12,7 +12,7 @@
   "type": "module",
   "scripts": {
     "start": "node server.mjs",
-    "check": "node --check dist/app.js && node --check dist/stadium.js && node --check dist/interiors.js && node --check dist/world.js && node --check dist/kit.js && node --check dist/navigation.js && node --check dist/roster.js && node --check dist/access-layout.js && node --check dist/circulation.js && node --check dist/tour-route.js && node --check dist/walk-guide.js && node --check dist/walk-path.js && node --check dist/walk-motion.js && node --check dist/arrivals.js && node --check dist/building-layout.js && node --check dist/walk-building.js && node --check dist/performance.js && node --check dist/interactions.js && node --check dist/finishes.js && node --check dist/wayfinding.js && node --check dist/furniture-layout.js && node --test tests/*.test.js",
+    "check": "node --check dist/app.js && node --check dist/stadium.js && node --check dist/interiors.js && node --check dist/world.js && node --check dist/kit.js && node --check dist/navigation.js && node --check dist/roster.js && node --check dist/access-layout.js && node --check dist/circulation.js && node --check dist/tour-route.js && node --check dist/walk-guide.js && node --check dist/walk-path.js && node --check dist/walk-motion.js && node --check dist/arrivals.js && node --check dist/building-layout.js && node --check dist/walk-building.js && node --check dist/performance.js && node --check dist/interactions.js && node --check dist/finishes.js && node --check dist/wayfinding.js && node --check dist/furniture-layout.js && node --check dist/destinations.js && node --check dist/scene-budget.js && node --check dist/ribbon-path.js && node --check dist/service-layout.js && node --check dist/service-rooms.js && node --test tests/*.test.js",
     "deploy": "npx --yes wrangler@4.151.2 pages deploy dist --branch main"
   },
   "engines": {

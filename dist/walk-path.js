@@ -1,12 +1,13 @@
 import {planTour} from './tour-route.js';
 import {roomAt} from './building-layout.js';
 import {furnitureBlocksSegment} from './furniture-layout.js';
+import {serviceRoomAt,serviceWorld} from './service-layout.js';
 import {floorHeight,canStandAt,EYE_HEIGHT,MAX_STEP} from './navigation.js';
 
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z,(a.y-b.y)*2);
 const privateArea=p=>roomAt(p)||p.x>-80&&p.x<-66&&p.z>-43&&p.z<50&&p.y<1;
 export function navigationObstacles(position,groups){
- return [...(groups.world||[]),...(groups.building||[]),...(groups.interiors||[]),...(!privateArea(position)?groups.circulation||[]:[])].filter(b=>b.enabled!==false);
+ return [...(groups.world||[]),...(groups.building||[]),...(groups.interiors||[]),...(groups.service||[]),...(!privateArea(position)?groups.circulation||[]:[])].filter(b=>b.enabled!==false&&!b.dynamicDoor);
 }
 function localBounds(b){
  if(b.cx===undefined)return b;
@@ -42,6 +43,7 @@ function detour(a,b,geometry,obstacles){
  }return null;
 }
 export function planWalkPath(position,goal,geometry,groups={}){
+ const service=serviceRoomAt(position);if(service){const door={...serviceWorld(service,0,.45),y:service.y},outside=serviceWorld(service,0,3.1),node=(p,id,label)=>({...p,y:service.y,id,level:'upper',label,hint:'按 F 或点击互动按钮打开服务间双门，再回到公共大厅。'}),obstacles=navigationObstacles(position,groups),prefix=walkSegmentClear(position,door,geometry,obstacles)?[]:detour(position,door,geometry,obstacles),tail=planWalkPath({...outside,y:service.y},goal,geometry,groups);if(!prefix)return{path:[],blocked:true};return{path:[...prefix,node(door,service.id+'Exit','走出服务间'),node(outside,service.id+'Outside','返回公共大厅'),...tail.path],blocked:tail.blocked};}
  const route=planTour(position,goal);if(!route.length)return{path:[],blocked:true};
  const obstacles=navigationObstacles(position,groups),remaining=route.map(()=>0);for(let i=route.length-2;i>=0;i--)remaining[i]=remaining[i+1]+distance(route[i],route[i+1]);
  let best=null;for(let i=0;i<Math.min(route.length,5);i++){const target=route[i];if(i&&Math.abs(target.y-position.y)>.85)break;if(i&&distance(position,target)>45)break;

@@ -5,7 +5,7 @@
  <meta name="theme-color" content="#0d151c"><meta name="description" content="走进拜仁慕尼黑的主场。自由探索安联球场的外壳、看台、草坪、更衣室与球员通道，切换白天与黑夜。">
  <title>安联球场 · ARENA EXPLORER</title>
  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%23db1839'/%3E%3Cellipse cx='32' cy='32' rx='24' ry='17' fill='none' stroke='white' stroke-width='4'/%3E%3Cellipse cx='32' cy='28' rx='14' ry='7' fill='none' stroke='white' stroke-width='3'/%3E%3C/svg%3E">
- <link rel="stylesheet" href="style.css?v=20261022-navigation-160">
+ <link rel="stylesheet" href="style.css?v=20261023-immersion-170">
  <script type="importmap">{"imports":{"three":"./vendor/three.module.js"}}</script>
 </head>
 <body>
@@ -14,11 +14,13 @@
  <header class="topbar glass">
   <a class="brand" href="#" id="home" aria-label="返回球场全景"><span class="brand-mark"><svg viewBox="0 0 40 40"><ellipse cx="20" cy="22" rx="17" ry="10"/><ellipse cx="20" cy="17" rx="17" ry="10"/><ellipse cx="20" cy="16" rx="10" ry="5"/><path d="M3 17v5m34-5v5M8 12l3 14m7-19 1 25m11-20-2 14"/></svg></span><span><b>ALLIANZ ARENA</b><small>慕尼黑 · 互动球场探索</small></span></a>
   <div class="coordinates"><i></i> MÜNCHEN, DE <span>48.2188° N · 11.6247° E</span></div>
-  <div class="top-actions"><button id="help" class="icon-button" aria-label="操作说明" title="操作说明">?</button><button id="capture" class="icon-button" aria-label="保存场景截图" title="保存场景截图"><svg viewBox="0 0 24 24"><path d="M4 7h4l2-3h4l2 3h4v13H4z"/><circle cx="12" cy="13" r="4"/></svg></button><button id="fullscreen" class="icon-button" aria-label="切换全屏" title="切换全屏"><svg viewBox="0 0 24 24"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/></svg></button></div>
+  <div class="top-actions"><button id="map-toggle" class="icon-button" aria-label="打开或关闭地图" aria-expanded="false" title="地图 M"><svg viewBox="0 0 24 24"><path d="m3 5 6-2 6 2 6-2v16l-6 2-6-2-6 2V5zm6-2v16m6-14v16"/></svg></button><button id="toggle-hud" class="icon-button" aria-label="隐藏界面" aria-pressed="false" title="沉浸模式 U"><svg viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg></button><button id="help" class="icon-button" aria-label="操作说明" title="操作说明">?</button><button id="capture" class="icon-button" aria-label="保存场景截图" title="保存场景截图"><svg viewBox="0 0 24 24"><path d="M4 7h4l2-3h4l2 3h4v13H4z"/><circle cx="12" cy="13" r="4"/></svg></button><button id="fullscreen" class="icon-button" aria-label="切换全屏" title="切换全屏"><svg viewBox="0 0 24 24"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/></svg></button></div>
  </header>
  <button class="nav-trigger glass" id="nav-trigger" aria-controls="explore" aria-expanded="false"><svg viewBox="0 0 20 20"><path d="M3 5h14M3 10h14M3 15h14"/></svg><span>选择区域</span></button>
  <aside class="explore glass" id="explore" hidden aria-label="探索主场">
-  <div class="section-heading"><span>探索主场</span><small>EXPLORE THE ARENA</small><button id="toggle-nav" aria-label="关闭区域导航">×</button></div>
+  <div class="section-heading"><span>去哪里探索</span><button id="toggle-nav" aria-label="关闭区域导航">×</button></div>
+  <label class="destination-search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></svg><input type="search" id="destination-search" placeholder="搜索地点" aria-label="搜索地点" autocomplete="off"></label>
+  <div class="destination-tabs" role="tablist" aria-label="地点分类"><button role="tab" aria-selected="true" data-destination-group="all">全部</button><button role="tab" aria-selected="false" data-destination-group="public">大厅</button><button role="tab" aria-selected="false" data-destination-group="pitch">球场</button><button role="tab" aria-selected="false" data-destination-group="team">球员区</button><button role="tab" aria-selected="false" data-destination-group="outside">场外</button></div>
   <nav aria-label="场景区域" id="locations">
    <button class="location active" data-place="exterior"><span class="loc-no">01</span><span><b>球场全景</b><small>标志性气枕外壳</small></span><span class="loc-arrow">↗</span></button>
    <button class="location" data-place="esplanade"><span class="loc-no">02</span><span><b>南广场与周边</b><small>ESPLANADE</small></span><span class="loc-arrow">↗</span></button>
@@ -36,6 +38,7 @@
    <button class="location" data-place="concourse"><span class="loc-no">14</span><span><b>环形公共大厅</b><small>餐饮 · 分区入口 · 导视</small></span><span class="loc-arrow">↗</span></button>
    <button class="location" data-place="store"><span class="loc-no">15</span><span><b>球迷商店</b><small>球衣 · 围巾 · 装备</small></span><span class="loc-arrow">↗</span></button>
   </nav>
+  <p id="destination-empty" class="destination-empty" hidden>没有找到这个地点</p>
   <button class="tour-button" id="tour"><span>▷</span> 自动巡游 <small>15 个视角</small></button>
   <button class="reference-button" id="references">建模说明与参考资料 <span>↗</span></button>
  </aside>
@@ -45,16 +48,16 @@
  <button id="interact" class="interact-button glass" hidden>F · 互动</button>
  <div id="crosshair" hidden><i></i><i></i></div>
  <section class="walk-guide glass" id="walk-guide" aria-label="步行路线指引" hidden>
-  <div class="guide-header"><label for="guide-goal">目的地</label><select id="guide-goal" aria-label="步行目的地"><option value="arcade">接待大厅</option></select><button id="guide-collapse" aria-label="收起或展开步行路线">收起</button></div>
-  <div class="guide-instruction"><span class="guide-arrow" id="guide-arrow" aria-hidden="true">↑</span><div><b id="guide-title">沿金色地线前进</b><p id="guide-detail">下一站会显示方向和距离</p></div></div>
-  <div class="guide-actions"><button id="guide-walk">步行前往</button><button id="guide-teleport">传送到目的地 <kbd>T</kbd></button><button class="guide-next" id="guide-next" hidden>下一站 →</button></div>
+  <div class="guide-header"><button id="guide-goal" aria-label="选择目的地" aria-controls="explore" aria-expanded="false"><span class="destination-dot" aria-hidden="true"></span><span id="guide-goal-name">接待大厅</span><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m6 8 4 4 4-4"/></svg></button><button id="guide-collapse" aria-label="收起或展开步行路线">详情</button></div>
+  <div class="guide-instruction"><span class="guide-arrow" id="guide-arrow" aria-hidden="true">↑</span><div><b id="guide-title">沿金色地线前进</b><small id="guide-distance"></small><p id="guide-detail">下一站会显示方向和距离</p></div></div>
+  <div class="guide-actions"><button id="guide-walk">步行</button><button id="guide-teleport" aria-label="传送到目的地">传送 <kbd>T</kbd></button><button class="guide-next" id="guide-next" hidden>下一站 →</button></div>
  </section>
  <div class="walk-prompt glass" id="walk-prompt" hidden role="status"><span>漫游已暂停</span><button id="start-walk">继续漫游 →</button></div>
- <div class="movement" id="movement" hidden><button data-move="forward" aria-label="向前移动">↑</button><div><button data-move="left" aria-label="向左移动">←</button><button data-move="back" aria-label="向后移动">↓</button><button data-move="right" aria-label="向右移动">→</button></div></div>
- <footer class="bottom-bar"><section class="place-caption"><div class="eyebrow"><span class="red-line"></span><span id="place-tag">THE EXTERIOR</span><span class="model-tag" id="accuracy-tag">公开资料参考复原</span></div><h1 id="place-title">欢迎来到安联球场。</h1><p id="place-desc">一座属于红色的足球殿堂。拖动视角，开始你的主场之旅。</p></section><div class="interaction-hint glass" id="hint"><span>↔ 拖动环绕</span><i></i><span>⌕ 滚轮缩放</span><i></i><button id="reset">↺ 重置视角</button></div><section class="minimap glass"><div><span>场馆导航</span><small id="elevation">海拔 +188 m</small></div><canvas id="map" width="220" height="170" aria-label="当前位置小地图，点击可在第一人称模式导航"></canvas><span class="map-north">N ↑</span><small class="map-legend"><i></i> 当前位置 <span>1 单位 = 1 米</span></small></section></footer>
+ <div class="movement" id="movement" hidden><div id="joystick" class="joystick" role="group" aria-label="触屏移动摇杆"><span class="joystick-ring"></span><span id="joystick-thumb" class="joystick-thumb"></span></div><button id="touch-sprint" aria-label="切换加速移动" aria-pressed="false">跑</button></div>
+ <footer class="bottom-bar"><section class="place-caption"><div class="eyebrow"><span class="red-line"></span><span id="place-tag">THE EXTERIOR</span><span class="model-tag" id="accuracy-tag">公开资料参考复原</span></div><h1 id="place-title">欢迎来到安联球场。</h1><p id="place-desc">一座属于红色的足球殿堂。拖动视角，开始你的主场之旅。</p></section><div class="interaction-hint glass" id="hint"><span>↔ 拖动环绕</span><i></i><span>⌕ 滚轮缩放</span><i></i><button id="reset">↺ 重置视角</button></div><section class="minimap glass" hidden><div><span>场馆导航</span><small id="elevation">海拔 +188 m</small></div><canvas id="map" width="220" height="170" aria-label="当前位置小地图，点击可在第一人称模式导航"></canvas><span class="map-north">N ↑</span><small class="map-legend"><i></i> 当前位置 <span>1 单位 = 1 米</span></small></section></footer>
  <div class="performance" id="performance">THREE.JS / WEBGL</div>
  <div class="toast" id="toast" role="status"></div>
  <dialog id="info-dialog"><button class="close-dialog" aria-label="关闭对话框">×</button><div id="dialog-content"></div></dialog>
  <section class="loading" id="loading"><div class="loading-arena"><i></i><i></i><i></i></div><small>MÜNCHEN · HOME OF FC BAYERN</small><h2>主场，即将呈现。</h2><p id="load-status">正在构建球场与内部空间…</p><div class="load-track"><span></span></div><noscript>需要启用 JavaScript 才能探索球场。</noscript></section>
- <script type="module" src="app.js?v=20261022-navigation-160"></script>
+ <script type="module" src="app.js?v=20261023-immersion-170"></script>
 </body></html>

@@ -1,3 +1,4 @@
+import {compactStaticMeshes} from './scene-budget.js';
 import {THREE,TAU,v,mat,mesh,box,beam,sign,cylinder,superpoint,ringGeometry,curveLine,Batches,seeded,floorTexture,repeatTex,wallCollider} from './kit.js';
 
 export function esplanadeY(z){return -3-THREE.MathUtils.clamp((z-140)/543,0,1)*8.5;}
@@ -78,6 +79,6 @@ export function buildWorld(scene){
  b.flush();
  const nightLights=[];for(const p of lampPositions.filter((_,i)=>i%5===0)){const l=new THREE.PointLight(0xffdda3,0,20,1.8);l.position.copy(p).add(v(0,6,0));group.add(l);nightLights.push(l);}
  let isNight=false;
- return {group,rotor,colliders,update(position){for(const l of nightLights)l.visible=isNight&&l.position.distanceTo(position)<45;},night(n){isNight=n;lightMat.color.set(n?0xffd99d:0xf5f0e2);nightLights.forEach(l=>{l.intensity=n?14:0;l.visible=n;});}};
+ compactStaticMeshes(group,[rotor]);return {group,rotor,colliders,update(position){for(const l of nightLights)l.visible=isNight&&l.position.distanceTo(position)<45;},night(n){isNight=n;lightMat.color.set(n?0xffd99d:0xf5f0e2);nightLights.forEach(l=>{l.intensity=n?14:0;l.visible=n;});}};
  function whiteFlag(){return pale;}
 }
