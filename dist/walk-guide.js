@@ -1,5 +1,6 @@
 import {THREE,v} from './kit.js';
-import {floorHeight,EYE_HEIGHT} from './navigation.js';
+import {EYE_HEIGHT} from './navigation.js';
+import {inCoreShaft,coreLevels} from './building-layout.js';
 import {tourGoals} from './tour-route.js';
 import {waypointReached,movementInstruction} from './wayfinding.js';
 import {planWalkPath,navigationObstacles,walkSegmentClear} from './walk-path.js';
@@ -7,7 +8,7 @@ import {normalizeDestination} from './arrivals.js';
 import {destinationName} from './destinations.js';
 import {ribbonPoints} from './ribbon-path.js';
 
-export function floorLabel(y){return y<2?'入口层':y<18?'公共大厅层':y<32?'包厢 / 中层':'上层看台';}
+export function floorLabel(y,position){if(position){const{x,z}=position;if(inCoreShaft(x,z)&&!coreLevels.some(level=>Math.abs(level-y)<.5))return'楼梯间';if(y<3&&x>-95&&x<-40&&z>-43&&z<49)return'球员层';if(y>=-.3&&Math.abs(x)<42&&Math.abs(z)<60)return'球场层';}return y<2?'入口层':y<18?'公共大厅层':y<32?'包厢 / 中层':'上层看台';}
 export function buildWalkGuide(scene,geometry,{obstacles={},onChoose,onSelect,onWalk,onTeleport}={}){
  const $=id=>document.getElementById(id),panel=$('walk-guide'),select=$('guide-goal'),arrow=$('guide-arrow'),title=$('guide-title'),detail=$('guide-detail'),next=$('guide-next');
  const walkButton=$('guide-walk'),teleportButton=$('guide-teleport'),goalName=$('guide-goal-name'),distanceText=$('guide-distance');
@@ -27,11 +28,11 @@ export function buildWalkGuide(scene,geometry,{obstacles={},onChoose,onSelect,on
  function refresh(yaw=0){
   panel.hidden=lastMode!=='walk'&&!selected;group.visible=lastMode==='walk'&&!blocked&&!arrived;
   const p=feet(lastPosition);document.body.dataset.destination=goal;document.body.dataset.guideState=arrived?'arrived':blocked?'blocked':'routing';
-  walkButton.hidden=lastMode==='walk';teleportButton.title='传送到'+tourGoals[goal]+'（T）';next.hidden=!arrived;distanceText.textContent=arrived?floorLabel(p.y):lastMode==='walk'?'沿地面指引前行':'步行 / 直接传送';
+  walkButton.hidden=lastMode==='walk';teleportButton.title='传送到'+tourGoals[goal]+'（T）';next.hidden=!arrived;distanceText.textContent=arrived?floorLabel(p.y,p):lastMode==='walk'?'沿地面指引前行':'步行 / 直接传送';
   if(arrived){title.textContent='已到达 · '+tourGoals[goal];detail.textContent='自由探索，靠近门、展品与设施可按 F 互动。';arrow.textContent='✓';arrow.style.transform='none';next.textContent='下一站 →';document.body.dataset.guideTarget=goal;delete document.body.dataset.guidePoint;}
   else if(blocked){title.textContent='当前位置暂未找到可通行路线';detail.textContent='回到开放过道后会重新规划，也可直接传送。';arrow.textContent='!';arrow.style.transform='none';document.body.dataset.guideTarget='';delete document.body.dataset.guidePoint;}
   else if(lastMode!=='walk'){title.textContent='已选择 · '+tourGoals[goal];detail.textContent='从上次步行位置出发，或直接传送到目的地。';arrow.textContent='↗';arrow.style.transform='none';}
-  else if(path.length){const target=path[0],instruction=movementInstruction(p,yaw,target,path[1]);arrow.textContent='↑';arrow.style.transform=`rotate(${instruction.angle}rad)`;title.textContent=instruction.action;distanceText.textContent=Math.round(instruction.distance)+' m · '+floorLabel(p.y);detail.textContent=floorLabel(p.y)+' · '+instruction.hint;document.body.dataset.guideTarget=target.id;document.body.dataset.guidePoint=[target.x,target.y,target.z].join(',');}
+  else if(path.length){const target=path[0],instruction=movementInstruction(p,yaw,target,path[1]);arrow.textContent='↑';arrow.style.transform=`rotate(${instruction.angle}rad)`;title.textContent=instruction.action;distanceText.textContent=Math.round(instruction.distance)+' m · '+floorLabel(p.y,p);detail.textContent=floorLabel(p.y,p)+' · '+instruction.hint;document.body.dataset.guideTarget=target.id;document.body.dataset.guidePoint=[target.x,target.y,target.z].join(',');}
  }
  function draw(p){let count=0;const points=ribbonPoints(p,path,geometry);for(let i=1;i<points.length&&count+6<4096*6;i++){const a=points[i-1],b=points[i],dx=b.x-a.x,dz=b.z-a.z,length=Math.hypot(dx,dz)||1,nx=dz/length*.075,nz=-dx/length*.075;for(const [point,side]of[[a,1],[a,-1],[b,1],[b,1],[a,-1],[b,-1]]){positions[count*3]=point.x+nx*side;positions[count*3+1]=point.y;positions[count*3+2]=point.z+nz*side;count++;}}geo.setDrawRange(0,count);geo.attributes.position.needsUpdate=true;lastDraw={...p};}
  function update(position,yaw,dt,mode,currentEyeHeight=EYE_HEIGHT){

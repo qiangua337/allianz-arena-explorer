@@ -15,7 +15,7 @@ const {tourGoals,tourNodes,planTour}=await import('../dist/tour-route.js');
 const {floorHeight,hitsWall}=await import('../dist/navigation.js');
 const {buildInteractions}=await import('../dist/interactions.js');
 const {furnitureBlocksSegment}=await import('../dist/furniture-layout.js');
-const {buildWalkGuide}=await import('../dist/walk-guide.js');
+const {buildWalkGuide,floorLabel}=await import('../dist/walk-guide.js');
 const {planWalkPath,navigationObstacles,walkSegmentClear,routeOnCurrentLevel}=await import('../dist/walk-path.js');
 const {destinationArrival}=await import('../dist/arrivals.js');
 const {canStandAt}=await import('../dist/navigation.js');
@@ -164,4 +164,8 @@ test('navigation ribbon stays on supported floors and stops before a false store
  const points=ribbonPoints(tourNodes.flight0Start,['flight0Out','flight0Turn','flight0End'].map(id=>tourNodes[id]),geometry,40);
  assert.ok(points.length>30);for(let i=1;i<points.length;i++)assert.ok(Math.abs(points[i].y-points[i-1].y)<.81,'no vertical strip between storeys');
  const sky=ribbonPoints({x:0,y:0,z:0},[{x:0,y:20,z:12}],geometry,30);assert.ok(sky.every(p=>Math.abs(p.y-.055)<.001),'future waypoint height cannot pull the line into mid-air');assert.ok(sky.at(-1).z<12);
+});
+
+test('floor names distinguish the pitch, player rooms and intermediate stair landings',()=>{
+ assert.equal(floorLabel(0,{x:0,z:13}),'球场层');assert.equal(floorLabel(-2.7,{x:-82,z:0}),'球员层');assert.equal(floorLabel(-2.9,{x:0,z:113}),'入口层');assert.equal(floorLabel(4.65,{x:100,z:7.08}),'楼梯间');assert.equal(floorLabel(12.2,{x:94,z:-47}),'公共大厅层');
 });
