@@ -44,6 +44,35 @@ def metres(points):
     return a*scale
 
 rig = json.loads((CACHE/'default.mhskel').read_text(encoding='utf-8'))
+source_weights=json.loads((CACHE/'default_weights.mhw').read_text(encoding='utf-8'))['weights']
+# Bake a relaxed hand before collapsing the finger bones to the wrist. The
+# original authoring pose spreads every finger; it is unsuitable for walking.
+open_body=body.copy()
+def joint_point(name): return open_body[rig['joints'][name]].mean(0)
+hand_delta=np.zeros_like(body)
+for side in ['L','R']:
+    index=joint_point(rig['bones']['finger2-1.'+side]['head'])
+    pinky=joint_point(rig['bones']['finger5-1.'+side]['head'])
+    middle=rig['bones']['finger3-1.'+side]
+    direction=joint_point(middle['tail'])-joint_point(middle['head'])
+    palm=np.cross(pinky-index,direction);palm/=np.linalg.norm(palm)
+    if palm[2]>0: palm=-palm
+    for finger in range(1,6):
+        parent_rotation=np.eye(3);previous_tail=None
+        for segment in range(1,4):
+            name=f'finger{finger}-{segment}.{side}';bone=rig['bones'][name]
+            head=joint_point(bone['head']);tail=joint_point(bone['tail'])
+            vector=tail-head;vector/=np.linalg.norm(vector)
+            axis=np.cross(vector,palm);axis/=np.linalg.norm(axis)
+            angle=np.deg2rad(([8,17,12] if finger==1 else [14,32,23])[segment-1])
+            x,y,z=axis;K=np.array([[0,-z,y],[z,0,-x],[-y,x,0]])
+            rotation=parent_rotation@(np.eye(3)+np.sin(angle)*K+(1-np.cos(angle))*(K@K))
+            new_head=head if previous_tail is None else previous_tail
+            for vi,weight in source_weights.get(name,[]):
+                posed=new_head+rotation@(open_body[vi]-head)
+                hand_delta[vi]+=(posed-open_body[vi])*weight
+            previous_tail=new_head+rotation@(tail-head);parent_rotation=rotation
+body+=hand_delta
 kept = ['root','spine05','spine03','spine01','neck01','head']
 for side in ['L','R']:
     kept += [x+'.'+side for x in ['upperarm01','lowerarm01','wrist','upperleg01','lowerleg01','foot']]
@@ -65,7 +94,7 @@ def remap(name):
     return 'root'
 
 weights = np.zeros((len(body), len(kept)))
-for name, pairs in json.loads((CACHE/'default_weights.mhw').read_text(encoding='utf-8'))['weights'].items():
+for name, pairs in source_weights.items():
     col = kept.index(remap(name))
     for vi, weight in pairs: weights[vi,col] += weight
 weights /= np.maximum(1e-8, weights.sum(1, keepdims=True))

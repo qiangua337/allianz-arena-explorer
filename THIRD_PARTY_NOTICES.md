@@ -1,5 +1,9 @@
 # 第三方许可与标识
 
+Quaternius Universal Animation Library Standard：行走、站立、坐姿和交谈动作，作者 Quaternius，CC0 1.0。项目对动作进行取样和骨架适配，未使用任何足球商业游戏的资产。来源：<https://quaternius.com/packs/universalanimationlibrary.html>、<https://opengameart.org/content/universal-animation-library>。原始声明保存在 `dist/assets/players/LICENSE.ANIMATIONS.txt`。
+
+Borussia Dortmund 队徽：`dist/assets/borussia-dortmund.svg`，来源 <https://commons.wikimedia.org/wiki/File:Borussia_Dortmund_logo.svg>，2023-08-26 从 bvb.de 更新的 SVG。Commons 标为 PD-textlogo；商标权仍属于俱乐部，不属于本项目 MIT 许可的授权范围。
+
 Three.js 0.186.1 及 OrbitControls 采用 MIT 许可证，版权属于 Three.js authors。
 原始许可保存在 [dist/vendor/LICENSE.three.txt](dist/vendor/LICENSE.three.txt)。
 上游项目：<https://github.com/mrdoob/three.js>。

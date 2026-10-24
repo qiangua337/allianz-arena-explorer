@@ -5,7 +5,7 @@
  <meta name="theme-color" content="#0d151c"><meta name="description" content="走进拜仁慕尼黑的主场。自由探索安联球场的外壳、看台、草坪、更衣室与球员通道，切换白天与黑夜。">
  <title>安联球场 · ARENA EXPLORER</title>
  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%23db1839'/%3E%3Cellipse cx='32' cy='32' rx='24' ry='17' fill='none' stroke='white' stroke-width='4'/%3E%3Cellipse cx='32' cy='28' rx='14' ry='7' fill='none' stroke='white' stroke-width='3'/%3E%3C/svg%3E">
- <link rel="stylesheet" href="style.css?v=20261023-matchday-180">
+ <link rel="stylesheet" href="style.css?v=20261024-stadium-190">
  <script type="importmap">{"imports":{"three":"./vendor/three.module.js"}}</script>
 </head>
 <body>
@@ -17,7 +17,7 @@
   <div class="top-actions"><button id="map-toggle" class="icon-button" aria-label="打开或关闭地图" aria-expanded="false" title="地图 M"><svg viewBox="0 0 24 24"><path d="m3 5 6-2 6 2 6-2v16l-6 2-6-2-6 2V5zm6-2v16m6-14v16"/></svg></button><button id="toggle-hud" class="icon-button" aria-label="隐藏界面" aria-pressed="false" title="沉浸模式 U"><svg viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg></button><button id="help" class="icon-button" aria-label="操作说明" title="操作说明">?</button><button id="capture" class="icon-button" aria-label="保存场景截图" title="保存场景截图"><svg viewBox="0 0 24 24"><path d="M4 7h4l2-3h4l2 3h4v13H4z"/><circle cx="12" cy="13" r="4"/></svg></button><button id="fullscreen" class="icon-button" aria-label="切换全屏" title="切换全屏"><svg viewBox="0 0 24 24"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/></svg></button></div>
  </header>
  <button class="nav-trigger glass" id="nav-trigger" aria-controls="explore" aria-expanded="false"><svg viewBox="0 0 20 20"><path d="M3 5h14M3 10h14M3 15h14"/></svg><span>选择区域</span></button>
- <button class="match-launch glass" id="matchday-launch" aria-label="体验比赛日球员入场"><span class="match-live-dot" aria-hidden="true"></span>比赛日入场 <span aria-hidden="true">↗</span></button>
+ <button class="match-launch glass" id="matchday-launch" aria-label="打开比赛日选项"><span class="match-live-dot" aria-hidden="true"></span>比赛日选项 <span aria-hidden="true">↗</span></button>
  <aside class="explore glass" id="explore" hidden aria-label="探索主场">
   <div class="section-heading"><span>去哪里探索</span><button id="toggle-nav" aria-label="关闭区域导航">×</button></div>
   <label class="destination-search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></svg><input type="search" id="destination-search" placeholder="搜索地点" aria-label="搜索地点" autocomplete="off"></label>
@@ -62,22 +62,23 @@
  <dialog id="match-dialog" aria-labelledby="match-dialog-title">
   <button class="close-dialog" id="match-dialog-close" aria-label="关闭入场体验介绍">×</button>
   <div class="match-intro-art" aria-hidden="true"><span>MATCHDAY</span><i></i><b>FC BAYERN</b></div>
-  <div class="eyebrow">FROM THE TUNNEL TO THE ROAR</div><h2 id="match-dialog-title">走进全场的欢呼。</h2>
-  <p>与队友在红色通道列队，经过场边台阶，迎着满看台的声浪踏上草坪。</p>
-  <div class="match-features"><span>36 秒入场</span><span>看台人群与旗帜</span><span>现场人群声景</span></div>
-  <button id="match-start" class="match-start">开始球员入场 <span>→</span></button>
-  <button id="match-manual" class="match-manual">开启声浪，自己走入场</button>
-  <p class="match-intro-note">点击开始后播放声音。体验中可调音量、暂停、跳过或退出；结束后可以自由漫游。</p>
+  <div class="eyebrow">FC BAYERN × BORUSSIA DORTMUND</div><h2 id="match-dialog-title">选择你的比赛日。</h2>
+  <p>双方各 11 名首发、裁判组、替补与场边团队，和满看台的声浪。可以留在当前位置探索，也可以选择从通道跟队入场。</p>
+  <div class="match-features"><span>11 对 11</span><span>4 名裁判</span><span>双方替补与教练医护</span></div>
+  <button id="match-manual" class="match-start">开启比赛日，自由参观 <span>→</span></button>
+  <button id="match-start" class="match-manual">跟随球队入场 · 44 秒</button>
+  <p class="match-intro-note">点击后开启声音。自由参观保持当前位置；跟队入场将前往通道，可随时结束跟随。普通参观默认不显示比赛人员。</p>
   <details class="match-credits"><summary>制作与声音来源</summary><p>人群录音：Work With Sounds / Torsten Nilsson，<a href="https://commons.wikimedia.org/wiki/File:WWS_FootballAustriavs.Sweden.ogg" target="_blank" rel="noopener">足球现场录音</a>，<a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>。本项目截取并混音为通用球场声景，非拜仁比赛同期声。人物采用通用人体，并非球星扫描肖像。</p></details>
  </dialog>
  <div class="match-countdown" id="match-countdown" hidden aria-live="off"></div>
  <section class="match-controls glass" id="match-controls" hidden aria-label="比赛日体验控制">
   <div class="match-progress"><span id="match-progress-fill"></span></div>
   <div class="match-status"><small><i class="match-live-dot"></i> MATCHDAY</small><b id="match-status" role="status">列队候场</b></div>
-  <div class="match-buttons"><button id="match-pause" aria-label="暂停入场体验">暂停</button><button id="match-skip">跳过入场</button><button id="match-cheer" hidden>欢呼</button></div>
+  <div class="match-buttons"><button id="match-pause" aria-label="暂停入场体验">暂停</button><button id="match-skip">跟队入场</button><button id="match-cheer" hidden>欢呼</button><button id="match-lineups">阵容</button><button id="match-kick" hidden>踢球 F</button></div>
   <div class="match-sound"><button id="match-mute" aria-label="静音看台声" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 4 6 8H3v8h3l5 4V4Zm4 4c2 2 2 6 0 8m3-11c4 4 4 10 0 14"/></svg></button><input type="range" id="match-volume" min="0" max="100" value="65" aria-label="看台声浪音量"><meter id="match-level" min="0" max="1" value="0" aria-label="当前音频信号强度"></meter></div>
-  <button id="match-exit" aria-label="退出比赛日体验">退出</button><small id="match-audio-status" class="match-audio-status">声音准备中</small>
+  <button id="match-more" aria-label="展开比赛日控制" aria-expanded="false">⋯</button><button id="match-exit" aria-label="退出比赛日体验">退出</button><small id="match-audio-status" class="match-audio-status">声音准备中</small>
  </section>
+ <dialog id="match-roster-dialog" aria-labelledby="match-roster-title"><button id="match-roster-close" class="close-dialog" aria-label="关闭比赛阵容">×</button><div class="eyebrow">EXHIBITION · MATCHDAY</div><h2 id="match-roster-title">拜仁 × 多特蒙德</h2><p>演示阵容与站位；姓名和号码依据俱乐部官网核对，不代表某场真实比赛首发。</p><button id="match-visit-bench" class="match-manual">传送到场边 · 看替补与教练医护 →</button><div id="match-roster-content"></div><p class="roster-note">场上 22 人，替补 18 人，教练及医护 8 人，裁判组 4 人。名单核对：2026-10-23。</p></dialog>
  <section class="loading" id="loading"><div class="loading-arena"><i></i><i></i><i></i></div><small>MÜNCHEN · HOME OF FC BAYERN</small><h2>主场，即将呈现。</h2><p id="load-status">正在构建球场与内部空间…</p><div class="load-track"><span></span></div><noscript>需要启用 JavaScript 才能探索球场。</noscript></section>
- <script type="module" src="app.js?v=20261023-matchday-180"></script>
+ <script type="module" src="app.js?v=20261024-stadium-190"></script>
 </body></html>

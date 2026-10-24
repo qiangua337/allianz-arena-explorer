@@ -4,7 +4,7 @@ import {playerByNumber} from './roster.js';
 import {entranceFloor} from './matchday-route.js';
 
 function fanAtlas(){return canvasTexture(1024,256,c=>{
- const skin=['#d8aa85','#b9815d','#e1b595','#76513f','#d3a286','#b58460','#e2b995','#926548'],shirts=['#a51b34','#f0e9dc','#ba233b','#363a40','#d02038','#b41e36','#ddd7cc','#8f1a30'];
+ const skin=['#bd9575','#a1785c','#c59e80','#76513f','#b68c72','#997153','#c5a182','#84604b'],shirts=['#8d2034','#c4c0b4','#9b283a','#363a40','#a52538','#941f32','#71283a','#821d30'];
  for(let i=0;i<8;i++){c.save();c.translate(i*128,0);c.lineCap='round';c.strokeStyle='#24292d';c.lineWidth=14;c.beginPath();c.moveTo(54,168);c.lineTo(52,232);c.moveTo(74,168);c.lineTo(78,232);c.stroke();c.fillStyle='#20252a';c.fillRect(40,232,20,9);c.fillRect(70,232,23,9);
   c.strokeStyle=shirts[i];c.lineWidth=14;c.beginPath();c.moveTo(43,87);c.lineTo(i%3===0?25:32,i%3===0?44:141);c.moveTo(85,87);c.lineTo(i%3===0?104:97,i%3===0?42:137);c.stroke();
   c.fillStyle=shirts[i];c.beginPath();c.moveTo(45,76);c.quadraticCurveTo(64,68,84,76);c.lineTo(87,171);c.quadraticCurveTo(64,182,41,171);c.closePath();c.fill();c.fillStyle=skin[i];c.fillRect(58,57,13,22);c.beginPath();c.ellipse(64,43,15,21,0,0,Math.PI*2);c.fill();c.fillStyle=i%2?'#574133':'#292b2b';c.beginPath();c.ellipse(64,30,15,10,0,Math.PI,Math.PI*2);c.fill();

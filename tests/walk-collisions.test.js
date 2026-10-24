@@ -31,10 +31,10 @@ await loadBrandAssets();const scene=new THREE.Scene(),world=buildWorld(scene),st
 const obstacleGroups={world:world.colliders,building:building.colliders,interiors:interiors.colliders,circulation:stadium.circulation.colliders};
 const service=buildServiceRooms(scene);obstacleGroups.service=service.walls;
 
-test('the cinematic and all six NPCs use the existing walkable tunnel and treads',()=>{
+test('the cinematic, both starting elevens and the leading officials use the existing walkable tunnel and treads',()=>{
  const walls=[...world.colliders,...interiors.colliders,...building.colliders,...stadium.circulation.colliders];
- for(let t=0;t<32;t+=.025){const p=entranceSample(t),floor=floorHeight(p.x,p.z,p.feet,geometry);assert.ok(Math.abs(floor-p.feet)<.025,'camera has the actual floor at '+p.x);assert.equal(hitsWall(p.x,p.z,p.feet+1.7,walls),false,'camera route is clear');}
- for(let i=0;i<6;i++)for(let t=0;t<32;t+=.04){const p=sampleQueuePlayer(t,i);if(p.x>-31)continue;const feet=floorHeight(p.x,p.z,-2.7,geometry);assert.equal(hitsWall(p.x,p.z,feet+1.6,walls),false,'NPC '+i+' can pass through the tunnel');}
+ for(let t=0;t<44;t+=.025){const p=entranceSample(t),floor=floorHeight(p.x,p.z,p.feet,geometry);assert.ok(Math.abs(floor-p.feet)<.025,'camera has the actual floor at '+p.x);assert.equal(hitsWall(p.x,p.z,p.feet+1.7,walls),false,'camera route is clear');}
+ for(let i=0;i<25;i++)for(let t=0;t<44;t+=.04){const p=sampleQueuePlayer(t,i);if(p.x>-31)continue;const feet=floorHeight(p.x,p.z,-2.7,geometry);assert.equal(hitsWall(p.x,p.z,feet+1.6,walls),false,'NPC '+i+' can pass through the tunnel');}
 });
 test('real room walls, fixtures and handrails leave all advertised routes clear',()=>{
  for(const goal of Object.keys(tourGoals)){
@@ -118,6 +118,10 @@ test('every selectable arrival can resume walking toward every other destination
   assert.equal(result.blocked,false,source+' → '+target+' finds a route');assert.equal(result.path.at(-1).id,target);
   assert.equal(walkSegmentClear(p,result.path[0],geometry,navigationObstacles(p,obstacleGroups)),true,source+' → '+target+' has a clear first connector');
  }
+});
+test('the matchday sideline viewpoint can resume all ordinary walking routes',()=>{
+ for(const target of Object.keys(tourGoals)){const result=planWalkPath({x:-33.2,y:0,z:-18},target,geometry,obstacleGroups);assert.equal(result.blocked,false,'sideline → '+target);}
+ for(const x of[-34,-20,0,20,34])for(const z of[-48,-18,0,18,48]){const result=planWalkPath({x,y:0,z},'arcade',geometry,obstacleGroups);assert.equal(result.blocked,false,'field → reception '+x+','+z);assert.ok(['pitch','westField','tunnelMouth','pitchEdge','pitchExit'].includes(result.path[0].id));}
 });
 
 test('the map stops at the next floor transition instead of overlaying the upper loop',()=>{

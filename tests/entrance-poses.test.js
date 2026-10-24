@@ -16,7 +16,7 @@ await players.prepare();globalThis.fetch=realFetch;
 test('the real skinned boots stay grounded during the independent level walk',()=>{
  const v=new THREE.Vector3();
  for(let t=0;t<=36;t+=.05){players.update(t,t);scene.updateMatrixWorld(true);
-  for(const person of players.root.children){if(person.position.x> -46.7&&person.position.x< -39.6)continue;const feet=[];for(const name of['bootL','bootR']){const boot=person.getObjectByName(name);let bottom=Infinity;for(let i=0;i<boot.geometry.attributes.position.count;i++){boot.getVertexPosition(i,v);boot.localToWorld(v);bottom=Math.min(bottom,v.y-entranceFloor(v.x));}feet.push(bottom);}
+  for(const person of players.root.children.filter(p=>p.userData.role==='player')){if(person.position.x> -46.7&&person.position.x< -39.6)continue;const feet=[],body=person.getObjectByName('athlete');for(const name of['bootL','bootR']){const range=body.geometry.userData.parts[name];let bottom=Infinity;for(let i=range.start;i<range.start+range.count;i++){body.getVertexPosition(i,v);body.localToWorld(v);bottom=Math.min(bottom,v.y-entranceFloor(v.x));}feet.push(bottom);}
    assert.ok(Math.min(...feet)<.085,'at least one foot is on the floor at '+t.toFixed(2));assert.ok(Math.min(...feet)>-.09,'no foot sinks through the floor at '+t.toFixed(2));
   }
  }
@@ -24,4 +24,8 @@ test('the real skinned boots stay grounded during the independent level walk',()
 test('all final NPC poses are fixed world positions and can be replayed',()=>{
  players.update(200,200);scene.updateMatrixWorld(true);const end=players.positions;players.update(201,201);assert.equal(players.positions,end);
  players.reset();players.update(0,202);const start=players.positions;assert.notEqual(start,end);players.update(0,203);assert.equal(players.positions,start);
+});
+test('seated substitutes align their hips with the actual cushion heights',()=>{
+ players.update(200,200);scene.updateMatrixWorld(true);const v=new THREE.Vector3();
+ for(const person of players.root.children.filter(p=>p.userData.role==='substitute'||p.userData.role==='assistant')){person.getObjectByName('upperleg01.L').getWorldPosition(v);const cushion=person.userData.role==='assistant'?1.05:.60;assert.ok(Math.abs(v.y-cushion)<.14,person.name+' hip aligns with cushion');const body=person.getObjectByName('athlete');let bottom=Infinity;for(const name of['bootL','bootR']){const range=body.geometry.userData.parts[name];for(let i=range.start;i<range.start+range.count;i++){body.getVertexPosition(i,v);body.localToWorld(v);bottom=Math.min(bottom,v.y);}}const floor=person.userData.role==='assistant'?.49:.04;assert.ok(bottom>floor-.14&&bottom<floor+.22,person.name+' feet align with platform');}
 });

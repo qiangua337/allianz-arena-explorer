@@ -34,12 +34,13 @@ export function ringGeometry(ax,bz,cx,dz,y=0,n=2.8,segments=192){const pos=[],uv
 export function curveLine(parent,points,color=0xffffff,opacity=1){const g=new THREE.BufferGeometry().setFromPoints(points);const m=new THREE.LineBasicMaterial({color,transparent:opacity<1,opacity});const l=new THREE.Line(g,m);parent.add(l);return l;}
 export function mergeGeometry(gs){const arrays={position:[],normal:[],uv:[]};for(let g of gs){if(g.index)g=g.toNonIndexed();for(const a in arrays)if(g.attributes[a])arrays[a].push(g.attributes[a].array);}const out=new THREE.BufferGeometry();for(const a in arrays){const len=arrays[a].reduce((s,p)=>s+p.length,0);if(!len)continue;const data=new Float32Array(len);let offset=0;for(const p of arrays[a]){data.set(p,offset);offset+=p.length;}out.setAttribute(a,new THREE.BufferAttribute(data,a==='uv'?2:3));}return out;}
 export class Batches{constructor(parent){this.parent=parent;this.entries=new Map();}add(w,h,d,x,y,z,m,yaw=0){let arr=this.entries.get(m);if(!arr){arr=[];this.entries.set(m,arr);}arr.push({w,h,d,x,y,z,yaw});}flush(){const dummy=new THREE.Object3D();for(const[m,arr]of this.entries){const inst=new THREE.InstancedMesh(new THREE.BoxGeometry(1,1,1),m,arr.length);arr.forEach((a,i)=>{dummy.position.set(a.x,a.y,a.z);dummy.scale.set(a.w,a.h,a.d);dummy.rotation.set(0,a.yaw,0);dummy.updateMatrix();inst.setMatrixAt(i,dummy.matrix);});inst.receiveShadow=true;inst.castShadow=true;inst.computeBoundingSphere();this.parent.add(inst);}this.entries.clear();}}
-let crestTexture;
+let crestTexture,awayCrest;
 export async function loadBrandAssets(){
- const image=await new THREE.ImageLoader().loadAsync(new URL('./assets/fc-bayern.svg',import.meta.url).href);
+ const [image,away]=await Promise.all(['fc-bayern.svg','borussia-dortmund.svg'].map(name=>new THREE.ImageLoader().loadAsync(new URL('./assets/'+name,import.meta.url).href)));
  crestTexture=canvasTexture(1024,1024,ctx=>ctx.drawImage(image,0,0,1024,1024));
- crestTexture.name='Official FC Bayern crest';
+ crestTexture.name='Official FC Bayern crest';awayCrest=away;
 }
+export const getCrestImage=team=>team==='away'?awayCrest:crestTexture?.image;
 export function addCrest(parent,size,x,y,z){
  if(!crestTexture)throw new Error('Brand assets must load before building the arena');
  const material=new THREE.MeshBasicMaterial({map:crestTexture,transparent:true,alphaTest:.08,depthWrite:false,side:THREE.FrontSide,toneMapped:false,polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-1});

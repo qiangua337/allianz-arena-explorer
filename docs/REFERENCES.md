@@ -46,6 +46,8 @@
 
 ## 版本 1.8 的入场体验
 
+版本 1.9 增补：以 [EA FC 26 Gameplay Deep Dive](https://www.ea.com/games/ea-sports-fc/fc-26/news/pitch-notes-fc26-gameplay-deep-dive) 的场地可读性和呈现为视觉方向参考；实际采用可再分发的 [Quaternius 动画](https://quaternius.com/packs/universalanimationlibrary.html)。双方各 11 人的构成参照 [IFAB Law 3](https://www.theifab.com/laws/latest/the-players/)，姓名号码来自 [拜仁一线队](https://fcbayern.com/en/teams/first-team) 及 [多特蒙德官方球员商店](https://shop.bvb.de/pages/shop-by-player)。这是展示阵容与场边岗位配置，并非某场真实比赛名单，亦未实现完整足球比赛规则与 AI。
+
 入场体验使用现有西侧球员通道、逐级台阶和场边地面，增加 36 秒的连续第一人称入场、独立队友路线、看台观众、旗帜、灯光及声景。队列、队友最终站位、观众服色与动画为艺术化组织，不是某场真实比赛的同步复刻。
 
 人物研究参考 [EA Sports FC 官方 Gameplay Deep Dive](https://www.ea.com/en-au/games/ea-sports-fc/pitch-notes/news/fc-24-gameplay-deepdive) 对身体移动的介绍，及 [Konami 官方对 Motion Matching 的说明](https://www.konami.com/games/us/en/topics/1756/)。这些页面仅用于理解动作与画面方向，没有提取游戏资产或声轨。人物基于可再分发的 MakeHuman 通用人体；来源、许可与生成过程见 [PLAYER-ASSETS.md](PLAYER-ASSETS.md)。人物并非球星扫描脸模，骨骼动作与布料细节也未达到这些商业游戏的制作精度。

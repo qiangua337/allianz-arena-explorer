@@ -5,11 +5,11 @@ import {registerHooks} from 'node:module';
 registerHooks({resolve(specifier,context,next){return specifier==='three'?{url:new URL('../dist/vendor/three.module.js',import.meta.url).href,shortCircuit:true}:next(specifier,context);}});
 import {entranceSample,entranceFloor,matchdayAcoustics,ENTRANCE_DURATION} from '../dist/matchday-route.js';
 import {sampleQueuePlayer} from '../dist/entrance-choreography.js';
-const {footballStride}=await import('../dist/entrance-players.js');
+import {homeXI,awayXI,substitutes,officials,teamStaff,matchdayPeople} from '../dist/matchday-roster.js';
 
 test('entry starts with a countdown and ends on the actual pitch floor',()=>{
- assert.equal(entranceSample(-1).x,-62);assert.equal(entranceSample(0).countdown,4);assert.equal(entranceSample(3.9).x,-62);
- let previous=-62;const phases=new Set();for(let t=0;t<=ENTRANCE_DURATION;t+=.03){const s=entranceSample(t);assert.ok(s.x>=previous);assert.equal(s.feet,entranceFloor(s.x));previous=s.x;phases.add(s.phase);}
+ assert.equal(entranceSample(-1).x,-67.4);assert.equal(entranceSample(0).countdown,4);assert.equal(entranceSample(3.9).x,-67.4);
+ let previous=-67.4;const phases=new Set();for(let t=0;t<=ENTRANCE_DURATION;t+=.03){const s=entranceSample(t);assert.ok(s.x>=previous);assert.equal(s.feet,entranceFloor(s.x));previous=s.x;phases.add(s.phase);}
  for(const p of['lineup','tunnel','stairs','emerge','reveal'])assert.ok(phases.has(p));
  const end=entranceSample(500);assert.equal(end.finished,true);assert.equal(end.x,-31);assert.equal(end.feet,0);assert.equal(end.phase,'free');
 });
@@ -22,18 +22,22 @@ test('crowd sound opens gradually from the enclosed tunnel onto the field',()=>{
  assert.ok(matchdayAcoustics({x:180,y:1.7,z:180}).gain<pitch.gain);
 });
 test('NPCs leave on their own timeline and take distinct pitch positions',()=>{
- for(let i=0;i<6;i++){
+ for(let i=0;i<25;i++){
   const start=sampleQueuePlayer(0,i),later=sampleQueuePlayer(10,i),end=sampleQueuePlayer(200,i);
   assert.equal(start.moving,false);assert.ok(later.x>start.x);assert.equal(end.moving,false);assert.equal(sampleQueuePlayer(201,i).x,end.x);
   // Queue widths stay inside the tunnel before branching on the pitch.
   for(let t=0;t<22;t+=.05){const p=sampleQueuePlayer(t,i);if(p.x<-30)assert.ok(Math.abs(p.z)<1);const next=sampleQueuePlayer(t+.01,i);assert.ok(Math.hypot(next.x-p.x,next.z-p.z)<.04);}
  }
- assert.equal(new Set(Array.from({length:6},(_,i)=>JSON.stringify(sampleQueuePlayer(200,i)))).size,6);
+ assert.equal(new Set(Array.from({length:25},(_,i)=>JSON.stringify(sampleQueuePlayer(200,i)))).size,25);
 });
-test('a stance foot stays planted while the body advances and swing clears the ground',()=>{
- const a=.1+footballStride(.1).z,b=.3+footballStride(.3).z;assert.ok(Math.abs(a-b)<1e-8);
- let lifted=false;for(let d=0;d<1.3;d+=.01){const p=footballStride(d);assert.ok(p.lift>=0&&p.lift<=.131);if(p.swing&&p.lift>.12)lifted=true;}
- assert.equal(lifted,true);assert.ok(Math.abs(footballStride(0).z-footballStride(1.3).z)<1e-8);
+test('the full matchday population has correct roles and distinct numbered squads',()=>{
+ assert.equal(homeXI.length,11);assert.equal(awayXI.length,11);assert.equal(officials.length,4);assert.equal(teamStaff.length,8);assert.equal(substitutes.length,18);assert.equal(matchdayPeople.length,52);
+ for(const [team,xi]of [['home',homeXI],['away',awayXI]]){assert.equal(xi.filter(p=>p.keeper).length,1);const squad=[...xi,...substitutes.filter(p=>p.team===team)];assert.equal(new Set(squad.map(p=>p.player.number)).size,20);assert.ok(squad.every(p=>p.player.name));}
+});
+test('authored motion loops retain unit quaternions and a seamless gait seam',()=>{
+ const motion=JSON.parse(fs.readFileSync(new URL('../dist/assets/players/walk-cycle.json',import.meta.url)));
+ for(const clip of Object.values(motion.clips)){assert.ok(clip.duration>0);assert.equal(clip.frames.length,61);for(const frame of clip.frames){assert.equal(frame.length,75);assert.ok(frame.every(Number.isFinite));for(let i=3;i<frame.length;i+=4)assert.ok(Math.abs(Math.hypot(...frame.slice(i,i+4))-1)<.00001);}}
+ const walk=motion.clips.Walk_Loop;for(let i=3;i<75;i++)assert.ok(Math.abs(walk.frames[0][i]-walk.frames[60][i])<.002);
 });
 
 const directory=new URL('../dist/assets/players/',import.meta.url),manifest=JSON.parse(fs.readFileSync(new URL('footballer.json',directory))),file=fs.readFileSync(new URL('footballer.bin',directory));
