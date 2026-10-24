@@ -10,6 +10,11 @@ test('pedestrian exterior and covered arcade omit the occluded bowl while pitch 
  for(const p of[{x:0,y:-2.4,z:214},{x:6,y:-1.2,z:110},{x:22,y:-1.2,z:80}])assert.equal(bowlIsVisible(p,'walk'),false);
  for(const p of[{x:0,y:1.7,z:0},{x:0,y:12.2,z:-83},{x:93,y:25.3,z:0},{x:250,y:174,z:307}])assert.equal(bowlIsVisible(p,'walk'),true);
 });
+
+test('looking through the connected player tunnel retains the pitch even from the dressing room',()=>{
+ for(const x of [-88,-76,-70,-67,-61,-45,-31])assert.equal(bowlIsVisible({x,y:-1,z:0},'walk'),true,'tunnel sightline at '+x);
+ assert.equal(bowlIsVisible({x:-88,y:-1,z:28},'walk'),false,'the enclosed away-room wing can still omit the bowl');
+});
 test('static batching preserves instances and independently animated children',()=>{
  const group=new THREE.Group(),material=new THREE.MeshBasicMaterial(),geo=new THREE.BoxGeometry(1,1,1),rotor=new THREE.Group(),part=new THREE.Mesh(geo,material);rotor.add(part);group.add(rotor);const inst=new THREE.InstancedMesh(geo,material,3);group.add(inst);for(let i=0;i<4;i++)group.add(new THREE.Mesh(geo,material));compactStaticMeshes(group,[rotor]);assert.equal(inst.parent,group);assert.equal(part.parent,rotor);assert.equal(group.children.filter(x=>x.isMesh&&!x.isInstancedMesh).length,1);freezeArchitecture(group,[rotor]);assert.equal(rotor.matrixAutoUpdate,true);assert.equal(inst.matrixAutoUpdate,false);
 });

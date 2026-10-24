@@ -27,9 +27,46 @@ const {ribbonPoints}=await import('../dist/ribbon-path.js');
 const {coreFlights,platforms}=await import('../dist/building-layout.js');
 const {entranceSample}=await import('../dist/matchday-route.js');
 const {sampleQueuePlayer}=await import('../dist/entrance-choreography.js');
+const {playerCorridor,playerShower}=await import('../dist/player-area-layout.js');
 await loadBrandAssets();const scene=new THREE.Scene(),world=buildWorld(scene),stadium=buildStadium(scene),interiors=buildInteriors(scene,stadium.circulation),building=buildWalkBuilding(scene),geometry={rooms:roomSpecs,tiers:stadium.tiers};
 const obstacleGroups={world:world.colliders,building:building.colliders,interiors:interiors.colliders,circulation:stadium.circulation.colliders};
 const service=buildServiceRooms(scene);obstacleGroups.service=service.walls;
+
+function visibleEnvelopeMeshes(){const list=[];for(const group of [interiors.rooms.corridor,interiors.rooms.shower,...Object.values(interiors.shells)])group.traverseVisible(o=>{if(o.isMesh)list.push(o);});scene.updateMatrixWorld(true);return list;}
+function envelopeRay(origin,direction){return new THREE.Raycaster(new THREE.Vector3(...origin),new THREE.Vector3(...direction),0,100).intersectObjects(visibleEnvelopeMeshes(),false)[0];}
+
+test('both ends and the complete side walls of the player corridor have rendered geometry and collision',()=>{
+ const p=new THREE.Vector3(-69.5,-1,-37);interiors.update(p,'pitch');
+ for(const [direction,axis,expected]of [[[0,0,-1],'z',-40.91],[[0,0,1],'z',48.91],[[1,0,0],'x',-66.79],[[-1,0,0],'x',-71.4]]){
+  const hit=envelopeRay(p.toArray(),direction);assert.ok(hit,'an enclosed direction must not reveal the sky');assert.ok(Math.abs(hit.point[axis]-expected)<.04,`${axis}: ${hit.point[axis]} vs ${expected}`);
+ }
+ const walls=interiors.colliders;
+ for(const [start,dx,dz]of [[{x:-69.5,z:-39},0,-8],[{x:-69.5,z:47},0,8],[{x:-68,z:-37},5,0],[{x:-68,z:44},5,0]]){
+  const p={...start};advanceWalker(p,-2.7,dx,dz,geometry,(x,z,y)=>hitsWall(x,z,y,walls));assert.equal(hitsWall(p.x,p.z,-1,walls),false);assert.ok(p.z>playerCorridor.minZ+.24&&p.z<playerCorridor.maxZ-.24&&p.x<playerCorridor.maxX-.24,'walking stops at the visible wall');
+ }
+});
+
+test('every supported corridor and shower floor sample has a matching rendered floor and ceiling',()=>{
+ for(const [area,xs,zs]of [[playerCorridor,[-70.9,-69.5,-67.2],[-40.5,-37,-34,-16,-12,0,14,20,36,44,48.5]],[playerShower,[-90,-86,-78,-73.5],[37.2,38,40,46.7]]])for(const x of xs)for(const z of zs){
+  const p=new THREE.Vector3(x,area.y+1.7,z);interiors.update(p,'pitch');
+  const floor=envelopeRay(p.toArray(),[0,-1,0]),ceiling=envelopeRay(p.toArray(),[0,1,0]);assert.ok(floor,`rendered floor at ${x},${z}`);assert.ok(ceiling,`rendered ceiling at ${x},${z}`);assert.ok(Math.abs(floor.point.y-floorHeight(x,z,area.y,geometry))<.015,`floor collision matches the surface at ${x},${z}`);
+ }
+});
+
+test('connected room envelopes remain visible from both corridor edges while furniture is culled independently',()=>{
+ for(const p of [new THREE.Vector3(-67.2,-1,0),new THREE.Vector3(-69.5,-1,-37),new THREE.Vector3(-89,-1,-31),new THREE.Vector3(-82,-1,43)]){
+  interiors.update(p,'pitch');for(const key of ['homeRoom','guestRoom','press'])assert.equal(interiors.shells[key].visible,true,key+' envelope is retained');assert.equal(interiors.rooms.corridor.visible,true);assert.equal(interiors.rooms.tunnel.visible,true);assert.equal(interiors.rooms.shower.visible,true);
+ }
+ interiors.update(new THREE.Vector3(-67.2,-1,0),'pitch');assert.equal(interiors.rooms.homeRoom.visible,false,'far furniture still follows its detail budget');assert.ok(envelopeRay([-67.2,-1,0],[-1,0,0]),'the doorway has a room behind it');
+ interiors.update(new THREE.Vector3(0,1.7,13),'pitch');for(const shell of Object.values(interiors.shells))assert.equal(shell.visible,false,'hidden private shells add no outside draw calls');
+});
+
+test('the guest shower doorway is clear of lockers and has continuous floor support',()=>{
+ const p=new THREE.Vector3(-82,-1,35);interiors.update(p,'guestRoom');scene.updateMatrixWorld(true);const objects=[];
+ for(const group of [interiors.rooms.guestRoom,interiors.shells.guestRoom,interiors.rooms.shower])group.traverseVisible(o=>{if(o.isMesh)objects.push(o);});
+ for(const height of [.7,1.7]){const hit=new THREE.Raycaster(new THREE.Vector3(-82,-2.7+height,35),new THREE.Vector3(0,0,1)).intersectObjects(objects,false)[0];assert.ok(hit);assert.ok(hit.distance>8,'lockers may not block the shower opening');}
+ const walker={x:-82,z:34};const feet=advanceWalker(walker,-2.7,0,9,geometry,(x,z,y)=>hitsWall(x,z,y,interiors.colliders));assert.ok(Math.abs(walker.z-43)<.01);assert.equal(feet,-2.7);
+});
 
 test('the cinematic, both starting elevens and the leading officials use the existing walkable tunnel and treads',()=>{
  const walls=[...world.colliders,...interiors.colliders,...building.colliders,...stadium.circulation.colliders];

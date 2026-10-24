@@ -2,6 +2,7 @@ import {buildingFloors,inCoreShaft,onBridge,bridges,platforms} from './building-
 import {accessAt,accessHeight,ACCESS_BASE,ACCESS_TOP} from './access-layout.js';
 import {visitorFloor,inVisitorPassage} from './tour-route.js';
 import {serviceRoomAt} from './service-layout.js';
+import {playerCorridor,playerShower,containsFloor} from './player-area-layout.js';
 // Heights are in metres. Pick the floor reachable from the current level,
 // rather than the topmost stand whose footprint overlaps the player.
 export const EYE_HEIGHT=1.7;
@@ -29,8 +30,8 @@ export function floorHeight(x,z,feetY,{tiers=[],rooms={}}={}){
  if(inPlayerTunnel){
   floors.push(x<-45.9?-2.7:Math.min(0,-2.7+(Math.floor((x+45.9)/.36)+1)*.18));
  }
- if(x>-72.8&&x<-66.7&&z>-41&&z<49)floors.push(-2.7);
- if(x>-91.5&&x<-72.5&&z>37&&z<47)floors.push(-2.7);
+ if(containsFloor(playerCorridor,x,z))floors.push(playerCorridor.y);
+ if(containsFloor(playerShower,x,z))floors.push(playerShower.y);
  for(const[key,s]of Object.entries(rooms))if(inRoom(x,z,s)){
   const rise=key==='press'&&z>-32.64?Math.max(0,Math.min(5,Math.floor((z+32.64)/1.28)))*.14:0;
   floors.push(s.y+rise);
@@ -67,5 +68,5 @@ export function canStandAt(x,z,feetY,{rooms={},tiers=[]}={}){
  if(tiers.some(t=>feetY>=t.y-.15&&feetY<t.y+t.rows*t.depth*Math.tan(t.angle*Math.PI/180)+.9&&within(x,z,t.a+t.rows*t.depth,t.b+t.rows*t.depth,3.35)&&!within(x,z,t.a,t.b,3.35)))return true;
  if(feetY>9)return within(x,z,105,122,2.8)&&!within(x,z,85,103,2.8);
  if(!within(x,z,86,104,2.8)||Math.abs(x)<41.5&&Math.abs(z)<60)return true;
- return x>-72.8&&x<-40.45&&Math.abs(z)<2.5||x>-72.8&&x<-66.7&&z>-41&&z<49||x>-91.5&&x<-72.5&&z>37&&z<47;
+ return x>-72.8&&x<-40.45&&Math.abs(z)<2.5||containsFloor(playerCorridor,x,z)||containsFloor(playerShower,x,z);
 }
