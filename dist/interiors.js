@@ -1,3 +1,4 @@
+import {architecturalMaterials} from './surface-finishes.js';
 import {finishRoom,finishLocker,finishPlayerTunnel,finishedBox,finishedSeat,finishFixtureShadows,finishHospitality,finishDisplayHardware} from './finishes.js';
 import {THREE,TAU,v,mat,mesh,box,beam,sign,cylinder,canvasTexture,floorTexture,repeatTex,Batches,addCrest,wallCollider,compactGroup,ringGeometry,superpoint,supernormal} from './kit.js';
 
@@ -12,7 +13,8 @@ export {roomSpecs};
 export function buildInteriors(scene,circulation){
  const root=new THREE.Group();root.name='Accessible interiors | interpretation from public references';scene.add(root);
  const rooms={},shells={},lights=[],colliders=[],tacticalDisplays=[];const ceilings=[];
- const red=mat(0x94162a,{roughness:.34}),recessRed=mat(0x5b0b18,{roughness:.72}),redTrim=mat(0xb81d36,{roughness:.48}),white=mat(0xe1dfd7),dark=mat(0x161b20),metal=mat(0x9caaaf,{metalness:.75,roughness:.27}),wood=mat(0xffffff,{map:repeatTex(floorTexture('wood'),2,1),roughness:.48}),floorRed=mat(0xffffff,{map:repeatTex(floorTexture('red'),20,20),roughness:.68}),tile=mat(0xe0e0d8,{map:repeatTex(floorTexture(),8,8),roughness:.78}),cream=mat(0xddd8c9),blackFloor=mat(0x30333a,{roughness:.84}),lightMat=new THREE.MeshBasicMaterial({color:0xecf4ff,toneMapped:false});
+ const finishes=architecturalMaterials();
+ const red=mat(0x94162a,{roughness:.55}),recessRed=mat(0x5b0b18,{roughness:.72}),redTrim=mat(0xb81d36,{roughness:.48}),white=finishes.plaster,dark=mat(0x161b20),metal=mat(0x9caaaf,{metalness:.75,roughness:.27}),wood=mat(0xffffff,{map:repeatTex(floorTexture('wood'),2,1),roughness:.48}),floorRed=mat(0xffffff,{map:repeatTex(floorTexture('red'),20,20),roughness:.68}),tile=finishes.stone,cream=finishes.warmPlaster,blackFloor=finishes.charcoal,lightMat=new THREE.MeshBasicMaterial({color:0xecf4ff,toneMapped:false});
  function roomBase(key,wallMat=white,floorMat=tile){const spec=roomSpecs[key],g=new THREE.Group(),shell=new THREE.Group();g.position.set(spec.x,spec.y,spec.z);shell.position.copy(g.position);g.name=key;shell.name=key+' envelope';root.add(g,shell);rooms[key]=g;shells[key]=shell;const b=new Batches(shell);b.add(spec.w,.18,spec.d,0,-.09,0,floorMat);const wall=(w,h,d,x,y,z)=>{b.add(w,h,d,x,y,z,wallMat);wallCollider(colliders,spec.x+x,spec.z+z,w,d,spec.y,spec.y+4.5,key);};
   wall(.2,4.5,spec.d,-spec.w/2,2.25,0);wall(spec.w,4.5,.2,0,2.25,-spec.d/2);if(key==='guestRoom'){wall((spec.w-2.4)/2,4.5,.2,-spec.w/4-.6,2.25,spec.d/2);wall((spec.w-2.4)/2,4.5,.2,spec.w/4+.6,2.25,spec.d/2);}else wall(spec.w,4.5,.2,0,2.25,spec.d/2);
   // An open door on the eastern side connects the below-pitch rooms to the corridor.
@@ -75,7 +77,7 @@ export function buildInteriors(scene,circulation){
   cb.add(wall.w+.01,.045,wall.d+.02,wall.x,.94,wall.z,redTrim);
  }
  for(let z=-36;z<=44;z+=8){
-  cb.add(.13,.035,4.5,cx,c.height-.06,z,lightMat);cb.add(.7,.07,.5,cx,c.height-.14,z+2.8,metal);
+  cb.add(.13,.035,4.5,cx,c.height-.06,z,lightMat);cb.add(.7,.07,.5,cx,c.height-.14,z+2.8,metal);for(let slit=0;slit<6;slit++)cb.add(.56,.012,.022,cx,c.height-.18,z+2.62+slit*.07,dark);
   if(Math.abs(z)>4){const board=sign(corridor,z<0?'球员通道 →':'← 球员通道',2.4,.4,c.maxX-.11,2.4,z,{bg:'#354e57',font:74,h:128,sub:'SPIELERTUNNEL · PITCH'});board.rotation.y=-Math.PI/2;}
   const lamp=new THREE.PointLight(0xffeee0,32,14,2);lamp.position.set(cx,c.height-.28,z);corridor.add(lamp);lights.push(lamp);
  }
@@ -86,6 +88,9 @@ export function buildInteriors(scene,circulation){
   cb.add(3.5,.04,.055,cx,2.77,z+(yaw?-.015:.015),lightMat);
  }
  for(const z of[-48,53])for(const x of[-89,-81,-73]){cb.add(4,.035,.14,x,c.height-.06,z,lightMat);const lamp=new THREE.PointLight(0xffeee0,30,14,2);lamp.position.set(x,c.height-.28,z);corridor.add(lamp);lights.push(lamp);}
+ for(const[z,title,sub]of[[-50.06,'MIA SAN MIA','FC BAYERN MÜNCHEN'],[50.94,'UNSER STADION','WILLKOMMEN IN DER ALLIANZ ARENA']]){
+  cb.add(4.8,1.45,.07,-83,1.9,z-.04,dark);const panel=sign(corridor,title,4.6,1.26,-83,1.9,z+.015,{bg:'#8e1730',fg:'#eee6d8',font:105,sub});cb.add(4.9,.025,.045,-83,2.7,z+.04,lightMat);
+ }
  cb.flush();
  // The player's tunnel: dark ceiling, white strips, red diagonal wall panels and an ascending stair.
  const tunnel=new THREE.Group();tunnel.position.set(-55,-2.7,0);root.add(tunnel);rooms.tunnel=tunnel;const tb=new Batches(tunnel);tb.add(29,.15,4.8,0,-.07,0,blackFloor);tb.add(26.2,3.9,.18,1.4,1.95,-2.45,red);tb.add(26.2,3.9,.18,1.4,1.95,2.45,red);tb.add(23,.15,4.9,-3,3.95,0,dark);tb.add(23,.06,.085,-3,3.84,-1.3,lightMat);tb.add(23,.06,.085,-3,3.84,1.3,lightMat);const stairRoof=box(tunnel,Math.hypot(7,2.7),.15,4.9,12,5.3,0,dark);stairRoof.rotation.z=Math.atan2(2.7,7);for(const side of[-1,1])beam(tunnel,v(8.5,3.84,side*1.3),v(15.5,6.54,side*1.3),.03,lightMat);
@@ -124,6 +129,7 @@ export function buildInteriors(scene,circulation){
  finishDisplayHardware(rooms,{metal});
  for(const key of ['store','museum','press'])finishFixtureShadows(rooms[key],roomSpecs[key],key);
  for(const f of furniture)wallCollider(colliders,f.x,f.z,f.w,f.d,f.y0,f.y1,f.owner);
+ for(const ceiling of ceilings)ceiling.userData.visibilityManaged=true;
  for(const g of [...Object.values(rooms),...Object.values(shells)])compactGroup(g,ceilings);
  const roomCuts=['museum','store'].map(key=>{const s=roomSpecs[key];return{minX:s.x-s.w/2,maxX:s.x+s.w/2,minZ:s.z-s.d/2,maxZ:s.z+s.d/2};});rooms.concourse.traverse(o=>{if(o.isMesh){const original=o.geometry;o.geometry=subtractFootprints(original,roomCuts);original.dispose();}});
  function update(position,active){const nearby=(Math.abs(position.x)/132)**2.8+(Math.abs(position.z)/152)**2.8<1.1&&position.y<75;for(const[key,g]of Object.entries(rooms)){let show=false;if(key==='concourse'||key==='tunnel'||key==='corridor'||key==='shower')show=nearby;else{const s=roomSpecs[key];show=position.x>s.x-s.w/2-3&&position.x<s.x+s.w/2+5&&position.z>s.z-s.d/2-4&&position.z<s.z+s.d/2+4&&Math.abs(position.y-s.y)<7;}g.visible=show;if(shells[key])shells[key].visible=nearby;}for(const l of lights)l.visible=l.parent.visible&&Math.hypot(l.position.x+l.parent.position.x-position.x,l.position.y+l.parent.position.y-position.y,l.position.z+l.parent.position.z-position.z)<35;}

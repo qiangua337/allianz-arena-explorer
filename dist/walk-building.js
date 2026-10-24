@@ -1,10 +1,11 @@
+import {architecturalMaterials} from './surface-finishes.js';
 import {THREE,v,mat,mesh,box,beam,sign,Batches,compactGroup,floorTexture,repeatTex} from './kit.js';
 import {core,coreFlights,coreLevels,platforms,bridges,upperTierThreshold} from './building-layout.js';
 import {orientedCollider} from './access-layout.js';
 import {rectilinearBoundary} from './player-area-layout.js';
 export function buildWalkBuilding(scene){
  const root=new THREE.Group();root.name='Continuous indoor stairs and tier galleries';scene.add(root);const b=new Batches(root),colliders=[];
- const concrete=mat(0xd2d4cd,{map:repeatTex(floorTexture(),3,3),roughness:.91}),red=mat(0xb41b36),metal=mat(0x8fadb7,{metalness:.45,roughness:.45}),pale=mat(0xe6e0ce),glow=new THREE.MeshBasicMaterial({color:0xffd995,toneMapped:false});
+ const concrete=architecturalMaterials().stone,red=mat(0xb41b36),metal=mat(0x8fadb7,{metalness:.45,roughness:.45}),pale=mat(0xe6e0ce),glow=new THREE.MeshBasicMaterial({color:0xffd995,toneMapped:false});
  function rail(a,c){beam(root,v(a[0],a[1]+1.05,a[2]),v(c[0],c[1]+1.05,c[2]),.035,metal);const length=Math.hypot(c[0]-a[0],c[2]-a[2]),yaw=-Math.atan2(c[2]-a[2],c[0]-a[0]);for(let i=0;i<Math.ceil(length/1.5);i++){const t=(i+.5)/Math.ceil(length/1.5),x=a[0]+(c[0]-a[0])*t,z=a[2]+(c[2]-a[2])*t,y=a[1]+(c[1]-a[1])*t;b.add(.045,1.05,.045,x,y+.525,z,metal);colliders.push(orientedCollider(x,z,length/Math.ceil(length/1.5)+.01,.04,y-.2,y+1.2,yaw));}}
  for(const f of coreFlights){for(let i=0;i<f.steps;i++){const y=f.base+(i+1)*(f.top-f.base)/f.steps,z=f.z+f.dir*(i+.5)*.34;b.add(f.width,.2,.35,f.x,y-.1,z,concrete);b.add(f.width-.04,.018,.045,f.x,y+.009,z+f.dir*.13,pale);}
   for(const side of[-1,1])rail([f.x+side*(f.width/2-.05),f.base,f.z],[f.x+side*(f.width/2-.05),f.top,f.z+f.dir*f.run]);

@@ -8,6 +8,7 @@ import {tierEntryOpening,inCoreShaft,seatingTiers} from './building-layout.js';
 import {buildPitchSurface} from './pitch-surface.js';
 import {buildArenaScreens} from './arena-screens.js';
 import {finishedBox} from './finishes.js';
+import {partitionGeometry,facadeSectorVisible} from './spatial-batches.js';
 
 export function buildStadium(scene){
  const root=new THREE.Group();root.name='Allianz Arena | metres';scene.add(root);
@@ -28,25 +29,25 @@ export function buildStadium(scene){
  const portalCuts=accessStairs.map((s,i)=>`{vec2 delta=vPortalPosition.xz-vec2(${s.x.toFixed(5)},${s.z.toFixed(5)});float along=-dot(delta,vec2(${s.nx.toFixed(6)},${s.nz.toFixed(6)}));float side=dot(delta,vec2(${s.nz.toFixed(6)},${(-s.nx).toFixed(6)}));float floorY=${ACCESS_BASE.toFixed(3)}+along*${((ACCESS_TOP-ACCESS_BASE)/s.run).toFixed(6)};if(abs(side)<${(s.width/2+.34).toFixed(3)}&&along>-.3&&along<${(s.run+1.8).toFixed(3)}&&vPortalPosition.y>floorY-.45&&vPortalPosition.y<floorY+4.15)discard;}`).join('\n');
  function cutPortals(material){material.onBeforeCompile=shader=>{shader.vertexShader='varying vec3 vPortalPosition;\n'+shader.vertexShader;shader.vertexShader=shader.vertexShader.replace('#include <project_vertex>','#include <project_vertex>\nvPortalPosition=(modelMatrix*vec4(transformed,1.0)).xyz;');shader.fragmentShader='varying vec3 vPortalPosition;\n'+shader.fragmentShader;shader.fragmentShader=shader.fragmentShader.replace('#include <clipping_planes_fragment>','#include <clipping_planes_fragment>\n'+portalCuts);};material.customProgramCacheKey=()=> 'arena-stair-portals-v1';return material;}
  shellMaterials.forEach(cutPortals);const shellDepth=cutPortals(new THREE.MeshDepthMaterial({depthPacking:THREE.RGBADepthPacking,side:THREE.DoubleSide}));
- const buffers=[{p:[],c:[],i:[]},{p:[],c:[],i:[]}];let panelCount=0;
+ const buffers=[{p:[],c:[],i:[]},{p:[],c:[],i:[]},{p:[],c:[],i:[]}];let panelCount=0;
  const rand=seeded(370);const samples=16,rings=3;
  for(let row=0;row<24;row++)for(let col=0;col<116;col++){
-  const u=(col+.5+(row%2)*.5)/116,w=(row+.5)/24,section=row>=12?1:0,b=buffers[section],start=b.p.length/3,center=surface(u,w);
+  const u=(col+.5+(row%2)*.5)/116,w=(row+.5)/24,section=row>=18?1:row>=12?2:0,b=buffers[section],start=b.p.length/3,center=surface(u,w);
   const du=surface(u+.0002,w).sub(center),dv=surface(u,w+.0002).sub(center);let normal=new THREE.Vector3().crossVectors(dv,du).normalize();
   if(normal.dot(v(center.x/113.5,w>.5?2:0,center.z/129))<0)normal.negate();
   const shade=.88+rand()*.12;
   const put=(p,k)=>{b.p.push(p.x,p.y,p.z);b.c.push(shade*k,shade*k,shade*k);};
-  put(center.clone().addScaledVector(normal,.54),1.04);
+  put(center.clone().addScaledVector(normal,.32),1.04);
   for(let rr=1;rr<=rings;rr++)for(let k=0;k<samples;k++){
    const edge=k/4,side=Math.floor(edge),t=edge-side;const vertices=[[0,-1],[1,0],[0,1],[-1,0]];const a=vertices[side],c=vertices[(side+1)%4],r=rr/rings;
    const dx=THREE.MathUtils.lerp(a[0],c[0],t)*.5/116*r*.986,dy=THREE.MathUtils.lerp(a[1],c[1],t)/24*r*.986;
-   const p=surface(u+dx,w+dy).addScaledVector(normal,.54*(1-r*r));put(p,1-.12*r**3);
+   const p=surface(u+dx,w+dy).addScaledVector(normal,.32*(1-r*r));put(p,1-.12*r**3);
   }
   for(let k=0;k<samples;k++)b.i.push(start,start+1+k,start+1+(k+1)%samples);
   for(let rr=1;rr<rings;rr++)for(let k=0;k<samples;k++){const a=start+1+(rr-1)*samples+k,c=start+1+(rr-1)*samples+(k+1)%samples,d=start+1+rr*samples+k,e=start+1+rr*samples+(k+1)%samples;b.i.push(a,d,c,c,d,e);}
   panelCount++;
  }
- const shellMeshes=[];buffers.forEach((b,i)=>{const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(b.p,3));g.setAttribute('color',new THREE.Float32BufferAttribute(b.c,3));g.setIndex(b.i);g.computeVertexNormals();const o=mesh(g,shellMaterials[i],i?roof:root);o.customDepthMaterial=shellDepth;o.castShadow=true;shellMeshes.push(o);});
+ const shellMeshes=[];buffers.forEach((b,i)=>{const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(b.p,3));g.setAttribute('color',new THREE.Float32BufferAttribute(b.c,3));g.setIndex(b.i);g.computeVertexNormals();g.computeBoundingSphere();for(const part of i===0?partitionGeometry(g):[{geometry:g}]){const o=mesh(part.geometry,shellMaterials[i===2?0:i],i?roof:root);o.customDepthMaterial=shellDepth;o.castShadow=true;o.userData.shellSection=i?1:0;o.userData.sectorCenter=part.geometry.boundingSphere.center.clone();shellMeshes.push(o);}if(i===0)g.dispose();});
  // The pedestrian level stays present when the outer bowl is culled indoors.
  const circulation=buildCirculation(scene);
  // A three-tier bowl. Angles follow the published 24 / 30 / 34 degree sections.
@@ -112,7 +113,7 @@ export function buildStadium(scene){
   const glass=mat(0xa5c6d9,{transparent:true,opacity:.21,metalness:.2,roughness:.2,side:THREE.DoubleSide,depthWrite:false});box(g,.08,2.5,17,-1.6,1.55,0,glass);box(g,3.3,.08,17,0,2.8,0,glass);for(let j=0;j<7;j++){const z=-8.5+j*17/6;beam(g,v(-1.65,.2,z),v(-1.65,2.8,z),.035,steel);beam(g,v(-1.65,2.8,z),v(1.65,2.8,z),.035,steel);}const a=sign(g,'FC BAYERN MÜNCHEN',15,.36,-1.71,2.65,0,{font:65,h:128});a.rotation.y=-Math.PI/2;compactGroup(g);
  }
  batch.flush();compactGroup(closeLabels);
- return {root,roof,circulation,bowl,matchBall,setMatchday:screens.setMatchday,seatCount:seats.length,seatPositions:seats,panelCount,tiers,update(camera,mode='orbit',high=false){pitchSurface.update(camera,high);for(const shell of shellMeshes)shell.visible=!enclosedPlayerPosition(camera.position);bowl.visible=bowlIsVisible(camera.position,mode);roofDetails.visible=bowl.visible||camera.position.y>30;closeLabels.visible=camera.position.length()<180;for(const inst of seatInstances){const center=inst.boundingSphere.center;const distance=camera.position.distanceTo(center);inst.geometry=high?(distance>90?coarseSeat:seatGeom):distance>100?farSeat:distance>32?coarseSeat:seatGeom;}},night(n){circulation.night(n);shellMaterials[0].color.set(n?0xe52a49:0xe5e8e4);shellMaterials[0].emissive.set(n?0xd7082c:0x000000);shellMaterials[0].emissiveIntensity=n?.52:0;shellMaterials[1].color.set(n?0xcfc0c4:0xf4f4ed);shellMaterials[1].emissive.set(n?0x9d1736:0x000000);shellMaterials[1].emissiveIntensity=n?.22:0;stadiumLights.forEach(l=>l.intensity=n?2400:100);logo.material.map=logoBack.material.map=n?logoNightMap:logoDayMap;}};
+ return {root,roof,circulation,bowl,matchBall,setMatchday:screens.setMatchday,seatCount:seats.length,seatPositions:seats,panelCount,tiers,update(camera,mode='orbit',high=false,low=false){pitchSurface.update(camera,high,low);for(const shell of shellMeshes)shell.visible=!enclosedPlayerPosition(camera.position)&&(shell.userData.shellSection===1||facadeSectorVisible(camera.position,shell.userData.sectorCenter));bowl.visible=bowlIsVisible(camera.position,mode);roofDetails.visible=bowl.visible||camera.position.y>30;closeLabels.visible=camera.position.length()<180;for(const inst of seatInstances){const center=inst.boundingSphere.center;const distance=camera.position.distanceTo(center);inst.geometry=high?(distance>90?coarseSeat:seatGeom):distance>100?farSeat:distance>32?coarseSeat:seatGeom;}},night(n){circulation.night(n);shellMaterials[0].color.set(n?0xe52a49:0xe5e8e4);shellMaterials[0].emissive.set(n?0xd7082c:0x000000);shellMaterials[0].emissiveIntensity=n?.72:0;shellMaterials[0].roughness=n?.76:.58;shellMaterials[1].color.set(n?0xcfc0c4:0xf4f4ed);shellMaterials[1].emissive.set(n?0x9d1736:0x000000);shellMaterials[1].emissiveIntensity=n?.22:0;stadiumLights.forEach(l=>l.intensity=n?2400:100);logo.material.map=logoBack.material.map=n?logoNightMap:logoDayMap;}};
 }
 
 function buildPitch(root,batch,{white,dark,red,steel}){

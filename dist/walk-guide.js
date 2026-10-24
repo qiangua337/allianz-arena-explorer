@@ -1,3 +1,4 @@
+import {routeSummary} from './walk-tours.js';
 import {THREE,v} from './kit.js';
 import {EYE_HEIGHT} from './navigation.js';
 import {inCoreShaft,coreLevels} from './building-layout.js';
@@ -30,10 +31,10 @@ export function buildWalkGuide(scene,geometry,{obstacles={},onChoose,onSelect,on
   panel.hidden=suppressed||lastMode!=='walk'&&!selected;group.visible=!suppressed&&lastMode==='walk'&&!blocked&&!arrived;
   const p=feet(lastPosition);document.body.dataset.destination=goal;document.body.dataset.guideState=arrived?'arrived':blocked?'blocked':'routing';
   walkButton.hidden=lastMode==='walk';teleportButton.title='传送到'+tourGoals[goal]+'（T）';next.hidden=!arrived;distanceText.textContent=arrived?floorLabel(p.y,p):lastMode==='walk'?'沿地面指引前行':'步行 / 直接传送';
-  if(arrived){title.textContent='已到达 · '+tourGoals[goal];detail.textContent='自由探索，靠近门、展品与设施可按 F 互动。';arrow.textContent='✓';arrow.style.transform='none';next.textContent='下一站 →';document.body.dataset.guideTarget=goal;delete document.body.dataset.guidePoint;}
+  if(arrived){document.body.dataset.routeMetres=0;title.textContent='已到达 · '+tourGoals[goal];detail.textContent='自由探索，靠近门、展品与设施可按 F 互动。';arrow.textContent='✓';arrow.style.transform='none';next.textContent='下一站 →';document.body.dataset.guideTarget=goal;delete document.body.dataset.guidePoint;}
   else if(blocked){title.textContent='当前位置暂未找到可通行路线';detail.textContent='回到开放过道后会重新规划，也可直接传送。';arrow.textContent='!';arrow.style.transform='none';document.body.dataset.guideTarget='';delete document.body.dataset.guidePoint;}
   else if(lastMode!=='walk'){title.textContent='已选择 · '+tourGoals[goal];detail.textContent='从上次步行位置出发，或直接传送到目的地。';arrow.textContent='↗';arrow.style.transform='none';}
-  else if(path.length){const target=path[0],instruction=movementInstruction(p,yaw,target,path[1]);arrow.textContent='↑';arrow.style.transform=`rotate(${instruction.angle}rad)`;title.textContent=instruction.action;distanceText.textContent=Math.round(instruction.distance)+' m · '+floorLabel(p.y,p);detail.textContent=floorLabel(p.y,p)+' · '+instruction.hint;document.body.dataset.guideTarget=target.id;document.body.dataset.guidePoint=[target.x,target.y,target.z].join(',');}
+  else if(path.length){const target=path[0],instruction=movementInstruction(p,yaw,target,path[1]);arrow.textContent='↑';arrow.style.transform=`rotate(${instruction.angle}rad)`;title.textContent=instruction.action;distanceText.textContent=Math.round(instruction.distance)+' m · '+floorLabel(p.y,p);const summary=routeSummary(p,path);distanceText.textContent=Math.round(instruction.distance)+' m · 余 '+summary.metres+' m';detail.textContent=floorLabel(p.y,p)+' · '+instruction.hint+' 距离目的地约 '+summary.metres+' 米，步行约 '+Math.max(1,Math.ceil(summary.seconds/60))+' 分钟。';document.body.dataset.routeMetres=summary.metres;document.body.dataset.guideTarget=target.id;document.body.dataset.guidePoint=[target.x,target.y,target.z].join(',');}
  }
  function draw(p){let count=0;const points=ribbonPoints(p,path,geometry);for(let i=1;i<points.length&&count+6<4096*6;i++){const a=points[i-1],b=points[i],dx=b.x-a.x,dz=b.z-a.z,length=Math.hypot(dx,dz)||1,nx=dz/length*.075,nz=-dx/length*.075;for(const [point,side]of[[a,1],[a,-1],[b,1],[b,1],[a,-1],[b,-1]]){positions[count*3]=point.x+nx*side;positions[count*3+1]=point.y;positions[count*3+2]=point.z+nz*side;count++;}}geo.setDrawRange(0,count);geo.attributes.position.needsUpdate=true;lastDraw={...p};}
  function update(position,yaw,dt,mode,currentEyeHeight=EYE_HEIGHT){
@@ -51,5 +52,5 @@ export function buildWalkGuide(scene,geometry,{obstacles={},onChoose,onSelect,on
  }
  function arrive(id,position){setGoal(id,position);path=[];blocked=false;arrived=true;geo.setDrawRange(0,0);refresh();}
  function restoreState(saved,position,currentEyeHeight=EYE_HEIGHT){setGoal(saved.goal,position,currentEyeHeight);selected=saved.selected;collapsed=saved.collapsed;if(saved.arrived){arrived=true;blocked=false;path=[];geo.setDrawRange(0,0);}panel.classList.toggle('collapsed',collapsed);$('guide-collapse').textContent=collapsed?'详情':'收起';refresh();}
- return{update,reset,setGoal,arrive,setSuppressed(value){suppressed=value;refresh();},captureState:()=>({goal,selected,collapsed,arrived}),restoreState,getGoal:()=>goal,getRoute:()=>path};
+ return{update,reset,setGoal,arrive,isArrived:()=>arrived,setSuppressed(value){suppressed=value;refresh();},captureState:()=>({goal,selected,collapsed,arrived}),restoreState,getGoal:()=>goal,getRoute:()=>path};
 }

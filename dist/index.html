@@ -5,7 +5,7 @@
  <meta name="theme-color" content="#0d151c"><meta name="description" content="走进拜仁慕尼黑的主场。自由探索安联球场的外壳、看台、草坪、更衣室与球员通道，切换白天与黑夜。">
  <title>安联球场 · ARENA EXPLORER</title>
  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%23db1839'/%3E%3Cellipse cx='32' cy='32' rx='24' ry='17' fill='none' stroke='white' stroke-width='4'/%3E%3Cellipse cx='32' cy='28' rx='14' ry='7' fill='none' stroke='white' stroke-width='3'/%3E%3C/svg%3E">
- <link rel="stylesheet" href="style.css?v=20261024-connected-1100">
+ <link rel="stylesheet" href="style.css?v=20261024-visitor-1110">
  <script type="importmap">{"imports":{"three":"./vendor/three.module.js"}}</script>
 </head>
 <body>
@@ -40,11 +40,12 @@
    <button class="location" data-place="store"><span class="loc-no">15</span><span><b>球迷商店</b><small>球衣 · 围巾 · 装备</small></span><span class="loc-arrow">↗</span></button>
   </nav>
   <p id="destination-empty" class="destination-empty" hidden>没有找到这个地点</p>
+  <button class="tour-button" id="walking-tour"><span>↗</span> 步行导览 <small>选择参观线路</small></button>
   <button class="tour-button" id="tour"><span>▷</span> 自动巡游 <small>15 个视角</small></button>
   <button class="reference-button" id="references">建模说明与参考资料 <span>↗</span></button>
  </aside>
  <section class="view-controls glass" aria-label="视角设置"><button id="orbit-mode" class="active"><svg viewBox="0 0 20 20"><ellipse cx="10" cy="10" rx="8" ry="4"/><circle cx="10" cy="10" r="2"/></svg>第三人称</button><button id="walk-mode"><svg viewBox="0 0 20 20"><circle cx="10" cy="4" r="2"/><path d="M6 18l2-6V7h4v5l2 6m-6-9-4 4m8-4 4 4"/></svg>第一人称</button></section>
- <section class="environment glass" aria-label="环境设置"><button id="environment-more" aria-label="展开或收起显示设置" aria-expanded="false">设置</button><div class="env-top"><span>光影与建筑</span><small>ENVIRONMENT</small></div><div class="day-night"><button id="day" class="active" aria-label="切换白天场景">☀ <span>白天</span></button><button id="night" aria-label="切换黑夜场景">☾ <span>黑夜</span></button></div><label class="switch-row"><span>显示建筑屋顶</span><input id="roof" type="checkbox" checked><span class="switch"></span></label><label class="switch-row"><span>显示探索标记</span><input id="markers" type="checkbox" checked><span class="switch"></span></label><label class="switch-row"><span>自动环绕</span><input id="autorotate" type="checkbox"><span class="switch"></span></label><label class="quality-row" for="quality">画质<select id="quality"><option value="standard" selected>流畅 · 自适应</option><option value="high">精细</option></select></label></section>
+ <section class="environment glass" aria-label="环境设置"><button id="environment-more" aria-label="展开或收起显示设置" aria-expanded="false">设置</button><div class="env-top"><span>光影与建筑</span><small>ENVIRONMENT</small></div><div class="day-night"><button id="day" class="active" aria-label="切换白天场景">☀ <span>白天</span></button><button id="night" aria-label="切换黑夜场景">☾ <span>黑夜</span></button></div><label class="switch-row"><span>显示建筑屋顶</span><input id="roof" type="checkbox" checked><span class="switch"></span></label><label class="switch-row"><span>显示探索标记</span><input id="markers" type="checkbox" checked><span class="switch"></span></label><label class="switch-row"><span>自动环绕</span><input id="autorotate" type="checkbox"><span class="switch"></span></label><label class="quality-row" for="quality">画质<select id="quality" aria-label="画质"><option value="standard" selected>均衡 · 自适应</option><option value="low">省电 · 轻量</option><option value="high">精细</option></select></label></section>
  <div id="hotspots" aria-hidden="false"></div>
  <button id="interact" class="interact-button glass" hidden>F · 互动</button>
  <div id="crosshair" hidden><i></i><i></i></div>
@@ -59,6 +60,8 @@
  <div class="performance" id="performance">THREE.JS / WEBGL</div>
  <div class="toast" id="toast" role="status"></div>
  <dialog id="info-dialog"><button class="close-dialog" aria-label="关闭对话框">×</button><div id="dialog-content"></div></dialog>
+ <dialog id="walking-tour-dialog" aria-labelledby="walking-tour-title"><button id="walking-tour-close" class="close-dialog" aria-label="关闭步行导览">×</button><div class="eyebrow">EXPLORE AT YOUR PACE</div><h2 id="walking-tour-title">选一条路线，慢慢走进主场。</h2><p>每一站由真实步行通道连接。到站后可自由探索，点击「下一站」继续，也可随时使用传送。</p><div id="walking-tour-plans" class="walking-tour-plans"></div></dialog>
+ <section class="tour-arrival glass" id="tour-arrival" hidden aria-label="步行导览进度"><div><small id="tour-arrival-progress"></small><b id="tour-arrival-title"></b></div><button id="tour-advance">下一站 →</button><button id="tour-end" aria-label="结束步行导览">×</button></section>
  <dialog id="match-dialog" aria-labelledby="match-dialog-title">
   <button class="close-dialog" id="match-dialog-close" aria-label="关闭入场体验介绍">×</button>
   <div class="match-intro-art" aria-hidden="true"><span>MATCHDAY</span><i></i><b>FC BAYERN</b></div>
@@ -80,5 +83,5 @@
  </section>
  <dialog id="match-roster-dialog" aria-labelledby="match-roster-title"><button id="match-roster-close" class="close-dialog" aria-label="关闭比赛阵容">×</button><div class="eyebrow">EXHIBITION · MATCHDAY</div><h2 id="match-roster-title">拜仁 × 多特蒙德</h2><p>演示阵容与站位；姓名和号码依据俱乐部官网核对，不代表某场真实比赛首发。</p><button id="match-visit-bench" class="match-manual">传送到场边 · 看替补与教练医护 →</button><div id="match-roster-content"></div><p class="roster-note">场上 22 人，替补 18 人，教练及医护 8 人，裁判组 4 人。名单核对：2026-10-23。</p></dialog>
  <section class="loading" id="loading"><div class="loading-arena"><i></i><i></i><i></i></div><small>MÜNCHEN · HOME OF FC BAYERN</small><h2>主场，即将呈现。</h2><p id="load-status">正在构建球场与内部空间…</p><div class="load-track"><span></span></div><noscript>需要启用 JavaScript 才能探索球场。</noscript></section>
- <script type="module" src="app.js?v=20261024-connected-1100"></script>
+ <script type="module" src="app.js?v=20261024-visitor-1110"></script>
 </body></html>
