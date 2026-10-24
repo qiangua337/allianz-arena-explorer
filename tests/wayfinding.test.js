@@ -25,6 +25,10 @@ test('stair turns and door thresholds retain their required clearance',()=>{
  assert.equal(waypointReached({x:0,y:2,z:0},b,a,c),false);
 });
 
+test('a final destination cannot be reached by projecting an old path across the stadium',()=>{
+ assert.equal(waypointReached({x:0,y:0,z:-80},{id:'pitch',x:0,y:0,z:0},{x:0,y:0,z:20},null,true),false);
+});
+
 test('return instructions describe leaving a room and going up to the pitch',()=>{
  const p={x:-76,y:-2.7,z:0},door={id:'homeDoor',x:-73.3,y:-2.7,z:0,label:'入口',hint:'进入更衣室'};
  assert.match(movementInstruction(p,-Math.PI/2,door,{id:'corridor'}).action,/走出主队更衣室/);

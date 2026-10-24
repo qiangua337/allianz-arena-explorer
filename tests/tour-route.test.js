@@ -30,8 +30,8 @@ test('all advertised walking destinations connect to reception and back',()=>{
   const route=planTour(tourNodes.reception,goal);assert.ok(route.length>1);assert.equal(route.at(-1).id,goal);
   for(let i=1;i<route.length;i++)assert.ok(tourLinks.some(([a,b])=>a===route[i-1].id&&b===route[i].id||b===route[i-1].id&&a===route[i].id));
  }
- const home=planTour(tourNodes.reception,'homeRoom').map(n=>n.id);assert.ok(home.includes('visitorGate'));assert.ok(home.includes('tunnel'));assert.ok(home.includes('homeDoor'));
- assert.ok(planTour(tourNodes.homeRoom,'entrance').some(n=>n.id==='visitorGate'));
+ const home=planTour(tourNodes.reception,'homeRoom').map(n=>n.id);assert.ok(home.some(id=>id==='playerSouthLobby'||id==='playerNorthLobby'));assert.ok(home.includes('homeDoor'));assert.ok(!home.includes('pitch'));
+ assert.ok(planTour(tourNodes.homeRoom,'entrance').some(n=>n.id==='playerSouthLobby'||n.id==='playerNorthLobby'));
 });
 
 test('upper concourse routes descend a real staircase rather than crossing levels',()=>{
@@ -41,6 +41,6 @@ test('upper concourse routes descend a real staircase rather than crossing level
 
 test('a lost visitor in the lower hall follows the ring instead of crossing staff walls',()=>{
  const route=planTour({x:-96,y:-2.9,z:0},'pitch');
- assert.ok(route[0].id.startsWith('lower'));assert.ok(route.some(n=>n.id==='visitorGate'));assert.ok(!route.some(n=>n.id==='homeRoom'||n.id==='tunnel'));
+ assert.ok(route[0].id.startsWith('lower'));assert.ok(route.some(n=>n.id==='visitorGate'||n.id==='playerSouthLobby'||n.id==='playerNorthLobby'));assert.ok(!route.some(n=>n.id==='homeRoom'));
  for(const n of route.filter(n=>n.id.startsWith('lower')))assert.ok((Math.abs(n.x)/86)**2.8+(Math.abs(n.z)/104)**2.8>1);
 });

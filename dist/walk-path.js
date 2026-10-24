@@ -1,13 +1,12 @@
-import {planTour} from './tour-route.js';
+import {planTour,tourNodes} from './tour-route.js';
 import {roomAt} from './building-layout.js';
 import {furnitureBlocksSegment} from './furniture-layout.js';
 import {serviceRoomAt,serviceWorld} from './service-layout.js';
 import {floorHeight,canStandAt,EYE_HEIGHT,MAX_STEP} from './navigation.js';
 
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z,(a.y-b.y)*2);
-const privateArea=p=>roomAt(p)||p.x>-80&&p.x<-66&&p.z>-43&&p.z<50&&p.y<1;
 export function navigationObstacles(position,groups){
- return [...(groups.world||[]),...(groups.building||[]),...(groups.interiors||[]),...(groups.service||[]),...(!privateArea(position)?groups.circulation||[]:[])].filter(b=>b.enabled!==false&&!b.dynamicDoor);
+ return [...(groups.world||[]),...(groups.building||[]),...(groups.interiors||[]),...(groups.service||[]),...(groups.circulation||[])].filter(b=>b.enabled!==false&&!b.dynamicDoor);
 }
 function localBounds(b){
  if(b.cx===undefined)return b;
@@ -18,7 +17,7 @@ export function segmentHitsObstacle(a,b,wall){
  if(Math.max(a.y,b.y)+EYE_HEIGHT<=wall.y0+.2||Math.min(a.y,b.y)>=wall.y1)return false;
  let ax=a.x,az=a.z,bx=b.x,bz=b.z,x0=wall.x0,x1=wall.x1,z0=wall.z0,z1=wall.z1;
  if(wall.cx!==undefined){const c=Math.cos(wall.yaw),s=Math.sin(wall.yaw),transform=p=>[(p.x-wall.cx)*c-(p.z-wall.cz)*s,(p.x-wall.cx)*s+(p.z-wall.cz)*c];[ax,az]=transform(a);[bx,bz]=transform(b);x0=-wall.halfW;x1=wall.halfW;z0=-wall.halfD;z1=wall.halfD;}
- let lo=0,hi=1;for(const[start,end,min,max]of[[ax,bx,x0,x1],[az,bz,z0,z1]]){const delta=end-start;if(Math.abs(delta)<1e-9){if(start<=min||start>=max)return false;}else{let t0=(min-start)/delta,t1=(max-start)/delta;if(t0>t1)[t0,t1]=[t1,t0];lo=Math.max(lo,t0);hi=Math.min(hi,t1);if(lo>=hi)return false;}}return lo<hi;
+ let lo=0,hi=1;for(const[start,end,min,max]of[[ax,bx,x0,x1],[az,bz,z0,z1],[a.y,b.y,wall.y0+.2-EYE_HEIGHT,wall.y1]]){const delta=end-start;if(Math.abs(delta)<1e-9){if(start<=min||start>=max)return false;}else{let t0=(min-start)/delta,t1=(max-start)/delta;if(t0>t1)[t0,t1]=[t1,t0];lo=Math.max(lo,t0);hi=Math.min(hi,t1);if(lo>=hi)return false;}}return lo<hi;
 }
 export function walkSegmentClear(a,b,geometry,obstacles){
  const room=roomAt(a)||roomAt(b);if(room&&furnitureBlocksSegment(a,b,room))return false;
@@ -42,6 +41,14 @@ function detour(a,b,geometry,obstacles){
   for(let j=1;j<points.length;j++){if(closed.has(j)||!clear(i,j))continue;const cost=costs.get(i)+distance(points[i],points[j]);if(cost<(costs.get(j)??Infinity)){costs.set(j,cost);previous.set(j,i);if(!open.includes(j))open.push(j);}}
  }return null;
 }
+const checkedEdges=new WeakMap();
+function validatePath(position,path,geometry,groups,obstacles){
+ let cache=checkedEdges.get(groups);if(!cache){cache=new Map();checkedEdges.set(groups,cache);}const complete=[];let previous=position;
+ for(const next of path){const key=tourNodes[previous.id]===previous&&tourNodes[next.id]===next?previous.id+'>'+next.id:null;let corners;
+  if(key&&cache.has(key))corners=cache.get(key);else{corners=walkSegmentClear(previous,next,geometry,obstacles)?[]:detour(previous,next,geometry,obstacles);if(key)cache.set(key,corners);}
+  if(corners===null)return{path:[],blocked:true};complete.push(...corners,next);previous=next;
+ }return{path:complete,blocked:false};
+}
 export function planWalkPath(position,goal,geometry,groups={}){
  const service=serviceRoomAt(position);if(service){const door={...serviceWorld(service,0,.45),y:service.y},outside=serviceWorld(service,0,3.1),node=(p,id,label)=>({...p,y:service.y,id,level:'upper',label,hint:'按 F 或点击互动按钮打开服务间双门，再回到公共大厅。'}),obstacles=navigationObstacles(position,groups),prefix=walkSegmentClear(position,door,geometry,obstacles)?[]:detour(position,door,geometry,obstacles),tail=planWalkPath({...outside,y:service.y},goal,geometry,groups);if(!prefix)return{path:[],blocked:true};return{path:[...prefix,node(door,service.id+'Exit','走出服务间'),node(outside,service.id+'Outside','返回公共大厅'),...tail.path],blocked:tail.blocked};}
  const route=planTour(position,goal);if(!route.length)return{path:[],blocked:true};
@@ -50,7 +57,7 @@ export function planWalkPath(position,goal,geometry,groups={}){
   if(walkSegmentClear(position,target,geometry,obstacles)){const cost=distance(position,target)+remaining[i];if(!best||cost<best.cost)best={cost,index:i};}
   if(target.level==='core'||/^landing/.test(target.id))break;
  }
- if(best)return{path:route.slice(best.index),blocked:false};
- const prefix=detour(position,route[0],geometry,obstacles);return prefix?{path:[...prefix,...route],blocked:false}:{path:[],blocked:true};
+ if(best)return validatePath(position,route.slice(best.index),geometry,groups,obstacles);
+ const prefix=detour(position,route[0],geometry,obstacles);return prefix?validatePath(position,[...prefix,...route],geometry,groups,obstacles):{path:[],blocked:true};
 }
 export function routeOnCurrentLevel(route,feetY){const out=[];for(const n of route){if(Math.abs(n.y-feetY)>1.1)break;out.push(n);}return out;}

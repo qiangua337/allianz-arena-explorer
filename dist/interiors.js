@@ -6,7 +6,8 @@ import {accessRingGeometry} from './circulation.js';
 
 import {roomSpecs,publicWallOpening,clearCore,roomFootprint} from './building-layout.js';
 import {furniture} from './furniture-layout.js';
-import {playerCorridor,playerShower,corridorWalls,inPlayerArea,playerShellVisible} from './player-area-layout.js';
+import {playerCorridor,playerShower,playerLinks,corridorWalls} from './player-area-layout.js';
+import {subtractFootprints} from './architecture-clip.js';
 export {roomSpecs};
 export function buildInteriors(scene,circulation){
  const root=new THREE.Group();root.name='Accessible interiors | interpretation from public references';scene.add(root);
@@ -66,6 +67,7 @@ export function buildInteriors(scene,circulation){
  const corridor=new THREE.Group();corridor.position.set(0,playerCorridor.y,0);root.add(corridor);rooms.corridor=corridor;const cb=new Batches(corridor),c=playerCorridor,cx=(c.minX+c.maxX)/2,cz=(c.minZ+c.maxZ)/2;
  cb.add(c.maxX-c.minX,.16,c.maxZ-c.minZ,cx,-.08,cz,blackFloor);
  const corridorCeiling=box(corridor,c.maxX-c.minX,.15,c.maxZ-c.minZ,cx,c.height+.075,cz,dark);ceilings.push(corridorCeiling);
+ for(const r of playerLinks){cb.add(r.maxX-r.minX,.16,r.maxZ-r.minZ,(r.minX+r.maxX)/2,-.08,(r.minZ+r.maxZ)/2,blackFloor);const roof=box(corridor,r.maxX-r.minX,.15,r.maxZ-r.minZ,(r.minX+r.maxX)/2,c.height+.075,(r.minZ+r.maxZ)/2,dark);ceilings.push(roof);}
  for(const wall of corridorWalls){
   cb.add(wall.w,wall.y1-wall.y0,wall.d,wall.x,c.height/2,wall.z,white);
   wallCollider(colliders,wall.x,wall.z,wall.w,wall.d,wall.y0,wall.y1,'corridor');
@@ -79,10 +81,11 @@ export function buildInteriors(scene,circulation){
  }
  // End walls are finished architectural surfaces, with directions back to
  // the connected tunnel, rather than openings into the sky/undercroft.
- for(const[z,yaw]of[[c.minZ+.11,0],[c.maxZ-.11,Math.PI]]){
-  const board=sign(corridor,'通道尽头 · 请沿原路返回',3.4,.66,cx,2.2,z,{bg:'#a61b35',font:74,sub:'GANGENDE · ZURÜCK ZUM SPIELERTUNNEL'});board.rotation.y=yaw;
+ for(const[z,yaw,text]of[[-50.09,0,'← 接待大厅 · 公共楼梯'],[55.09,Math.PI,'接待大厅 · 公共楼梯 →']]){
+  const board=sign(corridor,text,3.4,.66,cx,2.2,z,{bg:'#a61b35',font:74,sub:'LOBBY · TREPPEN · TRIBÜNEN'});board.rotation.y=yaw;
   cb.add(3.5,.04,.055,cx,2.77,z+(yaw?-.015:.015),lightMat);
  }
+ for(const z of[-48,53])for(const x of[-89,-81,-73]){cb.add(4,.035,.14,x,c.height-.06,z,lightMat);const lamp=new THREE.PointLight(0xffeee0,30,14,2);lamp.position.set(x,c.height-.28,z);corridor.add(lamp);lights.push(lamp);}
  cb.flush();
  // The player's tunnel: dark ceiling, white strips, red diagonal wall panels and an ascending stair.
  const tunnel=new THREE.Group();tunnel.position.set(-55,-2.7,0);root.add(tunnel);rooms.tunnel=tunnel;const tb=new Batches(tunnel);tb.add(29,.15,4.8,0,-.07,0,blackFloor);tb.add(26.2,3.9,.18,1.4,1.95,-2.45,red);tb.add(26.2,3.9,.18,1.4,1.95,2.45,red);tb.add(23,.15,4.9,-3,3.95,0,dark);tb.add(23,.06,.085,-3,3.84,-1.3,lightMat);tb.add(23,.06,.085,-3,3.84,1.3,lightMat);const stairRoof=box(tunnel,Math.hypot(7,2.7),.15,4.9,12,5.3,0,dark);stairRoof.rotation.z=Math.atan2(2.7,7);for(const side of[-1,1])beam(tunnel,v(8.5,3.84,side*1.3),v(15.5,6.54,side*1.3),.03,lightMat);
@@ -122,6 +125,7 @@ export function buildInteriors(scene,circulation){
  for(const key of ['store','museum','press'])finishFixtureShadows(rooms[key],roomSpecs[key],key);
  for(const f of furniture)wallCollider(colliders,f.x,f.z,f.w,f.d,f.y0,f.y1,f.owner);
  for(const g of [...Object.values(rooms),...Object.values(shells)])compactGroup(g,ceilings);
- function update(position,active){const inPrivate=Object.entries(roomSpecs).some(([key,s])=>key!=='lounge'&&Math.abs(position.x-s.x)<s.w/2&&Math.abs(position.z-s.z)<s.d/2&&Math.abs(position.y-s.y)<6),playerArea=inPlayerArea(position);for(const[key,g]of Object.entries(rooms)){let show=false;if(key==='concourse')show=!inPrivate&&position.y>8&&position.y<43&&((Math.abs(position.x)/113)**2.8+(Math.abs(position.z)/130)**2.8<1.3)&&((Math.abs(position.x)/81)**2.8+(Math.abs(position.z)/99)**2.8>.9);else if(key==='tunnel'||key==='corridor'||key==='shower')show=playerArea;else{const s=roomSpecs[key];show=position.x>s.x-s.w/2-3&&position.x<s.x+s.w/2+5&&position.z>s.z-s.d/2-4&&position.z<s.z+s.d/2+4&&Math.abs(position.y-s.y)<7;}g.visible=show;if(shells[key])shells[key].visible=playerShellVisible(key,position,show);}for(const l of lights)l.visible=l.parent.visible&&Math.hypot(l.position.x+l.parent.position.x-position.x,l.position.y+l.parent.position.y-position.y,l.position.z+l.parent.position.z-position.z)<35;}
+ const roomCuts=['museum','store'].map(key=>{const s=roomSpecs[key];return{minX:s.x-s.w/2,maxX:s.x+s.w/2,minZ:s.z-s.d/2,maxZ:s.z+s.d/2};});rooms.concourse.traverse(o=>{if(o.isMesh){const original=o.geometry;o.geometry=subtractFootprints(original,roomCuts);original.dispose();}});
+ function update(position,active){const nearby=(Math.abs(position.x)/132)**2.8+(Math.abs(position.z)/152)**2.8<1.1&&position.y<75;for(const[key,g]of Object.entries(rooms)){let show=false;if(key==='concourse'||key==='tunnel'||key==='corridor'||key==='shower')show=nearby;else{const s=roomSpecs[key];show=position.x>s.x-s.w/2-3&&position.x<s.x+s.w/2+5&&position.z>s.z-s.d/2-4&&position.z<s.z+s.d/2+4&&Math.abs(position.y-s.y)<7;}g.visible=show;if(shells[key])shells[key].visible=nearby;}for(const l of lights)l.visible=l.parent.visible&&Math.hypot(l.position.x+l.parent.position.x-position.x,l.position.y+l.parent.position.y-position.y,l.position.z+l.parent.position.z-position.z)<35;}
  return {root,rooms,shells,colliders,update,setTactics(formation){for(const m of tacticalDisplays){const c=m.map.image,ctx=c.getContext('2d');ctx.fillStyle='#143c34';ctx.fillRect(0,0,512,768);ctx.strokeStyle='#d9e8dc';ctx.lineWidth=4;ctx.strokeRect(28,28,456,712);ctx.beginPath();ctx.moveTo(28,384);ctx.lineTo(484,384);ctx.stroke();ctx.fillStyle='#fff';ctx.font='bold 36px Arial';ctx.textAlign='center';ctx.fillText(formation?'4–4–2':'4–2–3–1',256,75);const positions=formation?[[.5,.9],[.16,.73],[.38,.73],[.62,.73],[.84,.73],[.16,.48],[.38,.48],[.62,.48],[.84,.48],[.35,.23],[.65,.23]]:[[.5,.9],[.16,.73],[.38,.73],[.62,.73],[.84,.73],[.35,.54],[.65,.54],[.18,.34],[.5,.34],[.82,.34],[.5,.16]];positions.forEach(([x,z],i)=>{ctx.fillStyle='#da294a';ctx.beginPath();ctx.arc(x*512,z*768,18,0,Math.PI*2);ctx.fill();ctx.fillStyle='#fff';ctx.font='20px Arial';ctx.fillText(i+1,x*512,z*768+7);});m.map.needsUpdate=true;}},setRoof(on){ceilings.forEach(o=>o.visible=on);},night(){},specs:roomSpecs};
 }

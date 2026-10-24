@@ -1,14 +1,15 @@
 import {THREE,v} from './kit.js';
 import {EYE_HEIGHT} from './navigation.js';
 import {inCoreShaft,coreLevels} from './building-layout.js';
-import {tourGoals} from './tour-route.js';
+import {tourGoals,tourNodes} from './tour-route.js';
 import {waypointReached,movementInstruction} from './wayfinding.js';
 import {planWalkPath,navigationObstacles,walkSegmentClear} from './walk-path.js';
 import {normalizeDestination} from './arrivals.js';
 import {destinationName} from './destinations.js';
 import {ribbonPoints} from './ribbon-path.js';
+import {playerLinks,containsFloor} from './player-area-layout.js';
 
-export function floorLabel(y,position){if(position){const{x,z}=position;if(inCoreShaft(x,z)&&!coreLevels.some(level=>Math.abs(level-y)<.5))return'楼梯间';if(y<3&&x>-95&&x<-40&&z>-43&&z<49)return'球员层';if(y>=-.3&&Math.abs(x)<42&&Math.abs(z)<60)return'球场层';}return y<2?'入口层':y<18?'公共大厅层':y<32?'包厢 / 中层':'上层看台';}
+export function floorLabel(y,position){if(position){const{x,z}=position;if(inCoreShaft(x,z)&&!coreLevels.some(level=>Math.abs(level-y)<.5))return'楼梯间';if(y<3&&(x>-95&&x<-40&&z>-43&&z<49||playerLinks.some(r=>containsFloor(r,x,z))))return'球员层';if(y>=-.3&&Math.abs(x)<42&&Math.abs(z)<60)return'球场层';}return y<2?'入口层':y<18?'公共大厅层':y<32?'包厢 / 中层':'上层看台';}
 export function buildWalkGuide(scene,geometry,{obstacles={},onChoose,onSelect,onWalk,onTeleport}={}){
  const $=id=>document.getElementById(id),panel=$('walk-guide'),select=$('guide-goal'),arrow=$('guide-arrow'),title=$('guide-title'),detail=$('guide-detail'),next=$('guide-next');
  const walkButton=$('guide-walk'),teleportButton=$('guide-teleport'),goalName=$('guide-goal-name'),distanceText=$('guide-distance');
@@ -41,7 +42,7 @@ export function buildWalkGuide(scene,geometry,{obstacles={},onChoose,onSelect,on
   const walls=navigationObstacles(p,obstacles);
   // Never advance a corner if the resulting shortcut crosses a fixture.
   while(path.length&&waypointReached(p,path[0],anchor,path[1],path.length===1)&&(!path[1]||walkSegmentClear(p,path[1],geometry,walls))){anchor=path.shift();lastDraw=null;}
-  if(!path.length&&!blocked)arrived=true;
+  if(!path.length&&!blocked&&!arrived){const destination=tourNodes[goal];if(Math.hypot(p.x-destination.x,p.z-destination.z)<2.3&&Math.abs(p.y-destination.y)<1)arrived=true;else reset(position);}
   if(planClock>1.2&&!arrived){planClock=0;const target=path[0],distance=Math.hypot(p.x-anchor.x,p.z-anchor.z);
    if(blocked?distance>.7:target&&(!walkSegmentClear(p,target,geometry,walls)||distance>55))reset(position);
   }

@@ -1,6 +1,7 @@
 import {ACCESS_BASE,ACCESS_TOP,accessStairs,accessAt,perimeterPoint} from './access-layout.js';
 import {coreFlights,coreLevels,inCoreShaft,seatingTiers,onBridge,bridges,roomSpecs,roomAt} from './building-layout.js';
 import {furnitureBlocksSegment} from './furniture-layout.js';
+import {playerCorridor,playerLinks,containsFloor} from './player-area-layout.js';
 
 // A representative visitor passage connects the model's arrival hall to the
 // pitch. Its position and dimensions are an explorable approximation.
@@ -45,6 +46,7 @@ for(const [id,z,doorX]of[['guestRoom',28,-72.5],['press',-31,-71.5]]){
 }
 for(let i=0;i<32;i++){
  const t=i/32*Math.PI*2,p=perimeterPoint(92,110,t),q=perimeterPoint(142,160,t),lower=perimeterPoint(96,113,t);
+ if(lower.x<-60&&Math.abs(lower.z)<75)lower.x-=3;if((i===7||i===9)&&q.z>150)q.z=162.5;
  node('upper'+i,p.x,ACCESS_TOP,p.z,'公共大厅','沿环形大厅前往目的地','upper');node('outside'+i,q.x,ACCESS_BASE,q.z,'球场外环步道','沿外环返回南侧接待大厅');node('lower'+i,lower.x,ACCESS_BASE,lower.z,'接待层环廊','沿环廊前往目的地，东侧室内楼梯可逐层上下');
  if(i){join('upper'+(i-1),'upper'+i);join('outside'+(i-1),'outside'+i);join('lower'+(i-1),'lower'+i);}
 }
@@ -75,10 +77,16 @@ for(let i=0;i<coreLevels.length;i++){
 }
 node('loungeDoor',95.5,23.6,-10.5,'贵宾包厢入口','靠近自动门后步行进入','gallery');node('lounge',92,23.6,-10.5,'贵宾包厢','可以沿窗边欣赏球场','gallery');join('landing2','loungeDoor');join('loungeDoor','lounge');
 node('middleBridgeStart',101.5,23.6,-30.1,'中层看台连廊','沿带扶手的连廊前往看台','gallery');node('stands',82.55,23.6,-30.1,'中层看台','沿座椅间过道上下，也可按 F 坐下','gallery');join('landing2','middleBridgeStart');join('middleBridgeStart','stands');
-node('upperBridgeStart',104,40,-36.5,'上层看台连廊','沿连廊进入上层看台','gallery');node('upperStands',102.75,40,-36.5,'上层看台','沿过道自由探索','gallery');join('landing3','upperBridgeStart');join('upperBridgeStart','upperStands');
+node('upperGalleryFront',101.5,40,-15.5,'上层连廊入口','沿连廊前往看台入口','gallery');node('upperGalleryOuter',106,40,-15.5,'上层连廊转角','沿连廊前往看台入口','gallery');node('upperBridgeStart',106,40,-36.5,'上层看台连廊','沿连廊进入上层看台','gallery');node('upperStands',102.75,40,-36.5,'上层看台','沿过道自由探索','gallery');join('landing3','upperGalleryFront');join('upperGalleryFront','upperGalleryOuter');join('upperGalleryOuter','upperBridgeStart');join('upperBridgeStart','upperStands');
 node('lowerEntry',0,12.2,-104,'下层看台入口','沿缓坡步行进入下层看台','upper');node('lowerStands',0,10.512,-83.2,'下层看台','沿阶梯过道上下探索','stands');join('upper24','lowerEntry');join('lowerEntry','lowerStands');
 for(const[id,from,x,y,z,label]of[['arcade','reception',0,-2.9,113,'接待大厅'],['visitorEntry','turn',22,-2.9,111,'参观通道入口'],['concourse','upper31',94,12.2,-47,'公共大厅'],['access','coreFront',101.5,-2.9,-14,'室内公共楼梯'],['esplanade','entrance',-32,-5.14,280,'南侧广场']]){node(id,x,y,z,label,'沿地线继续步行',y>9?'upper':'lower');join(id,from);}
 node('exterior',0,-4.103,214,'南侧正门','正门外的出发位置');join('exterior','entrance');
+// Public-to-player access at both ends. These are physical, roofed corridors,
+// so reaching a room no longer requires taking the route through the pitch.
+for(const[side,z,lowerA,lowerB,innerZ,roomCorridor]of[['North',-48,17,18,-37,'pressCorridor'],['South',53,14,15,44,'guestRoomCorridor']]){
+ const prefix='player'+side;node(prefix+'Lobby',-96,-2.9,z,'球员区入口','穿过开放门洞，进入球员区通道','player');node(prefix+'Gate',-92,-2.7,z,'球员区连接通道','沿灯带步行，通道连通接待环廊','player');node(prefix+'Turn',-69.75,-2.7,z,'球员区通道转角','在转角沿地线继续前行','player');node(prefix+'Inner',-69.75,-2.7,innerZ,'球员区走廊','前往更衣室、发布厅或球员通道','player');
+ const ids=['lower'+lowerA,prefix+'Lobby',prefix+'Gate',prefix+'Turn',prefix+'Inner',roomCorridor];for(let i=1;i<ids.length;i++)join(ids[i-1],ids[i]);join('lower'+lowerB,prefix+'Lobby');
+}
 const bypass=links.findIndex(([a,b])=>a==='upper14'&&b==='upper15');links.splice(bypass,1);node('museumBypass',-85.5,12.2,43.5,'展厅外侧环廊','沿展厅外侧绕行','upper');join('upper15','museumBypass');join('museumBypass','upper14');
 // Once a visitor walks down an aisle, returning to the public corridor must
 // lead back up that tier, rather than straight through the seating structure.
@@ -105,8 +113,12 @@ export function planTour(position,goal='pitch'){
  let candidates=Object.values(nodes);const inner=(Math.abs(position.x)/86)**2.8+(Math.abs(position.z)/104)**2.8,outer=(Math.abs(position.x)/105)**2.8+(Math.abs(position.z)/120)**2.8,stair=accessAt(position.x,position.z);
  const room=roomAt(position);
  if(room){candidates=candidates.filter(n=>n.id===room||n.id===room+'Door'||n.id.startsWith(room+'Walk')||room==='homeRoom'&&n.id==='homeDoor'||room==='press'&&n.id==='pressEntry');const clear=candidates.filter(n=>!furnitureBlocksSegment(position,n,room));if(clear.length)candidates=clear;}
+ else if(position.y<0&&(containsFloor(playerCorridor,position.x,position.z)||playerLinks.some(r=>containsFloor(r,position.x,position.z))))candidates=candidates.filter(n=>n.level==='player'||['corridor','pressCorridor','guestRoomCorridor'].includes(n.id));
  else if(position.y>-.25&&position.y<.5&&Math.abs(position.x)<41.5&&Math.abs(position.z)<60)candidates=candidates.filter(n=>['pitch','westField','tunnelMouth','pitchEdge','pitchExit'].includes(n.id));
  else if(inCoreShaft(position.x,position.z)||position.x>97&&Math.abs(position.z+10.5)<4)candidates=candidates.filter(n=>n.id.startsWith('flight')||n.id.startsWith('landing')).filter(n=>Math.abs(n.y-position.y)<10);
+ else if(bridges.some(b=>onBridge(position.x,position.z,b)!==null&&Math.abs(position.y-(b.a[1]+(b.b[1]-b.a[1])*(onBridge(position.x,position.z,b)??0)))<.75)){
+  const link=bridges.find(b=>onBridge(position.x,position.z,b)!==null&&Math.abs(position.y-(b.a[1]+(b.b[1]-b.a[1])*(onBridge(position.x,position.z,b)??0)))<.75),ids=link.id==='lowerPassage'?['lowerEntry','lowerStands']:position.y>30?['landing3','upperGalleryFront','upperGalleryOuter','upperBridgeStart','upperStands']:['landing2','loungeDoor','lounge','middleBridgeStart','stands'];candidates=candidates.filter(n=>ids.includes(n.id));
+ }
  else if(seatingTiers.some(t=>position.y>=t.y-.15&&position.y<t.y+(t.rows-1)*t.depth*Math.tan(t.angle*Math.PI/180)+.85&&(Math.abs(position.x)/(t.a+t.rows*t.depth+.3))**3.35+(Math.abs(position.z)/(t.b+t.rows*t.depth+.3))**3.35<1&&(Math.abs(position.x)/(t.a-.2))**3.35+(Math.abs(position.z)/(t.b-.2))**3.35>1)){
   const ti=seatingTiers.findIndex(t=>position.y>=t.y-.15&&position.y<t.y+(t.rows-1)*t.depth*Math.tan(t.angle*Math.PI/180)+.85&&(Math.abs(position.x)/(t.a+t.rows*t.depth+.3))**3.35+(Math.abs(position.z)/(t.b+t.rows*t.depth+.3))**3.35<1&&(Math.abs(position.x)/(t.a-.2))**3.35+(Math.abs(position.z)/(t.b-.2))**3.35>1);candidates=candidates.filter(n=>n.level===`seat${ti}`||n.id===['lowerStands','stands','upperStands'][ti]);
  }

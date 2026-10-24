@@ -16,7 +16,7 @@ const {floorHeight,hitsWall}=await import('../dist/navigation.js');
 const {buildInteractions}=await import('../dist/interactions.js');
 const {furnitureBlocksSegment}=await import('../dist/furniture-layout.js');
 const {buildWalkGuide,floorLabel}=await import('../dist/walk-guide.js');
-const {planWalkPath,navigationObstacles,walkSegmentClear,routeOnCurrentLevel}=await import('../dist/walk-path.js');
+const {planWalkPath,navigationObstacles,walkSegmentClear,routeOnCurrentLevel,segmentHitsObstacle}=await import('../dist/walk-path.js');
 const {destinationArrival}=await import('../dist/arrivals.js');
 const {canStandAt}=await import('../dist/navigation.js');
 const {advanceWalker}=await import('../dist/walk-motion.js');
@@ -24,7 +24,7 @@ const {accessStairs,accessHeight}=await import('../dist/access-layout.js');
 const {buildServiceRooms}=await import('../dist/service-rooms.js');
 const {serviceRooms:serviceLayout,serviceWorld}=await import('../dist/service-layout.js');
 const {ribbonPoints}=await import('../dist/ribbon-path.js');
-const {coreFlights,platforms}=await import('../dist/building-layout.js');
+const {coreFlights,platforms,bridges}=await import('../dist/building-layout.js');
 const {entranceSample}=await import('../dist/matchday-route.js');
 const {sampleQueuePlayer}=await import('../dist/entrance-choreography.js');
 const {playerCorridor,playerShower}=await import('../dist/player-area-layout.js');
@@ -37,12 +37,12 @@ function envelopeRay(origin,direction){return new THREE.Raycaster(new THREE.Vect
 
 test('both ends and the complete side walls of the player corridor have rendered geometry and collision',()=>{
  const p=new THREE.Vector3(-69.5,-1,-37);interiors.update(p,'pitch');
- for(const [direction,axis,expected]of [[[0,0,-1],'z',-40.91],[[0,0,1],'z',48.91],[[1,0,0],'x',-66.79],[[-1,0,0],'x',-71.4]]){
+ for(const [direction,axis,expected]of [[[0,0,-1],'z',-50.11],[[0,0,1],'z',55.11],[[1,0,0],'x',-66.79],[[-1,0,0],'x',-71.4]]){
   const hit=envelopeRay(p.toArray(),direction);assert.ok(hit,'an enclosed direction must not reveal the sky');assert.ok(Math.abs(hit.point[axis]-expected)<.04,`${axis}: ${hit.point[axis]} vs ${expected}`);
  }
  const walls=interiors.colliders;
  for(const [start,dx,dz]of [[{x:-69.5,z:-39},0,-8],[{x:-69.5,z:47},0,8],[{x:-68,z:-37},5,0],[{x:-68,z:44},5,0]]){
-  const p={...start};advanceWalker(p,-2.7,dx,dz,geometry,(x,z,y)=>hitsWall(x,z,y,walls));assert.equal(hitsWall(p.x,p.z,-1,walls),false);assert.ok(p.z>playerCorridor.minZ+.24&&p.z<playerCorridor.maxZ-.24&&p.x<playerCorridor.maxX-.24,'walking stops at the visible wall');
+  const p={...start};advanceWalker(p,-2.7,dx,dz,geometry,(x,z,y)=>hitsWall(x,z,y,walls));assert.equal(hitsWall(p.x,p.z,-1,walls),false);assert.ok(p.z>-49.9&&p.z<54.9&&p.x<playerCorridor.maxX-.24,'walking stops at the visible wall');
  }
 });
 
@@ -58,7 +58,7 @@ test('connected room envelopes remain visible from both corridor edges while fur
   interiors.update(p,'pitch');for(const key of ['homeRoom','guestRoom','press'])assert.equal(interiors.shells[key].visible,true,key+' envelope is retained');assert.equal(interiors.rooms.corridor.visible,true);assert.equal(interiors.rooms.tunnel.visible,true);assert.equal(interiors.rooms.shower.visible,true);
  }
  interiors.update(new THREE.Vector3(-67.2,-1,0),'pitch');assert.equal(interiors.rooms.homeRoom.visible,false,'far furniture still follows its detail budget');assert.ok(envelopeRay([-67.2,-1,0],[-1,0,0]),'the doorway has a room behind it');
- interiors.update(new THREE.Vector3(0,1.7,13),'pitch');for(const shell of Object.values(interiors.shells))assert.equal(shell.visible,false,'hidden private shells add no outside draw calls');
+ interiors.update(new THREE.Vector3(0,1.7,13),'pitch');for(const shell of Object.values(interiors.shells))assert.equal(shell.visible,true,'static envelopes do not pop into view when approaching');
 });
 
 test('the guest shower doorway is clear of lockers and has continuous floor support',()=>{
@@ -83,6 +83,51 @@ test('real room walls, fixtures and handrails leave all advertised routes clear'
    }
   }
  }
+});
+
+test('one continuous visitor can walk the whole itinerary with real walls and operating doors',()=>{
+ const motion={x:tourNodes.entrance.x,z:tourNodes.entrance.z};let feet=tourNodes.entrance.y;
+ const doors=buildInteractions(scene,interiors,{toast(){},showInfo(){},setEye(){}}),walls=[...world.colliders,...building.colliders,...interiors.colliders,...stadium.circulation.colliders,...service.colliders,...doors.colliders];
+ for(const goal of ['press','upperStands','guestRoom','homeRoom','tunnel','pitch','visitorEntry','arcade','store','museum','lounge','stands','upperStands','lowerStands','entrance']){
+  const route=planWalkPath({...motion,y:feet},goal,geometry,obstacleGroups);assert.equal(route.blocked,false,'a route exists to '+goal);let steps=0;
+  for(const target of route.path){let stalled=0;
+   while(Math.hypot(motion.x-target.x,motion.z-target.z)>.12){assert.ok(++steps<16000,'bounded route to '+goal);doors.update(new THREE.Vector3(motion.x,feet+1.7,motion.z),.04,'walk');const dx=target.x-motion.x,dz=target.z-motion.z,d=Math.hypot(dx,dz),old={...motion};feet=advanceWalker(motion,feet,dx/d*Math.min(d,.16),dz/d*Math.min(d,.16),geometry,(x,z,y)=>hitsWall(x,z,y,walls));
+    stalled=Math.hypot(motion.x-old.x,motion.z-old.z)<.001?stalled+1:0;assert.ok(stalled<30,`${goal} → ${target.id} stuck at ${motion.x.toFixed(2)},${feet.toFixed(2)},${motion.z.toFixed(2)}`);
+   }
+  }assert.ok(Math.hypot(motion.x-tourNodes[goal].x,motion.z-tourNodes[goal].z)<2.3,'actually arrives at '+goal);
+ }
+});
+
+test('room and core portals are open in the actual rendered architecture, not only the route graph',()=>{
+ scene.updateMatrixWorld(true);const objects=[];for(const group of [interiors.root,building.root,stadium.circulation.root])group.traverse(o=>{if(o.isMesh&&!o.material.transparent&&!o.material.isMeshBasicMaterial)objects.push(o);});
+ const passages=[[[22,-1.2,106],[22,-1.2,100]],[[-97,-1,-48],[-91,-1,-48]],[[-97,-1,53],[-91,-1,53]],...[-2.9,12.2,23.6,40].map(y=>[[101.5,y+1.7,-15],[101.5,y+1.7,-10]]),[[101.5,25.3,-29],[84,25.3,-30.1]],[[106,41.7,-36.5],[102.5,41.7,-36.5]]];
+ for(const [a,b]of passages){const start=new THREE.Vector3(...a),delta=new THREE.Vector3(...b).sub(start),ray=new THREE.Raycaster(start,delta.clone().normalize(),.02,delta.length()-.02),hits=ray.intersectObjects(objects,false);assert.equal(hits.length,0,`visible geometry blocks ${a} → ${b}: ${hits[0]?.point.toArray()}`);}
+});
+
+test('future guide segments stay clear after turning into either player connection',()=>{
+ for(const z of [-48,53])for(const goal of Object.keys(tourGoals)){
+  const start={x:-69.739,y:-2.7,z:z+.016},route=planWalkPath(start,goal,geometry,obstacleGroups);assert.equal(route.blocked,false,goal+' from connector '+z);let previous=start;
+  for(const next of route.path){assert.equal(walkSegmentClear(previous,next,geometry,navigationObstacles(previous,obstacleGroups)),true,`${goal}: ${previous.id||'start'} → ${next.id}`);previous=next;}
+ }
+});
+
+test('a descending route passes beneath an upper wall only where the body is actually below it',()=>{
+ const a={x:0,y:12.2,z:0},b={x:10,y:4.65,z:0};
+ assert.equal(segmentHitsObstacle(a,b,{x0:6.8,x1:7.2,z0:-1,z1:1,y0:12.2,y1:16.8}),false);
+ assert.equal(segmentHitsObstacle(a,b,{x0:.8,x1:1.2,z0:-1,z1:1,y0:12.2,y1:16.8}),true);
+});
+
+test('visitors can step from the upper gallery into the seating aisle without an invisible drop barrier',()=>{
+ const p={x:102.75,z:-36.5},feet=advanceWalker(p,40,-3,0,geometry,(x,z,y)=>hitsWall(x,z,y,[...building.colliders,...interiors.colliders,...stadium.circulation.colliders]));assert.ok(p.x<100,'stopped at '+JSON.stringify(p)+' floor '+feet);assert.ok(feet<40);
+});
+
+test('changing destination midway through any tier gallery stays on that gallery rather than jumping to seat aisles',()=>{
+ const walls=[...world.colliders,...building.colliders,...interiors.colliders,...stadium.circulation.colliders];let count=0;
+ for(const bridge of bridges)for(const t of [.1,.5,.9]){const p={x:bridge.a[0]+(bridge.b[0]-bridge.a[0])*t,y:bridge.a[1]+(bridge.b[1]-bridge.a[1])*t,z:bridge.a[2]+(bridge.b[2]-bridge.a[2])*t};if(hitsWall(p.x,p.z,p.y+1.7,walls))continue;for(const goal of Object.keys(tourGoals)){const path=planWalkPath(p,goal,geometry,obstacleGroups);assert.equal(path.blocked,false,`${bridge.id} at ${t} → ${goal}`);}count++;}assert.ok(count>=18);
+});
+
+test('selecting the visitor entrance inside either player connector keeps routing until actual arrival',()=>{
+ for(const z of [-48,53]){const guide=buildWalkGuide(scene,geometry,{obstacles:obstacleGroups}),p=new THREE.Vector3(-69.75,-1,z);guide.setGoal('visitorEntry',p);for(let i=0;i<30;i++)guide.update(p,0,.2,'walk');assert.equal(document.body.dataset.guideState,'routing');assert.ok(guide.getRoute().length>2);}
 });
 test('automatic doors physically open for a nearby walker, then close after departure',()=>{
  const interactions=buildInteractions(scene,interiors,{toast(){},showInfo(){},setEye(){}});
@@ -128,7 +173,7 @@ test('leaving a temporary experience restores the prior guide selection and arri
 });
 
 test('the overlapping public ring cannot render through a private room or raise its floor',()=>{
- for(const key of ['store','museum']){const s=roomSpecs[key],p=new THREE.Vector3(s.x,s.y+1.7,s.z);interiors.update(p,key);assert.equal(interiors.rooms[key].visible,true);assert.equal(interiors.rooms.concourse.visible,false);assert.equal(floorHeight(s.x,s.z,s.y,geometry),s.y);}
+ for(const key of ['store','museum']){const s=roomSpecs[key],p=new THREE.Vector3(s.x,s.y+1.7,s.z);interiors.update(p,key);assert.equal(interiors.rooms[key].visible,true);assert.equal(interiors.rooms.concourse.visible,true);assert.equal(floorHeight(s.x,s.z,s.y,geometry),s.y);scene.updateMatrixWorld(true);const hit=new THREE.Raycaster(new THREE.Vector3(s.x,s.y+2,s.z),new THREE.Vector3(0,-1,0),0,3).intersectObject(interiors.rooms.concourse,true);assert.equal(hit.length,0,'public surfaces are cut out of room interiors');}
  interiors.update(new THREE.Vector3(94,13.9,-47),'concourse');assert.equal(interiors.rooms.concourse.visible,true);
 });
 

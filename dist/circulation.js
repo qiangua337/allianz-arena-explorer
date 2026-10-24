@@ -4,6 +4,7 @@ import {inCoreShaft,publicWallOpening,clearCore,roomFootprint} from './building-
 import {THREE,TAU,v,mat,mesh,box,beam,canvasTexture,repeatTex,floorTexture,ringGeometry,Batches,mergeGeometry,addCrest} from './kit.js';
 import {ACCESS_BASE,ACCESS_TOP,accessStairs,perimeterFrames,perimeterPoint,perimeterNormal,stairwellAt,orientedCollider} from './access-layout.js';
 import {visitorPassage,visitorWallOpening} from './tour-route.js';
+import {arcadeInnerPoint,playerPublicOpening} from './player-area-layout.js';
 
 // One shared sign atlas and instanced architectural parts keep the pedestrian
 // level detailed without adding a separate draw call for every door or label.
@@ -83,7 +84,7 @@ export function buildCirculation(parent){
  const innerWall=[],wallAngles=Array.from({length:385},(_,i)=>i/384*TAU);
  for(const x of[visitorPassage.x-visitorPassage.width/2,visitorPassage.x+visitorPassage.width/2])wallAngles.push(Math.acos(Math.sign(x)*Math.abs(x/86)**1.4));wallAngles.sort((a,b)=>a-b);
  for(let i=0;i<wallAngles.length-1;i++){
-  const t=wallAngles[i],u=wallAngles[i+1],p=perimeterPoint(86,104,t),q=perimeterPoint(86,104,u),cx=(p.x+q.x)/2,cz=(p.z+q.z)/2,y0=visitorWallOpening(cx,cz)?visitorPassage.head:ACCESS_BASE,y1=5.4;
+  const t=wallAngles[i],u=wallAngles[i+1],p=arcadeInnerPoint(t),q=arcadeInnerPoint(u),cx=(p.x+q.x)/2,cz=(p.z+q.z)/2,y0=visitorWallOpening(cx,cz)?visitorPassage.head:playerPublicOpening(cx,cz)?1:ACCESS_BASE,y1=5.4;
   innerWall.push(p.x,y0,p.z,q.x,y0,q.z,p.x,y1,p.z,q.x,y0,q.z,q.x,y1,q.z,p.x,y1,p.z);
   colliders.push(orientedCollider(cx,cz,Math.hypot(p.x-q.x,p.z-q.z)+.02,.18,y0,y1,Math.atan2(q.z-p.z,p.x-q.x)*-1));
  }
@@ -161,8 +162,10 @@ export function buildCirculation(parent){
  }
 
  // Inner service enclosure has joints, actual door leaves and human-scale maps.
- for(const frame of perimeterFrames(86.2,104.2,32)){
+ for(const original of perimeterFrames(86.2,104.2,32)){
+  const point=arcadeInnerPoint(original.t),before=arcadeInnerPoint(original.t-.0001),after=arcadeInnerPoint(original.t+.0001),nx=after.z-before.z,nz=before.x-after.x,length=Math.hypot(nx,nz),normal={x:nx/length,z:nz/length},frame={...original,x:point.x+normal.x*.2,z:point.z+normal.z*.2,normal,yaw:Math.atan2(normal.x,normal.z)};
   const n=frame.normal,p={x:frame.x+n.x*.16,z:frame.z+n.z*.16};
+  if(playerPublicOpening(p.x,p.z))continue;
   if(p.z>95&&Math.abs(p.x-visitorPassage.x)<7)continue;
   batch.add(.1,6.5,.1,p.x,ACCESS_BASE+3.25,p.z,metal,frame.yaw);
   if(frame.index%4===0){
@@ -295,7 +298,7 @@ export function buildCirculation(parent){
  }
  function update(position,privateEnclosed=false){
   const nearby=position.y<9&&((Math.abs(position.x)/122)**2.8+(Math.abs(position.z)/140)**2.8<1.2);
-  root.visible=!privateEnclosed;for(const light of lamps)light.visible=lightingNight&&nearby&&light.position.distanceTo(position)<32;
+  root.visible=true;for(const light of lamps)light.visible=lightingNight&&nearby&&light.position.distanceTo(position)<32;
  }
  return{root,roof,colliders,decorateConcourse,update,night(on){lightingNight=on;glow.color.set(on?0xffe0ad:0xfff3dd);lamps.forEach(l=>l.intensity=on?68:28);},setRoof(on){roof.visible=on;},stats:{entranceBays:66,accessStairs:8,sharedSignTextures:1}};
 }

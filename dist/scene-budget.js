@@ -1,5 +1,5 @@
 import {THREE,compactGroup} from './kit.js';
-import {tunnelHasBowlView} from './player-area-layout.js';
+import {tunnelHasBowlView,enclosedPlayerPosition} from './player-area-layout.js';
 
 // Keep hardware instances and independently controlled subtrees intact while
 // combining small static meshes that otherwise each cost a draw submission.
@@ -11,6 +11,7 @@ export function freezeArchitecture(group,exclude=[]){
  group.updateWorldMatrix(true,true);group.traverse(o=>{for(let p=o;p&&p!==group;p=p.parent)if(exclude.includes(p))return;o.updateMatrix();o.matrixAutoUpdate=false;});
 }
 export function bowlIsVisible(position,mode){
+ if(enclosedPlayerPosition(position))return false;
  const inner=(Math.abs(position.x)/83)**2.8+(Math.abs(position.z)/101)**2.8,passage=position.y<8&&Math.abs(position.x-22)<3.6&&position.z>60&&position.z<105;
  // At pedestrian height the opaque exterior and lower arcade hide the bowl.
  return tunnelHasBowlView(position)||position.y>18||inner<.98&&!passage;
