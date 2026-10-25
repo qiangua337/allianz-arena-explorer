@@ -1,4 +1,6 @@
-import {THREE,v,mat,mesh,box,sign,canvasTexture} from './kit.js';
+import {hangingJerseyGeometry,jerseyBumpTexture} from './wardrobe-detail.js';
+import {drawJerseyArtwork} from './jersey-artwork.js';
+import {THREE,v,mat,mesh,box,beam,sign,canvasTexture} from './kit.js';
 import {roomSpecs} from './building-layout.js';
 import {playerByNumber} from './roster.js';
 export function buildInteractions(scene,interiors,{toast,navigate,showInfo,setEye,serviceRooms}){
@@ -15,8 +17,8 @@ export function buildInteractions(scene,interiors,{toast,navigate,showInfo,setEy
  item('tactics',[-74,-1,-4.3],'切换战术板阵型',()=>{tactic=1-tactic;interiors.setTactics?.(tactic);toast('战术板：'+(tactic?'4–4–2':'4–2–3–1'));});
  const years=['1974','1975','1976','2001','2013','2020'];
  for(let i=0;i<6;i++){const x=-96+(i%2?3.7:-3.7),z=58-8+Math.floor(i/2)*5.3;item('cup'+i,[x,13.5,z],`查看 ${years[i]} 冠军杯`,()=>showInfo(years[i]+' · 欧洲冠军杯','靠近观察银杯、双耳把手、玻璃展柜和底座年份。展厅以六次夺冠年份为主题作近似布展。'));}
- const display=new THREE.Group();display.position.set(10,13.65,118);root.add(display);box(display,1.7,.12,1.3,0,-1.2,0,metal);box(display,.06,1.2,.06,0,-.6,0,metal);const jerseyCanvas=document.createElement('canvas');jerseyCanvas.width=512;jerseyCanvas.height=640;const jerseyMap=new THREE.CanvasTexture(jerseyCanvas);jerseyMap.colorSpace=THREE.SRGBColorSpace;const jersey=mesh(new THREE.PlaneGeometry(.9,1.15),new THREE.MeshBasicMaterial({map:jerseyMap,side:THREE.DoubleSide}),display,0,0,0);jersey.rotation.y=Math.PI/2;
- function updateShirt(){const p=playerByNumber([9,10,17,14,6][shirt]),c=jerseyCanvas.getContext('2d');c.fillStyle='#b71c37';c.fillRect(0,0,512,640);c.textAlign='center';c.fillStyle='#fff';c.font='bold 30px Arial';c.fillText('FC BAYERN MÜNCHEN',256,90,480);c.font='bold 240px Arial';c.fillText(p.number,256,365);c.font='bold 44px Arial';c.fillText(p.name,256,465,470);c.font='24px Arial';c.fillText('F · NEXT PLAYER',256,570);jerseyMap.needsUpdate=true;}updateShirt();
+ const display=new THREE.Group();display.position.set(10,13.65,118);root.add(display);box(display,1.7,.12,1.3,0,-1.2,0,metal);box(display,.06,1.2,.06,0,-.6,0,metal);const jerseyCanvas=document.createElement('canvas');jerseyCanvas.width=512;jerseyCanvas.height=640;const jerseyMap=new THREE.CanvasTexture(jerseyCanvas);jerseyMap.colorSpace=THREE.SRGBColorSpace;const hanger=new THREE.Group();hanger.rotation.y=Math.PI/2;display.add(hanger);const jersey=mesh(hangingJerseyGeometry(),new THREE.MeshStandardMaterial({map:jerseyMap,bumpMap:jerseyBumpTexture(),bumpScale:.002,roughness:.94,alphaTest:.12,side:THREE.DoubleSide}),hanger,0,0,.066);jersey.scale.set(1.12,1.12,1);for(const side of[-1,1])beam(hanger,v(side*.31,.45,0),v(0,.59,0),.009,metal,6);beam(hanger,v(-.31,.45,0),v(.31,.45,0),.009,metal,6);
+ function updateShirt(){const p=playerByNumber([9,10,17,14,6][shirt]);drawJerseyArtwork(jerseyCanvas.getContext('2d'),p.number,p.name,'#b71c37');jerseyMap.needsUpdate=true;}updateShirt();
  item('shirt',[11,13.7,118],'切换球衣 · 旋转陈列',()=>{shirt=(shirt+1)%5;updateShirt();display.rotation.y+=Math.PI/4;toast('展示球衣：'+playerByNumber([9,10,17,14,6][shirt]).name);});
  for(const[id,p]of[['middleSeat',[81.2,24.8,-30.1]],['upperSeat',[101.4,41,-36.5]],['lowerSeat',[1.1,12,-82.5]]])item(id,p,'坐下 / 起身观看球场',()=>{seated=!seated;setEye(seated?1.05:1.7);toast(seated?'已坐下。再次按 F 或移动即可起身。':'已起身。');},3.2);
  button.onclick=()=>activate();

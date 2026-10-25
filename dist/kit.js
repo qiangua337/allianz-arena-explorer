@@ -4,7 +4,7 @@ export const TAU=Math.PI*2;
 export const v=(x=0,y=0,z=0)=>new THREE.Vector3(x,y,z);
 export const mats={};
 let metalEnvironment;
-export function mat(color,options={}){return new THREE.MeshStandardMaterial({color,roughness:.8,metalness:0,...((options.metalness??0)>.2&&metalEnvironment?{envMap:metalEnvironment,envMapIntensity:.65}:{}),...options});}
+export function mat(color,options={}){return new THREE.MeshStandardMaterial({color,roughness:.8,metalness:0,...(((options.metalness??0)>.2||options.envMapIntensity!==undefined)&&metalEnvironment?{envMap:metalEnvironment,envMapIntensity:.65}:{}),...options});}
 export function prepareMaterialLighting(renderer){
  const studio=new THREE.Scene();studio.background=new THREE.Color(0x555b61);const cards=[];
  for(const [x,y,z,w,h]of[[-5,3,1,3,6],[4,4,-3,4,5],[0,7,0,8,5]]){const material=new THREE.MeshBasicMaterial({color:new THREE.Color(2.5,2.35,2.15)}),card=new THREE.Mesh(new THREE.PlaneGeometry(w,h),material);card.position.set(x,y,z);card.lookAt(0,0,0);studio.add(card);cards.push(card);}
@@ -32,7 +32,11 @@ export function superpoint(a,b,t,n=2.8){const c=Math.cos(t),s=Math.sin(t),p=2/n;
 export function supernormal(a,b,t,n=2.8){const p=superpoint(a,b,t,n),q=superpoint(a,b,t+.0001,n);return v(q.z-p.z,0,p.x-q.x).normalize();}
 export function ringGeometry(ax,bz,cx,dz,y=0,n=2.8,segments=192){const pos=[],uv=[];for(let i=0;i<segments;i++){const t=i/segments*TAU,u=(i+1)/segments*TAU;const pts=[superpoint(ax,bz,t,n),superpoint(cx,dz,t,n),superpoint(cx,dz,u,n),superpoint(ax,bz,u,n)];for(const k of[0,2,1,0,3,2]){pos.push(pts[k].x,y,pts[k].z);uv.push(pts[k].x/20,pts[k].z/20);}}const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));g.computeVertexNormals();return g;}
 export function curveLine(parent,points,color=0xffffff,opacity=1){const g=new THREE.BufferGeometry().setFromPoints(points);const m=new THREE.LineBasicMaterial({color,transparent:opacity<1,opacity});const l=new THREE.Line(g,m);parent.add(l);return l;}
-export function mergeGeometry(gs){const arrays={position:[],normal:[],uv:[]};for(let g of gs){if(g.index)g=g.toNonIndexed();for(const a in arrays)if(g.attributes[a])arrays[a].push(g.attributes[a].array);}const out=new THREE.BufferGeometry();for(const a in arrays){const len=arrays[a].reduce((s,p)=>s+p.length,0);if(!len)continue;const data=new Float32Array(len);let offset=0;for(const p of arrays[a]){data.set(p,offset);offset+=p.length;}out.setAttribute(a,new THREE.BufferAttribute(data,a==='uv'?2:3));}return out;}
+export function mergeGeometry(gs){
+ const expanded=gs.map(g=>g.index?g.toNonIndexed():g),templates=new Map();let count=0;
+ for(const g of expanded){count+=g.attributes.position.count;for(const[name,a]of Object.entries(g.attributes))if(!templates.has(name))templates.set(name,a);}
+ const out=new THREE.BufferGeometry();for(const[name,template]of templates){const size=template.itemSize,data=new Float32Array(count*size);let offset=0;for(const g of expanded){const a=g.attributes[name],length=g.attributes.position.count*size;if(a&&a.itemSize===size&&a.array instanceof Float32Array&&!a.normalized)data.set(a.array,offset);else for(let i=0;i<g.attributes.position.count;i++)for(let j=0;j<size;j++)data[offset+i*size+j]=a&&j<a.itemSize?a.getComponent(i,j):name==='color'?1:0;offset+=length;}out.setAttribute(name,new THREE.BufferAttribute(data,size));}return out;
+}
 export class Batches{constructor(parent){this.parent=parent;this.entries=new Map();}add(w,h,d,x,y,z,m,yaw=0){let arr=this.entries.get(m);if(!arr){arr=[];this.entries.set(m,arr);}arr.push({w,h,d,x,y,z,yaw});}flush(){const dummy=new THREE.Object3D();for(const[m,arr]of this.entries){const inst=new THREE.InstancedMesh(new THREE.BoxGeometry(1,1,1),m,arr.length);arr.forEach((a,i)=>{dummy.position.set(a.x,a.y,a.z);dummy.scale.set(a.w,a.h,a.d);dummy.rotation.set(0,a.yaw,0);dummy.updateMatrix();inst.setMatrixAt(i,dummy.matrix);});inst.receiveShadow=true;inst.castShadow=true;inst.computeBoundingSphere();this.parent.add(inst);}this.entries.clear();}}
 let crestTexture,awayCrest;
 export async function loadBrandAssets(){

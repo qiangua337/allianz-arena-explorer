@@ -1,3 +1,4 @@
+import {cushionGeometry,pipingGeometry,fabricMaterial} from './upholstery.js';
 import {THREE,v,mat,mesh,box,beam,cylinder,canvasTexture,Batches} from './kit.js';
 import {furniture} from './furniture-layout.js';
 
@@ -81,10 +82,11 @@ export function finishReception(root,batch,atlas,{floorY=-2.9,pale,red,metal,dar
 }
 
 export function finishedSeat(parent,x,y,z,yaw,material,metal,width=.8){
- const m=palette(),g=new THREE.Group(),b=new Batches(g);g.position.set(x,y,z);g.rotation.y=yaw;parent.add(g);
- finishedBox(g,width,.16,.73,0,.49,0,material,.045);const back=finishedBox(g,width,.72,.15,0,.95,.32,material,.05);back.rotation.x=-.08;
- for(const xx of[-width*.36,width*.36])for(const zz of[-.24,.24])cylinder(g,.018,.43,xx,.22,zz,metal,8);
- b.add(width-.12,.045,.49,0,.37,0,m.dark);for(const side of[-1,1]){finishedBox(g,.065,.055,.52,side*(width/2+.025),.76,.04,m.dark,.02);b.add(.025,.2,.025,side*(width/2+.025),.64,.22,metal);}b.flush();return g;
+ const m=palette(),g=new THREE.Group(),b=new Batches(g);g.position.set(x,y,z);g.rotation.y=yaw;parent.add(g);const depth=.60+(width-.58)*.25,height=.65;
+ const pan=mesh(cushionGeometry(width,depth,.13),material,g,0,.48,0);pan.rotation.x=-Math.PI/2;mesh(pipingGeometry(width,depth,.13),m.linen,pan);
+ const back=mesh(cushionGeometry(width,height,.13),material,g,0,.90,.27);back.rotation.x=-.10;mesh(pipingGeometry(width,height,.13),material,back);
+ for(const xx of[-width*.35,width*.35])for(const zz of[-.21,.21]){cylinder(g,.014,.42,xx,.22,zz,metal,8);b.add(.055,.022,.055,xx,.011,zz,m.dark);}
+ b.add(width-.10,.035,depth-.12,0,.37,0,m.dark);for(const side of[-1,1]){finishedBox(g,.052,.052,.43,side*(width/2+.02),.72,.025,m.dark,.018);beam(g,v(side*(width/2+.02),.42,.19),v(side*(width/2+.02),.70,.15),.011,metal,8);}b.flush();return g;
 }
 
 export function finishFixtureShadows(g,spec,key){
@@ -92,7 +94,7 @@ export function finishFixtureShadows(g,spec,key){
 }
 
 export function finishHospitality(g,spec,{wood,metal}){
- const m=palette(),b=new Batches(g),fabric=mat(0x5b5752,{roughness:.94,bumpMap:m.plaster.bumpMap,bumpScale:.006}),glass=mat(0xe9e4d4,{transparent:true,opacity:.25,roughness:.08,depthWrite:false});
+ const m=palette(),b=new Batches(g),fabric=fabricMaterial(0x5b5752),glass=mat(0xe9e4d4,{transparent:true,opacity:.25,roughness:.08,depthWrite:false});
  for(const side of[-1,1])b.add(.08,.13,spec.d-.25,side*(spec.w/2-.12),.065,0,m.dark);b.add(.075,.07,spec.d-.15,-4.94,3.68,0,metal);b.add(.075,.07,spec.d-.15,-4.94,.045,0,metal);
  for(let j=0;j<5;j++){const z=-10+j*5;contactShadow(g,3.8,2.9,0,.014,z);mesh(new THREE.TorusGeometry(.82,.025,8,36),wood,g,0,.875,z).rotation.x=Math.PI/2;
   for(const side of[-1,1]){finishedSeat(g,side*1.5,0,z,side*Math.PI/2,fabric,metal);contactShadow(g,1.4,1.4,side*1.5,.018,z);cylinder(g,.17,.015,side*.39,.897,z+.23,m.linen,24);finishedBox(g,.22,.012,.31,side*.4,.906,z-.24,m.linen,.008);const bowl=mesh(new THREE.SphereGeometry(1,16,12),glass,g,side*.32,1.105,z);bowl.scale.set(.056,.071,.056);}
