@@ -1,3 +1,5 @@
+import {fitoutShaderCuts} from './room-volumes.js';
+import {surfaceMaps} from './visual-assets.js';
 import {buildNearSeatDetails} from './near-seat-details.js';
 import {buildBowlLighting} from './stadium-lighting.js';
 import {THREE,TAU,v,mat,mesh,box,beam,sign,cylinder,canvasTexture,textTexture,superpoint,supernormal,ringGeometry,curveLine,mergeGeometry,compactGroup,Batches,addCrest,seeded} from './kit.js';
@@ -16,7 +18,7 @@ export function buildStadium(scene){
  const root=new THREE.Group();root.name='Allianz Arena | metres';scene.add(root);
  const roof=new THREE.Group();roof.name='Roof and trusses';root.add(roof);
  const bowl=new THREE.Group();bowl.name='Interior bowl hidden by opaque exterior';root.add(bowl);const roofDetails=new THREE.Group();roof.add(roofDetails);const structural=new THREE.Group();bowl.add(structural);const batch=new Batches(structural);
- const concrete=mat(0x8c9193,{side:THREE.DoubleSide}),darkConcrete=mat(0x454d52),steel=mat(0xb9c2c5,{metalness:.55,roughness:.42}),red=mat(0xc71936,{side:THREE.DoubleSide}),white=mat(0xf2f1ed),dark=mat(0x1b252e);
+ const concrete=mat(0x8c9193,{side:THREE.DoubleSide,...surfaceMaps('concrete',{channel:1,repeat:[.3,.3],strength:.16})}),darkConcrete=mat(0x454d52),steel=mat(0xb9c2c5,{metalness:.55,roughness:.42}),red=mat(0xc71936,{side:THREE.DoubleSide}),white=mat(0xf2f1ed),dark=mat(0x1b252e);
  const ledMaterial=new THREE.MeshBasicMaterial({color:0xff1945,toneMapped:false});
  const lightMaterial=new THREE.MeshBasicMaterial({color:0xffffff,toneMapped:false});
  // The cross-section follows the rolled ETFE shell, from its lower lip to the roof opening.
@@ -29,7 +31,7 @@ export function buildStadium(scene){
  // Clip the entire inflated panel surface at the stair portals, including its
  // corners and shadow pass. Dropping panel centres leaves diamond-shaped obstructions.
  const portalCuts=accessStairs.map((s,i)=>`{vec2 delta=vPortalPosition.xz-vec2(${s.x.toFixed(5)},${s.z.toFixed(5)});float along=-dot(delta,vec2(${s.nx.toFixed(6)},${s.nz.toFixed(6)}));float side=dot(delta,vec2(${s.nz.toFixed(6)},${(-s.nx).toFixed(6)}));float floorY=${ACCESS_BASE.toFixed(3)}+along*${((ACCESS_TOP-ACCESS_BASE)/s.run).toFixed(6)};if(abs(side)<${(s.width/2+.34).toFixed(3)}&&along>-.3&&along<${(s.run+1.8).toFixed(3)}&&vPortalPosition.y>floorY-.45&&vPortalPosition.y<floorY+4.15)discard;}`).join('\n');
- function cutPortals(material){material.onBeforeCompile=shader=>{shader.vertexShader='varying vec3 vPortalPosition;\n'+shader.vertexShader;shader.vertexShader=shader.vertexShader.replace('#include <project_vertex>','#include <project_vertex>\nvPortalPosition=(modelMatrix*vec4(transformed,1.0)).xyz;');shader.fragmentShader='varying vec3 vPortalPosition;\n'+shader.fragmentShader;shader.fragmentShader=shader.fragmentShader.replace('#include <clipping_planes_fragment>','#include <clipping_planes_fragment>\n'+portalCuts);if(material.isMeshStandardMaterial)shader.fragmentShader=shader.fragmentShader.replace('#include <emissivemap_fragment>','#include <emissivemap_fragment>\n#if defined(USE_COLOR) || defined(USE_COLOR_ALPHA)\ntotalEmissiveRadiance*=pow(clamp(vColor.rgb,vec3(0.),vec3(1.)),vec3(2.2));\n#endif');};material.customProgramCacheKey=()=> 'arena-stair-portals-cushion-v2';return material;}
+ function cutPortals(material){material.onBeforeCompile=shader=>{shader.vertexShader='varying vec3 vPortalPosition;\n'+shader.vertexShader;shader.vertexShader=shader.vertexShader.replace('#include <project_vertex>','#include <project_vertex>\nvPortalPosition=(modelMatrix*vec4(transformed,1.0)).xyz;');shader.fragmentShader='varying vec3 vPortalPosition;\n'+shader.fragmentShader;shader.fragmentShader=shader.fragmentShader.replace('#include <clipping_planes_fragment>','#include <clipping_planes_fragment>\n'+portalCuts+'\n'+fitoutShaderCuts);if(material.isMeshStandardMaterial)shader.fragmentShader=shader.fragmentShader.replace('#include <emissivemap_fragment>','#include <emissivemap_fragment>\n#if defined(USE_COLOR) || defined(USE_COLOR_ALPHA)\ntotalEmissiveRadiance*=pow(clamp(vColor.rgb,vec3(0.),vec3(1.)),vec3(2.2));\n#endif');};material.customProgramCacheKey=()=> 'arena-stair-portals-fitout-v3';return material;}
  shellMaterials.forEach(cutPortals);const shellDepth=cutPortals(new THREE.MeshDepthMaterial({depthPacking:THREE.RGBADepthPacking,side:THREE.DoubleSide}));
  const buffers=[{p:[],c:[],i:[]},{p:[],c:[],i:[]},{p:[],c:[],i:[]}];let panelCount=0;
  const rand=seeded(370);const samples=16,rings=3;

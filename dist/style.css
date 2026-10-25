@@ -51,3 +51,5 @@ body.match-free .match-controls:not(.expanded){padding:7px 8px;gap:8px}body.matc
 .explore{scrollbar-width:thin;scrollbar-color:#ffffff30 transparent}.explore::-webkit-scrollbar{width:4px}.explore::-webkit-scrollbar-thumb{background:#ffffff30;border-radius:4px}
 
 body:has(#tour-arrival:not([hidden])) .toast{bottom:164px}@media(max-width:760px){body:has(#tour-arrival:not([hidden])) .toast{bottom:max(252px,calc(env(safe-area-inset-bottom) + 244px))}}
+
+.exhibit-meta{display:flex;flex-wrap:wrap;gap:8px;margin:22px 0 16px}.exhibit-meta span{padding:9px 13px;border:1px solid var(--rule);border-radius:5px;color:var(--gold);font:12px LocalSans,Arial,sans-serif;letter-spacing:1px}.exhibit-source{display:inline-block;font-size:12px;color:var(--muted);margin-bottom:12px}

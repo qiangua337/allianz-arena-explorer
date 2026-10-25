@@ -1,3 +1,4 @@
+import {surfaceMaps} from './visual-assets.js';
 import {THREE,canvasTexture,mat,mesh,seeded,superpoint,TAU} from './kit.js';
 import {architecturalMaterials} from './surface-finishes.js';
 
@@ -7,7 +8,7 @@ export function landscapeMaterials(){
   for(let i=0;i<22000;i++){const x=random()*512,y=random()*512;c.fillStyle=i%2?'#e8e9c71c':'#17221b20';c.fillRect(x,y,grass?.5:1,grass?1+random()*3:1);}
  });texture.wrapS=texture.wrapT=THREE.RepeatWrapping;texture.channel=1;texture.repeat.setScalar(grass?1/8:1/5);texture.anisotropy=4;return texture;};
  const grass=make('#708052',true),asphalt=make('#4b5050',false);
- return{concrete:architecturalMaterials().stone,grass:mat(0xffffff,{map:grass,bumpMap:grass,bumpScale:.025,roughness:1}),road:mat(0xffffff,{map:asphalt,bumpMap:asphalt,bumpScale:.012,roughness:.96})};
+ return{concrete:architecturalMaterials().stone,grass:mat(0xffffff,{map:grass,bumpMap:grass,bumpScale:.025,roughness:1,...surfaceMaps('grass',{channel:1,repeat:[.22,.22],strength:.22})}),road:mat(0xffffff,{map:asphalt,bumpMap:asphalt,bumpScale:.012,roughness:.96})};
 }
 
 // Static spill on the paving uses one instanced draw for every lamp. No

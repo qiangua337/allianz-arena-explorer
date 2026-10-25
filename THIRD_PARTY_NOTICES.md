@@ -23,3 +23,8 @@ Three.js 0.186.1 及 OrbitControls 采用 MIT 许可证，版权属于 Three.js 
 比赛日人群声音 `dist/assets/audio/stadium-crowd.mp3` 来自 Work With Sounds / Torsten Nilsson 的 [WWS FootballAustriavs.Sweden.ogg](https://commons.wikimedia.org/wiki/File:WWS_FootballAustriavs.Sweden.ogg)，采用 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)。原录音于 2014-09-08 在恩斯特·哈佩尔球场录制；本项目截取约 30–70 秒，运行时加入首尾淡化、滤波、混响及欢呼混音。它是通用足球人群声景，非拜仁或安联球场比赛同期声。来源与修改声明随音频保存在 `dist/assets/audio/README.txt`；该录音不适用本项目的 MIT 授权。
 
 比赛日人物使用 [MakeHuman 核心网格、形变目标、蒙皮权重和系统资产](https://github.com/makehumancommunity/makehuman/blob/master/LICENSE.md)，以及 [Shirts 01](https://static.makehumancommunity.org/assets/assetpacks/shirts01.html) 中 MargaretToigo / MRT 的基础 T 恤，均为 CC0。经过人体形变、衣物贴合、骨骼简化、网格裁切、球衣和足球装备制作、贴图尺寸及格式转换。CC0 全文与来源保存在 `dist/assets/players/`，再生成说明见 [docs/PLAYER-ASSETS.md](docs/PLAYER-ASSETS.md)。未包含 MakeHuman 的程序代码。人物面部为通用模型，未复制 eFootball 或 EA Sports FC 的资产。
+
+
+表面材质与环境光资源由 [Poly Haven](https://polyhaven.com/) 提供（Powered by Poly Haven），按 [CC0 1.0](https://polyhaven.com/license) 发布。随仓库附带 `smooth_concrete_floor`、`wood_table_001`、`fabric_pattern_07`、`rubber_tiles`、`painted_plaster_wall`、`grass_ground` 的 1K 部分贴图，以及 `autumn_field_puresky`、`qwantani_night_puresky`、`studio_small_08` 的 1K HDR；完整资产页面、原始下载链接、文件大小与 MD5 保存在 `dist/assets/pbr/manifest.json`。运行时可缩小纹理、调整 UV、颜色、法线强度与反射亮度。它们是通用表面和天空，并非在安联球场采集。原始贴图未被作为商业游戏资产使用。
+
+`dist/vendor/HDRLoader.js` 同样来自 Three.js 0.186.1，适用随仓库附带的 Three.js MIT 许可。

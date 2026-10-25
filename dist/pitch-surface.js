@@ -1,7 +1,8 @@
+import {surfaceMaps} from './visual-assets.js';
 import {THREE,mat,mesh,canvasTexture,seeded} from './kit.js';
 export function buildPitchSurface(root,turf){
  const random=seeded(1880),fibres=canvasTexture(512,512,(c,w,h)=>{c.fillStyle='#888';c.fillRect(0,0,w,h);for(let i=0;i<52000;i++){const x=random()*w,y=random()*h,l=1+random()*6;c.strokeStyle=random()>.5?'#b6b6b6':'#5d5d5d';c.lineWidth=.4+random()*.55;c.beginPath();c.moveTo(x,y);c.lineTo(x+.8,y+l);c.stroke();}});fibres.wrapS=fibres.wrapT=THREE.RepeatWrapping;fibres.repeat.set(24,37);fibres.anisotropy=8;turf.anisotropy=8;
- const groundMaterial=mat(0xffffff,{map:turf,bumpMap:fibres,bumpScale:.012,roughness:.94});
+ const groundMaterial=mat(0xffffff,{map:turf,bumpMap:fibres,bumpScale:.012,roughness:.94,...surfaceMaps('grass',{channel:1,repeat:[.28,.28],strength:.18})});
  const ground=mesh(new THREE.PlaneGeometry(72,111),groundMaterial,root,0,.005,0);ground.rotation.x=-Math.PI/2;ground.name='Mown grass with painted pitch markings';
  // Only a small patch around a ground-level visitor has actual blades. The
  // distant field uses the same colour map, with no stadium-wide grass mesh.

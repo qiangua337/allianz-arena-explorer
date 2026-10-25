@@ -61,3 +61,13 @@
 ## 版本 1.13 的近景模型
 
 更衣室继续参考前述官网照片中的红色柜体、挂衣杆、折叠装备、长凳与衣物关系；看台采用代表性弧形塑料壳、座面与金属支架。发布厅软包、缝线和 84 个代表性座席为模型自身的细化布局，未取得实测座位表，不能据此宣称现场数量。赞助背景板改为与可见屏幕一致的 5:1 比例；除来自正式素材的俱乐部队徽之外，其他品牌采用程序绘制的简化视觉示意。织物、软包、衣物褶皱、吊顶接缝与漆面反光均由代码生成，没有引入商业足球游戏模型或扫描资产。近处座位替换与远处模型使用同一份座位坐标。
+
+
+## 2.0 材质与荣誉展厅
+
+- [Poly Haven CC0 许可](https://polyhaven.com/license)；资源清单见 `dist/assets/pbr/manifest.json`，可运行 `scripts/fetch-surfaces.py` 重新下载并校验。仅使用木纹颜色贴图，其余表面保留场馆配色并叠加扫描的法线与粗糙度。HDR 用于通用环境光和纯天空，不代表真实场馆拍摄。
+- [拜仁官方荣誉](https://fcbayern.com/en/club/honours)：六次欧洲冠军年份，德甲与德国杯荣誉。
+- [拜仁官方 2013 欧冠](https://fcbayern.com/en/club/honours/champions-league/champions-league-winner-2013)：温布利 2–1，多特蒙德、罗本第 89 分钟进球。
+- [拜仁官方 2020 决赛报道](https://fcbayern.com/en/news/matchreports/2020/08/match-report-champions-league-final-paris-saint-german-v-fc-bayern-230820)：巴黎 0–1 拜仁，科曼第 59 分钟进球。
+- 其余展品资料链接与简述分别保存在 `dist/honours.js`。奖杯形态与布展为程序化代表性建模，未使用官方扫描、比赛照片或商业游戏模型。
+- 客队更衣室按 `matchday-roster.js` 的多特蒙德示范名单布置；不新增或声称真实赛程、首发或场馆内部实际陈设。

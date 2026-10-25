@@ -1,0 +1,167 @@
+{
+  "provider": "Poly Haven",
+  "credit": "Powered by Poly Haven",
+  "license": "https://polyhaven.com/license",
+  "resolution": 1024,
+  "assets": {
+    "concrete": {
+      "asset": "smooth_concrete_floor",
+      "license": "CC0-1.0",
+      "page": "https://polyhaven.com/a/smooth_concrete_floor",
+      "maps": {
+        "normal": {
+          "file": "concrete-normal.jpg",
+          "bytes": 529251,
+          "md5": "92b8f007ff471cecb2ef581615989a9d",
+          "source": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/smooth_concrete_floor/smooth_concrete_floor_nor_gl_1k.jpg"
+        },
+        "rough": {
+          "file": "concrete-rough.jpg",
+          "bytes": 488628,
+          "md5": "d69e03eafb7442684db178e26896a1ee",
+          "source": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/smooth_concrete_floor/smooth_concrete_floor_rough_1k.jpg"
+        }
+      }
+    },
+    "wood": {
+      "asset": "wood_table_001",
+      "license": "CC0-1.0",
+      "page": "https://polyhaven.com/a/wood_table_001",
+      "maps": {
+        "diff": {
+          "file": "wood-diff.jpg",
+          "bytes": 215573,
+          "md5": "56652a7339b16a76afad20d3585f66ea",
+          "source": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/wood_table_001/wood_table_001_diff_1k.jpg"
+        },
+        "normal": {
+          "file": "wood-normal.jpg",
+          "bytes": 51927,
+          "md5": "6360e09967add8baecaa5ecc55fb5e03",
+          "source": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/wood_table_001/wood_table_001_nor_gl_1k.jpg"
+        },
+        "rough": {
+          "file": "wood-rough.jpg",
+          "bytes": 237261,
+          "md5": "05b60bd20a1cc4355c5d73a99b245d44",
+          "source": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/wood_table_001/wood_table_001_rough_1k.jpg"
+        }
+      }
+    },
+    "fabric": {
+      "asset": "fabric_pattern_07",
+      "license": "CC0-1.0",
+      "page": "https://polyhaven.com/a/fabric_pattern_07",
+      "maps": {
+        "normal": {
+          "file": "fabric-normal.jpg",
+          "bytes": 828071,
+          "md5": "cdbbc2ebe5d75f6edd66ba090f3be49f",
+          "source": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/fabric_pattern_07/fabric_pattern_07_nor_gl_1k.jpg"
+        },
+        "rough": {
+          "file": "fabric-rough.jpg",
+          "bytes": 488744,
+          "md5": "28f47eb9de3e4ebe1dc519f601335fc4",
+          "source": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/fabric_pattern_07/fabric_pattern_07_rough_1k.jpg"
+        }
+      }
+    },
+    "rubber": {
+      "asset": "rubber_tiles",
+      "license": "CC0-1.0",
+      "page": "https://polyhaven.com/a/rubber_tiles",
+      "maps": {
+        "normal": {
+          "file": "rubber-normal.jpg",
+          "bytes": 477716,
+          "md5": "4ed5fac176252df9dde7d0fbf8a9b76d",
+          "source": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/rubber_tiles/rubber_tiles_nor_gl_1k.jpg"
+        },
+        "rough": {
+          "file": "rubber-rough.jpg",
+          "bytes": 590975,
+          "md5": "d6b5978530f81121c2e9812c4732d8b0",
+          "source": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/rubber_tiles/rubber_tiles_rough_1k.jpg"
+        }
+      }
+    },
+    "plaster": {
+      "asset": "painted_plaster_wall",
+      "license": "CC0-1.0",
+      "page": "https://polyhaven.com/a/painted_plaster_wall",
+      "maps": {
+        "normal": {
+          "file": "plaster-normal.jpg",
+          "bytes": 900461,
+          "md5": "43fff290583dbdfc9bfa088a2750e840",
+          "source": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/painted_plaster_wall/painted_plaster_wall_nor_gl_1k.jpg"
+        },
+        "rough": {
+          "file": "plaster-rough.jpg",
+          "bytes": 354762,
+          "md5": "e076a6360329a2bc18c7397dc50c074a",
+          "source": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/painted_plaster_wall/painted_plaster_wall_rough_1k.jpg"
+        }
+      }
+    },
+    "grass": {
+      "asset": "grass_ground",
+      "license": "CC0-1.0",
+      "page": "https://polyhaven.com/a/grass_ground",
+      "maps": {
+        "normal": {
+          "file": "grass-normal.jpg",
+          "bytes": 1310516,
+          "md5": "d518c5b2af6f2c0297bc807b351f511f",
+          "source": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/grass_ground/grass_ground_nor_gl_1k.jpg"
+        },
+        "rough": {
+          "file": "grass-rough.jpg",
+          "bytes": 328190,
+          "md5": "2e6afca246cf6b80bdb53f46fe7e5ce5",
+          "source": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/grass_ground/grass_ground_rough_1k.jpg"
+        }
+      }
+    },
+    "day": {
+      "asset": "autumn_field_puresky",
+      "license": "CC0-1.0",
+      "page": "https://polyhaven.com/a/autumn_field_puresky",
+      "maps": {
+        "hdr": {
+          "file": "day-hdr.hdr",
+          "bytes": 1092974,
+          "md5": "f9a6bd6d95a55e2d677b8a84b7f53673",
+          "source": "https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/1k/autumn_field_puresky_1k.hdr"
+        }
+      }
+    },
+    "night": {
+      "asset": "qwantani_night_puresky",
+      "license": "CC0-1.0",
+      "page": "https://polyhaven.com/a/qwantani_night_puresky",
+      "maps": {
+        "hdr": {
+          "file": "night-hdr.hdr",
+          "bytes": 1389258,
+          "md5": "e8691211295e505f77c8c3bdcf3055d9",
+          "source": "https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/1k/qwantani_night_puresky_1k.hdr"
+        }
+      }
+    },
+    "indoor": {
+      "asset": "studio_small_08",
+      "license": "CC0-1.0",
+      "page": "https://polyhaven.com/a/studio_small_08",
+      "maps": {
+        "hdr": {
+          "file": "indoor-hdr.hdr",
+          "bytes": 1508872,
+          "md5": "de3ba64222895aca876b1d1c2e0cf81a",
+          "source": "https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/1k/studio_small_08_1k.hdr"
+        }
+      }
+    }
+  }
+}

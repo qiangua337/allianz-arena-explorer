@@ -1,3 +1,4 @@
+import {honours} from './honours.js';
 import {hangingJerseyGeometry,jerseyBumpTexture} from './wardrobe-detail.js';
 import {drawJerseyArtwork} from './jersey-artwork.js';
 import {THREE,v,mat,mesh,box,beam,sign,canvasTexture} from './kit.js';
@@ -15,8 +16,7 @@ export function buildInteractions(scene,interiors,{toast,navigate,showInfo,setEy
  function item(id,p,label,act,radius=2.8){items.push({id,p:v(...p),label,act,radius});}
  item('welcome',[4,-1.2,110],'咨询下一站路线',()=>showInfo('从大厅继续参观','沿入口层环廊到东侧室内楼梯，上楼可到公共大厅、商店、展厅、包厢和三层看台。球员区域可由草坪西侧红色通道步行进入。',['concourse','store','museum','lounge','stands','pitch']));
  item('tactics',[-74,-1,-4.3],'切换战术板阵型',()=>{tactic=1-tactic;interiors.setTactics?.(tactic);toast('战术板：'+(tactic?'4–4–2':'4–2–3–1'));});
- const years=['1974','1975','1976','2001','2013','2020'];
- for(let i=0;i<6;i++){const x=-96+(i%2?3.7:-3.7),z=58-8+Math.floor(i/2)*5.3;item('cup'+i,[x,13.5,z],`查看 ${years[i]} 冠军杯`,()=>showInfo(years[i]+' · 欧洲冠军杯','靠近观察银杯、双耳把手、玻璃展柜和底座年份。展厅以六次夺冠年份为主题作近似布展。'));}
+ for(const h of honours)item('honour'+h.year,[-96+h.x,13.5,58+h.z],'查看 '+h.title,()=>showInfo(h.year+' · '+h.title,h.opponent+' · '+h.score+'。'+h.detail,[],h));
  const display=new THREE.Group();display.position.set(10,13.65,118);root.add(display);box(display,1.7,.12,1.3,0,-1.2,0,metal);box(display,.06,1.2,.06,0,-.6,0,metal);const jerseyCanvas=document.createElement('canvas');jerseyCanvas.width=512;jerseyCanvas.height=640;const jerseyMap=new THREE.CanvasTexture(jerseyCanvas);jerseyMap.colorSpace=THREE.SRGBColorSpace;const hanger=new THREE.Group();hanger.rotation.y=Math.PI/2;display.add(hanger);const jersey=mesh(hangingJerseyGeometry(),new THREE.MeshStandardMaterial({map:jerseyMap,bumpMap:jerseyBumpTexture(),bumpScale:.002,roughness:.94,alphaTest:.12,side:THREE.DoubleSide}),hanger,0,0,.066);jersey.scale.set(1.12,1.12,1);for(const side of[-1,1])beam(hanger,v(side*.31,.45,0),v(0,.59,0),.009,metal,6);beam(hanger,v(-.31,.45,0),v(.31,.45,0),.009,metal,6);
  function updateShirt(){const p=playerByNumber([9,10,17,14,6][shirt]);drawJerseyArtwork(jerseyCanvas.getContext('2d'),p.number,p.name,'#b71c37');jerseyMap.needsUpdate=true;}updateShirt();
  item('shirt',[11,13.7,118],'切换球衣 · 旋转陈列',()=>{shirt=(shirt+1)%5;updateShirt();display.rotation.y+=Math.PI/4;toast('展示球衣：'+playerByNumber([9,10,17,14,6][shirt]).name);});

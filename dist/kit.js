@@ -4,7 +4,8 @@ export const TAU=Math.PI*2;
 export const v=(x=0,y=0,z=0)=>new THREE.Vector3(x,y,z);
 export const mats={};
 let metalEnvironment;
-export function mat(color,options={}){return new THREE.MeshStandardMaterial({color,roughness:.8,metalness:0,...(((options.metalness??0)>.2||options.envMapIntensity!==undefined)&&metalEnvironment?{envMap:metalEnvironment,envMapIntensity:.65}:{}),...options});}
+export function setMaterialEnvironment(texture){metalEnvironment=texture;}
+export function mat(color,options={}){return new THREE.MeshStandardMaterial({color,roughness:.8,metalness:0,...(metalEnvironment?{envMap:metalEnvironment,envMapIntensity:(options.metalness??0)>.2?.65:.25}:{}),...options});}
 export function prepareMaterialLighting(renderer){
  const studio=new THREE.Scene();studio.background=new THREE.Color(0x555b61);const cards=[];
  for(const [x,y,z,w,h]of[[-5,3,1,3,6],[4,4,-3,4,5],[0,7,0,8,5]]){const material=new THREE.MeshBasicMaterial({color:new THREE.Color(2.5,2.35,2.15)}),card=new THREE.Mesh(new THREE.PlaneGeometry(w,h),material);card.position.set(x,y,z);card.lookAt(0,0,0);studio.add(card);cards.push(card);}

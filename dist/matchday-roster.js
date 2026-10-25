@@ -10,3 +10,6 @@ export const substitutes=['home','away'].flatMap((team,t)=>(t?[33,22,23,20,21,17
 export const teamStaff=['home','away'].flatMap((team,t)=>['coach','assistant','doctor','physio'].map((role,i)=>({team,role,player:{name:{coach:'COACH',assistant:'ASSISTANT',doctor:'MEDICAL',physio:'PHYSIO'}[role]},height:1.78+i*.035,hair:'short02',hairColor:0x78736c,phase:i*.83,seated:i===1,x:i===1?-38.6:-35.9,z:(t?18:-18)+5.4+(i===1?1.0:i*.9),yaw:Math.PI/2})));
 export const officials=Array.from({length:4},(_,i)=>({team:'official',role:i===0?'referee':i===3?'fourth':'assistantReferee',player:{name:i===0?'REFEREE':i===3?'4TH OFFICIAL':'ASSISTANT'},height:1.78+i*.025,hair:'short02',hairColor:0x817263,phase:i*.7,flag:i===1||i===2}));
 export const matchdayPeople=[...starters,...officials,...substitutes,...teamStaff];
+
+// The guest dressing room uses the same exhibition squad as the optional matchday.
+export const awayKitRoster=[...awayXI,...substitutes.filter(p=>p.team==='away')].map(p=>p.player);
