@@ -5,7 +5,7 @@
  <meta name="theme-color" content="#0d151c"><meta name="description" content="走进拜仁慕尼黑的主场。自由探索安联球场的外壳、看台、草坪、更衣室与球员通道，切换白天与黑夜。">
  <title>安联球场 · ARENA EXPLORER</title>
  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%23db1839'/%3E%3Cellipse cx='32' cy='32' rx='24' ry='17' fill='none' stroke='white' stroke-width='4'/%3E%3Cellipse cx='32' cy='28' rx='14' ry='7' fill='none' stroke='white' stroke-width='3'/%3E%3C/svg%3E">
- <link rel="stylesheet" href="style.css?v=20261025-major-2000">
+ <link rel="stylesheet" href="style.css?v=20261025-play-2100">
  <script type="importmap">{"imports":{"three":"./vendor/three.module.js"}}</script>
 </head>
 <body>
@@ -66,9 +66,11 @@
   <button class="close-dialog" id="match-dialog-close" aria-label="关闭入场体验介绍">×</button>
   <div class="match-intro-art" aria-hidden="true"><span>MATCHDAY</span><i></i><b>FC BAYERN</b></div>
   <div class="eyebrow">FC BAYERN × BORUSSIA DORTMUND</div><h2 id="match-dialog-title">选择你的比赛日。</h2>
-  <p>双方各 11 名首发、裁判组、替补与场边团队，和满看台的声浪。可以留在当前位置探索，也可以选择从通道跟队入场。</p>
+  <p>双方各 11 名首发、裁判组、替补与场边团队，和满看台的声浪。可以亲自上场踢一场人机比赛，也可以在场馆参观或跟队入场。</p>
   <div class="match-features"><span>11 对 11</span><span>4 名裁判</span><span>双方替补与教练医护</span></div>
-  <button id="match-manual" class="match-start">开启比赛日，自由参观 <span>→</span></button>
+  <button id="match-play" class="match-start">亲自上场 · 人机实战 <span>→</span></button>
+  <p class="match-play-note">你控制拜仁球员，带球、传球、射门，对战多特蒙德。3 分钟体验赛，支持手机摇杆与动作键。</p>
+  <button id="match-manual" class="match-manual">开启比赛日，自由参观</button>
   <button id="match-start" class="match-manual">跟随球队入场 · 44 秒</button>
   <p class="match-intro-note">点击后开启声音。自由参观保持当前位置；跟队入场将前往通道，可随时结束跟随。普通参观默认不显示比赛人员。</p>
   <details class="match-credits"><summary>制作与声音来源</summary><p>人群录音：Work With Sounds / Torsten Nilsson，<a href="https://commons.wikimedia.org/wiki/File:WWS_FootballAustriavs.Sweden.ogg" target="_blank" rel="noopener">足球现场录音</a>，<a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>。本项目截取并混音为通用球场声景，非拜仁比赛同期声。人物采用通用人体，并非球星扫描肖像。</p></details>
@@ -81,7 +83,15 @@
   <div class="match-sound"><button id="match-mute" aria-label="静音看台声" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 4 6 8H3v8h3l5 4V4Zm4 4c2 2 2 6 0 8m3-11c4 4 4 10 0 14"/></svg></button><input type="range" id="match-volume" min="0" max="100" value="65" aria-label="看台声浪音量"><meter id="match-level" min="0" max="1" value="0" aria-label="当前音频信号强度"></meter></div>
   <button id="match-more" aria-label="展开比赛日控制" aria-expanded="false">⋯</button><button id="match-exit" aria-label="退出比赛日体验">退出</button><small id="match-audio-status" class="match-audio-status">声音准备中</small>
  </section>
+ <section id="game-ui" hidden aria-label="人机足球比赛">
+  <section class="game-score glass" aria-label="实时比分"><div class="game-team"><span class="game-dot home"></span><b>拜仁</b></div><strong id="game-score-home">0</strong><div class="game-clock"><small>人机实战</small><time id="game-clock">03:00</time></div><strong id="game-score-away">0</strong><div class="game-team"><b>多特</b><span class="game-dot away"></span></div><button id="game-pause" aria-label="暂停比赛">暂停</button><button id="game-mute" aria-label="静音比赛声音" aria-pressed="false">♫</button><button id="game-help" aria-label="比赛操作说明">?</button><button id="game-exit" aria-label="退出球赛">退出</button></section>
+  <div class="game-announcement" id="game-announcement" hidden aria-live="polite"></div>
+  <section class="game-player glass"><div><b id="game-player">9 · KANE</b><span id="game-ball-hint">控球中</span></div><meter id="game-stamina" min="0" max="1" value="1" aria-label="体力"></meter><small id="game-event" aria-live="off"></small></section>
+  <section class="game-actions" aria-label="球员动作"><button data-game-action="pass" aria-label="传球">传球<kbd>J</kbd></button><button data-game-action="shoot" class="game-shoot" aria-label="射门">射门<kbd>K</kbd></button><button data-game-action="switch" aria-label="切换球员">换人<kbd>Q</kbd></button><button data-game-action="tackle" aria-label="抢断">抢断<kbd>空格</kbd></button></section>
+  <section class="game-overlay glass" id="game-overlay" hidden aria-label="比赛状态"><small>FC BAYERN × DORTMUND</small><h2 id="game-overlay-title">准备比赛</h2><p id="game-overlay-description"></p><button id="game-resume" class="match-start">继续比赛</button><button id="game-restart" class="match-manual">重新开球</button><button id="game-overlay-exit" class="match-manual">退出，返回参观</button></section>
+ </section>
+ <dialog id="game-help-dialog" aria-labelledby="game-help-title"><button class="close-dialog" id="game-help-close" aria-label="关闭比赛操作说明">×</button><div class="eyebrow">YOU ARE ON THE PITCH</div><h2 id="game-help-title">这一场，由你上场。</h2><p>控制拜仁球员，对战多特蒙德 AI。金色脚环标记你当前控制的球员，北侧球门是你的进攻方向。</p><div class="game-help-grid"><b>移动与带球</b><span>WASD · 手机左下摇杆</span><b>加速</b><span>Shift · 手机「跑」</span><b>传球 / 射门</b><span>J / K · 手机右下动作键</span><b>抢断 / 换人</b><span>空格 / Q</span><b>转动视角</b><span>拖动画面 · 左右方向键</span><b>视角 / 暂停</b><span>顶部第一、第三人称 · V / Esc</span></div><p>靠近足球可控球；传球会选择面前适合的队友。支持守门员扑救、进球记分、边线球、角球与球门球；部分规则采用体验赛简化。</p></dialog>
  <dialog id="match-roster-dialog" aria-labelledby="match-roster-title"><button id="match-roster-close" class="close-dialog" aria-label="关闭比赛阵容">×</button><div class="eyebrow">EXHIBITION · MATCHDAY</div><h2 id="match-roster-title">拜仁 × 多特蒙德</h2><p>演示阵容与站位；姓名和号码依据俱乐部官网核对，不代表某场真实比赛首发。</p><button id="match-visit-bench" class="match-manual">传送到场边 · 看替补与教练医护 →</button><div id="match-roster-content"></div><p class="roster-note">场上 22 人，替补 18 人，教练及医护 8 人，裁判组 4 人。名单核对：2026-10-23。</p></dialog>
  <section class="loading" id="loading"><div class="loading-arena"><i></i><i></i><i></i></div><small>MÜNCHEN · HOME OF FC BAYERN</small><h2>主场，即将呈现。</h2><p id="load-status">正在构建球场与内部空间…</p><div class="load-track"><span></span></div><noscript>需要启用 JavaScript 才能探索球场。</noscript></section>
- <script type="module" src="app.js?v=20261025-major-2000"></script>
+ <script type="module" src="app.js?v=20261025-play-2100"></script>
 </body></html>
