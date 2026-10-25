@@ -38,3 +38,10 @@ test('ball and selected-player cues follow simulation state and switching perspe
  state.ball.x=1;state.ball.z=-2;state.ball.y=2;view.update(state,1.1,new THREE.Vector3(0,6,0),{firstPerson:true});assert.equal(ball.position.x,1);assert.equal(ball.position.y,2);assert.equal(ball.position.z,-2);assert.notEqual(ball.rotation.x,0);assert.equal(view.root.getObjectByName('Game ball marker').visible,false);assert.equal(actors.root.children.length,childCount);
  const before=JSON.stringify(state);view.update(state,1.2,new THREE.Vector3(30,15,40));assert.equal(JSON.stringify(state),before);view.setEnabled(false);assert.equal(view.root.visible,false);view.update(state,1.3,new THREE.Vector3());assert.equal(view.root.visible,false);
 });
+
+
+test('a ball previously frozen with the static arena still visibly moves through its world matrix during live play',()=>{
+ const frozenBall=new THREE.Mesh(new THREE.SphereGeometry(.11),new THREE.MeshBasicMaterial());frozenBall.position.set(0,.115,0);scene.add(frozenBall);frozenBall.updateMatrix();frozenBall.matrixAutoUpdate=false;
+ const view=buildFootballView(scene,frozenBall,actors),state=makeState();view.setEnabled(true);Object.assign(state.ball,{x:12,y:1.4,z:-21});view.update(state,3,new THREE.Vector3());scene.updateMatrixWorld(true);
+ assert.equal(frozenBall.matrixAutoUpdate,true);assert.deepEqual(frozenBall.getWorldPosition(new THREE.Vector3()).toArray(),[12,1.4,-21]);Object.assign(state.ball,{x:-4,y:.11,z:7});view.update(state,3.1,new THREE.Vector3());scene.updateMatrixWorld(true);assert.deepEqual(frozenBall.getWorldPosition(new THREE.Vector3()).toArray(),[-4,.115,7]);
+});

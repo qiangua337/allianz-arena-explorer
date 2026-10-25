@@ -12,7 +12,7 @@ export function buildFootballView(scene,ball,players){
  const shadowMaterial=new THREE.MeshBasicMaterial({map:shadowMap,transparent:true,opacity:.4,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-1});
  const shadow=mesh(new THREE.PlaneGeometry(.55,.55).rotateX(-Math.PI/2),shadowMaterial,root,0,.012,0);shadow.name='Game ball contact shadow';shadow.renderOrder=1;
  const ballMarker=mesh(new THREE.RingGeometry(.16,.185,24).rotateX(-Math.PI/2),new THREE.MeshBasicMaterial({color:0xe9eee7,transparent:true,opacity:.45,depthWrite:false,side:THREE.DoubleSide}),root,0,.016,0);ballMarker.name='Game ball marker';
- return{root,setEnabled(value){enabled=!!value;root.visible=enabled;lastBall=null;if(!enabled)controlled.visible=false;},update(state,time,viewer,{firstPerson=false}={}){
+ return{root,setEnabled(value){enabled=!!value;root.visible=enabled;lastBall=null;if(enabled&&ball){ball.matrixAutoUpdate=true;ball.updateMatrix();}if(!enabled)controlled.visible=false;},update(state,time,viewer,{firstPerson=false}={}){
   if(!enabled||!state?.ball)return;root.visible=true;const p=state.players.find(p=>p.id===state.controlledId),b=state.ball;
   controlled.visible=!!p;if(p){controlled.position.set(p.x,.019,p.z);controlled.rotation.y=Math.hypot(p.vx||0,p.vz||0)>.16?Math.atan2(p.vx,p.vz):p.yaw??0;}
   if(ball){if(lastBall){const dx=b.x-lastBall.x,dz=b.z-lastBall.z;if(Math.hypot(dx,dz)<8){ball.rotation.x+=dz/.11;ball.rotation.z-=dx/.11;}}ball.position.set(b.x,Math.max(.115,b.y||.11),b.z);}
