@@ -1,10 +1,11 @@
+import {landscapeMaterials,buildNightGroundSpill} from './landscape-finishes.js';
 import {compactStaticMeshes} from './scene-budget.js';
 import {THREE,TAU,v,mat,mesh,box,beam,sign,cylinder,superpoint,ringGeometry,curveLine,Batches,seeded,floorTexture,repeatTex,wallCollider} from './kit.js';
 
 export function esplanadeY(z){return -3-THREE.MathUtils.clamp((z-140)/543,0,1)*8.5;}
 export function buildWorld(scene){
  const group=new THREE.Group();group.name='Fröttmaning context | approximate surroundings';scene.add(group);const b=new Batches(group),colliders=[];
- const concrete=mat(0xa9aea9,{map:repeatTex(floorTexture(),25,25)}),edge=mat(0x8b9294),grass=mat(0x748660),road=mat(0x424b4c),pale=mat(0xd4d4c9),dark=mat(0x17252b),metal=mat(0x87959b,{metalness:.5,roughness:.55}),leaf=mat(0x34593f),stripe=mat(0xc7ccbf),red=mat(0xc61935),blue=mat(0x173f75);
+ const surfaces=landscapeMaterials(),concrete=surfaces.concrete,edge=mat(0x8b9294),grass=surfaces.grass,road=surfaces.road,pale=mat(0xd4d4c9),dark=mat(0x17252b),metal=mat(0x87959b,{metalness:.5,roughness:.55}),leaf=mat(0xffffff,{roughness:.94}),stripe=mat(0xc7ccbf),red=mat(0xc61935),blue=mat(0x173f75);
  const lightMat=new THREE.MeshBasicMaterial({color:0xfff0d0,toneMapped:false});
  const terrain=mesh(new THREE.PlaneGeometry(3200,3200),grass,group,0,-12.2,0);terrain.rotation.x=-Math.PI/2;
  mesh(ringGeometry(0,0,151,169,-3,2.8,256),concrete,group);
@@ -78,7 +79,7 @@ export function buildWorld(scene){
  const trunks=new THREE.InstancedMesh(new THREE.CylinderGeometry(.18,.28,4,5),mat(0x706650),treePositions.length),crowns=new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1,1),leaf,treePositions.length);treePositions.forEach((p,i)=>{d.position.set(p.x,p.y+p.s*.35,p.z);d.scale.set(1,p.s/4,1);d.rotation.set(0,random()*TAU,0);d.updateMatrix();trunks.setMatrixAt(i,d.matrix);d.position.y=p.y+p.s;d.scale.set(p.s*.65,p.s*.85,p.s*.65);d.updateMatrix();crowns.setMatrixAt(i,d.matrix);crowns.setColorAt(i,new THREE.Color().setHSL(.27+random()*.1,.22,.22+random()*.13));});crowns.castShadow=true;group.add(trunks,crowns);
  b.flush();
  const nightLights=[];for(const p of lampPositions.filter((_,i)=>i%5===0)){const l=new THREE.PointLight(0xffdda3,0,20,1.8);l.position.copy(p).add(v(0,6,0));group.add(l);nightLights.push(l);}
- let isNight=false;
- compactStaticMeshes(group,[rotor]);return {group,rotor,colliders,update(position){for(const l of nightLights)l.visible=isNight&&l.position.distanceTo(position)<45;},night(n){isNight=n;lightMat.color.set(n?0xffd99d:0xf5f0e2);nightLights.forEach(l=>{l.intensity=n?14:0;l.visible=n;});}};
+ const groundSpill=buildNightGroundSpill(group,lampPositions);groundSpill.setNight(false);let isNight=false;
+ compactStaticMeshes(group,[rotor,...groundSpill.objects]);return {group,rotor,colliders,update(position){for(const l of nightLights)l.visible=isNight&&l.position.distanceTo(position)<45;},night(n){isNight=n;groundSpill.setNight(n);lightMat.color.set(n?0xffd99d:0xf5f0e2);nightLights.forEach(l=>{l.intensity=n?14:0;l.visible=n;});}};
  function whiteFlag(){return pale;}
 }

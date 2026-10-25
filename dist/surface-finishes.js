@@ -3,8 +3,8 @@ let palette;
 export function architecturalMaterials(){
  if(palette)return palette;const random=seeded(6517);
  const texture=(base,joints=false)=>{const t=canvasTexture(512,512,c=>{c.fillStyle=base;c.fillRect(0,0,512,512);for(let i=0;i<26000;i++){c.fillStyle=i%2?'#ffffff09':'#10202a07';c.fillRect(random()*512,random()*512,random()*1.3+.4,random()*1.3+.4);}if(joints){c.strokeStyle='#15202b20';c.lineWidth=1.3;for(const p of [0,256,512]){c.beginPath();c.moveTo(p,0);c.lineTo(p,512);c.moveTo(0,p);c.lineTo(512,p);c.stroke();}c.strokeStyle='#ffffff18';c.lineWidth=1;c.strokeRect(2,2,252,252);c.strokeRect(258,258,252,252);}});t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(1/2.4,1/2.4);t.channel=1;t.anisotropy=4;return t;};
- const stone=texture('#b6bab8',true),paint=texture('#f0efe9'),rubber=texture('#b4b5b2',true);
- palette={stone:mat(0xd4d8d4,{map:stone,bumpMap:stone,bumpScale:.012,roughness:.9}),charcoal:mat(0x50585b,{map:rubber,bumpMap:rubber,bumpScale:.008,roughness:.91}),plaster:mat(0xe1ded3,{map:paint,bumpMap:paint,bumpScale:.006,roughness:.94}),warmPlaster:mat(0xe5dfce,{map:paint,bumpMap:paint,bumpScale:.006,roughness:.93})};return palette;
+ const stone=texture('#b6bab8',true),paint=texture('#f0efe9'),rubber=texture('#b4b5b2',true),red=texture('#bfc2bc');
+ palette={rubberRed:mat(0xa42137,{map:red,bumpMap:red,bumpScale:.018,roughness:.84}),stone:mat(0xd4d8d4,{map:stone,bumpMap:stone,bumpScale:.012,roughness:.9}),charcoal:mat(0x50585b,{map:rubber,bumpMap:rubber,bumpScale:.008,roughness:.91}),plaster:mat(0xe1ded3,{map:paint,bumpMap:paint,bumpScale:.006,roughness:.94}),warmPlaster:mat(0xe5dfce,{map:paint,bumpMap:paint,bumpScale:.006,roughness:.93})};return palette;
 }
 // Secondary UVs are in metres. Colour, grain and grout stay the same size
 // across a long wall or a narrow step without changing jersey/sign UVs.

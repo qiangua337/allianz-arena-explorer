@@ -14,14 +14,14 @@ export function buildInteriors(scene,circulation){
  const root=new THREE.Group();root.name='Accessible interiors | interpretation from public references';scene.add(root);
  const rooms={},shells={},lights=[],colliders=[],tacticalDisplays=[];const ceilings=[];
  const finishes=architecturalMaterials();
- const red=mat(0x94162a,{roughness:.55}),recessRed=mat(0x5b0b18,{roughness:.72}),redTrim=mat(0xb81d36,{roughness:.48}),white=finishes.plaster,dark=mat(0x161b20),metal=mat(0x9caaaf,{metalness:.75,roughness:.27}),wood=mat(0xffffff,{map:repeatTex(floorTexture('wood'),2,1),roughness:.48}),floorRed=mat(0xffffff,{map:repeatTex(floorTexture('red'),20,20),roughness:.68}),tile=finishes.stone,cream=finishes.warmPlaster,blackFloor=finishes.charcoal,lightMat=new THREE.MeshBasicMaterial({color:0xecf4ff,toneMapped:false});
+ const red=mat(0x94162a,{roughness:.55}),recessRed=mat(0x5b0b18,{roughness:.72}),redTrim=mat(0xb81d36,{roughness:.48}),white=finishes.plaster,dark=mat(0x161b20),metal=mat(0x9caaaf,{metalness:.75,roughness:.27}),wood=mat(0xffffff,{map:repeatTex(floorTexture('wood'),2,1),roughness:.48}),floorRed=finishes.rubberRed,tile=finishes.stone,cream=finishes.warmPlaster,blackFloor=finishes.charcoal,lightMat=new THREE.MeshBasicMaterial({color:0xecf4ff,toneMapped:false});
  function roomBase(key,wallMat=white,floorMat=tile){const spec=roomSpecs[key],g=new THREE.Group(),shell=new THREE.Group();g.position.set(spec.x,spec.y,spec.z);shell.position.copy(g.position);g.name=key;shell.name=key+' envelope';root.add(g,shell);rooms[key]=g;shells[key]=shell;const b=new Batches(shell);b.add(spec.w,.18,spec.d,0,-.09,0,floorMat);const wall=(w,h,d,x,y,z)=>{b.add(w,h,d,x,y,z,wallMat);wallCollider(colliders,spec.x+x,spec.z+z,w,d,spec.y,spec.y+4.5,key);};
   wall(.2,4.5,spec.d,-spec.w/2,2.25,0);wall(spec.w,4.5,.2,0,2.25,-spec.d/2);if(key==='guestRoom'){wall((spec.w-2.4)/2,4.5,.2,-spec.w/4-.6,2.25,spec.d/2);wall((spec.w-2.4)/2,4.5,.2,spec.w/4+.6,2.25,spec.d/2);}else wall(spec.w,4.5,.2,0,2.25,spec.d/2);
   // An open door on the eastern side connects the below-pitch rooms to the corridor.
   wall(.2,4.5,(spec.d-2.4)/2,spec.w/2,2.25,-spec.d/4-.6);wall(.2,4.5,(spec.d-2.4)/2,spec.w/2,2.25,spec.d/4+.6);b.add(.22,1.7,2.4,spec.w/2,3.65,0,wallMat);
   const ceil=box(shell,spec.w,.15,spec.d,0,4.55,0,mat(0xe8e5dd,{roughness:.95,emissive:0x484640,emissiveIntensity:.15}));ceilings.push(ceil);
   for(const x of[-spec.w*.29,spec.w*.29]){b.add(.13,.025,spec.d-1,x,4.43,0,lightMat);}
-  for(const z of[-spec.d*.25,spec.d*.25]){const l=new THREE.PointLight(0xffeee0,80,32,2);l.position.set(0,4.75,z);g.add(l);lights.push(l);}
+  for(const z of[-spec.d*.25,spec.d*.25]){const l=new THREE.PointLight(0xffeee0,115,32,2);l.position.set(0,4.08,z);g.add(l);lights.push(l);}
   b.flush();finishRoom(shell,spec,key);return {g,b:new Batches(g),spec};
  }
  const shirtGeometry=(()=>{const s=new THREE.Shape();s.moveTo(-.22,.4);s.lineTo(-.4,.28);s.lineTo(-.33,.03);s.lineTo(-.22,.11);s.lineTo(-.22,-.43);s.quadraticCurveTo(0,-.48,.22,-.43);s.lineTo(.22,.11);s.lineTo(.33,.03);s.lineTo(.4,.28);s.lineTo(.22,.4);s.lineTo(.1,.4);s.quadraticCurveTo(0,.27,-.1,.4);s.closePath();return new THREE.ExtrudeGeometry(s,{depth:.022,bevelEnabled:true,bevelSegments:1,steps:1,bevelSize:.009,bevelThickness:.008});})();

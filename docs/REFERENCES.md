@@ -1,6 +1,6 @@
 # 参考资料与复原判断
 
-研究日期：2026-10-20 至 2026-10-21。主要采用场馆、俱乐部、建筑事务所的公开资料，以及用户提供的可播放视频画面。并未取得施工图、完整室内尺寸或测绘数据。
+研究日期：2026-10-20 至 2026-10-25。主要采用场馆、俱乐部、建筑事务所的公开资料，以及用户提供的可播放视频画面。并未取得施工图、完整室内尺寸或测绘数据。
 
 | 来源 | 用途及已核实内容 |
 | --- | --- |
@@ -53,3 +53,7 @@
 人物研究参考 [EA Sports FC 官方 Gameplay Deep Dive](https://www.ea.com/en-au/games/ea-sports-fc/pitch-notes/news/fc-24-gameplay-deepdive) 对身体移动的介绍，及 [Konami 官方对 Motion Matching 的说明](https://www.konami.com/games/us/en/topics/1756/)。这些页面仅用于理解动作与画面方向，没有提取游戏资产或声轨。人物基于可再分发的 MakeHuman 通用人体；来源、许可与生成过程见 [PLAYER-ASSETS.md](PLAYER-ASSETS.md)。人物并非球星扫描脸模，骨骼动作与布料细节也未达到这些商业游戏的制作精度。
 
 看台声音采用 Work With Sounds / Torsten Nilsson 的 [足球现场录音](https://commons.wikimedia.org/wiki/File:WWS_FootballAustriavs.Sweden.ogg)，CC BY 4.0，截取并重新混音为通用球场声景；原场地为恩斯特·哈佩尔球场，不能当作安联球场或拜仁比赛的实录。详细归属和修改声明见根目录第三方说明以及随音频附带的 README。
+
+## 版本 1.12 的照明与材质更新
+
+补查 [官方 Press Club & Foyer 资料](https://allianz-arena.com/en/event-venue/rooms/presseclub--foyer) 的会议设施与空间信息，以及 [Zumtobel 场外照明升级资料](https://allianz-arena.com/binaries/content/assets/downloads/homepage/club/2021_05_28_pr_zg_esplanade_allianz_arena_shines_in_a_new_light_en.pdf?v=1622186962994)。保留此前官网更衣室和用户视频中确认的红色柜体、浅色顶面、灯带与深色通道关系。程序化生成草地、铺装、橡胶地面微纹、墙角遮蔽和夜间地面光池；未复制网页照片作为可再分发贴图。房间灯光分配按本模型的边界计算，灯光强度和色温是视觉调整，不能作为实际场馆照明参数。
