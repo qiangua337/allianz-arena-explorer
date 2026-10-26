@@ -4,7 +4,15 @@
 
 [在线探索](https://allianz-arena-explorer.pages.dev/) · [GitHub 源码](https://github.com/qiangua337/allianz-arena-explorer) · [Cloudflare 部署说明](docs/DEPLOYMENT.md) · [MIT 许可证](LICENSE)
 
-版本 **3.0：比赛操作与手机体验重做**。[直接打开赛前设置](https://allianz-arena-explorer.pages.dev/?place=pitch&night=1&experience=football)。
+版本 **3.1：重做比赛日观众与助威互动**。[直接打开赛前设置](https://allianz-arena-explorer.pages.dev/?place=pitch&night=1&experience=football)。
+
+- 更新八组生成的球迷图像，改善肩宽、肤色、衣服和人物轮廓，避免红色人形与红座椅混成一片。
+- 近处换用有手臂、腿部和围巾的坐姿立体观众，桌面最多 384 人、手机最多 128 人；远处保留分区实例平面，共享图集。手机保留全场占座密度，靠近时才更新细节。
+- 新增右上「助威」按钮与 G 快捷键，声浪、人物动作和旗帜作出反应；射门、抢断、扑救及进球也有不同强度反馈。客队区按对手换色。贴图加载失败仍保留可见的人形，并支持重试。
+
+![版本 3.1：近景坐姿球迷、围巾与全场观众](docs/images/crowd-3100.png)
+
+人物图集、生成提示词、性能预算与简化范围见 [CROWD-ASSETS.md](docs/CROWD-ASSETS.md)。普通参观默认空场，比赛日和人机比赛显示观众。以下 3.0 比赛操作继续保留：
 
 - 赛前可选多特蒙德、皇家马德里、巴塞罗那、曼彻斯特城，以及轻松、标准、挑战三档难度。切换实际首发和替补、姓名号码、球衣配色、比分标题及场内 LED；新增球队采用字母标记与独立绘制的配色球衣。阵容为官方号码资料上的示范选配，不是当场首发。
 - 默认侧面广角转播镜头，兼顾持球者和足球；竖屏镜头自动靠近，长传时略微拉开。C 或右上按钮在转播、跟随与第一人称之间切换，保留手动、半自动、辅助换人。全场雷达显示 22 名球员、受控球员和足球。

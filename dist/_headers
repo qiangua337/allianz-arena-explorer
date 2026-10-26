@@ -5,3 +5,6 @@
 
 /assets/pbr/*
   Cache-Control: public, max-age=604800, immutable
+
+/assets/crowd/*
+  Cache-Control: public, max-age=604800, immutable

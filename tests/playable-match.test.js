@@ -8,9 +8,9 @@ function fixture(){
  const nodes=new Map(),node=id=>{if(!nodes.has(id)){const handlers={};nodes.set(id,{hidden:false,textContent:'',dataset:{},setAttribute(k,v){this[k]=v;},addEventListener(k,v){handlers[k]=v;},fire(k,v){handlers[k]?.(v);},showModal(){this.open=true;},close(){if(this.open){this.open=false;handlers.close?.();}},focus(){}});}return nodes.get(id);};
  const context=new Proxy({createRadialGradient:()=>({addColorStop(){}})},{get:(o,k)=>k in o?o[k]:()=>{}}),classes=new Set();
  globalThis.document={createElement:()=>({getContext:()=>context}),getElementById:node,querySelectorAll:()=>[],exitPointerLock(){},body:{dataset:{},classList:{add:x=>classes.add(x),remove:x=>classes.delete(x)}}};
- let actorUpdates=0;const audio={muted:false,state:'playing',cheer(){},cue(){},setMuted(value){this.muted=value;}},players={ready:true,root:new THREE.Group(),updateMatch(){actorUpdates++;}};let game;const views=[];
- game=buildPlayableMatch({scene:new THREE.Scene(),stadium:{matchBall:new THREE.Mesh()},players,audio,onCamera(){},onView:v=>views.push(v),onPause:value=>game.setPaused(value),onRestart:()=>game.start(),onExit:()=>game.exit()});
- return{game,node,audio,views,classes,get actorUpdates(){return actorUpdates;}};
+ let actorUpdates=0,cheers=0;const audio={muted:false,state:'playing',cheer(){},cue(){},setMuted(value){this.muted=value;}},players={ready:true,root:new THREE.Group(),updateMatch(){actorUpdates++;}};let game;const views=[];
+ game=buildPlayableMatch({scene:new THREE.Scene(),stadium:{matchBall:new THREE.Mesh()},players,audio,onCamera(){},onView:v=>views.push(v),onPause:value=>game.setPaused(value),onRestart:()=>game.start(),onExit:()=>game.exit(),onCheer:()=>cheers++});
+ return{game,node,audio,views,classes,get actorUpdates(){return actorUpdates;},get cheers(){return cheers;}};
 }
 const run=(game,seconds,input={})=>{for(let i=0;i<Math.round(seconds*60);i++)game.update(1/60,input,{x:0,y:5,z:9});};
 test('a pending or failed player load never advances a live match; retry starts a fresh kick-off',()=>{
@@ -44,4 +44,8 @@ test('changing opponent replaces the simulated squad and scoreboard while camera
 
 test('pausing stops repeated skeleton work while a paused perspective change still refreshes the scene once',()=>{
  const f=fixture();f.game.start();f.game.ready();run(f.game,3.2);f.game.setPaused(true);const before=f.actorUpdates;run(f.game,1);assert.equal(f.actorUpdates,before);f.game.setCamera('first');run(f.game,.2);assert.equal(f.actorUpdates,before+1);f.game.setPaused(false);run(f.game,.2);assert.ok(f.actorUpdates>before+5);
+});
+
+test('cheering works independently of ball possession and cannot fire during loading, pause or after exit',()=>{
+ const f=fixture(),cheer=f.node('game-cheer');f.game.start();cheer.onclick();assert.equal(f.cheers,0);f.game.ready();run(f.game,3.1);const before=JSON.stringify(f.game.state);cheer.onclick();assert.equal(f.cheers,1);assert.equal(JSON.stringify(f.game.state),before,'cheering never changes the score, ball or player state');f.game.state.ball.ownerId='away-1';cheer.onclick();assert.equal(f.cheers,2);f.game.setPaused(true);assert.equal(cheer.disabled,true);cheer.onclick();assert.equal(f.cheers,2);f.game.exit();cheer.onclick();assert.equal(f.cheers,2);
 });

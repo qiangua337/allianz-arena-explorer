@@ -14,6 +14,8 @@ Three.js 0.186.1 及 OrbitControls 采用 MIT 许可证，版权属于 Three.js 
 
 建筑几何体与大部分建筑贴图由代码生成，仓库不包含研究时观看的视频、商业游戏模型、音乐或官方照片。
 
+观众图集 `dist/assets/crowd/supporters-atlas-3100.png` 使用内置 imagegen 工具生成，人物为虚构成年球迷，不是官方照片、真人扫描或商业游戏素材。坐姿观众几何与实例动画由本项目代码生成；完整生成提示词与资源记录见 [docs/CROWD-ASSETS.md](docs/CROWD-ASSETS.md)。
+
 `dist/assets/fc-bayern.svg` 是 FC Bayern 官网使用的俱乐部队徽，下载核对日期为 2026-10-20。该资源及其商标权属于 FC Bayern，不属于本项目原创代码的 MIT 授权范围。
 
 来源页面：<https://fcbayern.com/en>。原始资源：
