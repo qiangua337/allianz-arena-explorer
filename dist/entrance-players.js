@@ -1,4 +1,5 @@
 import {applyFootballAction} from './football-action-pose.js';
+import {opponentSquad} from './football-teams.js';
 import {THREE,mat,canvasTexture} from './kit.js';
 import {matchdayPeople} from './matchday-roster.js';
 import {createFootballMotion} from './football-motion.js';
@@ -26,7 +27,7 @@ function athlete(data,geometries,textures,definition,motion,atlasSize){
 }
 
 export function buildEntrancePlayers(scene,{mobile=false}={}){
- const root=new THREE.Group();root.name='Skinned football entrance queue';root.visible=false;scene.add(root);let loading,players=[],ready=false,lastMatchTime=null;const officials=new Map(),shadowPose=new THREE.Object3D();
+ const root=new THREE.Group();root.name='Skinned football entrance queue';root.visible=false;scene.add(root);let loading,players=[],ready=false,lastMatchTime=null,playerAssets=null,opponent='dortmund';const officials=new Map(),shadowPose=new THREE.Object3D();
  async function prepare(){if(loading)return loading;loading=(async()=>{
   const loader=new THREE.TextureLoader(),loadTexture=name=>loader.loadAsync(asset(name)),[data,binary,light,dark,short02,eyes,brows,crest,motion,awayCrest]=await Promise.all([
    fetch(asset('footballer.json')).then(r=>{if(!r.ok)throw Error('Player manifest '+r.status);return r.json();}),fetch(asset('footballer.bin')).then(r=>{if(!r.ok)throw Error('Player mesh '+r.status);return r.arrayBuffer();}),loadTexture('skin-light.webp'),loadTexture('skin-dark.webp'),loadTexture('hair-short02.webp'),loadTexture('eyes.webp'),loadTexture('brows.webp'),new THREE.ImageLoader().loadAsync(new URL('./assets/fc-bayern.svg',import.meta.url).href),fetch(asset('walk-cycle.json')).then(r=>{if(!r.ok)throw Error('Motion '+r.status);return r.json();}),new THREE.ImageLoader().loadAsync(new URL('./assets/borussia-dortmund.svg',import.meta.url).href)
@@ -36,10 +37,16 @@ export function buildEntrancePlayers(scene,{mobile=false}={}){
   const raw=Object.fromEntries(data.parts.map(p=>[p.name,makeGeometry(binary,p)])),geometries={short02:atlasGeometry(raw,'short02'),crop:atlasGeometry(raw,'crop')};for(const g of Object.values(raw))g.dispose();for(const g of Object.values(geometries)){g.userData.medium=simplifySkinnedGeometry(g,.035);g.userData.low=simplifySkinnedGeometry(g,.085);}
   const flag=canvasTexture(64,64,c=>{c.fillStyle='#f3c431';c.fillRect(0,0,64,64);c.fillStyle='#eb622e';c.fillRect(0,0,32,32);c.fillRect(32,32,32,32);});
   const textures={light,dark,short02,eyes,brows,crest,awayCrest,shadow,boot,flag};
-  players=matchdayPeople.map((d,i)=>{const p=athlete(data,geometries,textures,d,motion,mobile?512:d.role==='player'?1024:512);p.geometry=geometries[d.hair];root.add(p.group);return p;});
+  playerAssets={geometries,textures};players=matchdayPeople.map((definition,i)=>{const d={...definition,player:{...definition.player}},p=athlete(data,geometries,textures,d,motion,mobile?512:d.role==='player'?1024:512);p.geometry=geometries[d.hair];root.add(p.group);return p;});
   const shadows=new THREE.InstancedMesh(new THREE.PlaneGeometry(.64,.75).rotateX(-Math.PI/2),new THREE.MeshBasicMaterial({map:shadow,transparent:true,depthWrite:false,opacity:.28}),players.length);shadows.name='Contact shadows';shadows.frustumCulled=false;root.add(shadows);root.userData.shadows=shadows;
   ready=true;return true;
  })().catch(error=>{loading=null;throw error;});return loading;}
+ function setOpponent(id){if(!ready)return;const squad=opponentSquad(id);if(opponent===squad.club.id)return;opponent=squad.club.id;let starter=0,bench=0;
+  for(const actor of players){const d=actor.definition;if(d.team!=='away')continue;const next=d.role==='player'?squad.xi[starter++]:d.role==='substitute'?squad.bench[bench++]:null;
+   if(next){Object.assign(d,{player:{...next.player},dark:next.dark,hair:next.hair,keeper:next.keeper});actor.geometry=playerAssets.geometries[d.hair];actor.body.geometry=actor.geometry;}
+   d.club=squad.club;d.kit=squad.club.kit;actor.group.name=d.team+' · '+d.role+' · '+d.player.name;actor.group.userData.playerNumber=d.player.number??null;const previous=actor.body.material.map;actor.body.material.map=characterAtlas(d,playerAssets.textures,drawJersey,mobile?512:d.role==='player'?1024:512);previous.dispose();actor.lastPoseTime=null;
+  }
+ }
  function updateMatch(state,time,viewer,{firstPerson=false}={}){
   if(!ready||!state?.players)return;const dt=lastMatchTime===null?0:Math.max(0,Math.min(.15,time-lastMatchTime));lastMatchTime=time;
   const onField=new Map(state.players.map(p=>[p.team+':'+p.number,p]));
@@ -59,13 +66,13 @@ export function buildEntrancePlayers(scene,{mobile=false}={}){
    const heading=p.yaw??(moving?Math.atan2(p.vx,p.vz):0);
    // Pose even a hidden first-person avatar, so its world position and future
    // third-person animation never fall back to the old entrance queue.
-   if(actor.group.visible||controlled)actor.pose(p.x,p.z,heading,time,moving,d.seated&&d.role==='assistant'?.45:0);else actor.group.position.set(p.x,0,p.z);
-   if(d.role==='player'&&(actor.group.visible||controlled))actor.actionPose(p.motion,{defending:p.defending,speed:Math.hypot(p.vx||0,p.vz||0)});
-   shadowPose.position.set(p.x,actor.group.position.y+.012,p.z);shadowPose.scale.setScalar(actor.group.visible?(d.seated?.8:1):0);shadowPose.updateMatrix();root.userData.shadows?.setMatrixAt(i,shadowPose.matrix);
+   const cadence=controlled?0:d.role!=='player'?.10:distance>35?(mobile?.10:.065):0,animate=actor.lastPoseTime==null||time-actor.lastPoseTime>=cadence||time<actor.lastPoseTime;
+   if((actor.group.visible||controlled)&&animate){actor.pose(p.x,p.z,heading,time,moving,d.seated&&d.role==='assistant'?.45:0);actor.lastPoseTime=time;if(d.role==='player')actor.actionPose(p.motion,{defending:p.defending,speed:Math.hypot(p.vx||0,p.vz||0)});}else if(!actor.group.visible&&!controlled)actor.group.position.set(p.x,0,p.z);
+   shadowPose.position.set(actor.group.position.x,actor.group.position.y+.012,actor.group.position.z);shadowPose.scale.setScalar(actor.group.visible?(d.seated?.8:1):0);shadowPose.updateMatrix();root.userData.shadows?.setMatrixAt(i,shadowPose.matrix);
   }
   if(root.userData.shadows)root.userData.shadows.instanceMatrix.needsUpdate=true;
  }
- return{root,prepare,updateMatch,get ready(){return ready;},get positions(){return players.map(p=>[p.group.position.x,p.group.position.z].map(v=>v.toFixed(2)).join(',')).join(';');},reset(){lastMatchTime=null;officials.clear();for(const p of players)p.reset();},update(seconds,time,viewer){lastMatchTime=null;officials.clear();const dummy=new THREE.Object3D();for(let i=0;i<players.length;i++){const actor=players[i],d=actor.definition,p=i<26?sampleQueuePlayer(seconds,i):d,distance=viewer?Math.hypot(viewer.x-p.x,viewer.z-p.z):0;actor.group.visible=distance<(mobile?86:120);if(!actor.group.visible){dummy.scale.setScalar(0);dummy.updateMatrix();root.userData.shadows?.setMatrixAt(i,dummy.matrix);continue;}actor.body.geometry=distance>(mobile?22:32)?actor.geometry.userData.low:distance>(mobile?10:16)?actor.geometry.userData.medium:actor.geometry;actor.pose(p.x,p.z,p.yaw,time,p.moving||false,d.seated&&d.role==='assistant'?.45:0);dummy.position.set(p.x,actor.group.position.y+.012,p.z);dummy.scale.setScalar(d.seated?.8:1);dummy.updateMatrix();root.userData.shadows?.setMatrixAt(i,dummy.matrix);}if(root.userData.shadows)root.userData.shadows.instanceMatrix.needsUpdate=true;}};
+ return{root,prepare,updateMatch,setOpponent,get ready(){return ready;},get positions(){return players.map(p=>[p.group.position.x,p.group.position.z].map(v=>v.toFixed(2)).join(',')).join(';');},reset(){lastMatchTime=null;officials.clear();for(const p of players){p.reset();p.lastPoseTime=null;}},update(seconds,time,viewer){lastMatchTime=null;officials.clear();const dummy=new THREE.Object3D();for(let i=0;i<players.length;i++){const actor=players[i],d=actor.definition,p=i<26?sampleQueuePlayer(seconds,i):d,distance=viewer?Math.hypot(viewer.x-p.x,viewer.z-p.z):0;actor.group.visible=distance<(mobile?86:120);if(!actor.group.visible){dummy.scale.setScalar(0);dummy.updateMatrix();root.userData.shadows?.setMatrixAt(i,dummy.matrix);continue;}actor.body.geometry=distance>(mobile?22:32)?actor.geometry.userData.low:distance>(mobile?10:16)?actor.geometry.userData.medium:actor.geometry;actor.pose(p.x,p.z,p.yaw,time,p.moving||false,d.seated&&d.role==='assistant'?.45:0);dummy.position.set(p.x,actor.group.position.y+.012,p.z);dummy.scale.setScalar(d.seated?.8:1);dummy.updateMatrix();root.userData.shadows?.setMatrixAt(i,dummy.matrix);}if(root.userData.shadows)root.userData.shadows.instanceMatrix.needsUpdate=true;}};
 }
 
 export function matchOfficialPose(definition,ball,previous,dt=0){

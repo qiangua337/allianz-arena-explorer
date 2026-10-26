@@ -1,6 +1,20 @@
 # 参考资料与复原判断
 
-研究日期：2026-10-20 至 2026-10-25。主要采用场馆、俱乐部、建筑事务所的公开资料，以及用户提供的可播放视频画面。并未取得施工图、完整室内尺寸或测绘数据。
+研究日期：2026-10-20 至 2026-10-26。主要采用场馆、俱乐部、建筑事务所的公开资料，以及用户提供的可播放视频画面。并未取得施工图、完整室内尺寸或测绘数据。
+
+## 3.0 可选对手
+
+2026-10-26 核对以下官方资料，姓名与号码成对保存在 `dist/football-teams.js`，拜仁及原多特名单沿用共享文件并复核。首发和替补为本作品选配，不代表真实当场首发、伤停或能力评级。角色保持通用人体，新增三队使用独立绘制的球队配色及字母标记；没有提取商业游戏资源。
+
+| 球队 | 官方资料 |
+| --- | --- |
+| 皇家马德里 | [2026/27 球衣号码，2026-08-10](https://www.realmadrid.com/en-US/news/football/first-team/latest-news/dorsales-del-real-madrid-para-la-temporada-2026-27-10-08-2026) |
+| 巴塞罗那 | [2026/27 球衣号码，2026-09-02](https://www.fcbarcelona.com/en/football/first-team/news/4570894/202627-first-team-jersey-numbers-confirmed) |
+| 曼彻斯特城 | [男子队球员与号码](https://www.mancity.com/players) |
+| 多特蒙德 | [官方 Shop by Player，姓名与号码](https://shop.bvb.de/pages/shop-by-player) |
+| 拜仁慕尼黑 | [官方一线队](https://fcbayern.com/en/teams/first-team) |
+
+## 建筑与场馆
 
 | 来源 | 用途及已核实内容 |
 | --- | --- |

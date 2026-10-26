@@ -3,13 +3,15 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import {registerHooks} from 'node:module';
 registerHooks({resolve(s,c,next){return s==='three'?{url:new URL('../dist/vendor/three.module.js',import.meta.url).href,shortCircuit:true}:next(s,c);}});
-const context=new Proxy({createRadialGradient:()=>({addColorStop(){}})},{get:(o,k)=>k in o?o[k]:()=>{}});
+const context=new Proxy({createRadialGradient:()=>({addColorStop(){}}),createLinearGradient:()=>({addColorStop(){}})},{get:(o,k)=>k in o?o[k]:()=>{}});
 globalThis.document={createElement:()=>({getContext:()=>context}),createElementNS:()=>{const listeners={};return{addEventListener:(k,f)=>listeners[k]=f,removeEventListener(){},set src(value){queueMicrotask(()=>listeners.load?.call(this));}};}};
 const {THREE}=await import('../dist/kit.js');
 const {buildEntrancePlayers,matchOfficialPose}=await import('../dist/entrance-players.js');
 const {applyFootballAction}=await import('../dist/football-action-pose.js');
 const {buildFootballView}=await import('../dist/football-view.js');
 const {homeXI,awayXI}=await import('../dist/matchday-roster.js');
+const {createFootballSimulation}=await import('../dist/football-simulation.js');
+const {buildArenaScreens}=await import('../dist/arena-screens.js');
 const realFetch=globalThis.fetch;
 globalThis.fetch=async url=>{const data=await fs.readFile(new URL(url));return{ok:true,json:async()=>JSON.parse(data),arrayBuffer:async()=>data.buffer.slice(data.byteOffset,data.byteOffset+data.byteLength)};};
 const scene=new THREE.Scene(),actors=buildEntrancePlayers(scene);await actors.prepare();globalThis.fetch=realFetch;
@@ -50,6 +52,20 @@ test('a ball previously frozen with the static arena still visibly moves through
 
 test('the free running clips and football strokes keep the support leg while exposing actual action feedback',()=>{
  const bones=Array.from({length:18},()=>new THREE.Bone()),support=[9,10,11].map(i=>bones[i].quaternion.toArray());applyFootballAction(bones,{type:'shoot',elapsed:.2,duration:.4});assert.notDeepEqual(bones[15].quaternion.toArray(),[0,0,0,1]);assert.deepEqual([9,10,11].map(i=>bones[i].quaternion.toArray()),support);assert.deepEqual(bones[0].position.toArray(),[0,0,0]);
+});
+
+test('opponent changes update the actual athlete shirts, numbers and matching world positions, then restore the original squad',()=>{
+ for(const opponent of['madrid','barcelona','city','dortmund']){actors.setOpponent(opponent);actors.reset();const state=createFootballSimulation({opponent}).state;actors.updateMatch(state,0,new THREE.Vector3(0,20,0));const away=actors.root.children.filter(o=>o.userData.role==='player'&&o.userData.team==='away');assert.equal(away.length,11);for(const o of away){const p=state.players.find(p=>p.team==='away'&&p.number===o.userData.playerNumber);assert.ok(p,o.name);assert.ok(o.name.endsWith(p.name));assert.equal(o.position.x,p.x);assert.equal(o.position.z,p.z);assert.ok(o.getObjectByName('athlete').material.map);}}
+ assert.equal(awayXI[1].player.name,'GUIRASSY');
+});
+
+test('distant match athletes use substantially fewer triangles while preserving finite normalized skin weights',()=>{
+ actors.reset();actors.updateMatch(makeState(),0,new THREE.Vector3(70,20,70));const body=actors.root.children.find(o=>o.userData.role==='player'&&o.userData.playerNumber===9).getObjectByName('athlete'),g=body.geometry;assert.ok(g.index.count/3<9000);const a=g.attributes;for(let i=0;i<a.position.count;i++){assert.ok([a.position.getX(i),a.position.getY(i),a.position.getZ(i)].every(Number.isFinite));let weight=0;for(let j=0;j<4;j++)weight+=a.skinWeight.array[i*4+j];assert.ok(Math.abs(weight-1)<.00001);}
+});
+
+test('the actual LED display follows the chosen opponent and live score without allocating a texture each frame',()=>{
+ const labels=[];context.fillText=s=>labels.push(s);const bowl=new THREE.Group(),screens=buildArenaScreens(bowl,{add(){}},{dark:new THREE.MeshBasicMaterial(),steel:new THREE.MeshBasicMaterial()}),s=createFootballSimulation({opponent:'barcelona'}).state;
+ labels.length=0;screens.setMatchScore(s);assert.ok(labels.includes('FC BAYERN × FC BARCELONA'));assert.ok(!labels.includes('DORTMUND'));const material=bowl.children[0].children.find(o=>o.geometry?.type==='PlaneGeometry').material,texture=material.map,version=texture.version;screens.setMatchScore(s);assert.equal(texture.version,version);s.score.home=1;screens.setMatchScore(s);assert.equal(material.map,texture);assert.ok(texture.version>version);assert.ok(labels.includes('1 : 0'));delete context.fillText;
 });
 test('real jog and sprint skins stay finite and above the pitch through acceleration and turning',()=>{
  const state=makeState(),selected=state.players.find(p=>p.id===state.controlledId);actors.reset();const point=new THREE.Vector3();

@@ -2,11 +2,11 @@ import {THREE} from './kit.js';
 // Cluster inside each material/UV region; retain normalized blended skin
 // weights and UV seams. These meshes are used only beyond readable face range.
 export function simplifySkinnedGeometry(source,cell=.04){
- const values={position:[],normal:[],uv:[],skinIndex:[],skinWeight:[]},indices=[],ranges={};
+ const values={position:[],normal:[],uv:[],skinIndex:[],skinWeight:[]},indices=[],ranges={},uvGrid=cell>=.08?10:24;
  for(const[name,range]of Object.entries(source.userData.parts)){
   const clusters=new Map(),remap=new Map(),start=values.position.length/3;
   for(let i=range.start;i<range.start+range.count;i++){
-   const p=source.attributes.position,n=source.attributes.normal,uv=source.attributes.uv,skin=source.attributes.skinIndex,weights=source.attributes.skinWeight,key=[Math.round(p.getX(i)/cell),Math.round(p.getY(i)/cell),Math.round(p.getZ(i)/cell),Math.floor(uv.getX(i)*24),Math.floor(uv.getY(i)*24)].join(',');
+   const p=source.attributes.position,n=source.attributes.normal,uv=source.attributes.uv,skin=source.attributes.skinIndex,weights=source.attributes.skinWeight,key=[Math.round(p.getX(i)/cell),Math.round(p.getY(i)/cell),Math.round(p.getZ(i)/cell),Math.floor(uv.getX(i)*uvGrid),Math.floor(uv.getY(i)*uvGrid)].join(',');
    let cluster=clusters.get(key);if(!cluster){cluster={index:start+clusters.size,count:0,p:[0,0,0],n:[0,0,0],uv:[0,0],weights:new Map()};clusters.set(key,cluster);}remap.set(i,cluster.index);cluster.count++;
    for(let j=0;j<3;j++){cluster.p[j]+=p.array[i*3+j];cluster.n[j]+=n.array[i*3+j];}for(let j=0;j<2;j++)cluster.uv[j]+=uv.array[i*2+j];for(let j=0;j<4;j++){const bone=skin.array[i*4+j],w=weights.array[i*4+j];cluster.weights.set(bone,(cluster.weights.get(bone)||0)+w);}
   }

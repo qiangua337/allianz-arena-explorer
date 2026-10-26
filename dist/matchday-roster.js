@@ -1,5 +1,5 @@
 import {playerByNumber} from './roster.js';
-export const matchdayFixture={home:'FC BAYERN',away:'DORTMUND',title:'拜仁慕尼黑 × 多特蒙德',checked:'2026-10-23',note:'演示首发与站位，非某场真实比赛名单',sources:['https://fcbayern.com/en/teams/first-team','https://shop.bvb.de/pages/shop-by-player']};
+export const matchdayFixture={home:'FC BAYERN',away:'DORTMUND',title:'拜仁慕尼黑 × 多特蒙德',checked:'2026-10-26',note:'演示首发与站位，非某场真实比赛名单',sources:['https://fcbayern.com/en/teams/first-team','https://shop.bvb.de/pages/shop-by-player']};
 const awayNames={1:'KOBEL',3:'ANTON',4:'SCHLOTTERBECK',5:'BENSEBAINI',7:'BELLINGHAM',8:'NMECHA',9:'GUIRASSY',14:'BEIER',17:'CHUKWUEMEKA',18:'NWANERI',19:'KARETSAS',20:'SABITZER',21:'SILVA',22:'GADOU',23:'CAN',24:'SVENSSON',25:'VEERMAN',26:'RYERSON',33:'MEYER',36:'PRATES'};
 const height={1:1.93,2:1.86,4:1.95,6:1.77,9:1.88,10:1.84,14:1.80,17:1.84,19:1.85,44:1.87,45:1.88};
 function player(team,number,index){const home=team==='home',dark=home?[2,14,17,19].includes(number):[5,7,8,9,17,18,22,36].includes(number);return{team,role:'player',player:home?playerByNumber(number):{number,name:awayNames[number]},keeper:number===1||number===40||number===33,height:home?height[number]||1.84:1.80+(index%4)*.045,dark,hair:dark?'crop':'short02',hairColor:0x9a8476,phase:index*.61,boot:[0xd3c8b5,0x91a5a1,0xd8c5bb,0xdddcd3][index%4]};}

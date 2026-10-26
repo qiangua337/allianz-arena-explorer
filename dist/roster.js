@@ -1,5 +1,5 @@
-// Official first-team roster, checked 2026-10-20. Keep names and numbers together.
-export const rosterInfo={season:'2026/27',checked:'2026-10-20',source:'https://fcbayern.com/en/teams/first-team'};
+// Official first-team roster, checked 2026-10-26. Keep names and numbers together.
+export const rosterInfo={season:'2026/27',checked:'2026-10-26',source:'https://fcbayern.com/en/teams/first-team'};
 export const firstTeam=[
  {number:1,name:'NEUER',fullName:'Manuel Neuer'},
  {number:26,name:'ULREICH',fullName:'Sven Ulreich'},

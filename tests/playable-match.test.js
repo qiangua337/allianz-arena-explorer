@@ -8,9 +8,9 @@ function fixture(){
  const nodes=new Map(),node=id=>{if(!nodes.has(id)){const handlers={};nodes.set(id,{hidden:false,textContent:'',dataset:{},setAttribute(k,v){this[k]=v;},addEventListener(k,v){handlers[k]=v;},fire(k,v){handlers[k]?.(v);},showModal(){this.open=true;},close(){if(this.open){this.open=false;handlers.close?.();}},focus(){}});}return nodes.get(id);};
  const context=new Proxy({createRadialGradient:()=>({addColorStop(){}})},{get:(o,k)=>k in o?o[k]:()=>{}}),classes=new Set();
  globalThis.document={createElement:()=>({getContext:()=>context}),getElementById:node,querySelectorAll:()=>[],exitPointerLock(){},body:{dataset:{},classList:{add:x=>classes.add(x),remove:x=>classes.delete(x)}}};
- const audio={muted:false,state:'playing',cheer(){},cue(){},setMuted(value){this.muted=value;}},players={ready:true,root:new THREE.Group(),updateMatch(){}};let game;const views=[];
+ let actorUpdates=0;const audio={muted:false,state:'playing',cheer(){},cue(){},setMuted(value){this.muted=value;}},players={ready:true,root:new THREE.Group(),updateMatch(){actorUpdates++;}};let game;const views=[];
  game=buildPlayableMatch({scene:new THREE.Scene(),stadium:{matchBall:new THREE.Mesh()},players,audio,onCamera(){},onView:v=>views.push(v),onPause:value=>game.setPaused(value),onRestart:()=>game.start(),onExit:()=>game.exit()});
- return{game,node,audio,views,classes};
+ return{game,node,audio,views,classes,get actorUpdates(){return actorUpdates;}};
 }
 const run=(game,seconds,input={})=>{for(let i=0;i<Math.round(seconds*60);i++)game.update(1/60,input,{x:0,y:5,z:9});};
 test('a pending or failed player load never advances a live match; retry starts a fresh kick-off',()=>{
@@ -31,4 +31,17 @@ test('control assistance can change during a match without resetting it, and pre
  const{game,node}=fixture();game.start();game.ready();run(game,3.2);const elapsed=game.state.elapsed,controlled=game.state.controlledId;game.setControlMode('manual');assert.equal(game.state.controlMode,'manual');assert.equal(game.state.elapsed,elapsed);assert.equal(game.state.controlledId,controlled);assert.equal(node('game-control-mode').textContent,'手动 ↻');
  const button=node('game-pressure');button.fire('pointerdown',{pointerId:7,preventDefault(){}});run(game,.1);assert.equal(game.state.players.find(p=>p.id===controlled).defending,true);assert.equal(button['aria-pressed'],'true');game.setPaused(true);assert.equal(button['aria-pressed'],'false');game.setPaused(false);run(game,.1);assert.equal(game.state.players.find(p=>p.id===controlled).defending,false);
  node('game-control-mode').onclick();assert.equal(game.state.controlMode,'semi');
+});
+
+test('a charged shot releases exactly once, pointer cancellation and pausing discard it safely',()=>{
+ const speeds=[];for(const hold of[.1,.8]){const{game,node}=fixture();game.start();game.ready();run(game,3.1);assert.equal(game.beginCharge(),true);run(game,hold);assert.equal(node('game-shoot')['aria-pressed'],'true');assert.equal(game.releaseCharge(),true);assert.equal(game.state.stats.home.shots,1);assert.equal(game.releaseCharge(),false);speeds.push(Math.hypot(game.state.ball.vx,game.state.ball.vz));}assert.ok(speeds[1]>speeds[0]+7);
+ const{game,node}=fixture();game.start();game.ready();run(game,3.1);const shoot=node('game-shoot');shoot.fire('pointerdown',{pointerId:9,preventDefault(){}});run(game,.3);shoot.fire('pointercancel',{pointerId:9});assert.equal(game.state.chargePower,0);assert.equal(game.state.stats.home.shots,0);assert.equal(game.releaseCharge(),false);assert.equal(game.beginCharge(),true);game.setPaused(true);game.setPaused(false);assert.equal(game.releaseCharge(),false);assert.equal(game.state.stats.home.shots,0);
+});
+
+test('changing opponent replaces the simulated squad and scoreboard while camera switches preserve a live match',()=>{
+ const{game,node}=fixture();game.start({opponent:'barcelona',difficulty:'challenge',camera:'broadcast'});game.ready();run(game,3.2);assert.equal(node('game-away-name').textContent,'巴萨');assert.equal(game.state.players.find(p=>p.id==='away-9').name,'LAMINE YAMAL');const elapsed=game.state.elapsed;assert.equal(game.camera,'broadcast');assert.equal(game.cycleCamera(),'follow');assert.equal(game.cycleCamera(),'first');assert.equal(game.view,'first');assert.equal(game.cycleCamera(),'broadcast');assert.equal(game.state.elapsed,elapsed);assert.equal(game.state.fixture.id,'barcelona');game.start({opponent:'city',difficulty:'casual'});assert.equal(node('game-away-name').textContent,'曼城');assert.equal(game.state.players.find(p=>p.id==='away-1').name,'HAALAND');assert.equal(game.state.elapsed,0);
+});
+
+test('pausing stops repeated skeleton work while a paused perspective change still refreshes the scene once',()=>{
+ const f=fixture();f.game.start();f.game.ready();run(f.game,3.2);f.game.setPaused(true);const before=f.actorUpdates;run(f.game,1);assert.equal(f.actorUpdates,before);f.game.setCamera('first');run(f.game,.2);assert.equal(f.actorUpdates,before+1);f.game.setPaused(false);run(f.game,.2);assert.ok(f.actorUpdates>before+5);
 });

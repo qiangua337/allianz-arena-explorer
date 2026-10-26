@@ -39,3 +39,7 @@ test('pausing during loading keeps the decoded recording suspended',async t=>{
 test('exit also stops outstanding cheers and generated footsteps',async t=>{
  setup(t);const a=createMatchdayAudio();await a.start();a.cheer();a.footstep(0);a.cue(2);const c=Context.instances[0];assert.equal(c.sources.length,4);a.stop();assert.ok(c.sources.every(s=>s.stopped));
 });
+
+test('ball impacts and whistles obey pause and mute, and exit stops every outstanding source',async t=>{
+ setup(t);const a=createMatchdayAudio();await a.start();const c=Context.instances[0];a.kick(1);a.whistle();assert.equal(c.sources.length,4);const before=c.sources.length;a.setMuted(true);a.kick();a.whistle();assert.equal(c.sources.length,before);a.setMuted(false);a.setPaused(true);a.kick();a.whistle();assert.equal(c.sources.length,before);a.stop();assert.ok(c.sources.every(n=>n.stopped));
+});
