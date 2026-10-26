@@ -7,6 +7,7 @@ const context=new Proxy({createRadialGradient:()=>({addColorStop(){}})},{get:(o,
 globalThis.document={createElement:()=>({getContext:()=>context}),createElementNS:()=>{const listeners={};return{addEventListener:(k,f)=>listeners[k]=f,removeEventListener(){},set src(value){queueMicrotask(()=>listeners.load?.call(this));}};}};
 const {THREE}=await import('../dist/kit.js');
 const {buildEntrancePlayers,matchOfficialPose}=await import('../dist/entrance-players.js');
+const {applyFootballAction}=await import('../dist/football-action-pose.js');
 const {buildFootballView}=await import('../dist/football-view.js');
 const {homeXI,awayXI}=await import('../dist/matchday-roster.js');
 const realFetch=globalThis.fetch;
@@ -44,4 +45,18 @@ test('a ball previously frozen with the static arena still visibly moves through
  const frozenBall=new THREE.Mesh(new THREE.SphereGeometry(.11),new THREE.MeshBasicMaterial());frozenBall.position.set(0,.115,0);scene.add(frozenBall);frozenBall.updateMatrix();frozenBall.matrixAutoUpdate=false;
  const view=buildFootballView(scene,frozenBall,actors),state=makeState();view.setEnabled(true);Object.assign(state.ball,{x:12,y:1.4,z:-21});view.update(state,3,new THREE.Vector3());scene.updateMatrixWorld(true);
  assert.equal(frozenBall.matrixAutoUpdate,true);assert.deepEqual(frozenBall.getWorldPosition(new THREE.Vector3()).toArray(),[12,1.4,-21]);Object.assign(state.ball,{x:-4,y:.11,z:7});view.update(state,3.1,new THREE.Vector3());scene.updateMatrixWorld(true);assert.deepEqual(frozenBall.getWorldPosition(new THREE.Vector3()).toArray(),[-4,.115,7]);
+});
+
+
+test('the free running clips and football strokes keep the support leg while exposing actual action feedback',()=>{
+ const bones=Array.from({length:18},()=>new THREE.Bone()),support=[9,10,11].map(i=>bones[i].quaternion.toArray());applyFootballAction(bones,{type:'shoot',elapsed:.2,duration:.4});assert.notDeepEqual(bones[15].quaternion.toArray(),[0,0,0,1]);assert.deepEqual([9,10,11].map(i=>bones[i].quaternion.toArray()),support);assert.deepEqual(bones[0].position.toArray(),[0,0,0]);
+});
+test('real jog and sprint skins stay finite and above the pitch through acceleration and turning',()=>{
+ const state=makeState(),selected=state.players.find(p=>p.id===state.controlledId);actors.reset();const point=new THREE.Vector3();
+ for(let frame=0;frame<150;frame++){
+  const speed=frame<60?frame/60*7.1:7.1;selected.z-=speed/60;selected.vz=-speed;selected.yaw=Math.PI;actors.updateMatch(state,frame/60,new THREE.Vector3(selected.x,4,selected.z+5));scene.updateMatrixWorld(true);
+  const group=actors.root.children.find(o=>o.userData.team==='home'&&o.userData.playerNumber===9),body=group.getObjectByName('athlete');let minimum=Infinity;
+  for(const name of['bootL','bootR']){const part=body.geometry.userData.parts[name];for(let i=part.start;i<part.start+part.count;i++){body.getVertexPosition(i,point);body.localToWorld(point);minimum=Math.min(minimum,point.y);}}
+  assert.ok(Number.isFinite(minimum)&&minimum>-.10&&minimum<.55,'grounded running at frame '+frame+': '+minimum);
+ }
 });

@@ -1,7 +1,7 @@
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
-export function footballInput({forward=0,side=0,yaw=0,sprint=false}={}){
+export function footballInput({forward=0,side=0,yaw=0,sprint=false,defend=false}={}){
  const length=Math.max(1,Math.hypot(forward,side)),f=forward/length,s=side/length;
- return{x:-Math.sin(yaw)*f+Math.cos(yaw)*s,z:-Math.cos(yaw)*f-Math.sin(yaw)*s,sprint};
+ return{x:-Math.sin(yaw)*f+Math.cos(yaw)*s,z:-Math.cos(yaw)*f-Math.sin(yaw)*s,sprint,defend};
 }
 export function footballCamera(player,{view='third',yaw=0,pitch=-.14}={}){
  if(view==='first')return{position:[player.x,1.68,player.z],target:null,fov:76,yaw,pitch:clamp(pitch,-.95,.5)};

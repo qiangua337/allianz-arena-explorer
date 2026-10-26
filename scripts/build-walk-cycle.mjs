@@ -16,7 +16,7 @@ if(process.argv.includes('--inspect')){console.log({duration});for(let t=0;t<=du
 // Sample world transforms, then adapt the source bind axes to the target rig.
 const used=[51,42,41,40,1,0,19,18,17,46,45,44,38,37,36,50,49,48,43,47,2,21];
 const rest=used.map(i=>({name:nodes[i].name,position:nodes[i].getWorldPosition(new THREE.Vector3()).toArray(),quaternion:nodes[i].getWorldQuaternion(new THREE.Quaternion()).toArray()}));
-for(const name of ['Walk_Loop','Idle_Loop','Sitting_Idle_Loop','Idle_Talking_Loop']){select(name);const frames=Array.from({length:61},(_,i)=>{sample(i/60*duration);return used.map(j=>[...nodes[j].getWorldPosition(new THREE.Vector3()).toArray(),...nodes[j].getWorldQuaternion(new THREE.Quaternion()).toArray()].map(x=>+x.toFixed(6)));});clips[name]={duration,frames};}
+for(const name of ['Walk_Loop','Jog_Fwd_Loop','Sprint_Loop','Idle_Loop','Sitting_Idle_Loop','Idle_Talking_Loop']){select(name);const frames=Array.from({length:61},(_,i)=>{sample(i/60*duration);return used.map(j=>[...nodes[j].getWorldPosition(new THREE.Vector3()).toArray(),...nodes[j].getWorldQuaternion(new THREE.Quaternion()).toArray()].map(x=>+x.toFixed(6)));});clips[name]={duration,frames};}
 const output={version:1,source:'Quaternius / Universal Animation Library Standard / CC0',rest,clips};
 const manifest=JSON.parse(fs.readFileSync(new URL('../dist/assets/players/footballer.json',import.meta.url))),meshData=fs.readFileSync(new URL('../dist/assets/players/footballer.bin',import.meta.url));
 const target=manifest.bones.map(b=>{const o=new THREE.Object3D();o.position.fromArray(b.head);if(b.parent>=0)o.position.sub(new THREE.Vector3().fromArray(manifest.bones[b.parent].head));return o;});
@@ -40,7 +40,7 @@ for(const[name,clip]of Object.entries(clips)){
   if(name.startsWith('Sitting'))root[1]=-.39;
   frames.push([...root,...target.flatMap(n=>n.quaternion.toArray())].map(x=>+x.toFixed(6)));
  }
- result.clips[name]={duration:clip.duration,frames};
+ result.clips[name]={duration:clip.duration,stride:name==='Sprint_Loop'?3.1:name==='Jog_Fwd_Loop'?2.25:1.55,frames};
 }
 fs.writeFileSync(new URL('../dist/assets/players/walk-cycle.json',import.meta.url),JSON.stringify(result));
-console.log('Exported retargeted walk, idle, seated and talking clips.');
+console.log('Exported retargeted walk, jog, sprint, idle, seated and talking clips.');

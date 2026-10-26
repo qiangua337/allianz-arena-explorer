@@ -71,3 +71,10 @@
 - [拜仁官方 2020 决赛报道](https://fcbayern.com/en/news/matchreports/2020/08/match-report-champions-league-final-paris-saint-german-v-fc-bayern-230820)：巴黎 0–1 拜仁，科曼第 59 分钟进球。
 - 其余展品资料链接与简述分别保存在 `dist/honours.js`。奖杯形态与布展为程序化代表性建模，未使用官方扫描、比赛照片或商业游戏模型。
 - 客队更衣室按 `matchday-roster.js` 的多特蒙德示范名单布置；不新增或声称真实赛程、首发或场馆内部实际陈设。
+
+
+## 2.2 操作与动作参考
+
+- [KONAMI 操作说明](https://www.konami.com/efootball/en/page/mobile_controller) 与 [2023 v2.2.0 更新说明](https://www.konami.com/efootball/en-us/page/2023/season2_patch-notes_v2-20)：了解手动选人、半自动 / 辅助换人与逼抢等常见机制。本项目自行实现并明确自己的辅助范围，未使用其代码或资产。
+- [Quaternius Universal Animation Library](https://quaternius.com/packs/universalanimationlibrary.html)：CC0 慢跑与冲刺动作，同原有行走资源一起使用与重定向。
+- 本项目仍采用人机体验赛的简化规则；不声称复刻 eFootball 的全部操作、物理、AI 或动画系统。

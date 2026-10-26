@@ -22,15 +22,16 @@ test('pass and shot release an actual moving ball instead of moving it with the 
  assert.equal(game.action('pass'),true);assert.equal(s.ball.ownerId,null);assert.equal(s.stats.home.passes,1);assert.ok(Math.hypot(s.ball.vx,s.ball.vz)>8);const before={x:s.ball.x,z:s.ball.z};run(game,.15);assert.ok(Math.hypot(s.ball.x-before.x,s.ball.z-before.z)>1);assert.ok(Math.hypot(p.x-origin.x,p.z-origin.z)<.03);
  const shot=start();clearOthers(shot);const oldZ=shot.state.ball.z;assert.equal(shot.action('shoot'),true);assert.equal(shot.state.ball.ownerId,null);assert.equal(shot.state.stats.home.shots,1);assert.ok(shot.state.ball.vz<-18);assert.ok(shot.state.ball.vy>0);run(shot,.2);assert.ok(shot.state.ball.z<oldZ-3);assert.ok(shot.state.ball.y>.11);
 });
-test('a nearby manual tackle changes possession and cannot fire repeatedly in one instant',()=>{
- const game=start();clearOthers(game);const p=player(game),opponent=player(game,'away-1');p.x=0;p.z=0;opponent.x=0;opponent.z=1.3;game.state.ball.ownerId=opponent.id;
- assert.equal(game.action('tackle'),true);assert.equal(game.state.ball.ownerId,p.id);assert.equal(game.state.stats.home.tackles,1);assert.equal(game.action('tackle'),false);
- const before=game.state.controlledId;assert.equal(game.action('switch'),true);assert.notEqual(game.state.controlledId,before);assert.ok(player(game).team==='home'&&!player(game).keeper);
+test('an exposed manual poke knocks the ball loose before collection, and has a cooldown',()=>{
+ const game=start();clearOthers(game);const p=player(game),opponent=player(game,'away-1');p.x=0;p.z=0;p.yaw=0;opponent.x=0;opponent.z=1.3;opponent.yaw=Math.PI;Object.assign(game.state.ball,{ownerId:opponent.id,x:0,y:.11,z:.65});
+ assert.equal(game.action('tackle'),true);assert.equal(game.state.ball.ownerId,null);assert.ok(game.state.ball.vz<0);assert.equal(game.state.stats.home.tackles,1);assert.equal(game.action('tackle'),false);
+ run(game,.12,{defend:true});assert.equal(game.state.ball.ownerId,p.id);const before=game.state.controlledId;assert.equal(game.action('switch'),true);assert.notEqual(game.state.controlledId,before);assert.ok(player(game).team==='home'&&!player(game).keeper);
 });
+
 test('a completed human pass transfers control to its receiver, and approaching a dribbled ball can recover it naturally',()=>{
  const game=start();clearOthers(game);const receiver=player(game,'home-8');receiver.x=2;receiver.z=-12;assert.equal(game.action('pass'),true);assert.equal(game.state.ball.targetId,receiver.id);
  Object.assign(game.state.ball,{x:receiver.x,z:receiver.z+.2,y:.12,vx:0,vz:-3,vy:0});game.update(1/60);assert.equal(game.state.ball.ownerId,receiver.id);assert.equal(game.state.controlledId,receiver.id);assert.equal(game.state.events.at(-1).type,'receive');
- const interception=start();clearOthers(interception);const user=player(interception),opponent=player(interception,'away-1');user.x=0;user.z=1.6;opponent.x=0;opponent.z=.6;opponent.yaw=0;interception.state.ball.ownerId=opponent.id;interception.update(1/60);assert.equal(interception.state.ball.ownerId,user.id);assert.equal(interception.state.stats.home.tackles,1);
+ const interception=start();clearOthers(interception);const user=player(interception),opponent=player(interception,'away-1');user.x=0;user.z=1.6;opponent.x=0;opponent.z=.6;opponent.yaw=0;Object.assign(interception.state.ball,{ownerId:opponent.id,x:0,z:1.2,y:.11});run(interception,.08);assert.equal(interception.state.ball.ownerId,user.id);assert.equal(interception.state.stats.home.tackles,1);
 });
 test('uncontrolled opponents can win possession and keep acting without user movement',()=>{
  const game=start(),s=game.state;const initial=s.players.filter(p=>p.team==='away').map(p=>({id:p.id,x:p.x,z:p.z}));run(game,20);

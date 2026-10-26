@@ -1,3 +1,4 @@
+import {applyFootballAction} from './football-action-pose.js';
 import {THREE,mat,canvasTexture} from './kit.js';
 import {matchdayPeople} from './matchday-roster.js';
 import {createFootballMotion} from './football-motion.js';
@@ -21,7 +22,7 @@ function athlete(data,geometries,textures,definition,motion,atlasSize){
  const body=new THREE.SkinnedMesh(geometries[definition.hair],material);body.name='athlete';body.boundingSphere=new THREE.Sphere(new THREE.Vector3(0,.9,0),1.75);body.castShadow=true;body.receiveShadow=true;group.add(body);body.bind(skeleton,new THREE.Matrix4());
  const motionPlayer=createFootballMotion(data,motion,bones,group,definition);
  let accessory;if(definition.flag){accessory=new THREE.Group();group.add(accessory);const handle=new THREE.Mesh(new THREE.CylinderGeometry(.012,.012,.44,6),mat(0x263339));handle.position.y=-.19;accessory.add(handle);const flag=new THREE.Mesh(new THREE.PlaneGeometry(.36,.30),new THREE.MeshBasicMaterial({map:textures.flag,side:THREE.DoubleSide}));flag.position.set(-.18,-.29,0);accessory.add(flag);}
- const hand=new THREE.Vector3();return{group,body,definition,reset:motionPlayer.reset,pose(...args){motionPlayer.pose(...args);if(accessory){bones[14].getWorldPosition(hand);accessory.position.copy(group.worldToLocal(hand));}}};
+ const hand=new THREE.Vector3();return{group,body,definition,reset:motionPlayer.reset,actionPose(motion,options){applyFootballAction(bones,motion,options);group.updateMatrixWorld(true);},pose(...args){motionPlayer.pose(...args);if(accessory){bones[14].getWorldPosition(hand);accessory.position.copy(group.worldToLocal(hand));}}};
 }
 
 export function buildEntrancePlayers(scene,{mobile=false}={}){
@@ -55,10 +56,11 @@ export function buildEntrancePlayers(scene,{mobile=false}={}){
    actor.group.visible=distance<(d.role==='player'?160:mobile?92:130)&&!(controlled&&firstPerson);
    actor.body.geometry=distance>(mobile?22:32)?actor.geometry.userData.low:distance>(mobile?10:16)?actor.geometry.userData.medium:actor.geometry;
    const moving=d.role==='player'?Math.hypot(p.vx||0,p.vz||0)>.16:!!p.moving;
-   const heading=d.role==='player'&&moving?Math.atan2(p.vx,p.vz):p.yaw??0;
+   const heading=p.yaw??(moving?Math.atan2(p.vx,p.vz):0);
    // Pose even a hidden first-person avatar, so its world position and future
    // third-person animation never fall back to the old entrance queue.
    if(actor.group.visible||controlled)actor.pose(p.x,p.z,heading,time,moving,d.seated&&d.role==='assistant'?.45:0);else actor.group.position.set(p.x,0,p.z);
+   if(d.role==='player'&&(actor.group.visible||controlled))actor.actionPose(p.motion,{defending:p.defending,speed:Math.hypot(p.vx||0,p.vz||0)});
    shadowPose.position.set(p.x,actor.group.position.y+.012,p.z);shadowPose.scale.setScalar(actor.group.visible?(d.seated?.8:1):0);shadowPose.updateMatrix();root.userData.shadows?.setMatrixAt(i,shadowPose.matrix);
   }
   if(root.userData.shadows)root.userData.shadows.instanceMatrix.needsUpdate=true;

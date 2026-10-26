@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {footballInput,footballCamera,matchTime,ballDirection} from '../dist/football-controls.js';
 
 test('camera-relative football movement rotates correctly without diagonal speed gain',()=>{
- assert.deepEqual(footballInput({forward:1}),{x:0,z:-1,sprint:false});
+ assert.deepEqual(footballInput({forward:1}),{x:0,z:-1,sprint:false,defend:false});
  const west=footballInput({forward:1,yaw:Math.PI/2});assert.ok(Math.abs(west.x+1)<1e-8&&Math.abs(west.z)<1e-8);
  const diagonal=footballInput({forward:1,side:1,sprint:true});assert.ok(Math.abs(Math.hypot(diagonal.x,diagonal.z)-1)<1e-8);assert.equal(diagonal.sprint,true);
  const partial=footballInput({forward:.25,side:.1});assert.ok(Math.abs(Math.hypot(partial.x,partial.z)-Math.hypot(.25,.1))<1e-8);

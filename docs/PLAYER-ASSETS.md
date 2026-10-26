@@ -7,7 +7,7 @@
 - [MakeHuman 核心资产许可](https://github.com/makehumancommunity/makehuman/blob/master/LICENSE.md)：网格、目标形变、材质及衣物数据为 CC0；不包含 MakeHuman 的 AGPL 程序代码。
 - [MakeHuman system assets](https://static.makehumancommunity.org/assets/assetpacks/makehuman_system_assets.html)：young_caucasian_male、young_african_male 皮肤，short02 短发、low-poly 眼睛、brown_eye、eyebrow002。
 - [Shirts 01](https://static.makehumancommunity.org/assets/assetpacks/shirts01.html)：MargaretToigo / MRT 的 T-shirt_basic_tucked，CC0。
-- [Quaternius Universal Animation Library Standard](https://quaternius.com/packs/universalanimationlibrary.html)：CC0 行走、站立、坐姿与交谈动画。原包由作者发布在 [OpenGameArt](https://opengameart.org/content/universal-animation-library)，原始 License.txt 随项目附带。
+- [Quaternius Universal Animation Library Standard](https://quaternius.com/packs/universalanimationlibrary.html)：CC0 行走、慢跑、冲刺、站立、坐姿与交谈动画。原包由作者发布在 [OpenGameArt](https://opengameart.org/content/universal-animation-library)，原始 License.txt 随项目附带。
 - CC0 全文位于 `dist/assets/players/LICENSE.CC0.txt`。俱乐部队徽权利单独保留，见根目录第三方声明。
 
 ## 再生成资源
@@ -40,3 +40,6 @@ python scripts/build-players.py /absolute/path/to/makehuman-source-cache
 ## 检查
 
 `npm run check` 覆盖权重归一化、人体与衣服位置、鞋封口朝向及闭合性、实际蒙皮鞋底落地、独立人物路线、入场路线与建筑地面和碰撞、音频加载 / 静音 / 暂停 / 退出 / 失败重试。视觉仍需要检查通道近景、正面、侧面、步行动作和手机尺寸。
+
+
+版本 2.2 从同一份 Standard 包增加 `Jog_Fwd_Loop` 与 `Sprint_Loop`，由相同脚本重新采样与重定向。运行时按实际移动速度平滑混合三档步态，循环相位按位移推进。足球传射与出脚的小幅骨骼叠加位于 `football-action-pose.js`，保留支撑腿和根节点的原始落地姿势；它是本项目制作的动作反馈，不是从商业游戏提取的动画。

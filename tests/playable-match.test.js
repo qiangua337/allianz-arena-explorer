@@ -5,7 +5,7 @@ registerHooks({resolve(s,c,next){return s==='three'?{url:new URL('../dist/vendor
 const {THREE}=await import('../dist/kit.js');
 const {buildPlayableMatch}=await import('../dist/playable-match.js');
 function fixture(){
- const nodes=new Map(),node=id=>{if(!nodes.has(id)){const handlers={};nodes.set(id,{hidden:false,textContent:'',dataset:{},setAttribute(k,v){this[k]=v;},addEventListener(k,v){handlers[k]=v;},showModal(){this.open=true;},close(){if(this.open){this.open=false;handlers.close?.();}},focus(){}});}return nodes.get(id);};
+ const nodes=new Map(),node=id=>{if(!nodes.has(id)){const handlers={};nodes.set(id,{hidden:false,textContent:'',dataset:{},setAttribute(k,v){this[k]=v;},addEventListener(k,v){handlers[k]=v;},fire(k,v){handlers[k]?.(v);},showModal(){this.open=true;},close(){if(this.open){this.open=false;handlers.close?.();}},focus(){}});}return nodes.get(id);};
  const context=new Proxy({createRadialGradient:()=>({addColorStop(){}})},{get:(o,k)=>k in o?o[k]:()=>{}}),classes=new Set();
  globalThis.document={createElement:()=>({getContext:()=>context}),getElementById:node,querySelectorAll:()=>[],exitPointerLock(){},body:{dataset:{},classList:{add:x=>classes.add(x),remove:x=>classes.delete(x)}}};
  const audio={muted:false,state:'playing',cheer(){},cue(){},setMuted(value){this.muted=value;}},players={ready:true,root:new THREE.Group(),updateMatch(){}};let game;const views=[];
@@ -24,4 +24,11 @@ test('pause is explicit, help preserves a previous pause, and exit clears the li
 });
 test('sound remains controllable during play and restarting resets possession and score',()=>{
  const{game,node,audio}=fixture();game.start();game.ready();run(game,3.1);node('game-mute').onclick();assert.equal(audio.muted,true);assert.equal(node('game-mute')['aria-label'],'开启比赛声音');game.state.score.home=2;node('game-restart').onclick();assert.deepEqual(game.state.score,{home:0,away:0});assert.equal(game.state.phase,'kickoff');assert.equal(game.state.ball.ownerId,'home-1');
+});
+
+
+test('control assistance can change during a match without resetting it, and pressure releases on pause',()=>{
+ const{game,node}=fixture();game.start();game.ready();run(game,3.2);const elapsed=game.state.elapsed,controlled=game.state.controlledId;game.setControlMode('manual');assert.equal(game.state.controlMode,'manual');assert.equal(game.state.elapsed,elapsed);assert.equal(game.state.controlledId,controlled);assert.equal(node('game-control-mode').textContent,'手动 ↻');
+ const button=node('game-pressure');button.fire('pointerdown',{pointerId:7,preventDefault(){}});run(game,.1);assert.equal(game.state.players.find(p=>p.id===controlled).defending,true);assert.equal(button['aria-pressed'],'true');game.setPaused(true);assert.equal(button['aria-pressed'],'false');game.setPaused(false);run(game,.1);assert.equal(game.state.players.find(p=>p.id===controlled).defending,false);
+ node('game-control-mode').onclick();assert.equal(game.state.controlMode,'semi');
 });
