@@ -99,3 +99,6 @@ body.game-active[data-game-paused=true] .game-actions,body.game-active[data-game
 body.game-active.game-replay #movement{display:none!important}
 
 .game-player .game-assist-row{display:flex;flex-wrap:wrap;gap:5px;pointer-events:auto}.game-assist-row small{width:100%;margin-top:1px}.game-shot-feedback{position:absolute;z-index:9;left:50%;top:80px;transform:translateX(-50%);padding:8px 13px;border:1px solid #e3c28444;border-radius:5px;background:#17232adb;color:#efdcaf;font-size:11px;pointer-events:none;white-space:nowrap}.game-shot-feedback[data-outcome=goal]{color:#a9e5b6;border-color:#8ec79566}.game-shot-feedback[data-outcome=parried]{color:#ffcf87}.game-replay .game-shot-feedback{display:none}@media(max-width:760px){.game-player .game-assist-row{display:flex;flex-wrap:wrap;gap:5px}.game-shot-feedback{top:161px;font-size:10px;padding:7px 11px}}@media(max-height:500px) and (min-width:600px){.game-shot-feedback{top:58px}}
+
+body[data-interaction]:not([data-interaction=""]) #crosshair{color:#e3c482;filter:drop-shadow(0 0 3px #36270e)}
+body[data-interaction]:not([data-interaction=""]) #crosshair i{background:currentColor}

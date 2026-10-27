@@ -12,3 +12,9 @@ dialog.museum-dialog{width:min(800px,calc(100vw - 28px));max-height:88dvh;backgr
 dialog.museum-dialog{overflow:hidden}.museum-dialog #dialog-content{max-height:calc(88dvh - 76px);overflow-y:auto;overscroll-behavior:contain;padding-right:8px;scrollbar-width:thin;scrollbar-color:#6e6450 #151c21}@media(max-width:760px){.museum-dialog #dialog-content{max-height:calc(100dvh - 90px)}}@media(max-height:500px){.museum-dialog #dialog-content{max-height:calc(100dvh - 98px)}}
 
 .museum-reference{font-size:11px;border-bottom:1px solid #ffffff18;padding:14px 0;color:#bfc2b9}.museum-reference summary{cursor:pointer;min-height:28px;line-height:28px;color:#cfb98e}.museum-reference p{font-size:11px;line-height:1.85}.museum-reference a{display:block;font-size:10px;margin:9px 0;color:#cbb582}
+@media(max-height:500px){
+ dialog.museum-dialog{padding:20px 28px}.museum-dialog #dialog-content{max-height:calc(100dvh - 64px)}
+ .museum-dialog h2{font-size:22px;margin:5px 0}.museum-eyebrow{font-size:8px;letter-spacing:1.4px}.museum-dialog .museum-subtitle{margin:0 0 9px;font-size:11px}
+ .museum-catalog-intro{padding:6px 0 10px;gap:12px}.museum-catalog-intro strong{font-size:28px}.museum-catalog-intro span{font-size:10px}.museum-search{margin-top:10px}.museum-filters{margin:8px 0}.museum-card{min-height:130px;padding:12px}
+ .museum-back{padding:0 0 10px;min-height:32px}.museum-detail-hero{min-height:70px;padding:10px 18px}.museum-award-symbol{font-size:44px}.museum-detail-years{font-size:24px}.museum-dialog h3{margin:14px 0 8px}.museum-dialog .museum-story{font-size:12px}
+}

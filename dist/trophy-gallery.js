@@ -1,4 +1,4 @@
-import {THREE,v,mat,mesh,box,beam,cylinder,sign,canvasTexture,Batches,getCrestImage} from './kit.js';
+import {THREE,v,mat,mesh,box,beam,cylinder,fittedSign as sign,canvasTexture,Batches,getCrestImage} from './kit.js';
 import {finishedBox} from './finishes.js';
 import {honours} from './honours.js';
 import {buildPersonalGallery} from './personal-gallery.js';
@@ -26,6 +26,9 @@ function pokal(g,gold,gem){
  for(let i=0;i<12;i++){const t=i/12*Math.PI*2,r=.355;mesh(new THREE.SphereGeometry(.027,10,6),gem,g,Math.sin(t)*r,.81,Math.cos(t)*r);for(const y of[.69,.91]){const stud=mesh(new THREE.SphereGeometry(.014,8,5),gold,g,Math.sin(t)*r,y,Math.cos(t)*r);stud.scale.y=1.5;}}
  sign(g,'DFB',.19,.08,0,.68,.354,{font:90,w:256,h:128,fg:'#65502c'});
 }
+export function addClubAward(display,kind,{silver,gold,dark,gem}){
+ if(kind==='europe'){cup(display,silver);display.scale.setScalar(.628);}else if(kind==='shield'){shield(display,silver,dark,gem);display.scale.setScalar(.68);}else{pokal(display,gold,gem);display.scale.setScalar(.50);}return display;
+}
 export function buildTrophyGallery(g,{dark,red,lightMat}){
  const silver=mat(0xdce2e5,{metalness:1,roughness:.19,envMapIntensity:1.1}),gold=mat(0xe7bd61,{metalness:1,roughness:.24,envMapIntensity:1.05}),bronze=mat(0x9c8053,{metalness:.8,roughness:.38}),gem=mat(0x214d3e,{metalness:.3,roughness:.17}),glass=mat(0xc5dfe1,{transparent:true,opacity:.055,roughness:.15,depthWrite:false,envMapIntensity:.55});
  const caseMap=canvasTexture(128,256,c=>{const gradient=c.createLinearGradient(0,0,128,0);gradient.addColorStop(0,'#8196a1');gradient.addColorStop(.38,'#d0e0e8');gradient.addColorStop(.65,'#c2d8e2');gradient.addColorStop(1,'#718e9f');c.fillStyle=gradient;c.fillRect(0,0,128,256);}),caseMaterial=new THREE.MeshBasicMaterial({map:caseMap,color:0xc3d1d6,toneMapped:false}),frame=mat(0x7f8c91,{metalness:.8,roughness:.33});
@@ -35,9 +38,9 @@ export function buildTrophyGallery(g,{dark,red,lightMat}){
   // Four separate glass sides, leaving a clear, undoubled view through each case.
   for(const side of[-1,1]){box(g,1.68,1.25,.008,x,1.9,z+side*.849,glass);box(g,.008,1.25,1.68,x+side*.849,1.9,z,glass);}
   const display=new THREE.Group();display.position.set(x,1.295,z);display.rotation.y=x<0?Math.PI/2:-Math.PI/2;g.add(display);
-  if(h.kind==='europe'){cup(display,silver);display.scale.setScalar(.628);}else if(h.kind==='shield'){shield(display,silver,dark,gem);display.scale.setScalar(.68);}else{pokal(display,gold,gem);display.scale.setScalar(.50);}
+  addClubAward(display,h.kind,{silver,gold,dark,gem});
   sign(g,h.year,1.42,.31,x,.57,z+.861,{font:112,w:512,h:160,fg:'#27343a'});sign(g,h.city,1.4,.12,x,.25,z+.862,{font:50,w:512,h:128,fg:'#34474f'});const aisleLabel=sign(g,h.year,1.42,.31,x+(x<0?.861:-.861),.57,z,{font:112,w:512,h:160,fg:'#27343a'});aisleLabel.rotation.y=x<0?Math.PI/2:-Math.PI/2;
-  const plaque=sign(g,h.opponent,1.42,.13,x+(x<0?.862:-.862),.27,z,{font:54,w:512,h:128,fg:'#34474f'});plaque.rotation.y=x<0?Math.PI/2:-Math.PI/2;
+  const plaque=sign(g,h.opponent,1.42,.13,x+(x<0?.862:-.862),.27,z,{font:74,w:512,h:128,fg:'#34474f'});plaque.rotation.y=x<0?Math.PI/2:-Math.PI/2;const title=sign(g,'球队荣誉 · '+h.year,1.48,.14,x+(x<0?.863:-.863),1.06,z,{font:145,fg:'#27343a'});title.rotation.y=x<0?Math.PI/2:-Math.PI/2;
  }
  const legacy=canvasTexture(2048,640,c=>{
   c.fillStyle='#211b20';c.fillRect(0,0,2048,640);const wash=c.createLinearGradient(0,0,2048,640);wash.addColorStop(0,'#701b2b');wash.addColorStop(1,'#101b23');c.fillStyle=wash;c.fillRect(0,0,2048,640);

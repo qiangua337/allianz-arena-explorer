@@ -16,6 +16,7 @@ export const personalHonours=[
  {id:'ribery',name:'弗兰克·里贝里',english:'FRANCK RIBÉRY',number:'07',category:'europe',award:'UEFA 欧洲最佳球员',years:'2012/13',kind:'uefa',models:1,caption:'三冠之年，属于边路的光。',detail:'里贝里获得 UEFA 2012/13 赛季欧洲最佳球员奖，那个赛季他随拜仁赢得三冠王。这里展出的是 UEFA 赛季奖，不能标为 2013 年金球奖。',records:[['2012/13','UEFA 欧洲最佳球员']],sources:[source('UEFA · 里贝里获奖公告','https://www.uefa.com/uefachampionsleague/news/0250-0c50fe103b73-0fcc5456ac81-1000--ribery-is-crowned-uefa-best-player-in-europe/')]} 
 ].map((h,i)=>({...h,x:i<6?-6.98:6.98,z:i<6?-9.5+i*3.8:[-9.5,-5.7,5.7,9.5][i-6],yaw:i<6?Math.PI/2:-Math.PI/2}));
 export const museumFilters=[['all','全部'],['ballon','金球奖'],['scorer','金靴'],['world','世界级荣誉'],['europe','欧洲最佳']];
+export function museumObjectLabel(h){return h.kind==='uefa'?'银色半身造型奖杯':h.id==='kane-shoe'||h.id==='thomas'?'金靴奖杯 · 拜仁球衣与纪念物示意':h.kind==='ballon'?'金球奖杯':h.kind==='glove'?'金手套奖杯':h.kind==='world-ball'?'世界杯金球奖杯':'The Best 奖杯与欧洲金靴';}
 export function filterPersonalHonours(query='',category='all'){
  const q=query.trim().toLocaleLowerCase();return personalHonours.filter(h=>(category==='all'||h.category===category||category==='scorer'&&h.records.some(r=>r[1].includes('金靴')))&&(!q||[h.name,h.english,h.award,h.years,...h.records.flat()].join(' ').toLocaleLowerCase().includes(q)));
 }

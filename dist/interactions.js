@@ -1,13 +1,15 @@
-import {honours} from './honours.js';
-import {personalHonours} from './personal-honours.js';
+import {museumTargets} from './museum-targets.js';
+import {chooseInteraction,focusBox,pointAhead} from './interaction-focus.js';
+import {addClubAward} from './trophy-gallery.js';
 import {openMuseumCatalog,openMuseumExhibit} from './museum-catalog.js';
 import {hangingJerseyGeometry,jerseyBumpTexture} from './wardrobe-detail.js';
 import {drawJerseyArtwork} from './jersey-artwork.js';
 import {THREE,v,mat,mesh,box,beam,sign,canvasTexture} from './kit.js';
 import {roomSpecs} from './building-layout.js';
 import {playerByNumber} from './roster.js';
-export function buildInteractions(scene,interiors,{toast,navigate,showInfo,setEye,serviceRooms}){
- const root=new THREE.Group();root.name='Working doors and interactive exhibits';scene.add(root);const button=document.getElementById('interact'),colliders=[],doors=[],items=[];let selected=null,clock=0,seated=false,shirt=0,tactic=0;
+export function buildInteractions(scene,interiors,{toast,navigate,showInfo,setEye,serviceRooms,openPersonal=openMuseumExhibit,openCatalogue=openMuseumCatalog}){
+ const root=new THREE.Group();root.name='Working doors and interactive exhibits';scene.add(root);const button=document.getElementById('interact'),colliders=[],doors=[],items=[],direction=v(),previousPosition=v(Infinity,0,0),previousDirection=v(),pickerRay=new THREE.Raycaster(),pickerMaterial=new THREE.MeshBasicMaterial({side:THREE.DoubleSide});let selected=null,seated=false,shirt=0,tactic=0,currentPosition=null,currentCamera=null,currentMode='orbit',previousMode='',focusChanged=false,painted='';
+ const outline=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(1,1,1)),new THREE.LineBasicMaterial({color:0xe3c482,transparent:true,opacity:.72,depthWrite:false}));outline.name='Aimed exhibit outline';outline.visible=false;outline.renderOrder=4;root.add(outline);
  const red=mat(0x9b1a34),glass=mat(0xa1c6cc,{transparent:true,opacity:.19,roughness:.2}),metal=mat(0xa9b9bd,{metalness:.6});
  const names={homeRoom:'主队更衣室',guestRoom:'客队更衣室',press:'新闻发布厅',lounge:'贵宾包厢',store:'球迷商店',museum:'荣誉展厅'};
  for(const[id,s]of Object.entries(roomSpecs)){
@@ -15,23 +17,34 @@ export function buildInteractions(scene,interiors,{toast,navigate,showInfo,setEy
   const board=sign(root,names[id]+' · 自动门',2,.32,x+.13,s.y+3.15,z,{bg:'#354e57',font:70});board.rotation.y=Math.PI/2;
   const collider={x0:x-.3,x1:x+.3,z0:z-1.38,z1:z+1.38,y0:s.y,y1:s.y+2.9,enabled:true};colliders.push(collider);doors.push({id,x,z,y:s.y,hinge,angle:0,hold:false,collider});
  }
- function item(id,p,label,act,radius=2.8){items.push({id,p:v(...p),label,act,radius});}
+ function item(id,p,label,act,radius=2.8,target={}){items.push({id,p:v(...p),label,act,reach:radius,focusBoxes:[focusBox(...p,1,1.15,1)],...target});}
  item('welcome',[4,-1.2,110],'咨询下一站路线',()=>showInfo('从大厅继续参观','沿入口层环廊到东侧室内楼梯，上楼可到公共大厅、商店、展厅、包厢和三层看台。球员区域可由草坪西侧红色通道步行进入。',['concourse','store','museum','lounge','stands','pitch']));
  item('tactics',[-74,-1,-4.3],'切换战术板阵型',()=>{tactic=1-tactic;interiors.setTactics?.(tactic);toast('战术板：'+(tactic?'4–4–2':'4–2–3–1'));});
- for(const h of honours)item('honour'+h.year,[-96+h.x,13.5,58+h.z],'查看 '+h.title,()=>showInfo(h.year+' · '+h.title,h.opponent+' · '+h.score+'。'+h.detail,[],h));
- for(const h of personalHonours)item('personal-'+h.id,[-96+h.x,13.6,58+h.z],'查看 '+h.name+' · '+h.award,()=>openMuseumExhibit(h.id),2.6);
- item('museum-directory',[-89,13.7,60.65],'打开展览目录',openMuseumCatalog,2.5);document.getElementById('museum-catalog').onclick=openMuseumCatalog;
+ for(const target of museumTargets){const h=target.exhibit;if(target.type==='club')item(target.id,[-96+h.x,13.5,58+h.z],'球队荣誉 · '+h.year+' · '+h.title,()=>showInfo(h.year+' · '+h.title,h.opponent+' · '+h.score+'。'+h.detail,[],h),target.reach,target);else if(target.type==='personal')item(target.id,[-96+h.x,13.6,58+h.z],h.name+' · '+h.award+' · '+h.years,()=>openPersonal(h.id),target.reach,target);else item(target.id,[-89,13.7,60.65],'打开展览目录',openCatalogue,target.reach,target);}
+ // CPU-only pick meshes use the same award builder as the visible gallery.
+ // They never enter the rendered scene, and omit the empty glass enclosure.
+ for(const target of items.filter(i=>i.type==='club')){const h=target.exhibit,probe=new THREE.Group(),x=-96+h.x,z=58+h.z;mesh(new THREE.BoxGeometry(1.74,1.28,1.74),pickerMaterial,probe,x,12.64,z);const award=new THREE.Group();award.position.set(x,13.295,z);award.rotation.y=h.x<0?Math.PI/2:-Math.PI/2;probe.add(award);addClubAward(award,h.kind,{silver:pickerMaterial,gold:pickerMaterial,dark:pickerMaterial,gem:pickerMaterial});probe.updateMatrixWorld(true);target.hitTest=(origin,ray)=>{pickerRay.set(origin,ray);const hit=pickerRay.intersectObject(probe,true)[0];return hit?hit.distance:null;};}
+ document.getElementById('museum-catalog').onclick=openCatalogue;
  const display=new THREE.Group();display.position.set(10,13.65,118);root.add(display);box(display,1.7,.12,1.3,0,-1.2,0,metal);box(display,.06,1.2,.06,0,-.6,0,metal);const jerseyCanvas=document.createElement('canvas');jerseyCanvas.width=512;jerseyCanvas.height=640;const jerseyMap=new THREE.CanvasTexture(jerseyCanvas);jerseyMap.colorSpace=THREE.SRGBColorSpace;const hanger=new THREE.Group();hanger.rotation.y=Math.PI/2;display.add(hanger);const jersey=mesh(hangingJerseyGeometry(),new THREE.MeshStandardMaterial({map:jerseyMap,bumpMap:jerseyBumpTexture(),bumpScale:.002,roughness:.94,alphaTest:.12,side:THREE.DoubleSide}),hanger,0,0,.066);jersey.scale.set(1.12,1.12,1);for(const side of[-1,1])beam(hanger,v(side*.31,.45,0),v(0,.59,0),.009,metal,6);beam(hanger,v(-.31,.45,0),v(.31,.45,0),.009,metal,6);
  function updateShirt(){const p=playerByNumber([9,10,17,14,6][shirt]);drawJerseyArtwork(jerseyCanvas.getContext('2d'),p.number,p.name,'#b71c37');jerseyMap.needsUpdate=true;}updateShirt();
- item('shirt',[11,13.7,118],'切换球衣 · 旋转陈列',()=>{shirt=(shirt+1)%5;updateShirt();display.rotation.y+=Math.PI/4;toast('展示球衣：'+playerByNumber([9,10,17,14,6][shirt]).name);});
+ item('shirt',[10,13.65,118],'切换球衣 · 旋转陈列',()=>{shirt=(shirt+1)%5;updateShirt();display.rotation.y+=Math.PI/4;toast('展示球衣：'+playerByNumber([9,10,17,14,6][shirt]).name);});
  for(const[id,p]of[['middleSeat',[81.2,24.8,-30.1]],['upperSeat',[101.4,41,-36.5]],['lowerSeat',[1.1,12,-82.5]]])item(id,p,'坐下 / 起身观看球场',()=>{seated=!seated;setEye(seated?1.05:1.7);toast(seated?'已坐下。再次按 F 或移动即可起身。':'已起身。');},3.2);
  button.onclick=()=>activate();
- function activate(){if(selected?.door){selected.door.hold=!selected.door.hold;toast(selected.door.hold?'自动门保持开启。':'自动门恢复感应。');}else selected?.act();document.getElementById('scene').focus({preventScroll:true});}
+ function refreshSelection(force=false){
+  if(currentCamera)currentCamera.getWorldDirection(direction);if(!force&&currentPosition&&currentMode===previousMode&&currentPosition.distanceToSquared(previousPosition)<1e-10&&direction.distanceToSquared(previousDirection)<1e-10)return;
+  if(currentPosition)previousPosition.copy(currentPosition);previousDirection.copy(direction);previousMode=currentMode;
+  const before=selected?.id||selected?.door?.id||'';selected=null;
+  if(currentMode==='walk'&&currentPosition){selected=chooseInteraction(items,currentPosition,currentCamera?direction:null);
+   if(!selected){const d=doors.find(d=>Math.hypot(currentPosition.x-d.x,currentPosition.z-d.z)<3&&Math.abs(currentPosition.y-d.y-1.7)<1.8&&(!currentCamera||pointAhead(currentPosition,direction,{x:d.x,y:d.y+1.5,z:d.z})));if(d)selected={door:d,label:d.hold?'恢复感应自动门':'让自动门保持开启'};}
+   if(!selected&&serviceRooms){const d=serviceRooms.nearest(currentPosition);if(d&&(!currentCamera||pointAhead(currentPosition,direction,{x:d.x,y:d.y+1.5,z:d.z})))selected={id:d.id,label:d.open?'关闭服务间双门':'打开服务间双门',act:()=>toast(serviceRooms.toggle(d)?'服务间双门已打开，可以走进去查看。':'服务间双门将关闭。')};}
+  }
+  const id=selected?.id||selected?.door?.id||'',label=selected?'F · '+selected.label:'';focusChanged=before!==id;
+  if(id+'|'+label!==painted){painted=id+'|'+label;button.hidden=!selected;if(selected)button.textContent=label;document.body.dataset.interaction=id;document.body.dataset.interactionLabel=selected?.label||'';}
+  outline.visible=!!selected?.highlight;if(outline.visible){const b=selected.highlight;outline.position.set((b.x0+b.x1)/2,(b.y0+b.y1)/2,(b.z0+b.z1)/2);outline.scale.set(b.x1-b.x0+.02,b.y1-b.y0+.02,b.z1-b.z0+.02);}
+ }
+ function activate(){refreshSelection(true);if(!selected)return false;if(selected.door){selected.door.hold=!selected.door.hold;toast(selected.door.hold?'自动门保持开启。':'自动门恢复感应。');refreshSelection(true);}else selected.act();if(!document.querySelector?.('dialog[open]'))document.getElementById('scene').focus({preventScroll:true});return true;}
  function stand(){if(seated){seated=false;setEye(1.7);}}
- return{colliders,activate,stand,isAnimating:()=>doors.some(d=>Math.abs(d.angle-(d.target||0))>.003),update(position,dt,mode){root.visible=true;for(const d of doors){const distance=Math.hypot(position.x-d.x,position.z-d.z),close=distance<3.3&&Math.abs(position.y-d.y-1.7)<2.2,target=d.hold||close?Math.PI/2:0;d.target=target;d.angle=THREE.MathUtils.damp(d.angle,target,9,dt);d.hinge.rotation.y=d.angle;d.collider.enabled=d.angle<1.05;}
-  clock+=dt;if(clock<.15)return;clock=0;document.getElementById('museum-catalog').hidden=!(Math.abs(position.x+96)<8.2&&Math.abs(position.z-58)<13.2&&Math.abs(position.y-13.7)<3);if(mode!=='walk'){button.hidden=true;return;}const nearby=items.filter(i=>position.distanceTo(i.p)<i.radius).sort((a,b)=>position.distanceToSquared(a.p)-position.distanceToSquared(b.p));selected=nearby[0]||null;
-  if(!selected){const d=doors.find(d=>Math.hypot(position.x-d.x,position.z-d.z)<3&&Math.abs(position.y-d.y-1.7)<1.8);if(d)selected={door:d,label:d.hold?'恢复感应自动门':'让自动门保持开启'};}
-  if(!selected&&serviceRooms){const d=serviceRooms.nearest(position);if(d)selected={id:d.id,label:d.open?'关闭服务间双门':'打开服务间双门',act:()=>toast(serviceRooms.toggle(d)?'服务间双门已打开，可以走进去查看。':'服务间双门将关闭。')};}
-  button.hidden=!selected;if(selected)button.textContent='F · '+selected.label;document.body.dataset.interaction=selected?.id||selected?.door?.id||'';
+ return{colliders,activate,stand,isAnimating:()=>focusChanged||doors.some(d=>Math.abs(d.angle-(d.target||0))>.003),update(position,dt,mode,camera=null){focusChanged=false;currentPosition=position;currentCamera=camera;currentMode=mode;root.visible=true;for(const d of doors){const distance=Math.hypot(position.x-d.x,position.z-d.z),close=distance<3.3&&Math.abs(position.y-d.y-1.7)<2.2,target=d.hold||close?Math.PI/2:0;d.target=target;d.angle=THREE.MathUtils.damp(d.angle,target,9,dt);d.hinge.rotation.y=d.angle;d.collider.enabled=d.angle<1.05;}
+  document.getElementById('museum-catalog').hidden=!(Math.abs(position.x+96)<8.2&&Math.abs(position.z-58)<13.2&&Math.abs(position.y-13.7)<3);refreshSelection();
  }};
 }

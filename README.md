@@ -4,6 +4,17 @@
 
 [在线探索](https://allianz-arena-explorer.pages.dev/) · [GitHub 源码](https://github.com/qiangua337/allianz-arena-explorer) · [Cloudflare 部署说明](docs/DEPLOYMENT.md) · [MIT 许可证](LICENSE)
 
+版本 **5.1：修复展柜串内容，完善展品辨识与手机查阅**。
+
+- 全场互动改为视线选中：按 F 或点击时重新确认当前目标。荣誉展柜的高亮、提示和介绍使用同一份记录，隔墙或身后的展品不会抢占选择；中央玻璃柜的空白部分也不会挡住后方展板。
+- 每座个人展柜补齐姓名、奖项、年份与展品类型；球衣直接标注 KANE · 9、MÜLLER · 25 和配色示意。铭牌保持正常文字比例，修复过扁的字形。
+- 参考 UEFA 官方奖杯照片重做里贝里奖杯的立体半身、上扬双臂与底座，修复金球表面的内部网格穿插。凯恩的获奖记录重新核对官方资料。
+- 手机横屏目录与介绍压缩标题空间，保留可滚动内容和固定关闭按钮；实际检查 390 × 844 与 844 × 390 视口。
+
+![5.1：可辨识的姓名、年份与 UEFA 奖杯](docs/images/museum-focus-5100.png)
+
+[进入荣誉展厅](https://allianz-arena-explorer.pages.dev/?place=museum&night=1) · [5.1 修复依据与验证](docs/EXHIBIT-FOCUS-5.1.md)
+
 版本 **5.0：参考真实展陈与设施，重调射门和门将**。
 
 - 荣誉展厅参考拜仁官方 2026 改造照片，调整双排透光展台、深色设备顶和红黑展板；新增十组个人荣誉展柜，包括金球、金靴、金手套、The Best 和 UEFA 最佳球员，附年份、故事与原始资料。
