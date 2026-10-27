@@ -11,12 +11,15 @@ export function passOption(players,player,ball,{direction=null,type='pass',power
   if(!best||score>best.score)best={player:mate,x:tx,z:tz,score,lane,distance:d};
  }return best;
 }
-export function shotOption(player,ball,{direction=null,power=.5,error=0}={}){
- const sign=player.team==='home'?-1:1,goalZ=sign*52.5,dz=goalZ-ball.z,strength=direction?Math.hypot(direction.x,direction.z):0;
- // Aim assistance keeps the target in the goal mouth; sideways stick input
- // selects a corner rather than forcing an implausible 90-degree shot.
- const corner=strength>.18?clamp(direction.x,-1,1)*2.8:clamp(Math.sin(player.yaw)*1.6-player.x*.025,-2.1,2.1),x=clamp(corner+error,-4.6,4.6),distance=Math.hypot(x-ball.x,dz),speed=18+power*13;
- return{x,z:goalZ,speed,vy:1.0+Math.max(0,distance-17)*.068+power*.8,distance};
+export const shotKinds=['drive','finesse','lob'];
+export const shotLabels={drive:'劲射',finesse:'搓射',lob:'挑射'};
+export function shotOption(player,ball,{direction=null,power=.5,error=0,kind='drive',keeper=null}={}){
+ kind=shotKinds.includes(kind)?kind:'drive';power=clamp(power,.15,1);
+ const sign=player.team==='home'?-1:1,goalZ=sign*52.5,dz=goalZ-ball.z,strength=direction?Math.hypot(direction.x,direction.z):0,explicit=strength>.18;
+ const openSide=keeper?keeper.x>ball.x*.12?-1:1:player.x>0?-1:1,corner=explicit?clamp(direction.x/strength,-1,1)*3.12:openSide*2.65,x=clamp(corner+error,-4.6,4.6),dx=x-ball.x,distance=Math.hypot(dx,dz),nominal=kind==='finesse'?17+power*10:20+power*14;
+ const flight=kind==='lob'?Math.max(.72,distance/(12+power*5)):-Math.log(Math.max(.25,1-.08*distance/nominal))/.08,speed=distance*.08/(1-Math.exp(-.08*flight)),y=kind==='lob'?1.75+power*.25:kind==='finesse'?1.05+power*.55:.42+power*.62,curve=kind==='finesse'?Math.sign(corner)*(4.2+power*1.8):0;
+ const travel=(1-Math.exp(-.08*flight))/.08,curveTravel=(flight-travel)/.08,vx=(dx-curve*curveTravel)/travel,vz=dz/travel,vy=(y-(ball.y||.11)+4.905*flight*flight)/flight;
+ return{x,y,z:goalZ,speed,vx,vz,vy,curve,flight,distance,kind};
 }
 export function receivingPoint(player,ball){
  const target=ball.receivePoint;if(!target)return{x:ball.x+ball.vx*.18,z:ball.z+ball.vz*.18};

@@ -1,3 +1,4 @@
+import {pressFloorRise} from './facility-layout.js';
 import {buildingFloors,inCoreShaft,onBridge,bridges,platforms} from './building-layout.js';
 import {accessAt,accessHeight,ACCESS_BASE,ACCESS_TOP} from './access-layout.js';
 import {visitorFloor,inVisitorPassage} from './tour-route.js';
@@ -34,7 +35,7 @@ export function floorHeight(x,z,feetY,{tiers=[],rooms={}}={}){
  for(const link of playerLinks)if(containsFloor(link,x,z))floors.push(link.y);
  if(containsFloor(playerShower,x,z))floors.push(playerShower.y);
  for(const[key,s]of Object.entries(rooms))if(inRoom(x,z,s)){
-  const rise=key==='press'&&z>-32.64?Math.max(0,Math.min(5,Math.floor((z+32.64)/1.28)))*.14:0;
+  const rise=key==='press'?pressFloorRise(z-s.z):0;
   floors.push(s.y+rise);
  }
  const roomFloor=Object.values(rooms).some(s=>inRoom(x,z,s)&&Math.abs(feetY-s.y)<1.2);

@@ -111,6 +111,6 @@ export function finishDisplayHardware(rooms,{metal}){
   const x=-7+side*13,z=-3+row*3.1;for(const xx of[-2,2]){finishedBox(shop,.09,.055,.72,x+xx,.065,z,m.dark,.018);for(const zz of[-.25,.25]){const wheel=cylinder(shop,.046,.055,x+xx,.044,z+zz,m.dark,10);wheel.rotation.z=Math.PI/2;}sb.add(.12,.12,.07,x+xx,2.18,z,metal);}
   beam(shop,v(x-2.15,2.2,z),v(x+2.15,2.2,z),.025,metal,10);
  }
- for(let i=0;i<8;i++){const x=i%2?3.7:-3.7,z=-8+Math.floor(i/2)*5.3;for(const side of[-1,1]){gb.add(1.73,.018,.018,x,2.96,z+side*.855,metal);gb.add(.018,.018,1.73,x+side*.855,2.96,z,metal);for(const edge of[-1,1])gb.add(.012,2.07,.012,x+side*.855,1.93,z+edge*.855,metal);}}
+ for(let i=0;i<8;i++){const x=i%2?3.7:-3.7,z=-8+Math.floor(i/2)*5.3;for(const side of[-1,1]){gb.add(1.73,.018,.018,x,2.535,z+side*.855,metal);gb.add(.018,.018,1.73,x+side*.855,2.535,z,metal);for(const edge of[-1,1])gb.add(.012,1.27,.012,x+side*.855,1.9,z+edge*.855,metal);}}
  sb.flush();gb.flush();
 }

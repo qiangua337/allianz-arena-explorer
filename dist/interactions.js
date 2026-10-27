@@ -1,4 +1,6 @@
 import {honours} from './honours.js';
+import {personalHonours} from './personal-honours.js';
+import {openMuseumCatalog,openMuseumExhibit} from './museum-catalog.js';
 import {hangingJerseyGeometry,jerseyBumpTexture} from './wardrobe-detail.js';
 import {drawJerseyArtwork} from './jersey-artwork.js';
 import {THREE,v,mat,mesh,box,beam,sign,canvasTexture} from './kit.js';
@@ -17,6 +19,8 @@ export function buildInteractions(scene,interiors,{toast,navigate,showInfo,setEy
  item('welcome',[4,-1.2,110],'咨询下一站路线',()=>showInfo('从大厅继续参观','沿入口层环廊到东侧室内楼梯，上楼可到公共大厅、商店、展厅、包厢和三层看台。球员区域可由草坪西侧红色通道步行进入。',['concourse','store','museum','lounge','stands','pitch']));
  item('tactics',[-74,-1,-4.3],'切换战术板阵型',()=>{tactic=1-tactic;interiors.setTactics?.(tactic);toast('战术板：'+(tactic?'4–4–2':'4–2–3–1'));});
  for(const h of honours)item('honour'+h.year,[-96+h.x,13.5,58+h.z],'查看 '+h.title,()=>showInfo(h.year+' · '+h.title,h.opponent+' · '+h.score+'。'+h.detail,[],h));
+ for(const h of personalHonours)item('personal-'+h.id,[-96+h.x,13.6,58+h.z],'查看 '+h.name+' · '+h.award,()=>openMuseumExhibit(h.id),2.6);
+ item('museum-directory',[-89,13.7,60.65],'打开展览目录',openMuseumCatalog,2.5);document.getElementById('museum-catalog').onclick=openMuseumCatalog;
  const display=new THREE.Group();display.position.set(10,13.65,118);root.add(display);box(display,1.7,.12,1.3,0,-1.2,0,metal);box(display,.06,1.2,.06,0,-.6,0,metal);const jerseyCanvas=document.createElement('canvas');jerseyCanvas.width=512;jerseyCanvas.height=640;const jerseyMap=new THREE.CanvasTexture(jerseyCanvas);jerseyMap.colorSpace=THREE.SRGBColorSpace;const hanger=new THREE.Group();hanger.rotation.y=Math.PI/2;display.add(hanger);const jersey=mesh(hangingJerseyGeometry(),new THREE.MeshStandardMaterial({map:jerseyMap,bumpMap:jerseyBumpTexture(),bumpScale:.002,roughness:.94,alphaTest:.12,side:THREE.DoubleSide}),hanger,0,0,.066);jersey.scale.set(1.12,1.12,1);for(const side of[-1,1])beam(hanger,v(side*.31,.45,0),v(0,.59,0),.009,metal,6);beam(hanger,v(-.31,.45,0),v(.31,.45,0),.009,metal,6);
  function updateShirt(){const p=playerByNumber([9,10,17,14,6][shirt]);drawJerseyArtwork(jerseyCanvas.getContext('2d'),p.number,p.name,'#b71c37');jerseyMap.needsUpdate=true;}updateShirt();
  item('shirt',[11,13.7,118],'切换球衣 · 旋转陈列',()=>{shirt=(shirt+1)%5;updateShirt();display.rotation.y+=Math.PI/4;toast('展示球衣：'+playerByNumber([9,10,17,14,6][shirt]).name);});
@@ -25,7 +29,7 @@ export function buildInteractions(scene,interiors,{toast,navigate,showInfo,setEy
  function activate(){if(selected?.door){selected.door.hold=!selected.door.hold;toast(selected.door.hold?'自动门保持开启。':'自动门恢复感应。');}else selected?.act();document.getElementById('scene').focus({preventScroll:true});}
  function stand(){if(seated){seated=false;setEye(1.7);}}
  return{colliders,activate,stand,isAnimating:()=>doors.some(d=>Math.abs(d.angle-(d.target||0))>.003),update(position,dt,mode){root.visible=true;for(const d of doors){const distance=Math.hypot(position.x-d.x,position.z-d.z),close=distance<3.3&&Math.abs(position.y-d.y-1.7)<2.2,target=d.hold||close?Math.PI/2:0;d.target=target;d.angle=THREE.MathUtils.damp(d.angle,target,9,dt);d.hinge.rotation.y=d.angle;d.collider.enabled=d.angle<1.05;}
-  clock+=dt;if(clock<.15)return;clock=0;if(mode!=='walk'){button.hidden=true;return;}const nearby=items.filter(i=>position.distanceTo(i.p)<i.radius).sort((a,b)=>position.distanceToSquared(a.p)-position.distanceToSquared(b.p));selected=nearby[0]||null;
+  clock+=dt;if(clock<.15)return;clock=0;document.getElementById('museum-catalog').hidden=!(Math.abs(position.x+96)<8.2&&Math.abs(position.z-58)<13.2&&Math.abs(position.y-13.7)<3);if(mode!=='walk'){button.hidden=true;return;}const nearby=items.filter(i=>position.distanceTo(i.p)<i.radius).sort((a,b)=>position.distanceToSquared(a.p)-position.distanceToSquared(b.p));selected=nearby[0]||null;
   if(!selected){const d=doors.find(d=>Math.hypot(position.x-d.x,position.z-d.z)<3&&Math.abs(position.y-d.y-1.7)<1.8);if(d)selected={door:d,label:d.hold?'恢复感应自动门':'让自动门保持开启'};}
   if(!selected&&serviceRooms){const d=serviceRooms.nearest(position);if(d)selected={id:d.id,label:d.open?'关闭服务间双门':'打开服务间双门',act:()=>toast(serviceRooms.toggle(d)?'服务间双门已打开，可以走进去查看。':'服务间双门将关闭。')};}
   button.hidden=!selected;if(selected)button.textContent='F · '+selected.label;document.body.dataset.interaction=selected?.id||selected?.door?.id||'';

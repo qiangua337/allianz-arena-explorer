@@ -4,6 +4,17 @@
 
 [在线探索](https://allianz-arena-explorer.pages.dev/) · [GitHub 源码](https://github.com/qiangua337/allianz-arena-explorer) · [Cloudflare 部署说明](docs/DEPLOYMENT.md) · [MIT 许可证](LICENSE)
 
+版本 **5.0：参考真实展陈与设施，重调射门和门将**。
+
+- 荣誉展厅参考拜仁官方 2026 改造照片，调整双排透光展台、深色设备顶和红黑展板；新增十组个人荣誉展柜，包括金球、金靴、金手套、The Best 和 UEFA 最佳球员，附年份、故事与原始资料。
+- 参照凯恩真实展柜增加球衣、比赛球、射手炮和纪念物示意；可走近按 F，也可用可搜索目录查看。实景参考可在目录中展开，压缩布展与估算尺寸明确标注。
+- 主要设施修订包括高背侧翼替补座椅、180 席发布厅、转播摄像机与线缆、媒体灯架和分段升降康复台；家具、踏步、导航与碰撞同步检查。
+- 门将有反应时间、有限触球范围和扑倒恢复，支持抱住、脱手与补射；Z / 手机按钮切换劲射、搓射和挑射，蓄力显示弧线与球门目标。回放和比赛数据同步适配。
+
+![5.0：参考真实双排奖杯大道与球员个人荣誉展陈](docs/images/museum-5000.png)
+
+[进入荣誉展厅](https://allianz-arena-explorer.pages.dev/?place=museum&night=1) · [赛前设置](https://allianz-arena-explorer.pages.dev/?place=pitch&night=1&experience=football) · [实景资料、范围与对照验证](docs/REALISM-AND-ATTACK-5.md)
+
 版本 **4.0：场馆、导览与比赛整体精修**。[直接打开赛前设置](https://allianz-arena-explorer.pages.dev/?place=pitch&night=1&experience=football)。
 
 - 草坪增加门前磨损、细颗粒纹理和随观看方向变化的割草反光，夜场重新平衡填充光；场边补摄影设备、补水与医护器材、训练锥、排水及喷淋五金。

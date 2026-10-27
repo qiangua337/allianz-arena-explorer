@@ -16,7 +16,10 @@ export function buildRoomDetail(rooms){
   // Trunk hardware, lock, transport labels and fabric straps.
   for(const x of[3.75,5.85]){b.add(.09,.11,.025,x,.7,5.324,steel);b.add(.09,.035,.03,x,.71,5.34,dark);}b.add(.28,.10,.025,4.8,.7,5.33,paper);b.add(.32,.028,.025,4.8,.70,5.35,red);b.flush();
  }
- const press=rooms.press;if(press){const b=new Batches(press);for(const x of[-4.5,0,4.5]){box(press,.37,.015,.28,x-.37,1.357,-5.45,dark);box(press,.34,.012,.23,x-.37,1.372,-5.45,paper);box(press,.20,.035,.065,x+.27,1.36,-5.55,dark);b.add(.015,.02,.20,x+.34,1.39,-5.52,steel);cylinder(press,.041,.092,x-.82,1.397,-5.3,paper,12);}b.flush();}
+ const press=rooms.press;if(press){const b=new Batches(press);for(const x of[-4.5,0,4.5]){box(press,.37,.015,.28,x-.37,1.357,-5.45,dark);box(press,.34,.012,.23,x-.37,1.372,-5.45,paper);box(press,.20,.035,.065,x+.27,1.36,-5.55,dark);b.add(.015,.02,.20,x+.34,1.39,-5.52,steel);cylinder(press,.041,.092,x-.82,1.397,-5.3,paper,12);}
+  // Venue photographs show a suspended media-light grid above the red seating.
+  const lamp=new THREE.MeshBasicMaterial({color:0xdfe8e8,toneMapped:false});for(const z of[-3.4,1.3]){beam(press,v(-9,4.03,z),v(9,4.03,z),.035,steel,8);for(const x of[-7,-3,3,7]){box(press,.34,.28,.25,x,3.87,z,dark);const face=box(press,.26,.018,.20,x,3.72,z,lamp);face.rotation.x=-.20;for(const side of[-1,1]){const flap=box(press,.35,.10,.018,x,3.76,z+side*.15,dark);flap.rotation.x=side*.50;}}}
+  for(const x of[-9.7,9.7])b.add(.07,.012,12.5,x,.013,.2,rubber);b.flush();}
  const shop=rooms.store;if(shop){box(shop,.22,.025,.30,3.5,1.198,5,dark);const pos=box(shop,.15,.11,.09,3.5,1.255,4.95,dark);pos.rotation.x=-.2;box(shop,.12,.055,.012,3.5,1.278,4.9,display);for(let i=0;i<4;i++){box(shop,.5,.018,.30,1.3,1.19+i*.022,5.2,i%2?paper:red);}}
  return{update(now=Date.now()){if(now<nextCheck)return;nextCheck=now+1000;const text=format.format(now);if(text===last)return;last=text;const c=texture.image.getContext('2d');c.fillStyle='#0b141b';c.fillRect(0,0,512,160);c.textAlign='center';c.font='600 103px monospace';c.fillStyle='#ef6670';c.fillText(text,256,115);texture.needsUpdate=true;},get clock(){return last;}};
 }

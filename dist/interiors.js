@@ -1,3 +1,5 @@
+import {pressLayout} from './facility-layout.js';
+import {buildBroadcastCamera,buildTreatmentTable} from './facility-equipment.js';
 import {buildRoomDetail} from './room-detail.js';
 import {buildTrophyGallery} from './trophy-gallery.js';
 import {awayKitRoster} from './matchday-roster.js';
@@ -27,8 +29,8 @@ export function buildInteriors(scene,circulation){
   wall(.2,4.5,spec.d,-spec.w/2,2.25,0);wall(spec.w,4.5,.2,0,2.25,-spec.d/2);if(key==='guestRoom'){wall((spec.w-2.4)/2,4.5,.2,-spec.w/4-.6,2.25,spec.d/2);wall((spec.w-2.4)/2,4.5,.2,spec.w/4+.6,2.25,spec.d/2);}else wall(spec.w,4.5,.2,0,2.25,spec.d/2);
   // An open door on the eastern side connects the below-pitch rooms to the corridor.
   wall(.2,4.5,(spec.d-2.4)/2,spec.w/2,2.25,-spec.d/4-.6);wall(.2,4.5,(spec.d-2.4)/2,spec.w/2,2.25,spec.d/4+.6);b.add(.22,1.7,2.4,spec.w/2,3.65,0,wallMat);
-  const ceil=box(shell,spec.w,.15,spec.d,0,4.55,0,finishes.ceiling);ceilings.push(ceil);
-  for(const x of[-spec.w*.29,spec.w*.29]){b.add(.13,.025,spec.d-1,x,4.43,0,lightMat);}
+  const ceil=box(shell,spec.w,.15,spec.d,0,4.55,0,key==='museum'?dark:finishes.ceiling);ceilings.push(ceil);
+  for(const x of(key==='museum'?[]:[-spec.w*.29,spec.w*.29])){b.add(.13,.025,spec.d-1,x,4.43,0,lightMat);}
   for(const z of[-spec.d*.25,spec.d*.25]){const l=new THREE.PointLight(0xffeee0,115,32,2);l.position.set(0,4.08,z);g.add(l);lights.push(l);}
   b.flush();finishRoom(shell,spec,key);return {g,b:new Batches(g),spec};
  }
@@ -56,7 +58,7 @@ export function buildInteriors(scene,circulation){
   sign(g,guest?'DORTMUND · AUSSTELLUNG':'FIRST TEAM · '+rosterInfo.season,7,.53,0,3.63,-spec.d/2+.18,{font:100,h:180,fg:guest?'#20384e':'#f1d8d9'});
   // Folded kit, a rolling equipment trunk and massage bench.
   b.add(2.5,.9,.8,4.8,.5,4.9,dark);for(let i=0;i<4;i++)b.add(2.55,.035,.04,4.8,.2+i*.25,5.31,metal);b.add(2.6,.1,.9,4.8,1,4.9,metal);for(const xx of[3.8,5.8])for(const zz of[4.6,5.2])b.add(.16,.16,.08,xx,.08,zz,dark);
-  b.add(2.1,.23,.9,4.8,.87,-6,dark);for(const xx of[4,5.6])b.add(.1,.7,.7,xx,.4,-6,metal);b.add(.5,.12,.7,5.5,1.03,-6,white);b.flush();
+  buildTreatmentTable(g,{x:4.8,z:-6,metal,dark,pad:floorRed});b.flush();
  }
  makeChanging('homeRoom');makeChanging('guestRoom',true);
  // A tiled shower annex connected to the guests' room via an open rear doorway.
@@ -114,8 +116,8 @@ export function buildInteriors(scene,circulation){
   const backdrop=pressBackdropTexture();finishedBox(g,17.24,3.62,.09,0,2.5,-8.035,dark,.025);mesh(new THREE.PlaneGeometry(17,3.4),new THREE.MeshBasicMaterial({map:backdrop}),g,0,2.5,-7.95);
   for(const x of[-4.5,0,4.5]){b.add(1.1,.15,1,x,.65,-6.4,dark);b.add(1.1,1,.2,x,1.15,-6.8,dark);beam(g,v(x,1.36,-5.25),v(x+.1,1.77,-5.1),.012,metal);mesh(new THREE.SphereGeometry(.055,8,6),dark,g,x+.1,1.8,-5.1);bottle(g,x+.7,1.35,-5.35);sign(g,x===0?'FC BAYERN':'PRESSE',1.3,.24,x,1.46,-4.96,{bg:'#e7ecec',fg:'#1d3c53',font:65,h:128});}
   addCrest(g,5.2,0,2.6,8.78).rotation.y=Math.PI;for(let j=0;j<7;j++)b.add(.09,4.2,.1,-9+j*3,2.1,8.75,metal);
-  for(let row=0;row<6;row++)b.add(19,.15,1.28,0,row*.14,-1+row*1.28,dark);for(const seat of pressSeats)finishedSeat(g,seat.x,seat.y,seat.z,0,fabricMaterial(0xa32239),metal,seat.width);
-  for(const x of[-6,6]){beam(g,v(x,0,6.3),v(x,1.6,6.3),.04,metal);for(const s of[-1,1])beam(g,v(x,1.1,6.3),v(x+s*.5,0,6.9),.03,metal);b.add(.5,.4,.7,x,1.8,6.3,dark);}b.flush();}
+  for(let row=0;row<pressLayout.rows;row++)b.add(19,.15,pressLayout.rowDepth,0,row*pressLayout.rise-.075,pressLayout.firstZ+row*pressLayout.rowDepth,dark);for(const seat of pressSeats)finishedSeat(g,seat.x,seat.y,seat.z,0,fabricMaterial(0xa32239),metal,seat.width);
+  for(const x of[-10.05,10.05])buildBroadcastCamera(g,{x,y:0,z:6.7,yaw:Math.PI});b.flush();}
  // A representative hospitality room. Its precise fit-out is intentionally marked as approximate.
  {const spec=roomSpecs.lounge,g=new THREE.Group();g.position.set(spec.x,spec.y,spec.z);root.add(g);rooms.lounge=g;const plankMap=repeatTex(floorTexture('wood'),8,38),pc=plankMap.image.getContext('2d');pc.strokeStyle='rgba(60,42,27,.23)';pc.lineWidth=.8;for(let row=0;row<4;row++){pc.beginPath();pc.moveTo(0,row*128);pc.lineTo(512,row*128);pc.moveTo(row%2?170:410,row*128);pc.lineTo(row%2?170:410,(row+1)*128);pc.stroke();}const loungeFloor=mat(0xe0dbce,{map:plankMap,roughness:.72,...surfaceMaps('wood',{channel:1,repeat:[.7,.7],strength:.2,albedo:true})});const b=new Batches(g);b.add(spec.w,.15,spec.d,0,-.08,0,loungeFloor);b.add(.2,3.7,2.3,spec.w/2,1.85,-12.85,cream);b.add(.2,3.7,23.3,spec.w/2,1.85,2.35,cream);b.add(.2,.65,2.4,spec.w/2,3.375,-10.5,cream);
   for(const [z,d]of[[-12.85,2.3],[2.35,23.3]])wallCollider(colliders,spec.x+5,z,.2,d,spec.y,spec.y+3.7,'lounge');b.add(spec.w,3.7,.2,0,1.85,-spec.d/2,cream);b.add(spec.w,3.7,.2,0,1.85,spec.d/2,cream);const ceiling=box(g,spec.w,.15,spec.d,0,3.8,0,mat(0xe6e3dc,{roughness:.95,emissive:0x6f6a61,emissiveIntensity:.34}));ceilings.push(ceiling);

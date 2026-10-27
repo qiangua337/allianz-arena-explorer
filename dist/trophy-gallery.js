@@ -1,6 +1,7 @@
 import {THREE,v,mat,mesh,box,beam,cylinder,sign,canvasTexture,Batches,getCrestImage} from './kit.js';
 import {finishedBox} from './finishes.js';
 import {honours} from './honours.js';
+import {buildPersonalGallery} from './personal-gallery.js';
 
 const lathe=points=>new THREE.LatheGeometry(points.map(p=>new THREE.Vector2(...p)),64);
 export function europeanCupGeometry(){return lathe([[.001,0],[.22,0],[.245,.04],[.24,.10],[.18,.12],[.13,.17],[.11,.24],[.13,.32],[.21,.38],[.31,.55],[.38,.83],[.385,.99],[.36,1.02],[.34,.99],[.345,.85],[.28,.57],[.185,.41],[.105,.35],[.085,.25],[.10,.16],[.001,.13]]);}
@@ -25,26 +26,18 @@ function pokal(g,gold,gem){
  for(let i=0;i<12;i++){const t=i/12*Math.PI*2,r=.355;mesh(new THREE.SphereGeometry(.027,10,6),gem,g,Math.sin(t)*r,.81,Math.cos(t)*r);for(const y of[.69,.91]){const stud=mesh(new THREE.SphereGeometry(.014,8,5),gold,g,Math.sin(t)*r,y,Math.cos(t)*r);stud.scale.y=1.5;}}
  sign(g,'DFB',.19,.08,0,.68,.354,{font:90,w:256,h:128,fg:'#65502c'});
 }
-function historyPanel(h){return canvasTexture(768,1024,c=>{
- c.fillStyle='#141b20';c.fillRect(0,0,768,1024);c.fillStyle='#b49256';c.fillRect(62,60,64,5);c.font='24px Arial';c.fillText(h.city,62,114);
- c.fillStyle='#ece7db';c.font='bold 142px Arial';c.fillText(h.year,52,288,660);c.fillStyle='#b49256';c.font='26px Arial';c.fillText(h.kind==='europe'?'EUROPEAN CHAMPIONS':h.city,62,352);
- c.fillStyle='#35434a';c.fillRect(62,410,644,1);c.fillStyle='#e2e0d7';c.font='36px Arial';c.fillText(h.opponent,62,492,644);c.font='bold 55px Arial';c.fillText(h.score,62,591,640);
- c.strokeStyle='#6e7d7c';c.lineWidth=2;c.strokeRect(62,690,644,220);c.beginPath();c.moveTo(384,690);c.lineTo(384,910);c.stroke();c.beginPath();c.arc(384,800,45,0,Math.PI*2);c.stroke();
- c.fillStyle='#b49256';c.beginPath();c.arc(384,800,6,0,Math.PI*2);c.fill();c.fillStyle='#86938e';c.font='20px Arial';c.fillText('FC BAYERN MÜNCHEN · HONOURS',62,970);
- });}
 export function buildTrophyGallery(g,{dark,red,lightMat}){
  const silver=mat(0xdce2e5,{metalness:1,roughness:.19,envMapIntensity:1.1}),gold=mat(0xe7bd61,{metalness:1,roughness:.24,envMapIntensity:1.05}),bronze=mat(0x9c8053,{metalness:.8,roughness:.38}),gem=mat(0x214d3e,{metalness:.3,roughness:.17}),glass=mat(0xc5dfe1,{transparent:true,opacity:.055,roughness:.15,depthWrite:false,envMapIntensity:.55});
- const b=new Batches(g);sign(g,'THE PURSUIT OF GREATNESS',9.5,.55,0,3.15,-12.28,{font:95,h:160,fg:'#c6ab72'});sign(g,'六次欧洲之巅 · 荣誉之路',8,.32,0,2.57,-12.26,{font:70,h:128,fg:'#e4e0d4'});
+ const caseMap=canvasTexture(128,256,c=>{const gradient=c.createLinearGradient(0,0,128,0);gradient.addColorStop(0,'#8196a1');gradient.addColorStop(.38,'#d0e0e8');gradient.addColorStop(.65,'#c2d8e2');gradient.addColorStop(1,'#718e9f');c.fillStyle=gradient;c.fillRect(0,0,128,256);}),caseMaterial=new THREE.MeshBasicMaterial({map:caseMap,color:0xc3d1d6,toneMapped:false}),frame=mat(0x7f8c91,{metalness:.8,roughness:.33});
+ const b=new Batches(g);sign(g,'FC BAYERN MUSEUM',9.5,.55,0,3.15,-12.28,{font:95,h:160,fg:'#e9eceb'});sign(g,'VIA TRIUMPHALIS · 荣耀之路',8,.32,0,2.57,-12.26,{font:70,h:128,fg:'#e4e0d4'});sign(g,'8 CLUB EXHIBITS   /   10 INDIVIDUAL COLLECTIONS',8,.20,0,2.13,-12.25,{font:60,h:128,fg:'#a69c87'});
  for(const[hIndex,h]of honours.entries()){
-  const{x,z}=h;finishedBox(g,1.7,.85,1.7,x,.425,z,dark,.045);b.add(1.74,.035,1.74,x,.865,z,bronze);b.add(1.60,.015,1.60,x,.89,z,lightMat);
+  const{x,z}=h;finishedBox(g,1.7,1.22,1.7,x,.61,z,caseMaterial,.018);b.add(1.74,.035,1.74,x,1.24,z,frame);b.add(1.60,.015,1.60,x,1.26,z,lightMat);b.add(1.74,.07,1.74,x,.035,z,frame);
   // Four separate glass sides, leaving a clear, undoubled view through each case.
-  for(const side of[-1,1]){box(g,1.68,2.04,.008,x,1.93,z+side*.849,glass);box(g,.008,2.04,1.68,x+side*.849,1.93,z,glass);}
-  const display=new THREE.Group();display.position.set(x,.935,z);display.rotation.y=x<0?Math.PI/2:-Math.PI/2;g.add(display);
-  if(h.kind==='europe')cup(display,silver);else if(h.kind==='shield')shield(display,silver,dark,gem);else pokal(display,gold,gem);
-  sign(g,h.year,1.42,.31,x,.57,z+.861,{font:112,w:512,h:160,fg:'#e5d5b1'});sign(g,h.city,1.4,.12,x,.25,z+.862,{font:50,w:512,h:128,fg:'#aaa594'});const aisleLabel=sign(g,h.year,1.42,.31,x+(x<0?.861:-.861),.57,z,{font:112,w:512,h:160,fg:'#e5d5b1'});aisleLabel.rotation.y=x<0?Math.PI/2:-Math.PI/2;
-  const side=hIndex%2?1:-1,board=new THREE.Group();board.position.set(side*7.33,2.04,z);board.rotation.y=side<0?Math.PI/2:-Math.PI/2;g.add(board);
-  finishedBox(board,1.65,2.2,.05,0,0,0,bronze,.02);mesh(new THREE.PlaneGeometry(1.60,2.14),new THREE.MeshBasicMaterial({map:historyPanel(h)}),board,0,0,.028);
-  b.add(.025,2.15,.035,side*7.25,2.04,z-1.15,lightMat);
+  for(const side of[-1,1]){box(g,1.68,1.25,.008,x,1.9,z+side*.849,glass);box(g,.008,1.25,1.68,x+side*.849,1.9,z,glass);}
+  const display=new THREE.Group();display.position.set(x,1.295,z);display.rotation.y=x<0?Math.PI/2:-Math.PI/2;g.add(display);
+  if(h.kind==='europe'){cup(display,silver);display.scale.setScalar(.628);}else if(h.kind==='shield'){shield(display,silver,dark,gem);display.scale.setScalar(.68);}else{pokal(display,gold,gem);display.scale.setScalar(.50);}
+  sign(g,h.year,1.42,.31,x,.57,z+.861,{font:112,w:512,h:160,fg:'#27343a'});sign(g,h.city,1.4,.12,x,.25,z+.862,{font:50,w:512,h:128,fg:'#34474f'});const aisleLabel=sign(g,h.year,1.42,.31,x+(x<0?.861:-.861),.57,z,{font:112,w:512,h:160,fg:'#27343a'});aisleLabel.rotation.y=x<0?Math.PI/2:-Math.PI/2;
+  const plaque=sign(g,h.opponent,1.42,.13,x+(x<0?.862:-.862),.27,z,{font:54,w:512,h:128,fg:'#34474f'});plaque.rotation.y=x<0?Math.PI/2:-Math.PI/2;
  }
  const legacy=canvasTexture(2048,640,c=>{
   c.fillStyle='#211b20';c.fillRect(0,0,2048,640);const wash=c.createLinearGradient(0,0,2048,640);wash.addColorStop(0,'#701b2b');wash.addColorStop(1,'#101b23');c.fillStyle=wash;c.fillRect(0,0,2048,640);
@@ -54,6 +47,8 @@ export function buildTrophyGallery(g,{dark,red,lightMat}){
   c.strokeStyle='#b5975d';c.lineWidth=2;c.beginPath();c.moveTo(128,463);c.lineTo(1920,463);c.stroke();c.textAlign='center';honours.slice(0,6).forEach((h,i)=>{const x=160+i*345;c.fillStyle='#d2bc88';c.beginPath();c.arc(x,463,7,0,Math.PI*2);c.fill();c.font='bold 43px Arial';c.fillText(h.year,x,534);c.fillStyle='#b4aba0';c.font='20px Arial';c.fillText(h.city,x,579);});
  });
  finishedBox(g,11.7,3.75,.07,0,2.47,12.32,bronze,.025);const mural=mesh(new THREE.PlaneGeometry(11.56,3.6125),new THREE.MeshBasicMaterial({map:legacy}),g,0,2.47,12.27);mural.rotation.y=Math.PI;
- for(const side of[-1,1]){b.add(.04,.035,23,side*6.9,.045,0,lightMat);b.add(.08,.035,22,side*3.7,4.32,0,lightMat);}
- sign(g,'靠近展柜 · F 查看冠军故事',4.6,.26,0,.20,10.4,{font:70,h:128,fg:'#c4b185'}).rotation.x=-Math.PI/2;b.flush();
+ buildPersonalGallery(g,{gold,silver,bronze:frame,dark,glass});
+ // A directory beside, rather than in, the entrance keeps the doorway clear.
+ const directory=new THREE.Group();directory.position.set(7.32,2.1,2.65);directory.rotation.y=-Math.PI/2;g.add(directory);box(directory,1.65,1.7,.05,0,0,0,dark);sign(directory,'荣誉展厅',1.42,.27,0,.42,.035,{font:100,fg:'#e0ca98'});sign(directory,'个人荣誉 · 球队冠军',1.42,.15,0,.06,.036,{font:60,fg:'#ded9cb'});sign(directory,'F 打开展览目录',1.42,.14,0,-.38,.037,{font:65,fg:'#b7af9f'});
+ b.flush();
 }

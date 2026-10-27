@@ -29,6 +29,6 @@ test('detailed seat shells are closed volumes and the fixed two-mesh patch clear
  const root=new THREE.Group(),material=new THREE.MeshStandardMaterial(),seats=[{x:1,y:.19,z:1,yaw:.5,color:0xff0000}],patch=buildNearSeatDetails(root,seats,material);patch.update(new THREE.Vector3(1,1.7,1));assert.equal(patch.count,1);const children=root.children.slice();patch.update(new THREE.Vector3(1.01,1.7,1));assert.deepEqual(root.children,children);patch.update(new THREE.Vector3(1,1.7,1),false);assert.equal(patch.count,0);assert.ok(root.children.every(o=>!o.visible));
 });
 test('the resized press seating leaves the centre and both side aisles open along the full room',()=>{
- assert.equal(pressSeats.length,84);for(const x of[-91,-82,-72.8])assert.equal(furnitureBlocksSegment({x,z:-33.4},{x,z:-23.2},'press'),false);
+ assert.equal(pressSeats.length,180);for(const x of[-91,-82,-72.8])assert.equal(furnitureBlocksSegment({x,z:-33.4},{x,z:-23.2},'press'),false);
  for(let i=0;i<pressSeats.length;i++)for(let j=i+1;j<pressSeats.length;j++)if(pressSeats[i].z===pressSeats[j].z)assert.ok(Math.abs(pressSeats[i].x-pressSeats[j].x)>.72);
 });

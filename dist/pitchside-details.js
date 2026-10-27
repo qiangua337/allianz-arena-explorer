@@ -1,3 +1,4 @@
+import {buildBroadcastCamera} from './facility-equipment.js';
 import {THREE,mat,mesh,box,beam,cylinder,v,compactGroup,Batches} from './kit.js';
 
 // Decorative equipment sits beyond the touchlines and outside the two open
@@ -9,10 +10,7 @@ export function buildPitchsideDetails(parent){
  for(const side of[-1,1]){
   const g=new THREE.Group();g.name=side<0?'North camera bank':'South camera bank';g.position.z=side*57.8;root.add(g);groups.push(g);
   for(const x of[-28,-19,-9,3,13,31]){
-   const camera=new THREE.Group();camera.position.x=x;camera.rotation.y=side>0?Math.PI:0;g.add(camera);
-   cylinder(camera,.035,.72,0,.38,0,metal,8);for(const sign of[-1,1]){beam(camera,v(0,.55,0),v(sign*.34,.025,.32),.02,dark);beam(camera,v(0,.52,0),v(0,.025,-.35),.02,dark);}
-   box(camera,.29,.24,.42,0,.82,0,dark);cylinder(camera,.1,.19,0,.84,.30,dark,12).rotation.x=Math.PI/2;cylinder(camera,.071,.012,0,.84,.40,glass,12).rotation.x=Math.PI/2;
-   box(camera,.15,.11,.06,.2,.89,-.08,rubber);beam(camera,v(.13,.78,-.13),v(.23,.7,-.46),.012,metal);
+   const camera=buildBroadcastCamera(g,{x,compact:true,yaw:side>0?Math.PI:0});
    box(camera,.35,.07,.31,.55,.31,-.2,red);for(const dx of[-.13,.13])for(const dz of[-.11,.11])beam(camera,v(.55+dx,.28,-.2+dz),v(.55+dx,.02,-.2+dz),.013,metal);
    box(camera,.44,.28,.29,-.65,.15,-.12,rubber);for(const xx of[-.83,-.47])box(camera,.025,.025,.29,xx,.294,-.12,metal);
   }
