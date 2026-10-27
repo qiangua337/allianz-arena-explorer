@@ -35,7 +35,7 @@ test('night lighting separates the exterior from the pitch and intensity transit
 });
 
 test('the bowl light fill preserves authored shaders and switches day/night without new material programs',()=>{
- const root=new THREE.Group(),m=new THREE.MeshStandardMaterial();let called=0;m.onBeforeCompile=shader=>{called++;shader.vertexShader+=' custom motion';};root.add(new THREE.Mesh(new THREE.BoxGeometry(),m));const fill=buildBowlLighting(root),key=m.customProgramCacheKey(),shader={uniforms:{},vertexShader:'',fragmentShader:'#include <aomap_fragment>'};m.onBeforeCompile(shader);assert.equal(called,1);fill.night(true);assert.equal(shader.uniforms.arenaFloodFill.value,.3);fill.night(false);assert.equal(shader.uniforms.arenaFloodFill.value,0);assert.equal(key,m.customProgramCacheKey());assert.ok(shader.vertexShader.includes('custom motion'));
+ const root=new THREE.Group(),m=new THREE.MeshStandardMaterial();let called=0;m.onBeforeCompile=shader=>{called++;shader.vertexShader+=' custom motion';};root.add(new THREE.Mesh(new THREE.BoxGeometry(),m));const fill=buildBowlLighting(root),key=m.customProgramCacheKey(),shader={uniforms:{},vertexShader:'',fragmentShader:'#include <aomap_fragment>'};m.onBeforeCompile(shader);assert.equal(called,1);fill.night(true);assert.equal(shader.uniforms.arenaFloodFill.value,.22);fill.night(false);assert.equal(shader.uniforms.arenaFloodFill.value,0);assert.equal(key,m.customProgramCacheKey());assert.ok(shader.vertexShader.includes('custom motion'));
 });
 
 test('night ground spill retains its controller after static batching and costs two meshes',()=>{

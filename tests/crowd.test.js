@@ -28,6 +28,10 @@ test('actual near spectators replace their far counterpart and remain within the
 test('missing photo downloads keep a visible fallback crowd and can be retried',async()=>{
  const audience=buildMatchdayCrowd(new THREE.Group(),seats.slice(0,800),{mobile:true});audience.setEnabled(true);imageFails=true;assert.equal(await audience.prepare(),false);assert.equal(audience.assetState,'unavailable');assert.ok(audience.count>700);assert.ok(audience.root.visible);imageFails=false;assert.equal(await audience.prepare(),true);assert.equal(audience.assetState,'ready');const sprites=audience.root.children.find(o=>o.geometry?.attributes.fanTile);assert.equal(sprites.material.map.name,'Generated supporters photo atlas 3.1');
 });
+
+test('lightweight quality removes near mesh work while keeping occupied seats and restores detail without duplication',()=>{
+ const audience=buildMatchdayCrowd(new THREE.Group(),seats,{mobile:true});audience.setEnabled(true);audience.update(1,{x:45,y:6,z:0});const count=audience.count;assert.equal(audience.nearCount,128);audience.setQuality('low');audience.update(2,{x:45,y:6,z:0});assert.equal(audience.nearCount,0);assert.equal(audience.count,count);audience.setQuality('standard',.7);audience.update(3,{x:45,y:6,z:0});assert.equal(audience.nearCount,Math.round(128*.7));audience.setQuality('high');audience.update(4,{x:45,y:6,z:0});assert.equal(audience.nearCount,128);
+});
 test('supporters have grounded seated geometry, independent gestures and an explicit reduced-motion path',()=>{
  const g=supporterGeometry();g.computeBoundingBox();assert.ok(g.boundingBox.min.y>=.01&&g.boundingBox.max.y<1.5);assert.ok(g.attributes.fanArm.array.some(x=>x<0)&&g.attributes.fanArm.array.some(x=>x>0));assert.equal(g.attributes.color.count,g.attributes.position.count);
  const normal=buildMatchdayCrowd(new THREE.Group(),seats.slice(0,100)),reduced=buildMatchdayCrowd(new THREE.Group(),seats.slice(0,100),{reducedMotion:true});

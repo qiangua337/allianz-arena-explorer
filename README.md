@@ -4,7 +4,20 @@
 
 [在线探索](https://allianz-arena-explorer.pages.dev/) · [GitHub 源码](https://github.com/qiangua337/allianz-arena-explorer) · [Cloudflare 部署说明](docs/DEPLOYMENT.md) · [MIT 许可证](LICENSE)
 
-版本 **3.1：重做比赛日观众与助威互动**。[直接打开赛前设置](https://allianz-arena-explorer.pages.dev/?place=pitch&night=1&experience=football)。
+版本 **4.0：场馆、导览与比赛整体精修**。[直接打开赛前设置](https://allianz-arena-explorer.pages.dev/?place=pitch&night=1&experience=football)。
+
+- 草坪增加门前磨损、细颗粒纹理和随观看方向变化的割草反光，夜场重新平衡填充光；场边补摄影设备、补水与医护器材、训练锥、排水及喷淋五金。
+- 球门立柱和横梁支持连续碰撞反弹，进球位置触发短暂球网波动。可手动点击「回放」或 R 回看最近进球 / 片段，支持慢放、原速和重播，真实比赛在回放期间保持冻结。
+- 地图按球员层、入口层、公共大厅、中层和上层显示实际房间及连接通道；点击本层地点选择导航，金线只显示当前层。更衣室、发布桌与商店补充小件，时钟显示慕尼黑当地时间。
+- 手机摇杆增加小死区与渐进力度，丢失触点时清空输入；回放控件适配横竖屏。省电模式保留全场观众，关闭附近立体人群；均衡模式随预算调节近景数量。
+
+制作范围、操作、性能与验证记录见 [4.0 更新说明](docs/REFINEMENT-4.md)。
+
+![4.0：主动选择的慢动作回放](docs/images/replay-4000.png)
+
+![4.0：分层地图与室内细节](docs/images/floor-map-4000.png)
+
+版本 3.1：重做比赛日观众与助威互动。
 
 - 更新八组生成的球迷图像，改善肩宽、肤色、衣服和人物轮廓，避免红色人形与红座椅混成一片。
 - 近处换用有手臂、腿部和围巾的坐姿立体观众，桌面最多 384 人、手机最多 128 人；远处保留分区实例平面，共享图集。手机保留全场占座密度，靠近时才更新细节。

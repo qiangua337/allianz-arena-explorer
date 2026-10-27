@@ -7,5 +7,5 @@ export function buildBowlLighting(root){
   material.onBeforeCompile=function(shader,...args){before.call(this,shader,...args);shader.uniforms.arenaFloodFill=intensity;shader.fragmentShader='uniform float arenaFloodFill;\n'+shader.fragmentShader;shader.fragmentShader=shader.fragmentShader.replace('#include <aomap_fragment>','#include <aomap_fragment>\nreflectedLight.indirectDiffuse+=diffuseColor.rgb*arenaFloodFill;');};
   material.customProgramCacheKey=()=>key+'|arena-fixed-floodlight-v1';material.needsUpdate=true;
  }
- return{night(value){intensity.value=value?.30:0;}};
+ return{night(value){intensity.value=value?.22:0;}};
 }

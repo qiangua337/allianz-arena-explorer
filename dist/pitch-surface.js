@@ -1,9 +1,11 @@
 import {surfaceMaps} from './visual-assets.js';
 import {THREE,mat,mesh,canvasTexture,seeded} from './kit.js';
+import {installMowingSheen} from './pitch-artwork.js';
 export function buildPitchSurface(root,turf){
  const random=seeded(1880),fibres=canvasTexture(512,512,(c,w,h)=>{c.fillStyle='#888';c.fillRect(0,0,w,h);for(let i=0;i<52000;i++){const x=random()*w,y=random()*h,l=1+random()*6;c.strokeStyle=random()>.5?'#b6b6b6':'#5d5d5d';c.lineWidth=.4+random()*.55;c.beginPath();c.moveTo(x,y);c.lineTo(x+.8,y+l);c.stroke();}});fibres.wrapS=fibres.wrapT=THREE.RepeatWrapping;fibres.repeat.set(24,37);fibres.anisotropy=8;turf.anisotropy=8;
  const groundMaterial=mat(0xffffff,{map:turf,bumpMap:fibres,bumpScale:.012,roughness:.94,...surfaceMaps('grass',{channel:1,repeat:[.28,.28],strength:.18})});
- const ground=mesh(new THREE.PlaneGeometry(72,111),groundMaterial,root,0,.005,0);ground.rotation.x=-Math.PI/2;ground.name='Mown grass with painted pitch markings';
+ installMowingSheen(groundMaterial);
+ const ground=mesh(new THREE.PlaneGeometry(72,111),groundMaterial,root,0,.005,0);ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;ground.name='Mown grass with painted pitch markings';
  // Only a small patch around a ground-level visitor has actual blades. The
  // distant field uses the same colour map, with no stadium-wide grass mesh.
  const blade=new THREE.InstancedBufferGeometry();blade.setAttribute('position',new THREE.Float32BufferAttribute([-.004,0,0,.004,0,0,-.002,.021,.002,.002,.021,.002,0,.036,.005],3));blade.setAttribute('normal',new THREE.Float32BufferAttribute([0,.5,1,0,.5,1,0,.6,1,0,.6,1,0,.8,1],3));blade.setAttribute('uv',new THREE.Float32BufferAttribute([0,0,1,0,0,.6,1,.6,.5,1],2));blade.setIndex([0,1,2,1,3,2,2,3,4]);

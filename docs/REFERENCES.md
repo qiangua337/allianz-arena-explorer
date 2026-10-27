@@ -92,3 +92,7 @@
 - [KONAMI 操作说明](https://www.konami.com/efootball/en/page/mobile_controller) 与 [2023 v2.2.0 更新说明](https://www.konami.com/efootball/en-us/page/2023/season2_patch-notes_v2-20)：了解手动选人、半自动 / 辅助换人与逼抢等常见机制。本项目自行实现并明确自己的辅助范围，未使用其代码或资产。
 - [Quaternius Universal Animation Library](https://quaternius.com/packs/universalanimationlibrary.html)：CC0 慢跑与冲刺动作，同原有行走资源一起使用与重定向。
 - 本项目仍采用人机体验赛的简化规则；不声称复刻 eFootball 的全部操作、物理、AI 或动画系统。
+
+## 4.0 场馆精修核对
+
+2026-10-27 重新核对 [安联官方 Facts & Figures](https://allianz-arena.com/en/arena/facts/general-information) 与 [官方 FAQ](https://allianz-arena.com/en/faq)。参考其中 296 盏泛光灯、两块约 200 平方米主屏、42.5 米安装高度及背侧 36.8 平方米屏幕信息，补齐模型的灯具单元和背屏。草皮、门前磨损、摄像设备、补水医护用品、室内小件与照明配平为本项目制作的代表性设计；地图使用本模型的共享布局，未新增或声称取得官方室内施工图。

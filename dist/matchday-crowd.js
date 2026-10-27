@@ -10,7 +10,7 @@ function fallbackAtlas(){return canvasTexture(1254,1254,c=>{
 export function buildMatchdayCrowd(parent,seats,{mobile=false,reducedMotion=false}={}){
  const root=new THREE.Group();root.name='Matchday audience: photo sprites and seated near spectators';root.visible=false;parent.add(root);
  const layout=createCrowdLayout(seats),time={value:0},excitement={value:0},awayColor={value:new THREE.Color(0xebcc3d)},fallback=fallbackAtlas(),frames=supporterAtlas.frames.map(([x,y,w,h])=>new THREE.Vector4(x/1254,1-(y+h)/1254,w/1254,h/1254));
- let assetState='fallback',loading,lastNear=null,lastNearAt=-Infinity,detail=[],reaction={time:-100,intensity:0};
+ let detailLimit=crowdDetailBudget(mobile),assetState='fallback',loading,lastNear=null,lastNearAt=-Infinity,detail=[],reaction={time:-100,intensity:0};
  const material=new THREE.MeshBasicMaterial({map:fallback,alphaTest:.52,side:THREE.DoubleSide,toneMapped:false});
  material.onBeforeCompile=shader=>{
   shader.uniforms.fanTime=time;shader.uniforms.fanExcitement=excitement;shader.uniforms.fanFrames={value:frames};shader.uniforms.awayShirt=awayColor;
@@ -50,11 +50,13 @@ export function buildMatchdayCrowd(parent,seats,{mobile=false,reducedMotion=fals
  if(seats.length>100)for(const z of[-61,61])for(const x of[-13,0,13]){const b=mesh(new THREE.PlaneGeometry(10.4,1.1),bannerMaterial,root,x,.35,z);b.rotation.y=z>0?Math.PI:0;b.name='Supporters railing banner';}
  async function prepare(){if(loading)return loading;assetState='loading';loading=new THREE.TextureLoader().loadAsync(new URL('./assets/crowd/supporters-atlas-3100.png',import.meta.url).href).then(texture=>{texture.colorSpace=THREE.SRGBColorSpace;texture.anisotropy=mobile?2:4;texture.name='Generated supporters photo atlas 3.1';material.map=texture;material.needsUpdate=true;fallback.dispose();assetState='ready';return true;}).catch(()=>{assetState='unavailable';loading=null;return false;});return loading;}
  return{root,count:layout.count,visitorCount:layout.visitorCount,nearBudget:budget,get nearCount(){return near.count;},get assetState(){return assetState;},prepare,
+  setQuality(mode='standard',scale=1){const next=mode==='low'?0:Math.round(budget*(mode==='high'?1:Math.max(.35,Math.min(1,scale))));if(next!==detailLimit){detailLimit=next;lastNear=null;}},
+  night(on){material.color.set(on?0xd4d6dc:0xf4f3ef);flagMaterial.color.set(on?0xd9d6d2:0xffffff);},
   setEnabled(on){root.visible=!!on;if(!on){selectDetail([]);lastNear=null;reaction={time:-100,intensity:0};}},
   setOpponent(club){awayColor.value.set(club?.kit?.shirt||'#ebcc3d');lastNear=null;},
   react(seconds,intensity=1){const remaining=reaction.intensity*Math.max(0,1-(seconds-reaction.time)/6);if(intensity>=remaining)reaction={time:seconds,intensity:Math.max(0,Math.min(1,intensity))};},
   update(seconds,viewer){time.value=reducedMotion?0:seconds;excitement.value=reducedMotion?0:reaction.intensity*Math.max(0,1-(seconds-reaction.time)/6);if(!root.visible||!viewer)return;
-   const moved=lastNear?(viewer.x-lastNear.x)**2+(viewer.y-lastNear.y)**2+(viewer.z-lastNear.z)**2:Infinity;if(!lastNear||moved>100||seconds-lastNearAt>.35&&moved>1.44){selectDetail(layout.nearby(viewer,{mobile}));lastNear={x:viewer.x,y:viewer.y,z:viewer.z};lastNearAt=seconds;}
+   const moved=lastNear?(viewer.x-lastNear.x)**2+(viewer.y-lastNear.y)**2+(viewer.z-lastNear.z)**2:Infinity;if(!lastNear||moved>100||seconds-lastNearAt>.35&&moved>1.44){selectDetail(layout.nearby(viewer,{mobile,budget:detailLimit}));lastNear={x:viewer.x,y:viewer.y,z:viewer.z};lastNearAt=seconds;}
   }
  };
 }

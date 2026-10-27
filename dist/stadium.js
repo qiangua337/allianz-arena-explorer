@@ -1,3 +1,6 @@
+import {drawPitchArtwork} from './pitch-artwork.js';
+import {buildPitchsideDetails} from './pitchside-details.js';
+import {createGoalNetMaterial,goalFeedbackController} from './goal-feedback.js';
 import {fitoutShaderCuts} from './room-volumes.js';
 import {surfaceMaps} from './visual-assets.js';
 import {buildNearSeatDetails} from './near-seat-details.js';
@@ -95,12 +98,12 @@ export function buildStadium(scene){
  for(let j=0;j<72;j++){
   const t=j/72*TAU,p=superpoint(66.8,77.8,t,2.65),q=superpoint(105,121,t,2.65);p.y=46.5;q.y=44.8;trussBeam(p,q,.14);const lower=p.clone();lower.y-=2.6;trussBeam(lower,q,.13);trussBeam(p,lower,.1);
   for(let k=1;k<5;k++){const a=p.clone().lerp(q,k/5),b=p.clone().lerp(q,(k-1)/5);b.y-=2.6*(1-(k-1)/5);trussBeam(a,b,.08);}
-  const lum=p.clone().lerp(q,.08),n=supernormal(66,78,t,2.65),yaw=Math.atan2(n.x,n.z);for(let k=0;k<4;k++)roofBatch.add(.6,.23,.4,lum.x+n.z*(k-1.5)*.72,lum.y-1.25,lum.z-n.x*(k-1.5)*.72,lightMaterial,yaw);
+  const lum=p.clone().lerp(q,.08),n=supernormal(66,78,t,2.65),yaw=Math.atan2(n.x,n.z);for(let k=0;k<(j%9===0?5:4);k++)roofBatch.add(.6,.23,.4,lum.x+n.z*(k-1.5)*.72,lum.y-1.25,lum.z-n.x*(k-1.5)*.72,lightMaterial,yaw);
  }
  roofBatch.flush();mesh(mergeGeometry(trussGeometries),steel,roofDetails);
  for(const [a,b,y]of[[66.6,77.6,46.4],[83,97,48.2],[104,120,44.5]]){const pts=[];for(let j=0;j<=256;j++){const p=superpoint(a,b,j/256*TAU,2.65);p.y=y;pts.push(p);}curveLine(roofDetails,pts,0xadb8bb);}
  const rim=[];for(let j=0;j<=384;j++){const p=superpoint(66.8,77.8,j/384*TAU,2.65);p.y=47.1;rim.push(p);}curveLine(roofDetails,rim,0xff274a);
- // Roof lights use broad sources; the 288 modelled luminaires remain visible as individual units.
+ // Roof lights use broad sources; the 296 modelled luminaires remain visible as individual units.
  const stadiumLights=[];for(const [x,z]of[[-42,-37],[-42,37],[42,-37],[42,37]]){const l=new THREE.SpotLight(0xe4edff,0,180,1.1,.65,2);l.position.set(x,45,z);l.target.position.set(x*.2,0,z*.2);root.add(l,l.target);stadiumLights.push(l);}
  const logo=sign(root,'Allianz Arena',40,5.4,0,26.7,129.7,{fg:'#164c94',w:2048,h:256,font:185,weight:650,unique:true});
  const logoBack=sign(root,'Allianz Arena',40,5.4,0,26.7,-129.7,{fg:'#164c94',w:2048,h:256,font:185,weight:650,unique:true});logoBack.rotation.y=Math.PI;const logoDayMap=logo.material.map,logoNightMap=textTexture('Allianz Arena',{fg:'#ffffff',w:2048,h:256,font:185,weight:650});
@@ -110,46 +113,32 @@ export function buildStadium(scene){
  const adDefs=[['T',0xe22286],['Allianz',0x164c92],['adidas',0x111820],['Audi',0xefefee],['FC BAYERN',0xca1c37],['PAULANER',0x103f76]];
  for(const side of[-1,1])for(let j=0;j<12;j++){const [label,color]=adDefs[j%adDefs.length],z=-52+j*9.45;if(side<0&&Math.abs(z)<7)continue;const ad=sign(closeLabels,label,9.25,.95,side*40.5,.6,z,{bg:'#'+color.toString(16).padStart(6,'0'),fg:label==='Audi'?'#202632':'#ffffff',font:100});ad.rotation.y=side<0?Math.PI/2:-Math.PI/2;}
  for(const side of[-1,1])for(let j=0;j<8;j++){const[label,color]=adDefs[j%6],x=-33+j*9.45;if(side>0&&Math.abs(x-visitorPassage.x)<6)continue;const ad=sign(closeLabels,label,9.2,.95,x,.6,side*59.7,{bg:'#'+color.toString(16).padStart(6,'0'),fg:label==='Audi'?'#202632':'#ffffff',font:100});ad.rotation.y=side>0?Math.PI:0;}
- const {surface:pitchSurface,ball:matchBall}=buildPitch(bowl,batch,{white,dark,red,steel});
+ const {surface:pitchSurface,ball:matchBall,feedback}=buildPitch(bowl,batch,{white,dark,red,steel});
  // Double bank of dugouts with individual seats and transparent shelters.
  for(const z0 of[-18,18]){
   const g=new THREE.Group();g.position.set(-38.1,0,z0);bowl.add(g);const gb=new Batches(g);gb.add(3.2,.04,17,0,.02,0,dark);gb.add(1.6,.45,17,-.8,.265,0,dark);
   for(let row=0;row<2;row++)for(let j=0;j<12;j++){const x=.65-row*1.15,y=.5+row*.45,z=-7.1+j*1.28;finishedBox(g,.70,.18,.66,x,y,z,red,.032);const back=finishedBox(g,.15,.88,.65,x-.28,y+.51,z,red,.03);back.rotation.z=-.055;finishedBox(g,.19,.27,.48,x-.25,y+.99,z,red,.035);for(const side of[-1,1]){finishedBox(g,.43,.13,.075,x-.02,y+.26,z+side*.34,dark,.018);gb.add(.04,.3,.04,x-.18,y+.09,z+side*.30,steel);}gb.add(.018,.42,.012,x-.192,y+.47,z-.26,dark);gb.add(.018,.42,.012,x-.192,y+.47,z+.26,dark);}gb.flush();
   const glass=mat(0xa5c6d9,{transparent:true,opacity:.21,metalness:.2,roughness:.2,side:THREE.DoubleSide,depthWrite:false});box(g,.08,2.5,17,-1.6,1.55,0,glass);box(g,3.3,.08,17,0,2.8,0,glass);for(let j=0;j<7;j++){const z=-8.5+j*17/6;beam(g,v(-1.65,.2,z),v(-1.65,2.8,z),.035,steel);beam(g,v(-1.65,2.8,z),v(1.65,2.8,z),.035,steel);}const a=sign(g,'FC BAYERN MÜNCHEN',15,.36,-1.71,2.65,0,{font:65,h:128});a.rotation.y=-Math.PI/2;compactGroup(g);
  }
- batch.flush();compactGroup(closeLabels);const bowlLighting=buildBowlLighting(bowl);
- return {root,roof,circulation,bowl,matchBall,get detailSeatCount(){return nearSeats.count;},setMatchday:screens.setMatchday,setMatchScore:screens.setMatchScore,seatCount:seats.length,seatPositions:seats,panelCount,tiers,update(camera,mode='orbit',high=false,low=false,playing=false){pitchSurface.update(camera,high,low);for(const shell of shellMeshes)shell.visible=!enclosedPlayerPosition(camera.position)&&(shell.userData.shellSection===1||facadeSectorVisible(camera.position,shell.userData.sectorCenter));bowl.visible=bowlIsVisible(camera.position,mode);nearSeats.update(camera.position,!playing&&!low&&bowl.visible,high?384:typeof innerWidth==='number'&&innerWidth<=760?128:192);roofDetails.visible=bowl.visible||camera.position.y>30;closeLabels.visible=camera.position.length()<180;for(const inst of seatInstances){const center=inst.boundingSphere.center;const distance=camera.position.distanceTo(center);inst.geometry=playing&&!high?farSeat:high?(distance>90?coarseSeat:seatGeom):distance>100?farSeat:distance>32?coarseSeat:seatGeom;}},night(n){bowlLighting.night(n);circulation.night(n);shellMaterials[0].color.set(n?0xe52a49:0xe5e8e4);shellMaterials[0].emissive.set(n?0xd7082c:0x000000);shellMaterials[0].emissiveIntensity=n?.72:0;shellMaterials[0].roughness=n?.76:.58;shellMaterials[1].color.set(n?0xcfc0c4:0xf4f4ed);shellMaterials[1].emissive.set(n?0x9d1736:0x000000);shellMaterials[1].emissiveIntensity=n?.22:0;stadiumLights.forEach(l=>l.intensity=n?2400:100);logo.material.map=logoBack.material.map=n?logoNightMap:logoDayMap;}};
+ batch.flush();compactGroup(closeLabels);const pitchside=buildPitchsideDetails(bowl);const bowlLighting=buildBowlLighting(bowl);
+ return {root,roof,circulation,bowl,matchBall,updateMatchEffects:feedback.update,resetMatchEffects:feedback.reset,get detailSeatCount(){return nearSeats.count;},setMatchday:screens.setMatchday,setMatchScore:screens.setMatchScore,seatCount:seats.length,seatPositions:seats,panelCount,tiers,update(camera,mode='orbit',high=false,low=false,playing=false){pitchSurface.update(camera,high,low);pitchside.update(camera.position,low);for(const shell of shellMeshes)shell.visible=!enclosedPlayerPosition(camera.position)&&(shell.userData.shellSection===1||facadeSectorVisible(camera.position,shell.userData.sectorCenter));bowl.visible=bowlIsVisible(camera.position,mode);nearSeats.update(camera.position,!playing&&!low&&bowl.visible,high?384:typeof innerWidth==='number'&&innerWidth<=760?128:192);roofDetails.visible=bowl.visible||camera.position.y>30;closeLabels.visible=camera.position.length()<180;for(const inst of seatInstances){const center=inst.boundingSphere.center;const distance=camera.position.distanceTo(center);inst.geometry=playing&&!high?farSeat:high?(distance>90?coarseSeat:seatGeom):distance>100?farSeat:distance>32?coarseSeat:seatGeom;}},night(n){bowlLighting.night(n);circulation.night(n);shellMaterials[0].color.set(n?0xe52a49:0xe5e8e4);shellMaterials[0].emissive.set(n?0xd7082c:0x000000);shellMaterials[0].emissiveIntensity=n?.72:0;shellMaterials[0].roughness=n?.76:.58;shellMaterials[1].color.set(n?0xcfc0c4:0xf4f4ed);shellMaterials[1].emissive.set(n?0x9d1736:0x000000);shellMaterials[1].emissiveIntensity=n?.22:0;stadiumLights.forEach(l=>l.intensity=n?2400:100);logo.material.map=logoBack.material.map=n?logoNightMap:logoDayMap;}};
 }
 
 function buildPitch(root,batch,{white,dark,red,steel}){
  const apron=mat(0x273d38);box(root,83,.15,120,0,-.12,0,apron);
- const random=seeded(902);
- const turf=canvasTexture(1536,2368,(ctx,w,h)=>{
-  ctx.fillStyle='#426b36';ctx.fillRect(0,0,w,h);
-  for(let i=0;i<20;i++){ctx.fillStyle=i%2?'#47733b':'#416b37';ctx.fillRect(0,i*h/20,w,h/20);}
-  for(let i=0;i<185000;i++){ctx.fillStyle=random()>.5?'#b0bd7b0b':'#213d250c';ctx.fillRect(random()*w,random()*h,random()*.8+.3,random()*2+.3);}
-  const px=x=>w/2+x/72*w,pz=z=>h/2+z/111*h;ctx.strokeStyle='#e9edda';ctx.fillStyle='#ecf0df';ctx.lineWidth=2.2;
-  const line=(x1,z1,x2,z2)=>{ctx.beginPath();ctx.moveTo(px(x1),pz(z1));ctx.lineTo(px(x2),pz(z2));ctx.stroke();};
-  const rect=(x,z,ww,hh)=>ctx.strokeRect(px(x),pz(z),ww/72*w,hh/111*h);
-  rect(-34,-52.5,68,105);line(-34,0,34,0);
-  ctx.beginPath();ctx.ellipse(px(0),pz(0),9.15/72*w,9.15/111*h,0,0,TAU);ctx.stroke();
-  for(const s of[-1,1]){const z=s*52.5;rect(-20.16,s<0?z:z-16.5,40.32,16.5);rect(-9.16,s<0?z:z-5.5,18.32,5.5);ctx.beginPath();ctx.arc(px(0),pz(s*41.5),2.4,0,TAU);ctx.fill();ctx.beginPath();const center=s*41.5,alpha=Math.acos(5.5/9.15);if(s<0)ctx.ellipse(px(0),pz(center),9.15/72*w,9.15/111*h,0,Math.PI/2-alpha,Math.PI/2+alpha);else ctx.ellipse(px(0),pz(center),9.15/72*w,9.15/111*h,0,-Math.PI/2-alpha,-Math.PI/2+alpha);ctx.stroke();}
-  ctx.beginPath();ctx.arc(px(0),pz(0),2.5,0,TAU);ctx.fill();
-  for(const x of[-34,34])for(const z of[-52.5,52.5]){ctx.beginPath();const a=x>0?Math.PI:0,b=z>0?Math.PI:0;ctx.ellipse(px(x),pz(z),w/72,h/111,0,x>0?(z>0?Math.PI:Math.PI/2):(z>0?-Math.PI/2:0),x>0?(z>0?Math.PI*1.5:Math.PI):(z>0?0:Math.PI/2));ctx.stroke();}
- });
+ const turf=canvasTexture(1536,2368,drawPitchArtwork);
  const surface=buildPitchSurface(root,turf);
- const netMaterial=new THREE.LineBasicMaterial({color:0xdde5df,transparent:true,opacity:.65});
+ const nets=[];
  for(const s of[-1,1]){
-  const g=new THREE.Group();g.position.z=s*52.5;if(s<0)g.rotation.y=Math.PI;root.add(g);
+  const net=createGoalNetMaterial();nets.push(net);const g=new THREE.Group();g.position.z=s*52.5;if(s<0)g.rotation.y=Math.PI;root.add(g);
   for(const x of[-3.66,3.66]){beam(g,v(x,.02,0),v(x,2.44,0),.06,white,12);beam(g,v(x,.02,2.1),v(x,2.44,1.5),.025,steel);beam(g,v(x,2.44,0),v(x,2.44,1.5),.025,steel);}beam(g,v(-3.66,2.44,0),v(3.66,2.44,0),.06,white,12);
   const points=[];const line=(a,b)=>points.push(...a,...b);
   for(let x=-3.66;x<3.67;x+=.15){line([x,0,2.1],[x,2.44,1.5]);line([x,2.44,0],[x,2.44,1.5]);}for(let y=0;y<2.45;y+=.15)line([-3.66,y,2.1-y/2.44*.6],[3.66,y,2.1-y/2.44*.6]);for(let z=0;z<=2.1;z+=.15)for(const x of[-3.66,3.66])line([x,0,z],[x,2.44,Math.min(z,1.5)]);for(let y=.15;y<2.44;y+=.15)for(const x of[-3.66,3.66])line([x,y,0],[x,y,2.1-y/2.44*.6]);
-  const ng=new THREE.BufferGeometry();ng.setAttribute('position',new THREE.Float32BufferAttribute(points,3));g.add(new THREE.LineSegments(ng,netMaterial));compactGroup(g);
+  const ng=new THREE.BufferGeometry();ng.setAttribute('position',new THREE.Float32BufferAttribute(points,3));g.add(new THREE.LineSegments(ng,net.material));compactGroup(g);
  }
  for(const x of[-34.3,34.3])for(const z of[-52.8,52.8]){cylinder(root,.022,1.5,x,.75,z,white,6);const f=box(root,.48,.32,.008,x+.24,1.35,z,red);}
  // Centre ball, pitch sprinklers, photographers' stools and broadcast cameras.
  const ball=mesh(new THREE.IcosahedronGeometry(.11,2),mat(0xeeeeea),root,0,.115,0);const edges=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.IcosahedronGeometry(.111,1)),new THREE.LineBasicMaterial({color:0x2a3030}));ball.add(edges);
- for(const z of[-57.5,57.5])for(let j=0;j<7;j++){batch.add(.7,.65,.6,-25+j*8,.3,z,dark);batch.add(.5,.3,.32,-25+j*8,.8,z,steel);}
  for(const z of[-31,31]){const group=new THREE.Group();group.position.set(-40,0,z);root.add(group);beam(group,v(0,.1,0),v(0,1.6,0),.05,steel);for(const d of[-1,1])beam(group,v(0,1.1,0),v(.6*d,0,.5),.035,steel);box(group,.7,.4,1,0,1.75,0,dark);cylinder(group,.16,.2,0,1.9,.4,dark);}
- return{surface,ball};
+ return{surface,ball,feedback:goalFeedbackController(nets)};
 }

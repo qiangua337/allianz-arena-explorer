@@ -2,6 +2,7 @@ import {validControlMode,turnFootballer,cursorCandidate,tackleWindow,pressureTar
 import {homeXI,awayXI} from './matchday-roster.js';
 import {footballTeam,opponentSquad,difficulties} from './football-teams.js';
 import {passOption,shotOption,receivingPoint} from './football-tactics.js';
+import {goalFrameCollision} from './goal-frame.js';
 
 const STEP=1/60,HALF_WIDTH=34,HALF_LENGTH=52.5,BALL_RADIUS=.11;
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v)),finite=v=>Number.isFinite(v)?v:0;
@@ -135,12 +136,13 @@ export function createFootballSimulation({duration=180,seed=73417,controlMode='s
   if(state.controlMode!=='assisted'||worldTime<manualLockUntil||worldTime-lastSwitchAt<1.0||b.targetId&&byId(b.targetId)?.team==='home')return;
   if(next&&distance(p,b)>12&&distance(next,b)+4.5<distance(p,b)&&Math.hypot(input.x,input.z)<.25)selectPlayer(next,'防守接管');
  }
+ function hitGoalFrame(previous,dt){const b=state.ball,hit=goalFrameCollision(previous,b,{x:b.vx,y:b.vy,z:b.vz});if(!hit)return false;const owner=b.ownerId;b.ownerId=null;const remainder=dt*(1-hit.t);for(const key of['x','y','z'])b[key]=hit.point[key]+hit.normal[key]*.003+hit.velocity[key]*remainder;Object.assign(b,{vx:hit.velocity.x,vy:hit.velocity.y,vz:hit.velocity.z});if(owner){claimBlockId=owner;claimBlockUntil=worldTime+.18;}emit('woodwork',lastTouch,'击中'+hit.name+'！');return true;}
  function physicsBall(dt){
-  const b=state.ball,previous={x:b.x,y:b.y,z:b.z};if(b.ownerId){carryBall(dt);if(!boundary(previous))contestBall();return;}
+  const b=state.ball,previous={x:b.x,y:b.y,z:b.z};if(b.ownerId){carryBall(dt);hitGoalFrame(previous,dt);if(!boundary(previous))contestBall();return;}
   b.x+=b.vx*dt;b.z+=b.vz*dt;b.y+=b.vy*dt;b.vy-=9.81*dt;
   if(b.y<BALL_RADIUS){b.y=BALL_RADIUS;if(b.vy<-1)b.vy=-b.vy*.28;else b.vy=0;}
   const drag=Math.exp(-(b.y<=BALL_RADIUS+.015?.39:.08)*dt);b.vx*=drag;b.vz*=drag;if(Math.hypot(b.vx,b.vz)<.04)b.vx=b.vz=0;
-  if(!boundary(previous))contestBall();
+  hitGoalFrame(previous,dt);if(!boundary(previous))contestBall();
  }
  function step(dt,input){
   worldTime+=dt;state.time=worldTime;state.phaseTime+=dt;for(const p of state.players){if(p.motion){p.motion.elapsed+=dt;if(p.motion.elapsed>=p.motion.duration)p.motion=null;}}

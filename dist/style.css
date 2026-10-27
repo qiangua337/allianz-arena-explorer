@@ -86,3 +86,14 @@ body.game-active .topbar,body.game-active .view-controls,body.game-active .envir
 body.game-active[data-game-paused=true] .game-actions,body.game-active[data-game-phase=fulltime] .game-actions{opacity:.4;pointer-events:none}
 
 .game-actions button:disabled{opacity:.36;cursor:default;transform:none}
+
+/* Optional replay never replaces the live simulation or auto-starts on a goal. */
+.game-replay-panel{position:absolute;bottom:22px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:14px;padding:12px 16px;background:#111b24ed;max-width:calc(100vw - 24px);color:#f4efe4;border-color:#ffffff24;z-index:22;width:650px}.game-replay-panel div{min-width:86px}.game-replay-panel small{display:block;font-size:8px;letter-spacing:2px;color:#e7c47f;margin-bottom:4px}.game-replay-panel b{font-size:13px;font-weight:550}.game-replay-panel progress{width:100%;height:4px;accent-color:#c43450}.game-replay-panel button{white-space:nowrap;font-size:11px;min-height:36px;padding:7px 10px;border:1px solid #ffffff24;border-radius:4px}.game-replay-panel button:last-child{background:#a8203b}.game-replay .game-actions,.game-replay .game-player,.game-replay .game-radar,.game-replay .game-tools,.game-replay #movement,.game-replay #crosshair{display:none!important}.game-tools button:disabled,.game-score button:disabled{opacity:.4}.game-replay .game-announcement{display:none}
+@media(max-width:760px){.game-replay-panel{bottom:max(15px,env(safe-area-inset-bottom));width:calc(100vw - 24px);flex-wrap:wrap;gap:8px;padding:12px}.game-replay-panel div{min-width:75px}.game-replay-panel progress{width:calc(100% - 90px)}.game-replay-panel button{flex:1;font-size:10px;min-height:40px}.game-tools button{padding:5px;min-width:29px}.game-tools #game-replay-launch{font-size:9px}}
+
+.minimap{width:280px;padding:10px;background:#101c23ed}.minimap canvas{width:260px;height:210px}.minimap>div{display:block;margin-bottom:5px}.minimap>div>small{display:block;margin-top:4px;color:#b6c5cc}.minimap .map-legend{display:flex;justify-content:space-between;margin-top:5px}
+@media(max-width:760px){.minimap{width:242px;padding:10px;bottom:90px;max-height:calc(100dvh - 170px);overflow:auto}.minimap canvas{width:222px;height:179px}}
+
+.minimap canvas{width:100%;height:auto;aspect-ratio:26/21}
+
+body.game-active.game-replay #movement{display:none!important}
