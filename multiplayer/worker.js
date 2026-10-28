@@ -22,7 +22,7 @@ export class FootballRoom {
  constructor(ctx){this.ctx=ctx;this.meta=null;this.sim=null;this.sockets=new Map();this.inputs={};this.lastInput={};this.heartbeats={};this.pauses={home:false,away:false};this.seq=0;this.timer=null;this.lastTick=0;this.lastSave=0;this.lastAction={};this.rates={};
   ctx.blockConcurrencyWhile(async()=>{this.meta=await ctx.storage.get('room')||null;const saved=await ctx.storage.get('simulation');if(this.meta&&saved){this.sim=this.makeSimulation();this.sim.restore(saved);}for(const ws of ctx.getWebSockets()){const attachment=ws.deserializeAttachment();if(attachment?.team){this.sockets.set(attachment.team,ws);this.heartbeats[attachment.team]=Date.now();}}if(this.meta){this.pauses=this.meta.pauses||this.pauses;this.refresh();}});
  }
- makeSimulation(){return createFootballSimulation({duration:180,seed:this.meta.seed,opponent:this.meta.opponent,difficulty:'regular',humanTeams:TEAMS});}
+ makeSimulation(){const sim=createFootballSimulation({duration:180,seed:this.meta.seed,opponent:this.meta.opponent,difficulty:'regular',humanTeams:TEAMS});for(const team of TEAMS){const preference=this.meta.preferences?.[team];if(preference){sim.setControlMode(preference.controlMode,team);sim.setShotKind(preference.shotKind,team);}}return sim;}
  publicRoom(){return{code:this.meta.code,opponent:this.meta.opponent,expiresAt:this.meta.expiresAt,started:!!this.meta.started,ended:!!this.meta.ended,rematch:this.meta.rematch||{},reason:this.meta.reason||'',seats:TEAMS.map(team=>({team,connected:this.sockets.has(team),ready:!!this.meta.ready[team],paused:!!this.pauses[team]}))};}
  send(ws,message){try{ws.send(JSON.stringify(message));}catch{}}
  broadcast(){if(!this.meta)return;const message={type:'state',room:this.publicRoom(),state:this.sim?packOnlineState(this.sim.state,++this.seq):null};for(const ws of this.sockets.values())this.send(ws,message);}
@@ -52,9 +52,13 @@ export class FootballRoom {
   if(packet.type==='pause'){this.pauses[team]=packet.paused===true;this.refresh();await this.persist();this.broadcast();return;}
   if(packet.type==='leave'){await this.end('朋友已离开房间');return;}
   if(packet.type==='rematch'&&this.sim?.state.phase==='fulltime'){this.meta.ready[team]=true;if(this.meta.rematch?.[team])return;this.meta.rematch={...this.meta.rematch,[team]:true};if(TEAMS.every(t=>this.meta.rematch[t])){this.meta.rematch={};this.sim=this.makeSimulation();this.pauses={home:false,away:false};this.meta.started=true;this.refresh();}await this.persist();this.broadcast();return;}
+  if(packet.type==='mode'||packet.type==='shot-kind'){
+   const preference=this.meta.preferences??={};preference[team]??={controlMode:'semi',shotKind:'drive'};
+   if(packet.type==='mode'){preference[team].controlMode=['manual','semi','assisted'].includes(packet.mode)?packet.mode:'semi';this.sim?.setControlMode(preference[team].controlMode,team);}
+   else{preference[team].shotKind=['drive','finesse','lob'].includes(packet.kind)?packet.kind:'drive';this.sim?.setShotKind(preference[team].shotKind,team);}
+   await this.persist();this.broadcast();return;
+  }
   if(!this.sim||this.sim.state.paused||!this.meta.started)return;
-  if(packet.type==='mode'){this.sim.setControlMode(packet.mode,team);return;}
-  if(packet.type==='shot-kind'){this.sim.setShotKind(packet.kind,team);return;}
   if(packet.type==='action'&&['pass','through','shoot','switch','tackle'].includes(packet.action)){
    if(now-(this.lastAction[team]||0)<70)return;this.lastAction[team]=now;const direction=safeOnlineInput(packet.direction);this.sim.action(packet.action,{direction,power:Number.isFinite(packet.power)?Math.max(.15,Math.min(1,packet.power)):.5,kind:this.sim.state.shotKinds[team]},team);
   }
