@@ -1,7 +1,7 @@
 {
   "name": "allianz-arena-explorer",
   "private": true,
-  "version": "6.0.0",
+  "version": "6.1.0",
   "description": "Interactive Three.js reconstruction of Munich's Allianz Arena",
   "license": "MIT",
   "homepage": "https://allianz-arena-explorer.pages.dev/",

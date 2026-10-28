@@ -5,7 +5,7 @@ registerHooks({resolve(s,c,next){return s==='three'?{url:new URL('../dist/vendor
 const {THREE}=await import('../dist/kit.js');
 const {buildPlayableMatch}=await import('../dist/playable-match.js');
 function fixture(){
- const nodes=new Map(),node=id=>{if(!nodes.has(id)){const handlers={};nodes.set(id,{hidden:false,textContent:'',dataset:{},setAttribute(k,v){this[k]=v;},addEventListener(k,v){handlers[k]=v;},fire(k,v){handlers[k]?.(v);},showModal(){this.open=true;},close(){if(this.open){this.open=false;handlers.close?.();}},focus(){}});}return nodes.get(id);};
+ const nodes=new Map(),node=id=>{if(!nodes.has(id)){const handlers={};nodes.set(id,{hidden:false,textContent:'',dataset:{},classList:{toggle(){}},setAttribute(k,v){this[k]=v;},addEventListener(k,v){handlers[k]=v;},fire(k,v){handlers[k]?.(v);},showModal(){this.open=true;},close(){if(this.open){this.open=false;handlers.close?.();}},focus(){}});}return nodes.get(id);};
  const context=new Proxy({createRadialGradient:()=>({addColorStop(){}})},{get:(o,k)=>k in o?o[k]:()=>{}}),classes=new Set();
  globalThis.document={createElement:()=>({getContext:()=>context}),getElementById:node,querySelectorAll:()=>[],exitPointerLock(){},body:{dataset:{},classList:{add:x=>classes.add(x),remove:x=>classes.delete(x)}}};
  let actorUpdates=0,cheers=0;const audio={muted:false,state:'playing',cheer(){},cue(){},setMuted(value){this.muted=value;}},players={ready:true,root:new THREE.Group(),updateMatch(){actorUpdates++;}};let game;const views=[];

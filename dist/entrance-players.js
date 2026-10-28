@@ -66,8 +66,8 @@ export function buildEntrancePlayers(scene,{mobile=false}={}){
    const heading=p.yaw??(moving?Math.atan2(p.vx,p.vz):0);
    // Pose even a hidden first-person avatar, so its world position and future
    // third-person animation never fall back to the old entrance queue.
-   const cadence=controlled?0:d.role!=='player'?.10:distance>35?(mobile?.10:.065):0,animate=actor.lastPoseTime==null||time-actor.lastPoseTime>=cadence||time<actor.lastPoseTime;
-   if((actor.group.visible||controlled)&&animate){actor.pose(p.x,p.z,heading,time,moving,d.seated&&d.role==='assistant'?.45:0);actor.lastPoseTime=time;if(d.role==='player')actor.actionPose(p.motion,{defending:p.defending,speed:Math.hypot(p.vx||0,p.vz||0)});}else if(!actor.group.visible&&!controlled)actor.group.position.set(p.x,0,p.z);
+   const cadence=controlled?0:d.role!=='player'?.10:distance>(mobile?28:35)?(mobile?1/12:.065):mobile&&distance>14?1/20:0,animate=actor.lastPoseTime==null||time-actor.lastPoseTime>=cadence||time<actor.lastPoseTime;
+   if((actor.group.visible||controlled)&&animate){actor.pose(p.x,p.z,heading,time,moving,d.seated&&d.role==='assistant'?.45:0);actor.lastPoseTime=time;if(d.role==='player')actor.actionPose(p.motion,{defending:p.defending,speed:Math.hypot(p.vx||0,p.vz||0)});}else if(d.role==='player'||!actor.group.visible&&!controlled){actor.group.position.set(p.x,0,p.z);actor.group.rotation.y=heading;}
    shadowPose.position.set(actor.group.position.x,actor.group.position.y+.012,actor.group.position.z);shadowPose.scale.setScalar(actor.group.visible?(d.seated?.8:1):0);shadowPose.updateMatrix();root.userData.shadows?.setMatrixAt(i,shadowPose.matrix);
   }
   if(root.userData.shadows)root.userData.shadows.instanceMatrix.needsUpdate=true;

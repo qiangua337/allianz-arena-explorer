@@ -11,7 +11,7 @@ export default {async fetch(request,env){
  if(path==='/health')return json({ok:true,protocol:ONLINE_PROTOCOL});
  if(path==='/rooms'&&request.method==='POST'){
   let options;try{options=await body(request);}catch{return error('房间设置无效');}
-  for(let attempt=0;attempt<3;attempt++){const bytes=crypto.getRandomValues(new Uint8Array(8)),code=[...bytes].map(v=>alphabet[v%alphabet.length]).join(''),id=env.ROOMS.idFromName(code),stub=env.ROOMS.get(id),result=await stub.fetch(new Request(url.origin+'/create',{method:'POST',body:JSON.stringify({code,opponent:options.opponent})}));if(result.status!==409)return result;}return error('暂时无法创建房间，请重试',503);
+  for(let attempt=0;attempt<3;attempt++){const bytes=crypto.getRandomValues(new Uint8Array(8)),code=[...bytes].map(v=>alphabet[v%alphabet.length]).join(''),id=env.ROOMS.idFromName(code),stub=env.ROOMS.get(id,{locationHint:'apac'}),result=await stub.fetch(new Request(url.origin+'/create',{method:'POST',body:JSON.stringify({code,opponent:options.opponent})}));if(result.status!==409)return result;}return error('暂时无法创建房间，请重试',503);
  }
  const match=path.match(/^\/rooms\/([^/]+)\/(join|socket)$/);if(!match||!validRoomCode(match[1]))return error('房间码无效或入口不存在',404);
  if(match[2]==='join'&&request.method!=='POST'||match[2]==='socket'&&request.method!=='GET')return error('请求方式无效',405);
@@ -19,13 +19,13 @@ export default {async fetch(request,env){
 }};
 
 export class FootballRoom {
- constructor(ctx){this.ctx=ctx;this.meta=null;this.sim=null;this.sockets=new Map();this.inputs={};this.lastInput={};this.heartbeats={};this.pauses={home:false,away:false};this.seq=0;this.timer=null;this.lastTick=0;this.lastSave=0;this.lastAction={};this.rates={};
+ constructor(ctx){this.ctx=ctx;this.meta=null;this.sim=null;this.sockets=new Map();this.inputs={};this.inputSeq={};this.appliedSeq={};this.lastInput={};this.heartbeats={};this.pauses={home:false,away:false};this.seq=0;this.timer=null;this.lastTick=0;this.lastSave=0;this.lastAction={};this.rates={};
   ctx.blockConcurrencyWhile(async()=>{this.meta=await ctx.storage.get('room')||null;const saved=await ctx.storage.get('simulation');if(this.meta&&saved){this.sim=this.makeSimulation();this.sim.restore(saved);}for(const ws of ctx.getWebSockets()){const attachment=ws.deserializeAttachment();if(attachment?.team){this.sockets.set(attachment.team,ws);this.heartbeats[attachment.team]=Date.now();}}if(this.meta){this.pauses=this.meta.pauses||this.pauses;this.refresh();}});
  }
  makeSimulation(){const sim=createFootballSimulation({duration:180,seed:this.meta.seed,opponent:this.meta.opponent,difficulty:'regular',humanTeams:TEAMS});for(const team of TEAMS){const preference=this.meta.preferences?.[team];if(preference){sim.setControlMode(preference.controlMode,team);sim.setShotKind(preference.shotKind,team);}}return sim;}
  publicRoom(){return{code:this.meta.code,opponent:this.meta.opponent,expiresAt:this.meta.expiresAt,started:!!this.meta.started,ended:!!this.meta.ended,rematch:this.meta.rematch||{},reason:this.meta.reason||'',seats:TEAMS.map(team=>({team,connected:this.sockets.has(team),ready:!!this.meta.ready[team],paused:!!this.pauses[team]}))};}
- send(ws,message){try{ws.send(JSON.stringify(message));}catch{}}
- broadcast(){if(!this.meta)return;const message={type:'state',room:this.publicRoom(),state:this.sim?packOnlineState(this.sim.state,++this.seq):null};for(const ws of this.sockets.values())this.send(ws,message);}
+ send(ws,message){try{ws.send(typeof message==='string'?message:JSON.stringify(message));}catch{}}
+ broadcast(){if(!this.meta)return;const message=JSON.stringify({type:'state',room:this.publicRoom(),state:this.sim?packOnlineState(this.sim.state,++this.seq,this.appliedSeq):null});for(const ws of this.sockets.values())this.send(ws,message);}
  async persist(){if(!this.meta)return;this.meta.pauses=this.pauses;await this.ctx.storage.put({room:this.meta,...(this.sim?{simulation:this.sim.checkpoint()}:{})});}
  async fetch(request){
   const path=new URL(request.url).pathname,now=Date.now();
@@ -41,13 +41,13 @@ export class FootballRoom {
   }
   if(path!=='/socket'||request.headers.get('Upgrade')?.toLowerCase()!=='websocket')return error('需要实时连接',426);
   const protocols=(request.headers.get('Sec-WebSocket-Protocol')||'').split(',').map(v=>v.trim()),credential=protocols.find(p=>p.startsWith('seat.'))?.slice(5),team=TEAMS.find(t=>credential&&this.meta.tokens[t]===credential);if(!team||!protocols.includes('arena-v1'))return error('房间身份已失效，请重新加入',403);
-  const pair=new WebSocketPair(),client=pair[0],server=pair[1],previous=this.sockets.get(team);this.ctx.acceptWebSocket(server,[team]);server.serializeAttachment({team});this.sockets.set(team,server);if(!protocols.includes('ready-v1'))this.meta.ready[team]=false;this.heartbeats[team]=now;this.inputs[team]=safeOnlineInput();this.lastInput[team]=now;if(previous){try{previous.close(4001,'此席位已在另一个页面连接');}catch{}}
+  const pair=new WebSocketPair(),client=pair[0],server=pair[1],previous=this.sockets.get(team);this.ctx.acceptWebSocket(server,[team]);server.serializeAttachment({team});this.sockets.set(team,server);if(!protocols.includes('ready-v1'))this.meta.ready[team]=false;this.heartbeats[team]=now;this.inputs[team]=safeOnlineInput();this.inputSeq[team]=this.appliedSeq[team]=0;this.lastInput[team]=now;if(previous){try{previous.close(4001,'此席位已在另一个页面连接');}catch{}}
   this.send(server,{type:'welcome',team,protocol:ONLINE_PROTOCOL,room:this.publicRoom()});this.refresh();this.broadcast();return new Response(null,{status:101,webSocket:client,headers:{'Sec-WebSocket-Protocol':'arena-v1'}});
  }
  async webSocketMessage(ws,message){
   const team=ws.deserializeAttachment()?.team;if(!team||this.sockets.get(team)!==ws)return;if(typeof message!=='string'||message.length>1536){ws.close(1009,'消息过大');return;}let packet;try{packet=JSON.parse(message);}catch{return;}if(!packet||typeof packet!=='object'||Array.isArray(packet))return;const now=Date.now(),rate=this.rates[team];if(!rate||now-rate.at>1000)this.rates[team]={at:now,n:1};else if(++rate.n>90){ws.close(1008,'发送过于频繁，请重新加入');return;}this.heartbeats[team]=now;
   if(packet.type==='ping'){this.send(ws,{type:'pong',at:packet.at});return;}
-  if(packet.type==='input'){this.inputs[team]=safeOnlineInput(packet);this.lastInput[team]=now;return;}
+  if(packet.type==='input'){if(packet.seq!==undefined){if(!Number.isSafeInteger(packet.seq)||packet.seq<=0||packet.seq<=(this.inputSeq[team]||0))return;this.inputSeq[team]=packet.seq;}this.inputs[team]=safeOnlineInput(packet);this.lastInput[team]=now;return;}
   if(packet.type==='ready'){this.meta.ready[team]=packet.ready===true;this.refresh();await this.persist();this.broadcast();return;}
   if(packet.type==='pause'){this.pauses[team]=packet.paused===true;this.refresh();await this.persist();this.broadcast();return;}
   if(packet.type==='leave'){await this.end('朋友已离开房间');return;}
@@ -60,7 +60,7 @@ export class FootballRoom {
   }
   if(!this.sim||this.sim.state.paused||!this.meta.started)return;
   if(packet.type==='action'&&['pass','through','shoot','switch','tackle'].includes(packet.action)){
-   if(now-(this.lastAction[team]||0)<70)return;this.lastAction[team]=now;const direction=safeOnlineInput(packet.direction);this.sim.action(packet.action,{direction,power:Number.isFinite(packet.power)?Math.max(.15,Math.min(1,packet.power)):.5,kind:this.sim.state.shotKinds[team]},team);
+   if(now-(this.lastAction[team]||0)<70)return;this.lastAction[team]=now;const direction=safeOnlineInput(packet.direction);this.sim.action(packet.action,{direction,power:Number.isFinite(packet.power)?Math.max(.15,Math.min(1,packet.power)):.5,kind:this.sim.state.shotKinds[team]},team);this.broadcast();
   }
  }
  refresh(){if(!this.meta||this.meta.ended)return;const now=Date.now(),connected=TEAMS.every(t=>this.sockets.has(t)),ready=TEAMS.every(t=>this.meta.ready[t]);if(connected)this.meta.disconnectAt=null;else if(this.meta.started&&!this.meta.disconnectAt){this.meta.disconnectAt=now+GRACE;this.ctx.storage.setAlarm(Math.min(this.meta.expiresAt,this.meta.disconnectAt));}
@@ -69,7 +69,7 @@ export class FootballRoom {
   if(run&&!this.timer){this.lastTick=now;this.lastSave=now;this.timer=setInterval(()=>this.tick(),50);}else if(!run&&this.timer){clearInterval(this.timer);this.timer=null;}
  }
  tick(){const now=Date.now();if(now>=this.meta.expiresAt){this.end('房间已到期');return;}for(const team of TEAMS){if(now-(this.heartbeats[team]||0)>20000){const ws=this.sockets.get(team);if(ws){try{ws.close(4000,'连接超时');}catch{}this.disconnected(ws);}}if(now-(this.lastInput[team]||0)>500)this.inputs[team]=safeOnlineInput();}if(!this.timer)return;
-  const dt=Math.min(.15,(now-this.lastTick)/1000);this.lastTick=now;for(const team of TEAMS)this.sim.state.chargePowers[team]=this.inputs[team]?.power||0;this.sim.update(dt,this.inputs);this.broadcast();if(this.sim.state.phase==='fulltime'){this.refresh();this.persist();}else if(now-this.lastSave>30000){this.lastSave=now;this.persist();}
+  const dt=Math.min(.15,(now-this.lastTick)/1000);this.lastTick=now;for(const team of TEAMS){this.sim.state.chargePowers[team]=this.inputs[team]?.power||0;this.appliedSeq[team]=this.inputSeq[team]||0;}this.sim.update(dt,this.inputs);this.broadcast();if(this.sim.state.phase==='fulltime'){this.refresh();this.persist();}else if(now-this.lastSave>30000){this.lastSave=now;this.persist();}
  }
  async disconnected(ws){const team=ws.deserializeAttachment()?.team;if(this.sockets.get(team)!==ws)return;this.sockets.delete(team);this.inputs[team]=safeOnlineInput();this.refresh();await this.persist();this.broadcast();}
  webSocketClose(ws){return this.disconnected(ws);}
