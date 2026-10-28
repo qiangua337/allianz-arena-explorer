@@ -4,6 +4,15 @@
 
 [在线探索](https://allianz-arena-explorer.pages.dev/) · [GitHub 源码](https://github.com/qiangua337/allianz-arena-explorer) · [Cloudflare 部署说明](docs/DEPLOYMENT.md) · [MIT 许可证](LICENSE)
 
+版本 **6.0：和朋友在不同设备联机对战**。
+
+- 在「比赛日选项 → 和朋友联机」创建房间，复制邀请链接，或让朋友输入 8 位房间码。房主控制拜仁，朋友控制选定的多特、皇马、巴萨或曼城；每队 11 人，其余球员由 AI 配合。
+- 两端准备并加载完成后统一开球。比赛由 Cloudflare 服务器计算，比分、时间、足球、球员、传射与抢断状态同步；保留手机摇杆、动作键和各自的换人辅助、镜头设置。
+- 一方暂停或断线会冻结比赛；掉线后自动尝试恢复原席位，保留 60 秒重连时间。每个房间最多两人、30 分钟到期，比赛结束后双方可同意再来一场。
+- 参观与人机赛保留原有入口。联机房间为双人对战，暂不包括多人共同参观、同队合作或随机匹配。
+
+[打开赛前设置](https://allianz-arena-explorer.pages.dev/?place=pitch&night=1&experience=football) · [联机玩法与技术说明](docs/MULTIPLAYER.md) · [部署前后端](docs/DEPLOYMENT.md)
+
 版本 **5.1：修复展柜串内容，完善展品辨识与手机查阅**。
 
 - 全场互动改为视线选中：按 F 或点击时重新确认当前目标。荣誉展柜的高亮、提示和介绍使用同一份记录，隔墙或身后的展品不会抢占选择；中央玻璃柜的空白部分也不会挡住后方展板。

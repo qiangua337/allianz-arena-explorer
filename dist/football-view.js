@@ -27,7 +27,7 @@ export function buildFootballView(scene,ball,players){
    else{points.setXYZ(0,b.x,.035,b.z);points.setXYZ(1,target.x,.035,target.z);guideGeometry.setDrawRange(0,2);}
    points.needsUpdate=true;guide.computeLineDistances();guide.material.color.set(charging?state.shotKind==='lob'?0xc9b6f6:state.shotKind==='finesse'?0x94dec5:0xf2c46c:0xbde7e1);aim.material.color.copy(guide.material.color);receiver.position.set(target.x,.024,target.z);
   }
-  const available=p&&owner?.team==='away'&&tackleWindow(p,owner,b,{range:2.05}).canReach;gold.color.set(available?0x9ae2b1:0xe8ca79);gold.opacity=p&&state.time<p.tackleAt?.38:.82;
+  const available=p&&owner&&owner.team!==p?.team&&tackleWindow(p,owner,b,{range:2.05}).canReach;gold.color.set(available?0x9ae2b1:0xe8ca79);gold.opacity=p&&state.time<p.tackleAt?.38:.82;
   if(ball){if(lastBall){const dx=b.x-lastBall.x,dz=b.z-lastBall.z;if(Math.hypot(dx,dz)<8){ball.rotation.x+=dz/.11;ball.rotation.z-=dx/.11;}}ball.position.set(b.x,Math.max(.115,b.y||.11),b.z);}
   lastBall={x:b.x,z:b.z};shadow.position.set(b.x,.013,b.z);shadow.scale.setScalar(1+Math.min(5,b.y||.11)*.18);shadowMaterial.opacity=.4/(1+Math.max(0,b.y||0)*1.3);ballMarker.position.set(b.x,.018,b.z);ballMarker.visible=(b.y||.11)<1.5&&!state.replay;
   players.root.visible=players.ready;players.updateMatch(state,time,viewer,{firstPerson});

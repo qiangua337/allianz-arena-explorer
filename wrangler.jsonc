@@ -1,5 +1,6 @@
 {
   "name": "allianz-arena-explorer",
   "pages_build_output_dir": "./dist",
-  "compatibility_date": "2026-10-20"
+  "compatibility_date": "2026-10-20",
+  "services": [{"binding": "ARENA_MULTIPLAYER", "service": "allianz-arena-multiplayer"}]
 }

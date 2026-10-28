@@ -21,8 +21,8 @@ export function tackleWindow(defender,owner,ball,{range=1.85}={}){
  return{distance:d,front,sheltered,canReach:d<=range&&ball.y<.65&&front>-.25&&!sheltered};
 }
 export function pressureTarget(defender,owner,ball){
- const target={x:ball.x+(owner?.vx||ball.vx||0)*.18,z:ball.z+(owner?.vz||ball.vz||0)*.18,standOff:owner?.team==='away'?1.1:.45};
- if(owner?.team==='away'&&tackleWindow(defender,owner,ball).sheltered){
+ const target={x:ball.x+(owner?.vx||ball.vx||0)*.18,z:ball.z+(owner?.vz||ball.vz||0)*.18,standOff:owner&&owner.team!==(defender.team||'home')?1.1:.45};
+ if(owner&&owner.team!==(defender.team||'home')&&tackleWindow(defender,owner,ball).sheltered){
   const bx=ball.x-owner.x,bz=ball.z-owner.z,length=Math.hypot(bx,bz)||1,cross=(defender.x-owner.x)*bz-(defender.z-owner.z)*bx,side=cross===0?(defender.x>=owner.x?1:-1):Math.sign(cross);
   target.x=owner.x+bz/length*side*1.15+bx*.25;target.z=owner.z-bx/length*side*1.15+bz*.25;target.standOff=.15;
  }
