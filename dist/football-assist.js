@@ -7,7 +7,7 @@ export function saveFootballSettings(storage,settings){try{storage?.setItem('are
 export function turnFootballer(current,target,limit){let delta=Math.atan2(Math.sin(target-current),Math.cos(target-current));return current+Math.max(-limit,Math.min(limit,delta));}
 export function cursorCandidate(players,ball,{exclude=null,team='home'}={}){
  const owner=players.find(p=>p.id===ball.ownerId),point={x:ball.x+(ball.vx||0)*.22,z:ball.z+(ball.vz||0)*.22},ownGoal=team==='home'?52.5:-52.5;
- return players.filter(p=>p.team===team&&!p.keeper&&p.id!==exclude).map(p=>{
+ return players.filter(p=>!p.dismissed&&p.team===team&&!p.keeper&&p.id!==exclude).map(p=>{
   const distance=Math.hypot(p.x-point.x,p.z-point.z),behindBall=(p.z-point.z)*Math.sign(ownGoal)<-1.5;
   return{p,score:distance+(owner?.team===team&&owner.id===p.id?-6:0)+(owner?.team!==team&&behindBall?1.8:0)};
  }).sort((a,b)=>a.score-b.score)[0]?.p||null;

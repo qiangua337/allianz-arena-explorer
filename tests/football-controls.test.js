@@ -18,3 +18,8 @@ test('the match clock clamps at full time and the ball compass is relative to th
  assert.equal(matchTime({duration:180,elapsed:0}),'03:00');assert.equal(matchTime({duration:180,elapsed:120.2}),'01:00');assert.equal(matchTime({duration:180,elapsed:181}),'00:00');
  const p={x:0,z:0};assert.equal(ballDirection(p,{x:0,z:-10},0),'前方 ↑ 10 m');assert.equal(ballDirection(p,{x:0,z:10},0),'后方 ↓ 10 m');assert.equal(ballDirection(p,{x:10,z:0},0),'右侧 → 10 m');assert.equal(ballDirection(p,{x:10,z:0},Math.PI),'← 左侧 10 m');
 });
+
+test('portrait penalty cameras keep the goal posts and full keeper movement inside the horizontal view',()=>{
+ for(const penalty of ['shooter','keeper']){const pose=footballCamera({x:0,z:-41.5},{style:'broadcast',aspect:390/844,penalty}),[cx,cy,cz]=pose.position,[tx,ty,tz]=pose.target,dy=ty-cy,dz=tz-cz,d=Math.hypot(dy,dz),depth=((.8-cy)*dy+(-52.5-cz)*dz)/d,half=depth*Math.tan(pose.fov*Math.PI/360)*390/844;assert.ok(half>3.66,'both posts remain visible: '+penalty);assert.equal(pose.controlYaw,penalty==='keeper'?Math.PI:0);}
+ const state={elapsed:90,competition:{stage:'regulation',regulationDuration:180}};assert.equal(matchTime(state),'45:00');state.elapsed=240;assert.equal(matchTime(state),'120:00');
+});

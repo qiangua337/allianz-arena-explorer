@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {normalizeRules} from '../dist/football-rules.js';
 import {createFootballSimulation} from '../dist/football-simulation.js';
 import {footballTeams,opponentSquad,loadMatchOptions,saveMatchOptions} from '../dist/football-teams.js';
 import {footballCamera,footballInput} from '../dist/football-controls.js';
@@ -16,7 +17,7 @@ test('each selectable opponent supplies eleven distinct starters, nine distinct 
  assert.equal(opponentSquad('dortmund').xi[1].player.name,'GUIRASSY');
 });
 test('match settings survive independently of visiting quality and reject invalid stored choices',()=>{
- const values=new Map([['arena-visitor-v1','{"quality":"low"}']]),storage={getItem:k=>values.get(k),setItem:(k,v)=>values.set(k,v)};saveMatchOptions(storage,{opponent:'barcelona',difficulty:'challenge',camera:'follow'});assert.deepEqual(loadMatchOptions(storage),{opponent:'barcelona',difficulty:'challenge',camera:'follow'});assert.equal(values.get('arena-visitor-v1'),'{"quality":"low"}');assert.deepEqual(loadMatchOptions({getItem:()=>'{oops'}),{opponent:'dortmund',difficulty:'casual',camera:'broadcast'});
+ const values=new Map([['arena-visitor-v1','{"quality":"low"}']]),storage={getItem:k=>values.get(k),setItem:(k,v)=>values.set(k,v)};saveMatchOptions(storage,{opponent:'barcelona',difficulty:'challenge',camera:'follow'});assert.deepEqual(loadMatchOptions(storage),{opponent:'barcelona',difficulty:'challenge',camera:'follow',rules:normalizeRules(),selection:null});assert.equal(values.get('arena-visitor-v1'),'{"quality":"low"}');assert.deepEqual(loadMatchOptions({getItem:()=>'{oops'}),{opponent:'dortmund',difficulty:'casual',camera:'broadcast',rules:normalizeRules(),selection:null});
 });
 test('stick direction selects between real passing lanes rather than the lagging body heading',()=>{
  const g=setup(),p=player(g),left=player(g,'home-8'),right=player(g,'home-9');Object.assign(left,{x:-12,z:-3});Object.assign(right,{x:12,z:-3});p.yaw=Math.PI;

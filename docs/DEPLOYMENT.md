@@ -11,6 +11,8 @@
 
 首次 Worker 部署按 `multiplayer/wrangler.jsonc` 创建 SQLite Durable Object 类；更新时保留原迁移标记。需要账号读取、Pages 和 Workers Scripts 写入权限，仅有 Pages 权限不能发布联机服务器。不修改账号套餐。
 
+7.0 联机协议为 v2。更新时先发布 Worker，再发布 Pages；旧房间结束，双方刷新后重建。不要删除已有 Durable Object 迁移记录。
+
 ## 更新当前网站
 
 当前网站连接 GitHub 的 `main` 分支。将改动提交并推送后，Cloudflare Pages

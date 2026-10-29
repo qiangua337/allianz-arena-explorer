@@ -13,6 +13,9 @@ function fixture(){
  return{game,node,audio,views,classes,get actorUpdates(){return actorUpdates;},get cheers(){return cheers;}};
 }
 const run=(game,seconds,input={})=>{for(let i=0;i<Math.round(seconds*60);i++)game.update(1/60,input,{x:0,y:5,z:9});};
+test('the actual match HUD presents half time and continues into the second half instead of remaining under a pause overlay',async()=>{
+ const {game,node}=fixture();game.start({rules:{mode:'league',duration:180}});game.ready();run(game,3.1);game.state.elapsed=89.99;run(game,.1);assert.equal(game.state.phase,'interval');assert.equal(node('game-overlay').hidden,false);assert.equal(node('game-overlay-title').textContent,'中场休息');assert.equal(node('game-resume').textContent,'开始下半场');await node('game-resume').onclick();run(game,.2);assert.equal(game.state.competition.period,2);assert.equal(game.state.paused,false);assert.equal(node('game-overlay').hidden,true);assert.equal(node('game-period').textContent,'下半场');
+});
 test('a pending or failed player load never advances a live match; retry starts a fresh kick-off',()=>{
  const{game,node,classes}=fixture();game.start();run(game,10);assert.equal(game.state.phaseTime,0);assert.equal(game.state.elapsed,0);assert.equal(game.action('shoot'),false);assert.equal(node('game-overlay').hidden,false);assert.ok(classes.has('game-active'));
  game.fail();assert.equal(node('game-overlay-title').textContent,'球员暂未加载');assert.equal(node('game-restart').hidden,false);game.start();game.ready();run(game,3.1);assert.equal(game.state.phase,'playing');assert.ok(game.state.elapsed<.2);assert.equal(node('game-overlay').hidden,true);

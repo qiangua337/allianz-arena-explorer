@@ -7,7 +7,7 @@ export function goalkeeperState(){return{phase:'ready',shotId:null,readAt:0,comm
 // Keepers can read only the ball's observed flight after their reaction delay.
 // A committed dive cannot reverse direction to follow a curling or rebounding ball.
 export function planGoalkeeper(p,ball,owner,time,difficulty){
- const k=p.keeperState||(p.keeperState=goalkeeperState()),profile=goalkeeperProfile(difficulty),sign=p.team==='home'?-1:1,goal=-sign*52.5;
+ const k=p.keeperState||(p.keeperState=goalkeeperState()),profile=goalkeeperProfile(difficulty),sign=p.attackSign??(p.team==='home'?-1:1),goal=-sign*52.5;
  if(k.phase==='dive'&&time>=k.diveUntil)k.phase='recover';
  if(k.phase==='recover'&&time>=k.recoverUntil)k.phase='ready';
  if(owner?.id===p.id){k.phase='holding';return{x:p.x,z:p.z,speed:0};}
@@ -36,7 +36,7 @@ function contactOnSegment(a,b,center,radii){
  return distance<=1?{x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t,z:a.z+(b.z-a.z)*t,distance}:null;
 }
 export function goalkeeperContact(p,ball,previous,time,difficulty){
- const k=p.keeperState||(p.keeperState=goalkeeperState()),profile=goalkeeperProfile(difficulty),sign=p.team==='home'?-1:1,speed=Math.hypot(ball.vx,ball.vz);
+ const k=p.keeperState||(p.keeperState=goalkeeperState()),profile=goalkeeperProfile(difficulty),sign=p.attackSign??(p.team==='home'?-1:1),speed=Math.hypot(ball.vx,ball.vz);
  if(time<k.blockedUntil||Math.abs(p.x)>20||Math.abs(p.z)<35)return null;
  if(ball.ownerId&&k.phase!=='smother')return null;
  if(speed<5&&ball.y<.5&&Math.hypot(ball.x-p.x,ball.z-p.z)<.70&&k.phase!=='recover')return{kind:'catch',point:{x:ball.x,y:ball.y,z:ball.z}};

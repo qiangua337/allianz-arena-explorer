@@ -5,11 +5,11 @@ const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 export function createFootballMotion(data,motion,bones,group,definition){
  const rest=data.bones.map(b=>new THREE.Vector3().fromArray(b.head)),world=data.bones.map(()=>new THREE.Quaternion()),q=new THREE.Quaternion(),a=new THREE.Quaternion(),b=new THREE.Quaternion(),hip=new THREE.Vector3(),knee=new THREE.Vector3(),ankle=new THREE.Vector3(),axis=new THREE.Vector3(),bend=new THREE.Vector3(),v=new THREE.Vector3(),u=new THREE.Vector3();
  let distance=0,last=null,blend=0,lastTime=null,travelSpeed=0;
- const heightScale=definition.height/1.86,walk=motion.clips.Walk_Loop,jog=motion.clips.Jog_Fwd_Loop||walk,sprint=motion.clips.Sprint_Loop||jog,idle=motion.clips[definition.seated?'Sitting_Idle_Loop':definition.role==='coach'?'Idle_Talking_Loop':'Idle_Loop'];
+ let heightScale=definition.height/1.86;const walk=motion.clips.Walk_Loop,jog=motion.clips.Jog_Fwd_Loop||walk,sprint=motion.clips.Sprint_Loop||jog,idle=motion.clips[definition.seated?'Sitting_Idle_Loop':definition.role==='coach'?'Idle_Talking_Loop':'Idle_Loop'];
  const rootWalk=new THREE.Vector3(),rootIdle=new THREE.Vector3(),rootOffset=new THREE.Vector3(),rootJog=new THREE.Vector3(),rootSprint=new THREE.Vector3(),jogQ=new THREE.Quaternion(),sprintQ=new THREE.Quaternion();
  function indices(clip,phase){const f=((phase%1)+1)%1*60,i=Math.floor(f);return[clip.frames[i],clip.frames[(i+1)%61],f-i];}
  function readQuaternion(frames,i,out){return out.slerpQuaternions(a.fromArray(frames[0],3+i*4),b.fromArray(frames[1],3+i*4),frames[2]);}
- function pose(px,pz,heading,time,moving,seatY=0){
+ function pose(px,pz,heading,time,moving,seatY=0){heightScale=definition.height/1.86;
   const dt=lastTime===null?.016:clamp(time-lastTime,0,.15);lastTime=time;
   const stair=px>-46.4&&px<-40.3,step=last?Math.hypot(px-last.x,pz-last.z):0;travelSpeed=THREE.MathUtils.damp(travelSpeed,dt>.001&&step<2?step/dt:0,8,dt);const run=stair||definition.seated?0:clamp((travelSpeed-2.2)/2,0,1),fast=stair||definition.seated?0:clamp((travelSpeed-5.4)/1.6,0,1),stride=THREE.MathUtils.lerp(THREE.MathUtils.lerp(motion.stride,jog.stride||2.25,run),sprint.stride||3.1,fast)*(stair?.52:1);
   if(last&&step<2)distance+=step/(heightScale*stride);last={x:px,z:pz};blend=THREE.MathUtils.damp(blend,moving?1:0,10,dt);if(definition.seated)blend=0;
