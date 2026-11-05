@@ -1,10 +1,10 @@
 import {buildBucketSeat} from './facility-equipment.js';
-import {drawPitchArtwork} from './pitch-artwork.js';
+import {drawPitchArtwork,drawApronArtwork} from './pitch-artwork.js';
 import {buildPitchsideDetails} from './pitchside-details.js';
 import {createGoalNetMaterial,goalFeedbackController} from './goal-feedback.js';
 import {fitoutShaderCuts} from './room-volumes.js';
 import {surfaceMaps} from './visual-assets.js';
-import {buildNearSeatDetails} from './near-seat-details.js';
+import {buildNearSeatDetails,detailedSeatGeometry} from './near-seat-details.js';
 import {buildBowlLighting} from './stadium-lighting.js';
 import {THREE,TAU,v,mat,mesh,box,beam,sign,cylinder,canvasTexture,textTexture,superpoint,supernormal,ringGeometry,curveLine,mergeGeometry,compactGroup,Batches,addCrest,seeded} from './kit.js';
 import {bowlIsVisible} from './scene-budget.js';
@@ -17,6 +17,8 @@ import {buildPitchSurface} from './pitch-surface.js';
 import {buildArenaScreens} from './arena-screens.js';
 import {finishedBox} from './finishes.js';
 import {partitionGeometry,facadeSectorVisible} from './spatial-batches.js';
+import {shellProfileSampler,installEtfeSurface,seatingDetail,buildRoofLining} from './venue-models.js';
+import {buildMatchBall} from './football-ball.js';
 
 export function buildStadium(scene){
  const root=new THREE.Group();root.name='Allianz Arena | metres';scene.add(root);
@@ -30,13 +32,14 @@ export function buildStadium(scene){
  const arc=[];let distance=0,previous=superpoint(113.5,129,0,2.65);arc.push({t:0,d:0});
  for(let i=1;i<=2048;i++){const t=i/2048*TAU,p=superpoint(113.5,129,t,2.65);distance+=p.distanceTo(previous);arc.push({t,d:distance});previous=p;}
  const theta=(u)=>{let d=((u%1+1)%1)*distance,lo=0,hi=arc.length-1;while(hi-lo>1){const m=(lo+hi)>>1;if(arc[m].d<d)lo=m;else hi=m;}return THREE.MathUtils.lerp(arc[lo].t,arc[hi].t,(d-arc[lo].d)/(arc[hi].d-arc[lo].d));};
- function surface(u,w){w=THREE.MathUtils.clamp(w,0,1);const f=w*(cross.length-1),i=Math.min(Math.floor(f),cross.length-2),t=f-i;const r=THREE.MathUtils.lerp(cross[i][0],cross[i+1][0],t),y=THREE.MathUtils.lerp(cross[i][1],cross[i+1][1],t),p=superpoint(113.5*r,129*r,theta(u),2.65);p.y=y;return p;}
+ const shellProfile=shellProfileSampler(cross);
+ function surface(u,w){const {r,y}=shellProfile(w),p=superpoint(113.5*r,129*r,theta(u),2.65);p.y=y;return p;}
  const shellMaterials=[mat(0xe5e8e4,{roughness:.42,metalness:.08,side:THREE.DoubleSide,vertexColors:true}),mat(0xf4f4ed,{roughness:.52,metalness:.05,side:THREE.DoubleSide,vertexColors:true})];
  // Clip the entire inflated panel surface at the stair portals, including its
  // corners and shadow pass. Dropping panel centres leaves diamond-shaped obstructions.
  const portalCuts=accessStairs.map((s,i)=>`{vec2 delta=vPortalPosition.xz-vec2(${s.x.toFixed(5)},${s.z.toFixed(5)});float along=-dot(delta,vec2(${s.nx.toFixed(6)},${s.nz.toFixed(6)}));float side=dot(delta,vec2(${s.nz.toFixed(6)},${(-s.nx).toFixed(6)}));float floorY=${ACCESS_BASE.toFixed(3)}+along*${((ACCESS_TOP-ACCESS_BASE)/s.run).toFixed(6)};if(abs(side)<${(s.width/2+.34).toFixed(3)}&&along>-.3&&along<${(s.run+1.8).toFixed(3)}&&vPortalPosition.y>floorY-.45&&vPortalPosition.y<floorY+4.15)discard;}`).join('\n');
  function cutPortals(material){material.onBeforeCompile=shader=>{shader.vertexShader='varying vec3 vPortalPosition;\n'+shader.vertexShader;shader.vertexShader=shader.vertexShader.replace('#include <project_vertex>','#include <project_vertex>\nvPortalPosition=(modelMatrix*vec4(transformed,1.0)).xyz;');shader.fragmentShader='varying vec3 vPortalPosition;\n'+shader.fragmentShader;shader.fragmentShader=shader.fragmentShader.replace('#include <clipping_planes_fragment>','#include <clipping_planes_fragment>\n'+portalCuts+'\n'+fitoutShaderCuts);if(material.isMeshStandardMaterial)shader.fragmentShader=shader.fragmentShader.replace('#include <emissivemap_fragment>','#include <emissivemap_fragment>\n#if defined(USE_COLOR) || defined(USE_COLOR_ALPHA)\ntotalEmissiveRadiance*=pow(clamp(vColor.rgb,vec3(0.),vec3(1.)),vec3(2.2));\n#endif');};material.customProgramCacheKey=()=> 'arena-stair-portals-fitout-v3';return material;}
- shellMaterials.forEach(cutPortals);const shellDepth=cutPortals(new THREE.MeshDepthMaterial({depthPacking:THREE.RGBADepthPacking,side:THREE.DoubleSide}));
+ shellMaterials.forEach(m=>{cutPortals(m);installEtfeSurface(m);});const shellDepth=cutPortals(new THREE.MeshDepthMaterial({depthPacking:THREE.RGBADepthPacking,side:THREE.DoubleSide}));
  const buffers=[{p:[],c:[],i:[]},{p:[],c:[],i:[]},{p:[],c:[],i:[]}];let panelCount=0;
  const rand=seeded(370);const samples=16,rings=3;
  for(let row=0;row<24;row++)for(let col=0;col<116;col++){
@@ -51,16 +54,17 @@ export function buildStadium(scene){
    const dx=THREE.MathUtils.lerp(a[0],c[0],t)*.5/116*r*.986,dy=THREE.MathUtils.lerp(a[1],c[1],t)/24*r*.986;
    const p=surface(u+dx,w+dy).addScaledVector(normal,.32*(1-r*r));put(p,1-.30*r*r);
   }
-  for(let k=0;k<samples;k++)b.i.push(start,start+1+k,start+1+(k+1)%samples);
-  for(let rr=1;rr<rings;rr++)for(let k=0;k<samples;k++){const a=start+1+(rr-1)*samples+k,c=start+1+(rr-1)*samples+(k+1)%samples,d=start+1+rr*samples+k,e=start+1+rr*samples+(k+1)%samples;b.i.push(a,d,c,c,d,e);}
+  for(let k=0;k<samples;k++)b.i.push(start,start+1+(k+1)%samples,start+1+k);
+  for(let rr=1;rr<rings;rr++)for(let k=0;k<samples;k++){const a=start+1+(rr-1)*samples+k,c=start+1+(rr-1)*samples+(k+1)%samples,d=start+1+rr*samples+k,e=start+1+rr*samples+(k+1)%samples;b.i.push(a,c,d,c,e,d);}
   panelCount++;
  }
  const shellMeshes=[];buffers.forEach((b,i)=>{const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(b.p,3));g.setAttribute('color',new THREE.Float32BufferAttribute(b.c,3));g.setIndex(b.i);g.computeVertexNormals();g.computeBoundingSphere();for(const part of i===0?partitionGeometry(g):[{geometry:g}]){const o=mesh(part.geometry,shellMaterials[i===2?0:i],i?roof:root);o.customDepthMaterial=shellDepth;o.castShadow=true;o.userData.shellSection=i?1:0;o.userData.sectorCenter=part.geometry.boundingSphere.center.clone();shellMeshes.push(o);}if(i===0)g.dispose();});
  // The pedestrian level stays present when the outer bowl is culled indoors.
  const circulation=buildCirculation(scene);
+ buildRoofLining(roof,surface);
  // A three-tier bowl. Angles follow the published 24 / 30 / 34 degree sections.
  const tiers=seatingTiers;
- const rowGeometries=[];const seats=[];const closeLabels=new THREE.Group();bowl.add(closeLabels);const textCanvas=document.createElement('canvas');textCanvas.width=1200;textCanvas.height=260;const tx=textCanvas.getContext('2d');tx.fillStyle='#000';tx.fillRect(0,0,1200,260);tx.fillStyle='#fff';tx.textAlign='center';tx.textBaseline='middle';tx.font='bold 165px Arial';tx.fillText('FC BAYERN MÜNCHEN',600,130,1170);const textPixels=tx.getImageData(0,0,1200,260).data;
+ const rowGeometries=[];const seats=[];const aisleRails=new THREE.Group();aisleRails.name='Continuous stair handrails beside clear walking aisles';bowl.add(aisleRails);const closeLabels=new THREE.Group();bowl.add(closeLabels);const textCanvas=document.createElement('canvas');textCanvas.width=1200;textCanvas.height=260;const tx=textCanvas.getContext('2d');tx.fillStyle='#000';tx.fillRect(0,0,1200,260);tx.fillStyle='#fff';tx.textAlign='center';tx.textBaseline='middle';tx.font='bold 165px Arial';tx.fillText('FC BAYERN MÜNCHEN',600,130,1170);const textPixels=tx.getImageData(0,0,1200,260).data;
  function openTunnelRing(a,b,aa,bb,y,row){const limit=Math.asin((2.6/b)**(3.35/2)),ts=Array.from({length:385},(_,i)=>i/384*TAU);ts.push(Math.PI-limit,Math.PI+limit);if(row<8)for(const x of[visitorPassage.x-visitorPassage.width/2-.35,visitorPassage.x+visitorPassage.width/2+.35])ts.push(Math.acos(Math.sign(x)*Math.abs(x/a)**(3.35/2)));ts.sort((a,b)=>a-b);const ps=[];for(let i=0;i<ts.length-1;i++){const t=ts[i],u=ts[i+1],mid=superpoint(a,b,(t+u)/2,3.35);if(bowlOpening(mid.x,mid.z,row))continue;const pts=[superpoint(a,b,t,3.35),superpoint(aa,bb,t,3.35),superpoint(aa,bb,u,3.35),superpoint(a,b,u,3.35)];for(const k of[0,2,1,0,3,2])ps.push(pts[k].x,y,pts[k].z);}const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(ps,3));g.computeVertexNormals();return g;}
  tiers.forEach((tier,ti)=>{
   const rise=tier.depth*Math.tan(tier.angle*Math.PI/180);
@@ -87,10 +91,20 @@ export function buildStadium(scene){
   let pts=[];for(let j=0;j<=512;j++){const p=superpoint(innerA,innerB,j/512*TAU,3.35);p.y=tier.y+.95;if(ti===0&&bowlOpening(p.x,p.z,0)){if(pts.length>1)curveLine(bowl,pts,0xbec9cd,.8);pts=[];}else pts.push(p);}if(pts.length>1)curveLine(bowl,pts,0xbec9cd,.8);
   for(let j=0;j<48;j++){const t=(j+.5)/48*TAU,p=superpoint(innerA,innerB,t,3.35),n=supernormal(innerA,innerB,t,3.35),yaw=Math.atan2(n.x,n.z);if(ti===0&&bowlOpening(p.x,p.z,0))continue;batch.add(.04,1,.04,p.x,tier.y+.45,p.z,steel);const lab=sign(closeLabels,String(100+ti*100+j+1),1.8,.58,p.x-n.x*.06,tier.y-.66,p.z-n.z*.06,{w:128,h:64,font:38,fg:'#ffffff',bg:'#b51632'});lab.rotation.y=yaw+Math.PI;}
   // Radial stair aisles with intermediate handrail posts.
-  for(let j=0;j<48;j++)for(let r=0;r<tier.rows;r++){const t=j/48*TAU,p=superpoint(tier.a+r*tier.depth+.25,tier.b+r*tier.depth+.25,t,3.35),n=supernormal(tier.a,tier.b,t,3.35);if(ti===0&&bowlOpening(p.x,p.z,r))continue;batch.add(1.05,.08,tier.depth+.1,p.x,tier.y+r*rise+.045,p.z,concrete,Math.atan2(n.x,n.z));if(r%4===0)batch.add(.035,.9,.035,p.x,tier.y+r*rise+.45,p.z,steel);}
+  for(let j=0;j<48;j++){
+   const previous=[null,null];for(let r=0;r<tier.rows;r++){
+    const t=j/48*TAU,p=superpoint(tier.a+r*tier.depth+.25,tier.b+r*tier.depth+.25,t,3.35),n=supernormal(tier.a,tier.b,t,3.35),yaw=Math.atan2(n.x,n.z),y=tier.y+r*rise;
+    if(ti===0&&bowlOpening(p.x,p.z,r)){previous.fill(null);continue;}
+    batch.add(1.05,.08,tier.depth+.1,p.x,y+.045,p.z,concrete,yaw);batch.add(.96,.012,.035,p.x-n.x*(tier.depth/2-.03),y+.093,p.z-n.z*(tier.depth/2-.03),steel,yaw);
+    if(r%4===0||r===tier.rows-1)for(let side=0;side<2;side++){
+     const offset=side?.43:-.43,x=p.x+n.z*offset,z=p.z-n.x*offset,point=v(x,y+.96,z);batch.add(.028,.90,.028,x,y+.48,z,steel);if(previous[side])beam(aisleRails,previous[side],point,.025,steel,6);previous[side]=point;
+    }
+   }
+  }
  });
- const steps=mesh(mergeGeometry(rowGeometries),concrete,bowl);steps.castShadow=true;
- const seatBottom=new THREE.BoxGeometry(.435,.085,.4).translate(0,.23,0),seatBack=new THREE.BoxGeometry(.435,.49,.06).translate(0,.49,.17),seatGeom=mergeGeometry([seatBottom,seatBack]);
+ const steps=mesh(mergeGeometry(rowGeometries),concrete,bowl);steps.name='Seating decks and risers';steps.castShadow=true;
+ compactGroup(aisleRails);
+ const seatGeom=detailedSeatGeometry(2).shell;
  const farSeat=new THREE.PlaneGeometry(.435,.77).rotateX(-.35).translate(0,.43,.12),coarseSeat=mergeGeometry([new THREE.PlaneGeometry(.435,.4).rotateX(-Math.PI/2).translate(0,.23,0),new THREE.PlaneGeometry(.435,.49).translate(0,.49,.17)]),seatMat=mat(0xffffff,{roughness:.53,metalness:.04,side:THREE.DoubleSide});const dummy=new THREE.Object3D(),seatInstances=[];
  for(let sector=0;sector<24;sector++){const list=seats.filter(s=>s.sector===sector),inst=new THREE.InstancedMesh(seatGeom,seatMat,list.length);list.forEach((s,i)=>{dummy.position.set(s.x,s.y,s.z);dummy.rotation.set(0,s.yaw,0);dummy.updateMatrix();inst.setMatrixAt(i,dummy.matrix);inst.setColorAt(i,new THREE.Color(s.color));});inst.computeBoundingSphere();inst.receiveShadow=true;bowl.add(inst);seatInstances.push(inst);}
  const nearSeats=buildNearSeatDetails(bowl,seats,seatMat);
@@ -101,8 +115,8 @@ export function buildStadium(scene){
   for(let k=1;k<5;k++){const a=p.clone().lerp(q,k/5),b=p.clone().lerp(q,(k-1)/5);b.y-=2.6*(1-(k-1)/5);trussBeam(a,b,.08);}
   const lum=p.clone().lerp(q,.08),n=supernormal(66,78,t,2.65),yaw=Math.atan2(n.x,n.z);for(let k=0;k<(j%9===0?5:4);k++)roofBatch.add(.6,.23,.4,lum.x+n.z*(k-1.5)*.72,lum.y-1.25,lum.z-n.x*(k-1.5)*.72,lightMaterial,yaw);
  }
+ for(const [a,b,y,r]of[[66.6,77.6,46.4,.22],[83,97,48.2,.14],[104,120,44.5,.18]]){const pts=[];for(let j=0;j<256;j++){const p=superpoint(a,b,j/256*TAU,2.65);p.y=y;pts.push(p);}trussGeometries.push(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts,true,'centripetal'),384,r,6,true));}
  roofBatch.flush();mesh(mergeGeometry(trussGeometries),steel,roofDetails);
- for(const [a,b,y]of[[66.6,77.6,46.4],[83,97,48.2],[104,120,44.5]]){const pts=[];for(let j=0;j<=256;j++){const p=superpoint(a,b,j/256*TAU,2.65);p.y=y;pts.push(p);}curveLine(roofDetails,pts,0xadb8bb);}
  const rim=[];for(let j=0;j<=384;j++){const p=superpoint(66.8,77.8,j/384*TAU,2.65);p.y=47.1;rim.push(p);}curveLine(roofDetails,rim,0xff274a);
  // Roof lights use broad sources; the 296 modelled luminaires remain visible as individual units.
  const stadiumLights=[];for(const [x,z]of[[-42,-37],[-42,37],[42,-37],[42,37]]){const l=new THREE.SpotLight(0xe4edff,0,180,1.1,.65,2);l.position.set(x,45,z);l.target.position.set(x*.2,0,z*.2);root.add(l,l.target);stadiumLights.push(l);}
@@ -122,11 +136,12 @@ export function buildStadium(scene){
   const glass=mat(0xa5c6d9,{transparent:true,opacity:.21,metalness:.2,roughness:.2,side:THREE.DoubleSide,depthWrite:false});box(g,.08,2.5,17,-1.6,1.55,0,glass);box(g,3.3,.08,17,0,2.8,0,glass);for(let j=0;j<7;j++){const z=-8.5+j*17/6;beam(g,v(-1.65,.2,z),v(-1.65,2.8,z),.035,steel);beam(g,v(-1.65,2.8,z),v(1.65,2.8,z),.035,steel);}const a=sign(g,'FC BAYERN MÜNCHEN',15,.36,-1.71,2.65,0,{font:65,h:128});a.rotation.y=-Math.PI/2;compactGroup(g);
  }
  batch.flush();compactGroup(closeLabels);const pitchside=buildPitchsideDetails(bowl);const bowlLighting=buildBowlLighting(bowl);
- return {root,roof,circulation,bowl,matchBall,updateMatchEffects:feedback.update,resetMatchEffects:feedback.reset,get detailSeatCount(){return nearSeats.count;},setMatchday:screens.setMatchday,setMatchScore:screens.setMatchScore,seatCount:seats.length,seatPositions:seats,panelCount,tiers,update(camera,mode='orbit',high=false,low=false,playing=false){pitchSurface.update(camera,high,low);pitchside.update(camera.position,low);for(const shell of shellMeshes)shell.visible=!enclosedPlayerPosition(camera.position)&&(shell.userData.shellSection===1||facadeSectorVisible(camera.position,shell.userData.sectorCenter));bowl.visible=bowlIsVisible(camera.position,mode);nearSeats.update(camera.position,!playing&&!low&&bowl.visible,high?384:typeof innerWidth==='number'&&innerWidth<=760?128:192);roofDetails.visible=bowl.visible||camera.position.y>30;closeLabels.visible=camera.position.length()<180;for(const inst of seatInstances){const center=inst.boundingSphere.center;const distance=camera.position.distanceTo(center);inst.geometry=playing&&!high?farSeat:high?(distance>90?coarseSeat:seatGeom):distance>100?farSeat:distance>32?coarseSeat:seatGeom;}},night(n){bowlLighting.night(n);circulation.night(n);shellMaterials[0].color.set(n?0xe52a49:0xe5e8e4);shellMaterials[0].emissive.set(n?0xd7082c:0x000000);shellMaterials[0].emissiveIntensity=n?.72:0;shellMaterials[0].roughness=n?.76:.58;shellMaterials[1].color.set(n?0xcfc0c4:0xf4f4ed);shellMaterials[1].emissive.set(n?0x9d1736:0x000000);shellMaterials[1].emissiveIntensity=n?.22:0;stadiumLights.forEach(l=>l.intensity=n?2400:100);logo.material.map=logoBack.material.map=n?logoNightMap:logoDayMap;}};
+ return {root,roof,circulation,bowl,matchBall,updateMatchEffects:feedback.update,resetMatchEffects:feedback.reset,get detailSeatCount(){return nearSeats.count;},setMatchday:screens.setMatchday,setMatchScore:screens.setMatchScore,seatCount:seats.length,seatPositions:seats,panelCount,tiers,update(camera,mode='orbit',high=false,low=false,playing=false){pitchSurface.update(camera,high,low);pitchside.update(camera.position,low);for(const shell of shellMeshes)shell.visible=!enclosedPlayerPosition(camera.position)&&(shell.userData.shellSection===1||facadeSectorVisible(camera.position,shell.userData.sectorCenter));bowl.visible=bowlIsVisible(camera.position,mode);nearSeats.update(camera.position,!playing&&!low&&bowl.visible,high?384:typeof innerWidth==='number'&&innerWidth<=760?128:192);roofDetails.visible=bowl.visible||camera.position.y>30;closeLabels.visible=camera.position.length()<180;for(const inst of seatInstances){const center=inst.boundingSphere.center;const distance=camera.position.distanceTo(center);const detail=seatingDetail({distance,high,low,playing,tunnel:camera.position.x> -70&&camera.position.x< -41&&Math.abs(camera.position.z)<3.5&&camera.position.y<3.5});inst.geometry=detail==='far'?farSeat:detail==='coarse'?coarseSeat:seatGeom;}},night(n){bowlLighting.night(n);circulation.night(n);shellMaterials[0].color.set(n?0xe52a49:0xe5e8e4);shellMaterials[0].emissive.set(n?0xd7082c:0x000000);shellMaterials[0].emissiveIntensity=n?.72:0;shellMaterials[0].roughness=n?.76:.58;shellMaterials[1].color.set(n?0xcfc0c4:0xf4f4ed);shellMaterials[1].emissive.set(n?0x9d1736:0x000000);shellMaterials[1].emissiveIntensity=n?.22:0;stadiumLights.forEach(l=>l.intensity=n?2400:100);logo.material.map=logoBack.material.map=n?logoNightMap:logoDayMap;}};
 }
 
 function buildPitch(root,batch,{white,dark,red,steel}){
- const apron=mat(0x273d38);box(root,83,.15,120,0,-.12,0,apron);
+ const apronMap=canvasTexture(512,512,drawApronArtwork);apronMap.wrapS=apronMap.wrapT=THREE.RepeatWrapping;apronMap.repeat.set(20,30);apronMap.anisotropy=4;
+ const apron=mat(0xffffff,{map:apronMap,roughness:.97,...surfaceMaps('rubber',{channel:1,repeat:[.55,.55],strength:.12})});box(root,83,.15,120,0,-.12,0,apron);
  const turf=canvasTexture(1536,2368,drawPitchArtwork);
  const surface=buildPitchSurface(root,turf);
  const nets=[];
@@ -139,7 +154,7 @@ function buildPitch(root,batch,{white,dark,red,steel}){
  }
  for(const x of[-34.3,34.3])for(const z of[-52.8,52.8]){cylinder(root,.022,1.5,x,.75,z,white,6);const f=box(root,.48,.32,.008,x+.24,1.35,z,red);}
  // Centre ball, pitch sprinklers, photographers' stools and broadcast cameras.
- const ball=mesh(new THREE.IcosahedronGeometry(.11,2),mat(0xeeeeea),root,0,.115,0);const edges=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.IcosahedronGeometry(.111,1)),new THREE.LineBasicMaterial({color:0x2a3030}));ball.add(edges);
+ const ball=buildMatchBall(root);
  for(const z of[-31,31]){const group=new THREE.Group();group.position.set(-40,0,z);root.add(group);beam(group,v(0,.1,0),v(0,1.6,0),.05,steel);for(const d of[-1,1])beam(group,v(0,1.1,0),v(.6*d,0,.5),.035,steel);box(group,.7,.4,1,0,1.75,0,dark);cylinder(group,.16,.2,0,1.9,.4,dark);}
  return{surface,ball,feedback:goalFeedbackController(nets)};
 }

@@ -18,5 +18,5 @@ export function bowlIsVisible(position,mode){
 }
 export function buildFrameBudget(){
  let lastPosition=new THREE.Vector3(Infinity,0,0),lastRotation=new THREE.Quaternion(),lastFrame=-Infinity,dirty=true;
- return{invalidate(){dirty=true;},shouldDraw(camera,time,animated=false){const changed=lastPosition.distanceToSquared(camera.position)>.000001||Math.abs(lastRotation.dot(camera.quaternion))<.9999999;if(!dirty&&!changed&&!animated&&time-lastFrame<.35)return false;lastPosition.copy(camera.position);lastRotation.copy(camera.quaternion);lastFrame=time;dirty=false;return true;}};
+ return{invalidate(){dirty=true;},shouldDraw(camera,time,animated=false,suspended=false){const changed=lastPosition.distanceToSquared(camera.position)>.000001||Math.abs(lastRotation.dot(camera.quaternion))<.9999999;if(!dirty&&!changed&&(suspended||!animated&&time-lastFrame<.35))return false;lastPosition.copy(camera.position);lastRotation.copy(camera.quaternion);lastFrame=time;dirty=false;return true;}};
 }

@@ -19,10 +19,11 @@ import {roomSpecs,publicWallOpening,clearCore,roomFootprint} from './building-la
 import {furniture,pressSeats,changingLockers} from './furniture-layout.js';
 import {playerCorridor,playerShower,playerLinks,corridorWalls} from './player-area-layout.js';
 import {subtractFootprints} from './architecture-clip.js';
+import {buildPressSeatInstances,ribbonPanelGeometry} from './venue-models.js';
 export {roomSpecs};
 export function buildInteriors(scene,circulation){
  const root=new THREE.Group();root.name='Accessible interiors | interpretation from public references';scene.add(root);
- const rooms={},shells={},lights=[],colliders=[],tacticalDisplays=[];const ceilings=[];
+ const rooms={},shells={},lights=[],colliders=[],tacticalDisplays=[];const ceilings=[],retainedInstances=[];
  const finishes=architecturalMaterials();
  const red=mat(0x94162a,{roughness:.45,envMapIntensity:.14}),recessRed=lockerBackingMaterial(),guestKit=mat(0xe9cb22,{roughness:.86}),redTrim=mat(0xb81d36,{roughness:.48,envMapIntensity:.16}),white=finishes.plaster,dark=mat(0x161b20),metal=mat(0x9caaaf,{metalness:.75,roughness:.27}),wood=mat(0xffffff,{map:repeatTex(floorTexture('wood'),2,1),roughness:.68,envMapIntensity:.35,...surfaceMaps('wood',{repeat:[2,1],strength:.22,albedo:true})}),floorRed=finishes.rubberRed,tile=finishes.stone,cream=finishes.warmPlaster,blackFloor=finishes.charcoal,lightMat=new THREE.MeshBasicMaterial({color:0xecf4ff,toneMapped:false});
  function roomBase(key,wallMat=white,floorMat=tile){const spec=roomSpecs[key],g=new THREE.Group(),shell=new THREE.Group();g.position.set(spec.x,spec.y,spec.z);shell.position.copy(g.position);g.name=key;shell.name=key+' envelope';root.add(g,shell);rooms[key]=g;shells[key]=shell;const b=new Batches(shell);b.add(spec.w,.18,spec.d,0,-.09,0,floorMat);const wall=(w,h,d,x,y,z)=>{b.add(w,h,d,x,y,z,wallMat);wallCollider(colliders,spec.x+x,spec.z+z,w,d,spec.y,spec.y+4.5,key);};
@@ -30,7 +31,7 @@ export function buildInteriors(scene,circulation){
   // An open door on the eastern side connects the below-pitch rooms to the corridor.
   wall(.2,4.5,(spec.d-2.4)/2,spec.w/2,2.25,-spec.d/4-.6);wall(.2,4.5,(spec.d-2.4)/2,spec.w/2,2.25,spec.d/4+.6);b.add(.22,1.7,2.4,spec.w/2,3.65,0,wallMat);
   const ceil=box(shell,spec.w,.15,spec.d,0,4.55,0,key==='museum'?dark:finishes.ceiling);ceilings.push(ceil);
-  for(const x of(key==='museum'?[]:[-spec.w*.29,spec.w*.29])){b.add(.13,.025,spec.d-1,x,4.43,0,lightMat);}
+  for(const x of(['museum','press'].includes(key)?[]:[-spec.w*.29,spec.w*.29])){b.add(.13,.025,spec.d-1,x,4.43,0,lightMat);}
   for(const z of[-spec.d*.25,spec.d*.25]){const l=new THREE.PointLight(0xffeee0,115,32,2);l.position.set(0,4.08,z);g.add(l);lights.push(l);}
   b.flush();finishRoom(shell,spec,key);return {g,b:new Batches(g),spec};
  }
@@ -104,19 +105,20 @@ export function buildInteriors(scene,circulation){
  cb.flush();
  // The player's tunnel: dark ceiling, white strips, red diagonal wall panels and an ascending stair.
  const tunnel=new THREE.Group();tunnel.position.set(-55,-2.7,0);root.add(tunnel);rooms.tunnel=tunnel;const tb=new Batches(tunnel);tb.add(29,.15,4.8,0,-.07,0,blackFloor);tb.add(26.2,3.9,.18,1.4,1.95,-2.45,red);tb.add(26.2,3.9,.18,1.4,1.95,2.45,red);tb.add(23,.15,4.9,-3,3.95,0,dark);tb.add(23,.06,.085,-3,3.84,-1.3,lightMat);tb.add(23,.06,.085,-3,3.84,1.3,lightMat);const stairRoof=box(tunnel,Math.hypot(7,2.7),.15,4.9,12,5.3,0,dark);stairRoof.rotation.z=Math.atan2(2.7,7);for(const side of[-1,1])beam(tunnel,v(8.5,3.84,side*1.3),v(15.5,6.54,side*1.3),.03,lightMat);
- const panelRed=[mat(0xa91931,{roughness:.48,envMapIntensity:.12}),mat(0x8d162b,{roughness:.48,envMapIntensity:.12})],panelSeams=[];
- for(let j=0;j<15;j++)for(const s of[-1,1]){const x=-10.8+j*1.7;finishedBox(tunnel,1.67,3.5,.035,x,1.8,s*2.34,panelRed[j%2],.012);panelSeams.push(x-.82,.05,s*2.31,x+.82,3.55,s*2.31);tb.add(.028,3.8,.025,x,1.9,s*2.32,lightMat);}
- const seamGeometry=new THREE.BufferGeometry();seamGeometry.setAttribute('position',new THREE.Float32BufferAttribute(panelSeams,3));tunnel.add(new THREE.LineSegments(seamGeometry,new THREE.LineBasicMaterial({color:0xe47a8b})));
- for(let j=0;j<15;j++){const x=9.3+j*.36,h=(j+1)*.18;tb.add(.36,h,4.6,x,h/2,0,dark);tb.add(.34,.02,4.58,x,h+.015,0,white);for(const side of[-1,1])tb.add(.37,3.8,.15,x,h+1.9,side*2.45,red);}for(const s of[-1,1]){beam(tunnel,v(8.9,.85,s*2.18),v(14.6,3.57,s*2.18),.035,metal);const crest=addCrest(tunnel,1.6,5.5,2,s*2.26);crest.rotation.y=s<0?0:Math.PI;}
+ const panelRed=mat(0xa91931,{roughness:.64,envMapIntensity:.12}),ribbonMaterial=mat(0xffffff,{vertexColors:true,roughness:.67,envMapIntensity:.16}),ribbon=ribbonPanelGeometry(25.5,2.1);
+ for(let j=0;j<15;j++)for(const s of[-1,1]){const x=-10.8+j*1.7;finishedBox(tunnel,1.67,3.5,.035,x,1.8,s*2.34,panelRed,.012);}
+ for(const s of[-1,1]){const art=mesh(ribbon,ribbonMaterial,tunnel,1.1,2.18,s*2.305);art.rotation.y=s<0?0:Math.PI;tb.add(25.5,.09,.045,1.1,1.05,s*2.30,dark);tb.add(23,.12,.72,-3,3.81,s*2.02,redTrim);}
+ const ceilingCrest=addCrest(tunnel,2.25,-2,3.825,0);ceilingCrest.rotation.x=Math.PI/2;const halo=mesh(new THREE.RingGeometry(1.10,1.145,64),new THREE.MeshBasicMaterial({color:0x597ac7,toneMapped:false}),tunnel,-2,3.83,0);halo.rotation.x=Math.PI/2;
+ for(let j=0;j<15;j++){const x=9.3+j*.36,h=(j+1)*.18;tb.add(.36,h,4.6,x,h/2,0,dark);tb.add(.34,.02,4.58,x,h+.015,0,white);for(const side of[-1,1])tb.add(.37,3.8,.15,x,h+1.9,side*2.45,red);}for(const s of[-1,1]){beam(tunnel,v(8.9,.85,s*2.18),v(14.6,3.57,s*2.18),.035,dark);const crest=addCrest(tunnel,1.6,5.5,2,s*2.26);crest.rotation.y=s<0?0:Math.PI;}
  finishPlayerTunnel(tunnel);
  sign(tunnel,'MIA SAN MIA',7,.9,-5.5,1.95,-2.32,{font:100,fg:'#ffe2e8',h:180});tb.flush();for(const x of[-10,0,10]){const l=new THREE.PointLight(0xffdadf,50,16,2);l.position.set(x,4.2,0);tunnel.add(l);lights.push(l);}
  wallCollider(colliders,-53.6,-2.45,26.2,.18,-2.7,1.2,'tunnel');wallCollider(colliders,-53.6,2.45,26.2,.18,-2.7,1.2,'tunnel');
  // Press conference: sponsor wall, microphones, water, padded seats and camera risers.
- {const{g,b,spec}=roomBase('press',white,blackFloor);b.add(18,.25,4,0,.12,-5.8,dark);b.add(15,.9,.85,0,.8,-5.4,white);b.add(15,.1,1.25,0,1.29,-5.4,dark);b.add(15,.07,.06,0,.5,-4.94,redTrim);
+ {const{g,b,spec}=roomBase('press',white,blackFloor);b.add(18,.25,4,0,.12,-5.8,dark);finishedBox(g,15,.9,.85,0,.8,-5.4,redTrim,.045);finishedBox(g,15.15,.09,1.25,0,1.29,-5.4,dark,.03);const facade=mesh(ribbonPanelGeometry(14.9,.85),mat(0xffffff,{vertexColors:true,roughness:.47}),g,0,.8,-4.964);b.add(15,.04,.06,0,.34,-4.94,metal);
   const backdrop=pressBackdropTexture();finishedBox(g,17.24,3.62,.09,0,2.5,-8.035,dark,.025);mesh(new THREE.PlaneGeometry(17,3.4),new THREE.MeshBasicMaterial({map:backdrop}),g,0,2.5,-7.95);
   for(const x of[-4.5,0,4.5]){b.add(1.1,.15,1,x,.65,-6.4,dark);b.add(1.1,1,.2,x,1.15,-6.8,dark);beam(g,v(x,1.36,-5.25),v(x+.1,1.77,-5.1),.012,metal);mesh(new THREE.SphereGeometry(.055,8,6),dark,g,x+.1,1.8,-5.1);bottle(g,x+.7,1.35,-5.35);sign(g,x===0?'FC BAYERN':'PRESSE',1.3,.24,x,1.46,-4.96,{bg:'#e7ecec',fg:'#1d3c53',font:65,h:128});}
   addCrest(g,5.2,0,2.6,8.78).rotation.y=Math.PI;for(let j=0;j<7;j++)b.add(.09,4.2,.1,-9+j*3,2.1,8.75,metal);
-  for(let row=0;row<pressLayout.rows;row++)b.add(19,.15,pressLayout.rowDepth,0,row*pressLayout.rise-.075,pressLayout.firstZ+row*pressLayout.rowDepth,dark);for(const seat of pressSeats)finishedSeat(g,seat.x,seat.y,seat.z,0,fabricMaterial(0xa32239),metal,seat.width);
+  for(let row=0;row<pressLayout.rows;row++)b.add(19,.15,pressLayout.rowDepth,0,row*pressLayout.rise-.075,pressLayout.firstZ+row*pressLayout.rowDepth,dark);retainedInstances.push(...buildPressSeatInstances(g,pressSeats,{upholstery:fabricMaterial(0xa32239),metal}));
   for(const x of[-10.05,10.05])buildBroadcastCamera(g,{x,y:0,z:6.7,yaw:Math.PI});b.flush();}
  // A representative hospitality room. Its precise fit-out is intentionally marked as approximate.
  {const spec=roomSpecs.lounge,g=new THREE.Group();g.position.set(spec.x,spec.y,spec.z);root.add(g);rooms.lounge=g;const plankMap=repeatTex(floorTexture('wood'),8,38),pc=plankMap.image.getContext('2d');pc.strokeStyle='rgba(60,42,27,.23)';pc.lineWidth=.8;for(let row=0;row<4;row++){pc.beginPath();pc.moveTo(0,row*128);pc.lineTo(512,row*128);pc.moveTo(row%2?170:410,row*128);pc.lineTo(row%2?170:410,(row+1)*128);pc.stroke();}const loungeFloor=mat(0xe0dbce,{map:plankMap,roughness:.72,...surfaceMaps('wood',{channel:1,repeat:[.7,.7],strength:.2,albedo:true})});const b=new Batches(g);b.add(spec.w,.15,spec.d,0,-.08,0,loungeFloor);b.add(.2,3.7,2.3,spec.w/2,1.85,-12.85,cream);b.add(.2,3.7,23.3,spec.w/2,1.85,2.35,cream);b.add(.2,.65,2.4,spec.w/2,3.375,-10.5,cream);
@@ -139,7 +141,7 @@ export function buildInteriors(scene,circulation){
  for(const key of ['store','museum','press'])finishFixtureShadows(rooms[key],roomSpecs[key],key);
  for(const f of furniture)wallCollider(colliders,f.x,f.z,f.w,f.d,f.y0,f.y1,f.owner);
  for(const ceiling of ceilings)ceiling.userData.visibilityManaged=true;
- for(const g of [...Object.values(rooms),...Object.values(shells)])compactGroup(g,ceilings);
+ for(const g of [...Object.values(rooms),...Object.values(shells)])compactGroup(g,[...ceilings,...retainedInstances]);
  const roomCuts=['museum','store'].map(key=>{const s=roomSpecs[key];return{minX:s.x-s.w/2,maxX:s.x+s.w/2,minZ:s.z-s.d/2,maxZ:s.z+s.d/2};});rooms.concourse.traverse(o=>{if(o.isMesh){const original=o.geometry;o.geometry=subtractFootprints(original,roomCuts);original.dispose();}});
  function update(position,active){roomDetail.update();const nearby=(Math.abs(position.x)/132)**2.8+(Math.abs(position.z)/152)**2.8<1.1&&position.y<75;for(const[key,g]of Object.entries(rooms)){let show=false;if(key==='concourse'||key==='tunnel'||key==='corridor'||key==='shower')show=nearby;else{const s=roomSpecs[key];show=position.x>s.x-s.w/2-3&&position.x<s.x+s.w/2+5&&position.z>s.z-s.d/2-4&&position.z<s.z+s.d/2+4&&Math.abs(position.y-s.y)<7;}g.visible=show;if(shells[key])shells[key].visible=nearby;}for(const l of lights)l.visible=l.parent.visible&&Math.hypot(l.position.x+l.parent.position.x-position.x,l.position.y+l.parent.position.y-position.y,l.position.z+l.parent.position.z-position.z)<35;}
  return {root,rooms,shells,colliders,update,setTactics(formation){for(const m of tacticalDisplays){const c=m.map.image,ctx=c.getContext('2d');ctx.fillStyle='#143c34';ctx.fillRect(0,0,512,768);ctx.strokeStyle='#d9e8dc';ctx.lineWidth=4;ctx.strokeRect(28,28,456,712);ctx.beginPath();ctx.moveTo(28,384);ctx.lineTo(484,384);ctx.stroke();ctx.fillStyle='#fff';ctx.font='bold 36px Arial';ctx.textAlign='center';ctx.fillText(formation?'4–4–2':'4–2–3–1',256,75);const positions=formation?[[.5,.9],[.16,.73],[.38,.73],[.62,.73],[.84,.73],[.16,.48],[.38,.48],[.62,.48],[.84,.48],[.35,.23],[.65,.23]]:[[.5,.9],[.16,.73],[.38,.73],[.62,.73],[.84,.73],[.35,.54],[.65,.54],[.18,.34],[.5,.34],[.82,.34],[.5,.16]];positions.forEach(([x,z],i)=>{ctx.fillStyle='#da294a';ctx.beginPath();ctx.arc(x*512,z*768,18,0,Math.PI*2);ctx.fill();ctx.fillStyle='#fff';ctx.font='20px Arial';ctx.fillText(i+1,x*512,z*768+7);});m.map.needsUpdate=true;}},setRoof(on){ceilings.forEach(o=>o.visible=on);},night(){},specs:roomSpecs};

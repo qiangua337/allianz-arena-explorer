@@ -12,12 +12,12 @@ export function roomAmbientOcclusion(position,spec){
 const number=n=>Number(n).toFixed(3);
 const rooms=Object.values(roomSpecs).map(s=>`{
  vec3 p=vArenaFinishPosition-vec3(${number(s.x)},${number(s.y)},${number(s.z)});
- if(abs(p.x)<${number(s.w/2+.24)}&&abs(p.z)<${number(s.d/2+.24)}&&p.y>-.2&&p.y<4.7){
+ if(!matched&&abs(p.x)<${number(s.w/2+.24)}&&abs(p.z)<${number(s.d/2+.24)}&&p.y>-.2&&p.y<4.7){
   float wall=max(0.,min(${number(s.w/2)}-abs(p.x),${number(s.d/2)}-abs(p.z)));
   float floorH=max(0.,p.y),ceilingH=max(0.,4.5-p.y);
   float occlusion=max(.48,1.-.12*exp(-floorH/.55)-.12*exp(-ceilingH/.5)-.22*exp(-wall/.48)*(exp(-floorH/1.3)+.6*exp(-ceilingH/1.1)));
   float cove=(1.-smoothstep(0.,.65,ceilingH))*exp(-min(abs(p.x-${number(s.w*.29)}),abs(p.x+${number(s.w*.29)}))*2.1);
-  return vec2(occlusion,cove);
+  atmosphere=vec2(occlusion,cove);matched=true;
  }
 }`).join('\n');
 
@@ -35,7 +35,7 @@ vec4 finishPosition=vec4(transformed,1.);
  finishPosition=instanceMatrix*finishPosition;
 #endif
 vArenaFinishPosition=(modelMatrix*finishPosition).xyz;`);
-   shader.fragmentShader=`varying vec3 vArenaFinishPosition;\nvec2 arenaRoomAtmosphere(){${rooms}\nreturn vec2(1.,0.);}\n`+shader.fragmentShader;
+   shader.fragmentShader=`varying vec3 vArenaFinishPosition;\nvec2 arenaRoomAtmosphere(){vec2 atmosphere=vec2(1.,0.);bool matched=false;${rooms}\nreturn atmosphere;}\n`+shader.fragmentShader;
    shader.fragmentShader=shader.fragmentShader.replace('#include <aomap_fragment>',`#include <aomap_fragment>
 vec2 roomAtmosphere=arenaRoomAtmosphere();
 reflectedLight.indirectDiffuse*=roomAtmosphere.x;
@@ -43,7 +43,7 @@ reflectedLight.indirectSpecular*=roomAtmosphere.x;
 reflectedLight.directDiffuse*=mix(.84,1.,roomAtmosphere.x);
 reflectedLight.indirectDiffuse+=diffuseColor.rgb*vec3(.28,.235,.18)*roomAtmosphere.y;`);
   };
-  material.customProgramCacheKey=()=>originalKey+'|arena-room-atmosphere-v1';material.needsUpdate=true;
+  material.customProgramCacheKey=()=>originalKey+'|arena-room-atmosphere-v2';material.needsUpdate=true;
  }
  return materials.size;
 }

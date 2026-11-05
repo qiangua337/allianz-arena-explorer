@@ -4,7 +4,7 @@ import {moveControlledFootballer,carryFootball} from './football-movement.js';
 export function createOnlinePrediction(team){
  let player=null,ball=null,owner=null,history=[],time=0,age=0,phase='',errorX=0,errorZ=0,motion=null;
  function step(input,dt,players){for(let left=dt;left>1e-8;){const h=Math.min(1/60,left);time+=h;moveControlledFootballer(player,ball,ball.ownerId===player.id?player:owner,input,h,time);
-   for(const other of players){if(other.id===player.id)continue;const dx=player.x-other.x,dz=player.z-other.z,d=Math.hypot(dx,dz);if(d<.70){const push=(.70-d)*.26;player.x+=(d>.001?dx/d:1)*push;player.z+=(d>.001?dz/d:0)*push;}}
+   for(const other of players){if(other.id===player.id||other.dismissed)continue;const dx=player.x-other.x,dz=player.z-other.z,d=Math.hypot(dx,dz);if(d<.70){const push=(.70-d)*.26;player.x+=(d>.001?dx/d:1)*push;player.z+=(d>.001?dz/d:0)*push;}}
    player.x=Math.max(-35.2,Math.min(35.2,player.x));player.z=Math.max(-53.6,Math.min(53.6,player.z));if(ball.ownerId===player.id)carryFootball(player,ball,h,time);left-=h;}}
  function clear(){player=null;ball=null;history=[];motion=null;errorX=errorZ=0;age=0;}
  function receive(state,ack=0){const p=state.players.find(p=>p.id===state.controlledId),reset=!player||player.id!==p?.id||state.paused||state.phase!=='playing'||phase!==state.phase||ball?.ownerId!==state.ball.ownerId;

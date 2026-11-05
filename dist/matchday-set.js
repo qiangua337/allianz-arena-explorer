@@ -8,8 +8,7 @@ export function buildMatchdaySet(parent,ball){
   for(const z of[z0+7.6,z0+8.7]){b.add(.64,.4,.4,-35.8,.22,z,navy);b.add(.24,.08,.06,-35.8,.46,z,steel);const cross=sign(root,'+',.24,.24,-35.47,.27,z,{font:90,fg:'#d8ddd5'});cross.rotation.y=Math.PI/2;}
   // Folded stretcher sits outside the team circulation lane.
   b.add(.63,.08,1.9,-40.1,.44,z0+9,orange);for(const x of[-40.43,-39.77]){beam(root,v(x,.40,z0+7.9),v(x,.4,z0+10.1),.025,steel);for(const z of[z0+8.4,z0+9.5])b.add(.035,.4,.035,x,.2,z,steel);}
-  // A restrained dashed technical-area boundary, outside the field touchline.
-  for(let j=0;j<17;j++){b.add(.055,.006,.4,-34.8,.012,z0-9+j*1.1,pale);b.add(.055,.006,.4,-40.6,.012,z0-9+j*1.1,pale);}for(const z of[z0-9,z0+9])for(let x=-40.5;x<-34.9;x+=.8)b.add(.38,.006,.055,x,.012,z,pale);
+  // Technical-area paint is shared with ordinary pitchside visits.
  }
  // Fourth official's station and inactive substitution display.
  b.add(.85,.05,1.5,-37.4,1.15,3.8,navy);for(const x of[-37.7,-37.1])for(const z of[3.2,4.4])b.add(.04,1.1,.04,x,.58,z,steel);

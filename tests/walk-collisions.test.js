@@ -25,7 +25,7 @@ const {buildServiceRooms}=await import('../dist/service-rooms.js');
 const {serviceRooms:serviceLayout,serviceWorld}=await import('../dist/service-layout.js');
 const {ribbonPoints}=await import('../dist/ribbon-path.js');
 const {coreFlights,platforms,bridges}=await import('../dist/building-layout.js');
-const {entranceSample}=await import('../dist/matchday-route.js');
+const {entranceSample,entranceFloor}=await import('../dist/matchday-route.js');
 const {sampleQueuePlayer}=await import('../dist/entrance-choreography.js');
 const {playerCorridor,playerShower}=await import('../dist/player-area-layout.js');
 await loadBrandAssets();const scene=new THREE.Scene(),world=buildWorld(scene),stadium=buildStadium(scene),interiors=buildInteriors(scene,stadium.circulation),building=buildWalkBuilding(scene),geometry={rooms:roomSpecs,tiers:stadium.tiers};
@@ -34,6 +34,11 @@ const service=buildServiceRooms(scene);obstacleGroups.service=service.walls;
 
 function visibleEnvelopeMeshes(){const list=[];for(const group of [interiors.rooms.corridor,interiors.rooms.shower,...Object.values(interiors.shells)])group.traverseVisible(o=>{if(o.isMesh)list.push(o);});scene.updateMatrixWorld(true);return list;}
 function envelopeRay(origin,direction){return new THREE.Raycaster(new THREE.Vector3(...origin),new THREE.Vector3(...direction),0,100).intersectObjects(visibleEnvelopeMeshes(),false)[0];}
+
+test('seating closes above the player tunnel without projecting decks into the walker’s headroom',()=>{
+ scene.updateMatrixWorld(true);const decks=stadium.bowl.getObjectByName('Seating decks and risers'),hit=new THREE.Raycaster(new THREE.Vector3(-50,15,0),new THREE.Vector3(0,-1,0),0,20).intersectObject(decks,false)[0];assert.ok(hit&&hit.point.y>3&&hit.point.y<5,'upper rows must span the old tall void');
+ for(let x=-65;x<=-39.9;x+=.5)for(const direction of [-1,1]){const blocked=new THREE.Raycaster(new THREE.Vector3(x,entranceFloor(x)+1.7,0),new THREE.Vector3(direction,0,0),.001,.30).intersectObject(decks,false);assert.equal(blocked.length,0,'headroom at '+x);}
+});
 
 test('both ends and the complete side walls of the player corridor have rendered geometry and collision',()=>{
  const p=new THREE.Vector3(-69.5,-1,-37);interiors.update(p,'pitch');

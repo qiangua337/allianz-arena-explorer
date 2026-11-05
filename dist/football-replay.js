@@ -2,14 +2,15 @@ const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 const copy=s=>({...s,competition:s.competition?structuredClone(s.competition):null,teamSheets:s.teamSheets?structuredClone(s.teamSheets):null,discipline:s.discipline?structuredClone(s.discipline):null,lastShot:s.lastShot?{...s.lastShot}:null,score:{...s.score},stats:s.stats?{home:{...s.stats.home},away:{...s.stats.away}}:null,ball:{...s.ball,shot:s.ball.shot?{...s.ball.shot}:null,receivePoint:s.ball.receivePoint?{...s.ball.receivePoint}:null},players:s.players.map(p=>({...p,keeperState:p.keeperState?{...p.keeperState}:null,motion:p.motion?{...p.motion}:null})),passPreview:s.passPreview?{...s.passPreview}:null,shotPreview:s.shotPreview?{...s.shotPreview}:null});
 export function createReplayRecorder({seconds=7.5,hz=10}={}){
  const limit=Math.ceil(seconds*hz)+2;let frames=[],highlight=null,last=-Infinity,breakPending=false;
+ function trim(){const cutoff=(frames.at(-1)?.time||0)-seconds;while(frames.length>limit||frames.length>1&&frames[0].time<cutoff)frames.shift();}
  function record(state){
   if(state.phase==='kickoff'){breakPending=true;return;}
   if(!['playing','goal'].includes(state.phase)||state.paused||state.time-last<1/hz-.001)return;
   if(breakPending){frames=[];last=-Infinity;breakPending=false;}
-  frames.push(copy(state));last=state.time;if(frames.length>limit)frames.shift();
+  frames.push(copy(state));last=state.time;trim();
  }
  function clip(){const source=highlight||frames;if(source.length<3||source.at(-1).time-source[0].time<.25)return null;return{frames:source.map(copy),duration:source.at(-1).time-source[0].time,isGoal:!!highlight};}
- return{record,clip,goal(state){if(frames.at(-1)?.time===state.time)frames[frames.length-1]=copy(state);else frames.push(copy(state));if(frames.length>limit)frames.shift();last=state.time;highlight=frames.map(copy);},reset(){frames=[];highlight=null;last=-Infinity;breakPending=false;},get available(){const source=highlight||frames;return source.length>=3&&source.at(-1).time-source[0].time>=.25;},get count(){return frames.length;},get capacity(){return limit;}};
+ return{record,clip,goal(state){if(frames.at(-1)?.time===state.time)frames[frames.length-1]=copy(state);else frames.push(copy(state));trim();last=state.time;highlight=frames.map(copy);},reset(){frames=[];highlight=null;last=-Infinity;breakPending=false;},get available(){const source=highlight||frames;return source.length>=3&&source.at(-1).time-source[0].time>=.25;},get count(){return frames.length;},get capacity(){return limit;}};
 }
 
 export function replaySample(clip,seconds){

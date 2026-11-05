@@ -3,8 +3,12 @@
 export function applyFootballAction(bones,motion,{defending=false,speed=0}={}){
  const t=motion?Math.max(0,Math.min(1,motion.elapsed/motion.duration)):0,pulse=Math.sin(t*Math.PI);
  if(motion?.type==='booking'){bones[12].rotateX(-2.65);bones[13].rotateX(-.2);bones[2].rotateY(.08);return;}
+ if(motion?.type==='prepareShot'){const load=.28+Math.min(1,motion.elapsed)*.30;bones[15].rotateX(load);bones[16].rotateX(-load*.32);bones[6].rotateZ(-.20);bones[12].rotateZ(.28);bones[2].rotateX(.08);return;}
+ if(motion?.type==='trap'){bones[15].rotateX(-.17*pulse);bones[16].rotateX(.20*pulse);bones[17].rotateX(.13*pulse);bones[6].rotateZ(-.10*pulse);bones[12].rotateZ(.10*pulse);}
+ if(motion?.type==='celebrate'){const lift=Math.min(1,motion.elapsed/.40);bones[6].rotateX(-2.15*lift);bones[12].rotateX(-2.15*lift);bones[7].rotateX(-.35*lift);bones[13].rotateX(-.35*lift);bones[2].rotateY(Math.sin(motion.elapsed*3)*.035);return;}
  const kick=motion?.type==='shoot'?.82:motion?.type==='pass'?.55:motion?.type==='tackle'?.48:0;
- if(kick&&pulse>0){bones[15].rotateX(-kick*pulse);bones[16].rotateX(.24*pulse);bones[17].rotateX(-.12*pulse);bones[6].rotateZ(-.12*pulse);bones[12].rotateZ(.15*pulse);bones[2].rotateX(.06*pulse);}
+ const strike=motion?.type==='tackle'?pulse:t<.18?Math.sin(t/.18*Math.PI/2):Math.cos((t-.18)/.82*Math.PI/2);
+ if(kick&&strike>0){bones[15].rotateX(-kick*strike);bones[16].rotateX(.24*strike);bones[17].rotateX(-.12*strike);bones[6].rotateZ(-.12*strike);bones[12].rotateZ(.15*strike);bones[2].rotateX(.06*strike);}
  if(motion?.type==='save'){bones[6].rotateX(-.85*pulse);bones[12].rotateX(-.85*pulse);bones[7].rotateZ(-.35*pulse);bones[13].rotateZ(.35*pulse);bones[2].rotateX(.14*pulse);}
  if(motion?.type==='dive'){
   const fall=Math.min(1,motion.elapsed/.32),rise=motion.elapsed<.58?1:Math.max(0,1-(motion.elapsed-.58)/Math.max(.15,motion.duration-.58)),lean=Math.sin(fall*Math.PI/2)*rise,side=motion.direction||1;

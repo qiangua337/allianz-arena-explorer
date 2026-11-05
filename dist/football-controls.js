@@ -7,8 +7,10 @@ export function footballCamera(player,{view='third',yaw=0,pitch=-.14,style='foll
  if(view==='first')return{position:[player.x,1.68,player.z],target:null,fov:76,yaw,pitch:clamp(pitch,-.95,.5)};
  if(penalty)return penalty==='keeper'?{position:[0,3,-59.8],target:[0,1,-43],fov:aspect<.85?100:68,controlYaw:Math.PI}:{position:[player.x*.2,4.5,aspect<.85?-28:-32],target:[0,.8,-51.5],fov:55,controlYaw:0};
  if(style==='broadcast'){
-  const portrait=aspect<.85,separation=Math.hypot(player.x-ball.x,player.z-ball.z),scale=(portrait?.82:1)+clamp((separation-7)/30,0,.25),x=clamp(player.x*.62+ball.x*.38+(ball.vx||0)*.12,-20,20),z=clamp(player.z*.62+ball.z*.38+(ball.vz||0)*.20,-39,39);
-  return{position:[x+32*scale,26*scale,z+8*scale],target:[x,.45,z],fov:portrait?58:54,controlYaw:Math.atan2(32,8)};
+  const portrait=aspect<.85,fov=portrait?76:54,tan=Math.tan(fov*Math.PI/360),separation=Math.hypot(player.x-ball.x,player.z-ball.z),span=Math.min(1,34/(separation||1)),bx=player.x+(ball.x-player.x)*span,bz=player.z+(ball.z-player.z)*span,lead=Math.min(1,3/(Math.hypot(ball.vx||0,ball.vz||0)*.12||1)),x=clamp(player.x*.62+bx*.38+(ball.vx||0)*.12*lead,-33,33),z=clamp(player.z*.62+bz*.38+(ball.vz||0)*.12*lead,-52,52),target=[x,.8,z],length=Math.hypot(32,26,8),horizontal=Math.hypot(32,8);
+  const forward=[-32/length,-26/length,-8/length],right=[8/horizontal,0,-32/horizontal],up=[-32*26/(horizontal*length),horizontal/length,-8*26/(horizontal*length)];let scale=1;
+  for(const point of [[player.x,0,player.z],[player.x,2,player.z],[bx,Math.max(.11,ball.y||.11),bz]]){const q=point.map((n,i)=>n-target[i]),dot=v=>q.reduce((sum,n,i)=>sum+n*v[i],0),depth=dot(forward),height=dot(up);scale=Math.max(scale,(Math.abs(dot(right))/(tan*Math.max(.3,aspect)*.82)-depth)/length,(Math.abs(height)/(tan*(height>0?.65:.52))-depth)/length);}
+  scale=clamp(scale,1,1.7);return{position:[x+32*scale,target[1]+26*scale,z+8*scale],target,fov,controlYaw:Math.atan2(32,8)};
  }
  const distance=8.3,height=4.5-clamp(pitch,-.65,.2)*5;
  return{position:[player.x+Math.sin(yaw)*distance,height,player.z+Math.cos(yaw)*distance],target:[player.x-Math.sin(yaw)*3,1.2+clamp(pitch,-.65,.2)*2,player.z-Math.cos(yaw)*3],fov:66};
@@ -17,4 +19,11 @@ export function matchTime(state){if(state.competition?.stage==='shootout')return
 export function ballDirection(player,ball,yaw){
  const dx=ball.x-player.x,dz=ball.z-player.z,forward=-Math.sin(yaw)*dx-Math.cos(yaw)*dz,right=Math.cos(yaw)*dx-Math.sin(yaw)*dz;
  return (Math.abs(right)>Math.abs(forward)*.65?(right>0?'右侧 →':'← 左侧'):forward>=0?'前方 ↑':'后方 ↓')+' '+Math.round(Math.hypot(dx,dz))+' m';
+}
+export function offscreenBallCue(point,width,height){
+ if(![point.x,point.y,point.z,width,height].every(Number.isFinite)||width<100||height<180)return null;
+ const compact=width<=1024,landscape=height<500&&width>=600,top=landscape?65:compact?112:85,bottom=height-(landscape?65:compact?190:125),left=landscape?180:25,right=width-left;if(bottom<=top||right<=left)return null;
+ const px=(point.x+1)*width/2,py=(1-point.y)*height/2,behind=point.z>1||point.z< -1;if(!behind&&px>=left&&px<=right&&py>=top&&py<=bottom)return null;
+ const cx=width/2,cy=(top+bottom)/2,centered=Math.abs(point.x)+Math.abs(point.y)<.001,dx=point.x*width/2*(behind?-1:1),dy=centered?1:-point.y*height/2*(behind?-1:1),scale=Math.min((right-left)/2/Math.max(.001,Math.abs(dx)),(bottom-top)/2/Math.max(.001,Math.abs(dy)));
+ return{x:cx+dx*scale,y:cy+dy*scale,angle:Math.atan2(dy,dx)*180/Math.PI};
 }

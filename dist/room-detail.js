@@ -1,5 +1,6 @@
 import {THREE,mat,box,mesh,cylinder,beam,v,canvasTexture,Batches} from './kit.js';
 import {roomSpecs} from './building-layout.js';
+import {finishedBox} from './finishes.js';
 
 export function buildRoomDetail(rooms){
  const dark=mat(0x273137),paper=mat(0xe1ded1,{roughness:.96}),steel=mat(0x99a7aa,{metalness:.7,roughness:.28}),red=mat(0xa5243e),blue=mat(0x477d92),rubber=mat(0x313335),display=new THREE.MeshBasicMaterial({color:0x5d8999});
@@ -18,7 +19,15 @@ export function buildRoomDetail(rooms){
  }
  const press=rooms.press;if(press){const b=new Batches(press);for(const x of[-4.5,0,4.5]){box(press,.37,.015,.28,x-.37,1.357,-5.45,dark);box(press,.34,.012,.23,x-.37,1.372,-5.45,paper);box(press,.20,.035,.065,x+.27,1.36,-5.55,dark);b.add(.015,.02,.20,x+.34,1.39,-5.52,steel);cylinder(press,.041,.092,x-.82,1.397,-5.3,paper,12);}
   // Venue photographs show a suspended media-light grid above the red seating.
-  const lamp=new THREE.MeshBasicMaterial({color:0xdfe8e8,toneMapped:false});for(const z of[-3.4,1.3]){beam(press,v(-9,4.03,z),v(9,4.03,z),.035,steel,8);for(const x of[-7,-3,3,7]){box(press,.34,.28,.25,x,3.87,z,dark);const face=box(press,.26,.018,.20,x,3.72,z,lamp);face.rotation.x=-.20;for(const side of[-1,1]){const flap=box(press,.35,.10,.018,x,3.76,z+side*.15,dark);flap.rotation.x=side*.50;}}}
+  const lamp=new THREE.MeshBasicMaterial({color:0xdfe8e8,toneMapped:false});for(const z of[-3.4,1.3]){
+   for(const [dy,dz]of[[0,-.13],[0,.13],[.23,0]])beam(press,v(-9,4.03+dy,z+dz),v(9,4.03+dy,z+dz),.025,steel,6);
+   for(let x=-9;x<8.9;x+=1.5)for(const side of[-1,1]){beam(press,v(x,4.03,z+side*.13),v(x+.75,4.26,z),.014,steel,5);beam(press,v(x+.75,4.26,z),v(x+1.5,4.03,z+side*.13),.014,steel,5);}
+   for(const x of[-7,-3,3,7]){box(press,.34,.28,.25,x,3.87,z,dark);const face=box(press,.26,.018,.20,x,3.72,z,lamp);face.rotation.x=-.20;for(const side of[-1,1]){const flap=box(press,.35,.10,.018,x,3.76,z+side*.15,dark);flap.rotation.x=side*.50;}}
+  }
+  for(const x of[-7,-2.4,2.4,7])for(const z of[-6.7,-.8,5.5]){cylinder(press,.12,.018,x,4.46,z,dark,16);cylinder(press,.092,.016,x,4.443,z,lamp,16);}
+  // Translation-booth glazing sits against an existing wall. It creates no
+  // fictitious doorway or route into an unmodelled room.
+  const glazing=mat(0x506267,{metalness:.15,roughness:.16,envMapIntensity:.8});for(const z of[-6.7,-3.5,4.2]){finishedBox(press,.06,1.15,2.5,10.33,2.25,z,steel,.018);box(press,.012,1.03,2.34,10.291,2.25,z,glazing);b.add(.02,.014,2.30,10.28,1.78,z,paper);}
   for(const x of[-9.7,9.7])b.add(.07,.012,12.5,x,.013,.2,rubber);b.flush();}
  const shop=rooms.store;if(shop){box(shop,.22,.025,.30,3.5,1.198,5,dark);const pos=box(shop,.15,.11,.09,3.5,1.255,4.95,dark);pos.rotation.x=-.2;box(shop,.12,.055,.012,3.5,1.278,4.9,display);for(let i=0;i<4;i++){box(shop,.5,.018,.30,1.3,1.19+i*.022,5.2,i%2?paper:red);}}
  return{update(now=Date.now()){if(now<nextCheck)return;nextCheck=now+1000;const text=format.format(now);if(text===last)return;last=text;const c=texture.image.getContext('2d');c.fillStyle='#0b141b';c.fillRect(0,0,512,160);c.textAlign='center';c.font='600 103px monospace';c.fillStyle='#ef6670';c.fillText(text,256,115);texture.needsUpdate=true;},get clock(){return last;}};

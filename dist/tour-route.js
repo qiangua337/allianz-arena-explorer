@@ -15,7 +15,12 @@ export function visitorFloor(x,z){
 }
 export const visitorWallOpening=(x,z)=>Math.abs(x-visitorPassage.x)<visitorPassage.width/2&&z>95;
 export const visitorBowlOpening=(x,z,row=0)=>row<8&&Math.abs(x-visitorPassage.x)<visitorPassage.width/2+.35&&z>45;
-export const bowlOpening=(x,z,row=0)=>row<17&&x<0&&Math.abs(z)<3||visitorBowlOpening(x,z,row);
+// Remove only seating that actually intersects the modelled tunnel roof.
+// A blanket 17-row cut left a tall black slot above a much smaller doorway.
+export function playerBowlOpening(x,z,row=0){
+ if(x>=0||Math.abs(z)>=3||row>=17)return false;const tier=seatingTiers[0],rise=tier.depth*Math.tan(tier.angle*Math.PI/180),deckBottom=tier.y+(row-1)*rise-.10,roofTop=1.325+Math.max(0,x+46.5)*2.7/7;return deckBottom<roofTop+.24;
+}
+export const bowlOpening=(x,z,row=0)=>playerBowlOpening(x,z,row)||visitorBowlOpening(x,z,row);
 
 const nodes={},links=[];
 function node(id,x,y,z,label,hint,level='lower'){nodes[id]={id,x,y,z,label,hint,level};return id;}

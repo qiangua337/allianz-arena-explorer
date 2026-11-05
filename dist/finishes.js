@@ -56,10 +56,10 @@ export function finishPlayerTunnel(g){
  const m=palette(),b=new Batches(g);
  for(const side of[-1,1]){
   b.add(25.7,.12,.075,1.55,.11,side*2.33,m.dark);b.add(24.8,.12,.08,1.6,3.68,side*2.32,m.dark);
-  beam(g,v(-10.4,1.0,side*2.18),v(8.7,1.0,side*2.18),.035,m.steel,12);
-  for(let j=0;j<8;j++){const x=-9.5+j*2.35;b.add(.055,.18,.14,x,.9,side*2.27,m.steel);b.add(1.1,.025,.045,x,.14,side*2.28,m.light);}
+  beam(g,v(-10.4,1.0,side*2.18),v(8.7,1.0,side*2.18),.035,m.rubber,12);
+  for(let j=0;j<8;j++){const x=-9.5+j*2.35;b.add(.055,.18,.14,x,.9,side*2.27,m.dark);b.add(1.1,.025,.045,x,.14,side*2.28,m.light);}
  }
- for(let j=0;j<10;j++){const x=-10.3+j*1.9;b.add(.035,.04,4.35,x,3.76,0,m.seam);}
+ for(let j=0;j<10;j++){const x=-10.3+j*1.9;b.add(.018,.006,2.45,x,3.867,0,m.seam);}
  for(const x of[-9,-3,3]){
   finishedBox(g,.8,.035,2.5,x,.015,0,m.rubber,.018);contactShadow(g,2.0,4,x,.025,0);
  }

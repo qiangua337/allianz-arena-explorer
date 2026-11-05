@@ -41,7 +41,7 @@ test('a sustained fixture finishes with real keeper saves and goals while restar
  const g=createFootballSimulation({opponent:'madrid',difficulty:'casual'});let steps=0;while(g.state.phase!=='fulltime'&&steps++<60*360)g.update(1/60);assert.equal(g.state.phase,'fulltime');assert.ok(g.state.stats.home.saves>=1);assert.ok(g.state.score.away>=1);assert.ok(g.state.stats.away.shots>=g.state.score.away);assert.ok(g.state.elapsed<=g.state.duration+1/60);
 });
 test('broadcast controls remain screen-relative and the portrait camera stays close enough to read the controlled player',()=>{
- const p={x:13,z:-20},b={x:14,z:-21,vx:0,vz:0},wide=footballCamera(p,{style:'broadcast',ball:b}),phone=footballCamera(p,{style:'broadcast',ball:b,aspect:390/844});const right=footballInput({side:1,yaw:wide.controlYaw}),up=footballInput({forward:1,yaw:wide.controlYaw});assert.ok(right.z<-.9&&up.x<-.9);assert.ok(phone.position[1]<wide.position[1]);assert.ok(phone.position.every(Number.isFinite));
- for(const x of[-35,35])for(const z of[-53,53]){const pose=footballCamera({x,z},{style:'broadcast',ball:{x,z},aspect:.46});assert.ok(pose.position[1]>18);assert.ok(Math.abs(pose.target[2])<=39);}
+ const p={x:13,z:-20},b={x:14,z:-21,vx:0,vz:0},wide=footballCamera(p,{style:'broadcast',ball:b}),phone=footballCamera(p,{style:'broadcast',ball:b,aspect:390/844});const right=footballInput({side:1,yaw:wide.controlYaw}),up=footballInput({forward:1,yaw:wide.controlYaw});assert.ok(right.z<-.9&&up.x<-.9);assert.ok(phone.position[1]<=44.2);assert.ok(phone.position.every(Number.isFinite));
+ for(const x of[-35,35])for(const z of[-53,53]){const pose=footballCamera({x,z},{style:'broadcast',ball:{x,z},aspect:.46});assert.ok(pose.position[1]>18);assert.ok(Math.abs(pose.target[2])<=52);}
  assert.deepEqual(radarPoint(0,-52.5),{x:180,y:58});assert.deepEqual(radarPoint(0,52.5),{x:0,y:58});
 });

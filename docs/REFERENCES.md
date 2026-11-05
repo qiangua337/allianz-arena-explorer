@@ -1,5 +1,11 @@
 # 参考资料与复原判断
 
+## 7.1 直接全景核对（2026-11-05）
+
+实际进入 [安联官方 360° 游览（2022）](https://allianz-arena.com/360/allianzarena/?source=startseite_en)，查看 Spielfeld、Pressekonferenz 与 Spielertunnel，对应修改内膜材、钢构、发布厅座椅和通道饰面。它是有年份的画面证据，不足以确认全部地下连接和 2026 整修后现状。具体区域、改动与近似范围见 [SCENE-AND-PLAY-7.1.md](SCENE-AND-PLAY-7.1.md)。同时查阅 [官方楼层资料](https://allianz-arena.com/binaries/content/assets/downloads/allianz-arena/events/logenkunden-portal/allgemeine-informationen/englisch/skybox-season-information?v=1698138132057)，不将其中的示意图当作完整 BIM 或复制其素材。
+
+比赛参考 [Konami 公开的 Smart Assist 说明](https://www.konami.com/efootball/en-us/page/overview)，研究接应线路、位置角色与辅助控制后自行实现，未复制商业足球游戏代码、模型或声音。
+
 研究日期：2026-10-20 至 2026-10-26。主要采用场馆、俱乐部、建筑事务所的公开资料，以及用户提供的可播放视频画面。并未取得施工图、完整室内尺寸或测绘数据。
 
 ## 3.0 可选对手
