@@ -1,6 +1,7 @@
 import {cushionGeometry,pipingGeometry,fabricMaterial} from './upholstery.js';
 import {THREE,v,mat,mesh,box,beam,cylinder,canvasTexture,Batches} from './kit.js';
 import {furniture} from './furniture-layout.js';
+import {hospitalityTables,hospitalityChairs,hospitalityBar} from './hospitality-layout.js';
 
 const geometryCache=new Map();
 export function finishedBox(parent,w,h,d,x,y,z,material,radius=.025){
@@ -97,10 +98,11 @@ export function finishFixtureShadows(g,spec,key){
 export function finishHospitality(g,spec,{wood,metal}){
  const m=palette(),b=new Batches(g),fabric=fabricMaterial(0x5b5752),glass=mat(0xe9e4d4,{transparent:true,opacity:.25,roughness:.08,depthWrite:false});
  for(const side of[-1,1])b.add(.08,.13,spec.d-.25,side*(spec.w/2-.12),.065,0,m.dark);b.add(.075,.07,spec.d-.15,-4.94,3.68,0,metal);b.add(.075,.07,spec.d-.15,-4.94,.045,0,metal);
- for(let j=0;j<5;j++){const z=-10+j*5;contactShadow(g,3.8,2.9,0,.014,z);mesh(new THREE.TorusGeometry(.82,.025,8,36),wood,g,0,.875,z).rotation.x=Math.PI/2;
-  for(const side of[-1,1]){finishedSeat(g,side*1.5,0,z,side*Math.PI/2,fabric,metal);contactShadow(g,1.4,1.4,side*1.5,.018,z);cylinder(g,.17,.015,side*.39,.897,z+.23,m.linen,24);finishedBox(g,.22,.012,.31,side*.4,.906,z-.24,m.linen,.008);const bowl=mesh(new THREE.SphereGeometry(1,16,12),glass,g,side*.32,1.105,z);bowl.scale.set(.056,.071,.056);}
+ for(const table of hospitalityTables){const{x,z,radius,height}=table;contactShadow(g,3.8,2.9,x,.014,z);mesh(new THREE.TorusGeometry(radius-.03,.025,8,36),wood,g,x,height-.005,z).rotation.x=Math.PI/2;
+  for(const side of[-1,1]){cylinder(g,.17,.015,x+side*.39,.897,z+.23,m.linen,24);finishedBox(g,.22,.012,.31,x+side*.4,.906,z-.24,m.linen,.008);const bowl=mesh(new THREE.SphereGeometry(1,16,12),glass,g,x+side*.32,1.105,z);bowl.scale.set(.056,.071,.056);}
  }
- finishedBox(g,1.5,.9,16,3.4,.45,0,m.dark,.035);finishedBox(g,1.65,.075,16,3.4,.945,0,wood,.03);b.add(.04,.05,15.8,2.58,.23,0,metal);contactShadow(g,2.7,17,3.4,.017,0);
+ for(const chair of hospitalityChairs){finishedSeat(g,chair.x,0,chair.z,chair.yaw,fabric,metal,chair.width);contactShadow(g,1.4,1.4,chair.x,.018,chair.z);}
+ const bar=hospitalityBar;finishedBox(g,bar.bodyWidth,.9,bar.d,bar.x,.45,bar.z,m.dark,.035);finishedBox(g,bar.w,.075,bar.d,bar.x,bar.height-.0375,bar.z,wood,.03);b.add(.04,.05,bar.d-.2,bar.x-.82,.23,bar.z,metal);contactShadow(g,2.7,17,bar.x,.017,bar.z);
  for(const z of[-9,0,9])finishedBox(g,1.32,.065,2.12,0,3.665,z,m.dark,.02);
  for(const z of[-11,11]){b.add(.65,.035,.44,3.8,3.7,z,m.dark);for(let j=0;j<7;j++)b.add(.58,.017,.015,3.8,3.675,z-.15+j*.05,metal);}
  b.flush();

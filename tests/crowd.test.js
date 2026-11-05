@@ -19,6 +19,11 @@ test('audience occupancy is deterministic and phone budgets do not remove whole 
  const a=createCrowdLayout(seats),b=createCrowdLayout(seats);assert.ok(a.count>seats.length*.90&&a.count<seats.length*.97);assert.deepEqual(a.records.map(r=>[r.id,r.frame]),b.records.map(r=>[r.id,r.frame]));assert.equal(new Set(a.records.map(r=>r.frame)).size,8);assert.equal(new Set(a.records.map(r=>r.seat)).size,a.count);assert.ok(a.records.every(r=>seats.includes(r.seat)));
  const phone=a.nearby({x:45,y:6,z:0},{mobile:true}),desktop=a.nearby({x:45,y:6,z:0});assert.equal(phone.length,crowdDetailBudget(true));assert.equal(desktop.length,crowdDetailBudget(false));assert.equal(new Set(phone.map(r=>r.id)).size,phone.length);
 });
+
+test('lightweight quality does not scan or sort nearby seat records when its detail budget is zero',()=>{
+ let reads=0;const source=Array.from({length:20},()=>({get x(){reads++;return 42;},get y(){reads++;return 1;},get z(){reads++;return 0;},yaw:0,sector:0})),layout=createCrowdLayout(source);assert.ok(layout.count>0);reads=0;
+ for(const budget of[0,-1])assert.deepEqual(layout.nearby({x:42,y:1,z:0},{budget}),[]);assert.equal(reads,0,'disabled detail performs no seat-coordinate work');assert.equal(layout.nearby({x:42,y:1,z:0},{budget:1}).length,1);assert.ok(reads>0,'the same nearby fixture is actually queried when detail is enabled');
+});
 test('actual near spectators replace their far counterpart and remain within the mobile draw and instance budget',()=>{
  const audience=buildMatchdayCrowd(new THREE.Group(),seats,{mobile:true});assert.equal(audience.root.visible,false);audience.setEnabled(true);audience.update(1,{x:45,y:6,z:0});const near=audience.root.getObjectByName('Seated 3D spectators · bounded near detail'),far=audience.root.children.filter(o=>o.isInstancedMesh&&o.geometry.attributes.fanDetail);
  assert.equal(near.count,128);assert.equal(audience.nearCount,128);assert.ok(!near.isSkinnedMesh);assert.ok(near.geometry.index===null);assert.ok(near.geometry.attributes.position.count/3<700);assert.equal(far.reduce((sum,o)=>sum+o.geometry.attributes.fanDetail.array.reduce((a,b)=>a+b,0),0),near.count);

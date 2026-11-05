@@ -80,7 +80,7 @@ for(let i=0;i<coreLevels.length;i++){
   const ids=['landing'+i,`flight${i}Start`,`flight${i}Out`,`flight${i}Turn`,`flight${i}End`,'landing'+(i+1)];for(let j=1;j<ids.length;j++)join(ids[j-1],ids[j]);
  }
 }
-node('loungeDoor',95.5,23.6,-10.5,'贵宾包厢入口','靠近自动门后步行进入','gallery');node('lounge',92,23.6,-10.5,'贵宾包厢','可以沿窗边欣赏球场','gallery');join('landing2','loungeDoor');join('loungeDoor','lounge');
+node('loungeDoor',95.5,23.6,-10.5,'贵宾包厢入口','靠近自动门后步行进入','gallery');node('lounge',93,23.6,-10.5,'贵宾包厢','可以沿窗边欣赏球场','gallery');join('landing2','loungeDoor');join('loungeDoor','lounge');
 node('middleBridgeStart',101.5,23.6,-30.1,'中层看台连廊','沿带扶手的连廊前往看台','gallery');node('stands',82.55,23.6,-30.1,'中层看台','沿座椅间过道上下，也可按 F 坐下','gallery');join('landing2','middleBridgeStart');join('middleBridgeStart','stands');
 node('upperGalleryFront',101.5,40,-15.5,'上层连廊入口','沿连廊前往看台入口','gallery');node('upperGalleryOuter',106,40,-15.5,'上层连廊转角','沿连廊前往看台入口','gallery');node('upperBridgeStart',106,40,-36.5,'上层看台连廊','沿连廊进入上层看台','gallery');node('upperStands',102.75,40,-36.5,'上层看台','沿过道自由探索','gallery');join('landing3','upperGalleryFront');join('upperGalleryFront','upperGalleryOuter');join('upperGalleryOuter','upperBridgeStart');join('upperBridgeStart','upperStands');
 node('lowerEntry',0,12.2,-104,'下层看台入口','沿缓坡步行进入下层看台','upper');node('lowerStands',0,10.512,-83.2,'下层看台','沿阶梯过道上下探索','stands');join('upper24','lowerEntry');join('lowerEntry','lowerStands');

@@ -4,6 +4,8 @@ import {registerHooks} from 'node:module';
 registerHooks({resolve(s,c,next){return s==='three'?{url:new URL('../dist/vendor/three.module.js',import.meta.url).href,shortCircuit:true}:next(s,c);}});
 const {THREE}=await import('../dist/kit.js');
 const {buildPlayableMatch}=await import('../dist/playable-match.js');
+const {createFootballSimulation}=await import('../dist/football-simulation.js');
+const {packOnlineState}=await import('../dist/online-protocol.js');
 function fixture(){
  const nodes=new Map(),node=id=>{if(!nodes.has(id)){const handlers={};nodes.set(id,{hidden:false,textContent:'',dataset:{},classList:{toggle(){}},setAttribute(k,v){this[k]=v;},addEventListener(k,v){handlers[k]=v;},fire(k,v){handlers[k]?.(v);},showModal(){this.open=true;},close(){if(this.open){this.open=false;handlers.close?.();}},focus(){}});}return nodes.get(id);};
  const context=new Proxy({createRadialGradient:()=>({addColorStop(){}})},{get:(o,k)=>k in o?o[k]:()=>{}}),classes=new Set();
@@ -16,7 +18,7 @@ const run=(game,seconds,input={})=>{for(let i=0;i<Math.round(seconds*60);i++)gam
 test('the actual match HUD presents half time and continues into the second half instead of remaining under a pause overlay',async()=>{
  const {game,node}=fixture();game.start({rules:{mode:'league',duration:180}});game.ready();run(game,3.1);game.state.elapsed=89.99;run(game,.1);assert.equal(game.state.phase,'interval');assert.equal(node('game-overlay').hidden,false);assert.equal(node('game-overlay-title').textContent,'中场休息');assert.equal(node('game-resume').textContent,'开始下半场');await node('game-resume').onclick();run(game,.2);assert.equal(game.state.competition.period,2);assert.equal(game.state.paused,false);assert.equal(node('game-overlay').hidden,true);assert.equal(node('game-period').textContent,'下半场');
 });
-test('display controls preserve the live match, and pausing exposes an actual readable statistics report',()=>{const {game,node}=fixture();game.start();game.ready();run(game,3.2);const time=game.state.elapsed;node('game-more').onclick();assert.equal(node('game-ui').dataset.more,'true');node('game-radar-toggle').onclick();assert.equal(document.body.dataset.gameRadar,'false');assert.equal(game.state.elapsed,time);assert.equal(game.state.paused,false);node('game-pause').onclick();assert.equal(game.state.paused,true);assert.equal(node('game-result').hidden,false);assert.ok(node('game-result').innerHTML.includes('report-score'));assert.ok(node('game-result').innerHTML.includes('射正'));assert.equal(node('game-overlay-team').hidden,false);game.start();assert.equal(node('game-ui').dataset.more,'false');});
+test('display controls preserve the live match, and pausing exposes an actual readable statistics report',()=>{const {game,node}=fixture();game.start();game.ready();run(game,3.2);const time=game.state.elapsed;node('game-more').onclick();assert.equal(node('game-ui').dataset.more,'true');assert.equal(node('game-more')['aria-label'],'收起比赛设置');node('game-radar-toggle').onclick();assert.equal(document.body.dataset.gameRadar,'false');assert.equal(game.state.elapsed,time);assert.equal(game.state.paused,false);node('game-pause').onclick();assert.equal(game.state.paused,true);assert.equal(node('game-result').hidden,false);assert.ok(node('game-result').innerHTML.includes('report-score'));assert.ok(node('game-result').innerHTML.includes('射正'));assert.equal(node('game-overlay-team').hidden,false);game.start();assert.equal(node('game-ui').dataset.more,'false');assert.equal(node('game-more')['aria-label'],'展开比赛设置');});
 test('a pending or failed player load never advances a live match; retry starts a fresh kick-off',()=>{
  const{game,node,classes}=fixture();game.start();run(game,10);assert.equal(game.state.phaseTime,0);assert.equal(game.state.elapsed,0);assert.equal(game.action('shoot'),false);assert.equal(node('game-overlay').hidden,false);assert.ok(classes.has('game-active'));
  game.fail();assert.equal(node('game-overlay-title').textContent,'球员暂未加载');assert.equal(node('game-restart').hidden,false);game.start();game.ready();run(game,3.1);assert.equal(game.state.phase,'playing');assert.ok(game.state.elapsed<.2);assert.equal(node('game-overlay').hidden,true);
@@ -40,6 +42,24 @@ test('control assistance can change during a match without resetting it, and pre
 test('a charged shot releases exactly once, pointer cancellation and pausing discard it safely',()=>{
  const speeds=[];for(const hold of[.1,.8]){const{game,node}=fixture();game.start();game.ready();run(game,3.1);assert.equal(game.beginCharge(),true);run(game,hold);assert.equal(node('game-shoot')['aria-pressed'],'true');assert.equal(game.releaseCharge(),true);assert.equal(game.state.stats.home.shots,1);assert.equal(game.releaseCharge(),false);speeds.push(Math.hypot(game.state.ball.vx,game.state.ball.vz));}assert.ok(speeds[1]>speeds[0]+7);
  const{game,node}=fixture();game.start();game.ready();run(game,3.1);const shoot=node('game-shoot');shoot.fire('pointerdown',{pointerId:9,preventDefault(){}});run(game,.3);shoot.fire('pointercancel',{pointerId:9});assert.equal(game.state.chargePower,0);assert.equal(game.state.stats.home.shots,0);assert.equal(game.releaseCharge(),false);assert.equal(game.beginCharge(),true);game.setPaused(true);game.setPaused(false);assert.equal(game.releaseCharge(),false);assert.equal(game.state.stats.home.shots,0);
+});
+
+test('clearing focus input cancels held charge and pressure without pausing or firing a delayed shot',()=>{
+ const{game,node}=fixture();game.start();game.ready();run(game,3.1);const shoot=node('game-shoot'),pressure=node('game-pressure');
+ shoot.fire('pointerdown',{pointerId:9,preventDefault(){}});pressure.fire('pointerdown',{pointerId:7,preventDefault(){}});run(game,.2);
+ assert.ok(game.state.chargePower>.25);assert.equal(pressure['aria-pressed'],'true');const elapsed=game.state.elapsed;
+ game.clearInput();assert.equal(game.state.paused,false);assert.equal(game.state.chargePower,0);assert.equal(shoot['aria-pressed'],'false');assert.equal(pressure['aria-pressed'],'false');assert.equal(game.releaseCharge(),false);
+ // Releasing a pointer captured before focus was lost must not kick the ball.
+ shoot.fire('pointerup',{pointerId:9});pressure.fire('pointerup',{pointerId:7});run(game,.2);
+ assert.ok(game.state.elapsed>elapsed);assert.equal(game.state.stats.home.shots,0);assert.equal(game.state.players.find(p=>p.id===game.state.controlledId).defending,false);assert.equal(game.state.chargePower,0);
+ // The next fresh touch still starts and releases normally.
+ shoot.fire('pointerdown',{pointerId:10,preventDefault(){}});run(game,.2);shoot.fire('pointerup',{pointerId:10});assert.equal(game.state.stats.home.shots,1);
+});
+
+test('a cleared online HUD sends neutral input on subsequent frames instead of restoring held actions',()=>{
+ const server=createFootballSimulation({humanTeams:['home','away']});run(server,3.1);const inputs=[],messages=[],session={team:'home',opponent:'dortmund',code:'ABCDEFGH',connection:'connected',latency:0,room:{started:true,seats:[{team:'home'},{team:'away'}]},packet:packOnlineState(server.state,1),subscribe:()=>()=>{},setReady(){},send:p=>{messages.push(p);return true;},sendInput:p=>{inputs.push(p);return inputs.length;}};
+ const{game,node}=fixture();game.start({},session);game.ready();node('game-pressure').fire('pointerdown',{pointerId:7,preventDefault(){}});node('game-shoot').fire('pointerdown',{pointerId:9,preventDefault(){}});run(game,.2);
+ assert.ok(inputs.some(p=>p.charging&&p.defend));game.clearInput();run(game,.2);const latest=inputs.at(-1);assert.equal(latest.charging,false);assert.equal(latest.defend,false);assert.equal(latest.power,0);assert.equal(game.state.paused,false);assert.equal(game.releaseCharge(),false);assert.equal(messages.some(p=>p.type==='pause'),false);assert.equal(messages.some(p=>p.type==='action'&&p.action==='shoot'),false);
 });
 
 test('changing opponent replaces the simulated squad and scoreboard while camera switches preserve a live match',()=>{

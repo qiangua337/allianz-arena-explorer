@@ -15,7 +15,7 @@ export function createCrowdLayout(seats){
   records.push(record);const key=Math.floor(seat.x/8)+','+Math.floor(seat.z/8);if(!cells.has(key))cells.set(key,[]);cells.get(key).push(record);
  }
  function nearby(viewer,{mobile=false,budget=crowdDetailBudget(mobile),radius=crowdDetailRadius(mobile)}={}){
-  if(!viewer||![viewer.x,viewer.y,viewer.z].every(Number.isFinite))return[];const found=[],limit=radius*radius;
+  if(budget<=0||!viewer||![viewer.x,viewer.y,viewer.z].every(Number.isFinite))return[];const found=[],limit=radius*radius;
   for(let x=Math.floor((viewer.x-radius)/8);x<=Math.floor((viewer.x+radius)/8);x++)for(let z=Math.floor((viewer.z-radius)/8);z<=Math.floor((viewer.z+radius)/8);z++)for(const r of cells.get(x+','+z)||[]){const s=r.seat,d=(s.x-viewer.x)**2+(s.y+.5-viewer.y)**2+(s.z-viewer.z)**2;if(d<limit)found.push({r,d});}
   found.sort((a,b)=>a.d-b.d||a.r.id-b.r.id);return found.slice(0,Math.max(0,budget)).map(p=>p.r);
  }
