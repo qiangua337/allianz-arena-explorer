@@ -9,9 +9,10 @@ export function finishedBox(parent,w,h,d,x,y,z,material,radius=.025){
  return mesh(geometry,material,parent,x,y,z);
 }
 
-let shadowMaterial;
+let shadowTexture;const shadowMaterials=new Map();
 export function contactShadow(parent,w,d,x,y,z,opacity=.34){
- if(!shadowMaterial){const texture=canvasTexture(128,128,c=>{const g=c.createRadialGradient(64,64,12,64,64,64);g.addColorStop(0,'rgba(10,8,8,.64)');g.addColorStop(.55,'rgba(10,8,8,.3)');g.addColorStop(1,'rgba(10,8,8,0)');c.fillStyle=g;c.fillRect(0,0,128,128);});shadowMaterial=new THREE.MeshBasicMaterial({map:texture,transparent:true,opacity,depthWrite:false,toneMapped:false,polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-1});}
+ if(!shadowTexture)shadowTexture=canvasTexture(128,128,c=>{const g=c.createRadialGradient(64,64,12,64,64,64);g.addColorStop(0,'rgba(10,8,8,.64)');g.addColorStop(.55,'rgba(10,8,8,.3)');g.addColorStop(1,'rgba(10,8,8,0)');c.fillStyle=g;c.fillRect(0,0,128,128);});
+ let shadowMaterial=shadowMaterials.get(opacity);if(!shadowMaterial){shadowMaterial=new THREE.MeshBasicMaterial({map:shadowTexture,transparent:true,opacity,depthWrite:false,toneMapped:false,polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-1});shadowMaterials.set(opacity,shadowMaterial);}
  const plane=mesh(new THREE.PlaneGeometry(w,d),shadowMaterial,parent,x,y,z);plane.rotation.x=-Math.PI/2;plane.renderOrder=1;return plane;
 }
 
@@ -90,7 +91,7 @@ export function finishedSeat(parent,x,y,z,yaw,material,metal,width=.8){
 }
 
 export function finishFixtureShadows(g,spec,key){
- for(const f of furniture.filter(f=>f.owner===key))contactShadow(g,f.w+.95,f.d+.9,f.x-spec.x,key==='press'?f.y0-spec.y+.09:.015,f.z-spec.z);
+ for(const f of furniture.filter(f=>f.owner===key))contactShadow(g,f.w+.95,f.d+.9,f.x-spec.x,key==='press'?f.y0-spec.y+.015:.015,f.z-spec.z);
 }
 
 export function finishHospitality(g,spec,{wood,metal}){

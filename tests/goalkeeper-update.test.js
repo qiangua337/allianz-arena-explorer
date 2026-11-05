@@ -35,3 +35,18 @@ test('drive, finesse and lob use different real trajectories and invalid modes f
 test('replay keeper decisions and shot records are detached from the live game',()=>{
  const g=scenario(),r=createReplayRecorder();g.action('shoot',{power:.7});for(let i=0;i<30;i++){g.update(1/60);r.record(g.state);}const clip=r.clip(),before=JSON.stringify(clip);assert.ok(clip);g.state.players[0].keeperState.targetX=99;g.state.lastShot.outcome='other';if(g.state.ball.shot)g.state.ball.shot.id=999;assert.equal(JSON.stringify(clip),before);assert.notEqual(r.clip().frames[0].players[0].keeperState.targetX,99);
 });
+
+function keeperCollection(g,{speed=8,shot=null}={}){
+ const s=g.state;for(const p of s.players)Object.assign(p,{x:25,z:p.team==='home'?40:-30,vx:0,vz:0,decisionAt:1e6,tackleAt:1e6});
+ const k=s.players.find(p=>p.keeper&&p.team==='away');Object.assign(k,{x:0,z:-48,keeperState:goalkeeperState()});
+ Object.assign(s.ball,{ownerId:null,x:0,y:speed<5?.3:.9,z:speed<5?-47.7:-47.3,vx:0,vz:-speed,vy:0,shot,targetId:null,receivePoint:null});
+ for(let i=0;i<20&&s.ball.ownerId!==k.id;i++)g.update(1/60);assert.equal(s.ball.ownerId,k.id);return s;
+}
+
+test('ordinary keeper collections are not saves, while a slow real shot counts once even after a parry',()=>{
+ const ordinary=scenario(),plain=keeperCollection(ordinary);assert.equal(plain.stats.away.saves,0);assert.equal(plain.stats.home.shots,0);assert.equal(plain.stats.home.onTarget,0);assert.equal(plain.events.at(-1).type,'receive');
+ const game=scenario();game.action('shoot',{power:.55,direction:{x:0,z:-1}});for(let i=0;i<180&&!game.state.stats.away.saves;i++)game.update(1/60);
+ assert.equal(game.state.lastShot.outcome,'parried');assert.equal(game.state.stats.away.saves,1);const shot={...game.state.ball.shot};run(game,40);
+ const again=keeperCollection(game,{speed:3,shot});assert.equal(again.stats.away.saves,1,'a second contact with the same shot does not add another save');assert.equal(again.stats.home.onTarget,1);
+ const fresh=scenario();fresh.action('shoot',{power:.55});const slow=keeperCollection(fresh,{speed:3,shot:{...fresh.state.ball.shot}});assert.equal(slow.stats.away.saves,1,'a genuine slow shot still counts');assert.equal(slow.stats.home.onTarget,1);
+});

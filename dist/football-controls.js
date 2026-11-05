@@ -3,6 +3,18 @@ export function footballInput({forward=0,side=0,yaw=0,sprint=false,defend=false}
  const length=Math.max(1,Math.hypot(forward,side)),f=forward/length,s=side/length;
  return{x:-Math.sin(yaw)*f+Math.cos(yaw)*s,z:-Math.cos(yaw)*f-Math.sin(yaw)*s,sprint,defend};
 }
+// Check the camera that is actually on screen, including its smoothed target.
+// A distant cursor switch must not leave the new footballer behind the HUD.
+export function footballerInFrame({position,target,fov},player,aspect=16/9){
+ if(!player||!target||!position||!Number.isFinite(fov)||!Number.isFinite(aspect)||aspect<=0)return false;
+ const direction=target.map((n,i)=>n-position[i]),length=Math.hypot(...direction),horizontal=Math.hypot(direction[0],direction[2]);if(length<.001||horizontal<.001)return false;
+ const forward=direction.map(n=>n/length),right=[-direction[2]/horizontal,0,direction[0]/horizontal],up=[-forward[1]*right[2],horizontal/length,forward[1]*right[0]],tan=Math.tan(fov*Math.PI/360);
+ return [0,2].every(y=>{const q=[player.x-position[0],y-position[1],player.z-position[2]],dot=v=>q.reduce((sum,n,i)=>sum+n*v[i],0),depth=dot(forward);if(depth<=.1)return false;const x=dot(right)/(depth*tan*aspect),height=dot(up)/(depth*tan);return Math.abs(x)<=.82&&height<=.65&&height>=-.52;});
+}
+export function advanceFootballCamera(previous,desired,{player,aspect=16/9,dt=1/60,rate=9,changed=false,instant=false}={}){
+ const cut=instant||!desired.target||!previous.target||changed&&!footballerInFrame(previous,player,aspect),amount=cut?1:1-Math.exp(-clamp(dt,0,.25)*rate),blend=(from,to)=>to.map((n,i)=>from[i]+(n-from[i])*amount);
+ return{...desired,position:blend(previous.position,desired.position),target:desired.target?blend(previous.target||desired.target,desired.target):null,cut};
+}
 export function footballCamera(player,{view='third',yaw=0,pitch=-.14,style='follow',ball=player,aspect=16/9,penalty=null}={}){
  if(view==='first')return{position:[player.x,1.68,player.z],target:null,fov:76,yaw,pitch:clamp(pitch,-.95,.5)};
  if(penalty)return penalty==='keeper'?{position:[0,3,-59.8],target:[0,1,-43],fov:aspect<.85?100:68,controlYaw:Math.PI}:{position:[player.x*.2,4.5,aspect<.85?-28:-32],target:[0,.8,-51.5],fov:55,controlYaw:0};

@@ -51,9 +51,9 @@ test('shots wide or over the bar and touchline exits produce real restarts inste
 test('a visitor can dribble over the touchline and receive an opponent throw-in rather than an invisible field wall',()=>{
  const game=start();clearOthers(game);const p=player(game);p.x=33;p.z=8;Object.assign(game.state.ball,{x:33,y:.11,z:7.3});run(game,.6,{x:1,z:0});assert.equal(game.state.phase,'kickoff');assert.equal(game.state.restartType,'throwin');assert.equal(game.state.restartTeam,'away');assert.ok(game.state.ball.ownerId.startsWith('away-'));
 });
-test('goalkeepers intercept reachable shots and record saves without teleporting to the ball',()=>{
+test('goalkeepers collect a reachable loose ball physically without counting it as a shot save',()=>{
  const game=start();clearOthers(game);const keeper=player(game,'away-0');keeper.x=0;keeper.z=-48;Object.assign(game.state.ball,{ownerId:null,x:0,y:.5,z:-47.90,vx:0,vy:0,vz:-10});game.update(1/60);
- assert.equal(game.state.ball.ownerId,keeper.id);assert.equal(game.state.stats.away.saves,1);assert.ok(Math.abs(keeper.z+48)<.1);assert.equal(game.state.events.at(-1).type,'save');
+ assert.equal(game.state.ball.ownerId,keeper.id);assert.equal(game.state.stats.away.saves,0);assert.ok(Math.abs(keeper.z+48)<.1);assert.equal(game.state.events.at(-1).type,'receive');
 });
 test('pause, finite capped updates and full time freeze the live simulation; restart clears score and clock',()=>{
  const game=start({duration:1});clearOthers(game);game.setPaused(true);const snapshot=JSON.stringify(game.state);game.update(100,{x:1,z:-1});assert.equal(JSON.stringify(game.state),snapshot);assert.equal(game.action('shoot'),false);game.setPaused(false);

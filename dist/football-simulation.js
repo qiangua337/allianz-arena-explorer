@@ -22,7 +22,7 @@ export function createFootballSimulation({duration=180,seed=73417,controlMode='s
  const club=footballTeam(opponent),awayDefinitions=club.id==='dortmund'?awayXI:opponentSquad(club.id).xi,tuning=difficulties[difficulty]||difficulties.regular,teamName=team=>team==='home'?'拜仁':club.short;
  const humans=new Set(humanTeams.filter(t=>t==='home'||t==='away')),controllers={};
  for(const team of ['home','away'])controllers[team]={autoReceive:false,lastSwitchAt:-10,manualLockUntil:0,queuedAction:null,lastInput:{x:0,z:0}};
- let randomSeed=initialSeed,worldTime=0,accumulator=0,restartDelay=3,lastTouch='home',claimBlockId='',claimBlockUntil=0,goalRestartTeam='away',actionSerial=0;
+ let randomSeed=initialSeed,worldTime=0,accumulator=0,restartDelay=3,lastTouch='home',claimBlockId='',claimBlockUntil=0,goalRestartTeam='away',actionSerial=0,lastSavedShotId=null;
  const random=()=>{randomSeed=(Math.imul(randomSeed,1664525)+1013904223)>>>0;return randomSeed/4294967296;};
  const state={shotKind:shotKinds.includes(shotKind)?shotKind:'drive',lastShot:null,fixture:club,difficulty:Object.hasOwn(difficulties,difficulty)?difficulty:'regular',controlMode:validControlMode(controlMode),time:0,nextPlayerId:null,passTargetId:null,passPreview:null,shotPreview:null,players:[],controlledId:'home-1',ball:{x:0,y:BALL_RADIUS,z:0,vx:0,vy:0,vz:0,ownerId:null},score:{home:0,away:0},elapsed:0,duration:matchDuration,phase:'kickoff',phaseTime:0,paused:false,message:'准备开球',restartType:'kickoff',restartTeam:'home',eventCount:0,events:[],stats:{home:{shots:0,passes:0,tackles:0,saves:0,onTarget:0,woodwork:0},away:{shots:0,passes:0,tackles:0,saves:0,onTarget:0,woodwork:0}}};
  state.controlledIds={home:'home-1',away:'away-1'};state.controlModes={home:state.controlMode,away:state.controlMode};state.shotKinds={home:state.shotKind,away:state.shotKind};state.previews={home:{},away:{}};state.chargePowers={home:0,away:0};
@@ -45,7 +45,7 @@ export function createFootballSimulation({duration=180,seed=73417,controlMode='s
  }
  function kickoff(team,{first=false}={}){if(state.phase!=='goal')state.stoppageId++;regulations.applyPending(state.phase==='interval');resetPositions(team);state.phase='kickoff';state.phaseTime=0;state.restartType='kickoff';state.restartTeam=team;restartDelay=first?3:2.7;emit('kickoff',team,teamName(team)+'开球');}
  function reset(){
-  randomSeed=initialSeed;worldTime=accumulator=0;lastTouch='home';claimBlockId='';claimBlockUntil=0;goalRestartTeam='away';actionSerial=0;
+  randomSeed=initialSeed;worldTime=accumulator=0;lastTouch='home';claimBlockId='';claimBlockUntil=0;goalRestartTeam='away';actionSerial=0;lastSavedShotId=null;
   state.stoppageId=0;regulations.reset();state.players=['home','away'].flatMap(team=>state.teamSheets[team].xi.map((number,index)=>{const definition=squadDefinition(team,club.id,number);return({id:team+'-'+index,team,index,keeper:definition.keeper,number:definition.player.number,name:definition.player.name,x:0,z:0,vx:0,vz:0,yaw:team==='home'?Math.PI:0,stamina:1,decisionAt:0,tackleAt:0,possessionSince:0,protectedUntil:0,trapUntil:0,motion:null,defending:false,lungeUntil:0,tackleWindowUntil:0,cautions:0,fouls:0,dismissed:false,attackSign:team==='home'?-1:1});}));
   for(const team of ['home','away']){Object.assign(controllers[team],{autoReceive:false,lastSwitchAt:-10,manualLockUntil:0,queuedAction:null,lastInput:{x:0,z:0}});state.controlledIds[team]=team+'-1';state.previews[team]={};state.chargePowers[team]=0;}state.lastShot=null;Object.assign(state,{controlledId:'home-1',elapsed:0,duration:matchDuration,phase:'kickoff',phaseTime:0,paused:false,message:'准备开球',time:0,nextPlayerId:null,eventCount:0,events:[]});state.score={home:0,away:0};state.stats={home:{shots:0,passes:0,tackles:0,saves:0,onTarget:0,woodwork:0},away:{shots:0,passes:0,tackles:0,saves:0,onTarget:0,woodwork:0}};kickoff('home',{first:true});regulations.afterReset();return state;
  }
@@ -112,9 +112,11 @@ export function createFootballSimulation({duration=180,seed=73417,controlMode='s
  }
  function keeperSave(previous){
   const b=state.ball,owner=byId(b.ownerId);for(const p of onField()){if(!p.keeper||owner?.team===p.team)continue;const contact=goalkeeperContact(p,b,previous,worldTime,state.difficulty);if(!contact)continue;const speed=Math.hypot(b.vx,b.vz),k=p.keeperState;
-   if(speed>5){state.stats[p.team].saves++;if(!p.motion)motion(p,'save',.65);}
-   if(contact.kind==='catch'){finishShot('saved');setOwner(p);p.decisionAt=worldTime+.9;emit('save',p.team,p.name+'稳稳接住',p.id);}
-   else{finishShot('parried');const sign=attackSign(p.team),side=Math.sign(contact.point.x-p.x)||k.direction||1;b.ownerId=null;b.targetId=null;b.receivePoint=null;b.curve=0;b.x=contact.point.x;b.y=Math.max(BALL_RADIUS,contact.point.y);b.z=contact.point.z;b.vx=side*Math.max(4,speed*.29);b.vz=sign*(3+speed*.13);b.vy=contact.point.y>1.4?2.0:.8;k.blockedUntil=worldTime+.52;k.recoverUntil=Math.max(k.recoverUntil,worldTime+.6);k.phase='recover';claimBlockId=p.id;claimBlockUntil=worldTime+.52;lastTouch=p.team;emit('parry',p.team,p.name+'扑救脱手 · 可以补射',p.id);}
+   const shot=b.shot,isShot=shot&&shot.team!==p.team&&state.lastShot?.id===shot.id;
+   if(isShot&&lastSavedShotId!==shot.id){state.stats[p.team].saves++;lastSavedShotId=shot.id;}
+   if(speed>5&&!p.motion)motion(p,'save',.65);
+   if(contact.kind==='catch'){finishShot('saved');setOwner(p);p.decisionAt=worldTime+.9;emit(isShot?'save':'receive',p.team,p.name+(isShot?'稳稳接住':'接住来球'),p.id);}
+   else{finishShot('parried');const sign=attackSign(p.team),side=Math.sign(contact.point.x-p.x)||k.direction||1;b.ownerId=null;b.targetId=null;b.receivePoint=null;b.curve=0;b.x=contact.point.x;b.y=Math.max(BALL_RADIUS,contact.point.y);b.z=contact.point.z;b.vx=side*Math.max(4,speed*.29);b.vz=sign*(3+speed*.13);b.vy=contact.point.y>1.4?2.0:.8;k.blockedUntil=worldTime+.52;k.recoverUntil=Math.max(k.recoverUntil,worldTime+.6);k.phase='recover';claimBlockId=p.id;claimBlockUntil=worldTime+.52;lastTouch=p.team;emit(isShot?'parry':'intercept',p.team,p.name+(isShot?'扑救脱手 · 可以补射':'挡下来球'),p.id);}
    return true;
   }return false;
  }

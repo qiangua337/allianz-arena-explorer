@@ -1,4 +1,4 @@
-import {pressLayout} from './facility-layout.js';
+import {pressLayout,pressCameras} from './facility-layout.js';
 import {roomSpecs} from './building-layout.js';
 import {personalHonours} from './personal-honours.js';
 
@@ -17,7 +17,7 @@ add('store',2,5,5.5,1.6,1.8);
 export const pressSeats=Array.from({length:pressLayout.rows*pressLayout.columns},(_,i)=>{const row=Math.floor(i/pressLayout.columns),col=i%pressLayout.columns,half=pressLayout.columns/2;return{x:(col<half?-1:1)*(1.12+(col%half)*.80),z:pressLayout.firstZ+row*pressLayout.rowDepth,y:row*pressLayout.rise,width:.58};});
 for(const seat of pressSeats)add('press',seat.x,seat.z,.72,.74,1.3,seat.y);
 add('press',0,-5.4,15,1.25,1.4);
-for(const x of[-10.05,10.05])add('press',x,6.7,.76,1.05,2.0);
+for(const camera of pressCameras)add('press',camera.x,camera.z,.76,1.05,2.0,camera.y);
 
 export function furnitureBlocksSegment(a,b,owner,clearance=.24){
  return furniture.some(o=>{if(o.owner!==owner)return false;let min=0,max=1;for(const axis of ['x','z']){const half=(axis==='x'?o.w:o.d)/2+clearance,delta=b[axis]-a[axis],low=o[axis]-half,high=o[axis]+half;if(Math.abs(delta)<1e-8){if(a[axis]<=low||a[axis]>=high)return false;}else{let t0=(low-a[axis])/delta,t1=(high-a[axis])/delta;if(t0>t1)[t0,t1]=[t1,t0];min=Math.max(min,t0);max=Math.min(max,t1);if(min>=max)return false;}}return min<max;});

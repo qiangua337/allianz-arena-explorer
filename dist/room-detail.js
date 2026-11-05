@@ -1,6 +1,7 @@
 import {THREE,mat,box,mesh,cylinder,beam,v,canvasTexture,Batches} from './kit.js';
 import {roomSpecs} from './building-layout.js';
 import {finishedBox} from './finishes.js';
+import {pressFloorSegments} from './facility-layout.js';
 
 export function buildRoomDetail(rooms){
  const dark=mat(0x273137),paper=mat(0xe1ded1,{roughness:.96}),steel=mat(0x99a7aa,{metalness:.7,roughness:.28}),red=mat(0xa5243e),blue=mat(0x477d92),rubber=mat(0x313335),display=new THREE.MeshBasicMaterial({color:0x5d8999});
@@ -28,7 +29,7 @@ export function buildRoomDetail(rooms){
   // Translation-booth glazing sits against an existing wall. It creates no
   // fictitious doorway or route into an unmodelled room.
   const glazing=mat(0x506267,{metalness:.15,roughness:.16,envMapIntensity:.8});for(const z of[-6.7,-3.5,4.2]){finishedBox(press,.06,1.15,2.5,10.33,2.25,z,steel,.018);box(press,.012,1.03,2.34,10.291,2.25,z,glazing);b.add(.02,.014,2.30,10.28,1.78,z,paper);}
-  for(const x of[-9.7,9.7])b.add(.07,.012,12.5,x,.013,.2,rubber);b.flush();}
+  for(const x of[-9.7,9.7]){let previous=0;for(const{start,end,y}of pressFloorSegments(-6.05,6.45)){b.add(.07,.012,end-start,x,y+.013,(start+end)/2,rubber);if(y>previous)b.add(.07,y-previous,.012,x,(y+previous)/2+.007,start,rubber);previous=y;}}b.flush();}
  const shop=rooms.store;if(shop){box(shop,.22,.025,.30,3.5,1.198,5,dark);const pos=box(shop,.15,.11,.09,3.5,1.255,4.95,dark);pos.rotation.x=-.2;box(shop,.12,.055,.012,3.5,1.278,4.9,display);for(let i=0;i<4;i++){box(shop,.5,.018,.30,1.3,1.19+i*.022,5.2,i%2?paper:red);}}
  return{update(now=Date.now()){if(now<nextCheck)return;nextCheck=now+1000;const text=format.format(now);if(text===last)return;last=text;const c=texture.image.getContext('2d');c.fillStyle='#0b141b';c.fillRect(0,0,512,160);c.textAlign='center';c.font='600 103px monospace';c.fillStyle='#ef6670';c.fillText(text,256,115);texture.needsUpdate=true;},get clock(){return last;}};
 }
