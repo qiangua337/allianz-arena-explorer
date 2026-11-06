@@ -18,7 +18,7 @@ export function opponentSquad(id){
  return{club,xi:club.xi.map((p,i)=>make(p,i)),bench:club.bench.map((p,i)=>make(p,i,true))};
 }
 export const difficulties={casual:{label:'轻松',speed:.89,reaction:1.45,range:.67,shotError:1.4},regular:{label:'标准',speed:1,reaction:1,range:.85,shotError:.65},challenge:{label:'挑战',speed:1.04,reaction:.78,range:.95,shotError:.3}};
-export const cameraLabels={broadcast:'转播',follow:'跟随'};
-export function matchOptions(value={}){return{opponent:footballTeam(value.opponent).id,difficulty:Object.hasOwn(difficulties,value.difficulty)?value.difficulty:'casual',camera:value.camera==='follow'?'follow':'broadcast',rules:normalizeRules(value.rules),selection:value.selection?.xi?{formation:value.selection.formation,xi:[...value.selection.xi]}:null};}
+export const cameraLabels={close:'近景转播',broadcast:'广角转播',follow:'跟随'};
+export function matchOptions(value={}){return{opponent:footballTeam(value.opponent).id,difficulty:Object.hasOwn(difficulties,value.difficulty)?value.difficulty:'casual',camera:Object.hasOwn(cameraLabels,value.camera)?value.camera:'close',rules:normalizeRules(value.rules),selection:value.selection?.xi?{formation:value.selection.formation,xi:[...value.selection.xi]}:null};}
 export function loadMatchOptions(storage){try{return matchOptions(JSON.parse(storage?.getItem('arena-match-options')||'{}'));}catch{return matchOptions();}}
 export function saveMatchOptions(storage,options){try{storage?.setItem('arena-match-options',JSON.stringify(matchOptions(options)));}catch{}}

@@ -42,3 +42,25 @@ test('pressure steers around a shielding carrier instead of driving straight int
  const defender={x:0,z:0,yaw:0},carrier={team:'away',x:0,z:1.1,vx:0,vz:0},ball={x:0,z:1.7,y:.11,vx:0,vz:0};const target=pressureTarget(defender,carrier,ball);assert.ok(Math.abs(target.x)>.9);assert.ok(target.z>carrier.z);assert.equal(target.standOff,.15);
  const exposed=pressureTarget({x:0,z:3,yaw:Math.PI},carrier,ball);assert.equal(exposed.x,ball.x);assert.equal(exposed.standOff,1.1);
 });
+
+test('a won tackle has a brief settling touch and the dispossessed carrier recovers before tackling again',()=>{
+ const g=createFootballSimulation({humanTeams:['home','away'],controlMode:'manual'});run(g,3.05);
+ for(const q of g.state.players)Object.assign(q,{x:q.team==='home'?28:-28,z:q.team==='home'?40:-40,vx:0,vz:0,decisionAt:1e6,tackleAt:0});
+ const winner=p(g,'home-1'),loser=p(g,'away-1');Object.assign(winner,{x:0,z:0,yaw:0});Object.assign(loser,{x:0,z:1.1,yaw:Math.PI});Object.assign(g.state.ball,{ownerId:loser.id,x:0,z:.5,y:.11,vx:0,vz:0,vy:0});
+ const at=g.state.time;assert.equal(g.action('tackle'),true);assert.equal(g.state.ball.ownerId,null,'a tackle first releases a physical loose ball');run(g,.08);assert.equal(g.state.ball.ownerId,winner.id);assert.ok(winner.protectedUntil>=at+.5);assert.ok(loser.tackleAt>=at+.85);
+ run(g,.48);Object.assign(loser,{x:0,z:1.2,yaw:Math.PI});assert.equal(g.action('tackle',{},'away'),false,'the dispossessed carrier cannot instantly reverse the same challenge');
+ const covering=p(g,'away-2');Object.assign(covering,{x:0,z:1.4,yaw:Math.PI,tackleAt:0});g.state.controlledIds.away=covering.id;assert.equal(g.action('tackle',{},'away'),true,'another defender can contest the exposed ball after the normal settling window');assert.equal(g.state.stats.away.tackles,1);
+});
+
+test('an AI presser approaches the ball side of a shield rather than repeatedly colliding with the carrier',()=>{
+ const g=setup('manual'),carrier=p(g),defender=p(g,'away-1');Object.assign(carrier,{x:0,z:0,yaw:0});Object.assign(defender,{x:0,z:-1.7,yaw:0,vx:0,vz:0,tackleAt:1e6});Object.assign(g.state.ball,{ownerId:carrier.id,x:0,z:.58,y:.11,vx:0,vz:0,vy:0});
+ run(g,.45,{defend:true});assert.ok(Math.abs(defender.x)>.35,'the presser makes lateral progress around the protected side');assert.ok(Math.hypot(defender.x-carrier.x,defender.z-carrier.z)>.65);assert.equal(g.state.ball.ownerId,carrier.id);
+});
+
+test('autonomous play does not spend most challenges instantly swapping the same possession back',()=>{
+ let challenges=0,rapidReturns=0,shots=0,passes=0;
+ for(let seed=1;seed<=8;seed++){const g=createFootballSimulation({seed,humanTeams:[],rules:{mode:'league',duration:180}});let serial=0,last=null;
+  for(let frame=0;frame<90*60;frame++){g.update(1/60);for(const event of g.state.events.filter(e=>e.id>serial)){if(event.type==='tackle'){challenges++;if(last&&last.team!==event.team&&g.state.time-last.time<1)rapidReturns++;last={team:event.team,time:g.state.time};}if(event.type==='shot')shots++;if(event.type==='pass')passes++;serial=event.id;}}
+ }
+ assert.ok(challenges>30&&shots>15&&passes>50,'both tackling and attacking remain active');assert.ok(rapidReturns/challenges<.5,`${rapidReturns}/${challenges} challenges were instant counter-tackles`);
+});

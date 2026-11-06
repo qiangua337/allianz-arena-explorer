@@ -1,5 +1,5 @@
 import {goalkeeperState,planGoalkeeper,goalkeeperContact,goalkeeperProfile} from './goalkeeper.js';
-import {validControlMode,turnFootballer,cursorCandidate,tackleWindow} from './football-assist.js';
+import {validControlMode,turnFootballer,cursorCandidate,tackleWindow,pressureTarget} from './football-assist.js';
 import {homeXI,awayXI} from './matchday-roster.js';
 import {footballTeam,opponentSquad,difficulties} from './football-teams.js';
 import {passOption,shotOption,receivingPoint,shotKinds,passFlight,supportPosition,possessionTeam,passRunSeconds} from './football-tactics.js';
@@ -32,7 +32,7 @@ export function createFootballSimulation({duration=180,seed=73417,controlMode='s
  function emit(type,team,text,playerId=null){state.message=text;state.eventCount++;state.events.push({id:state.eventCount,type,team,text,playerId});if(state.events.length>12)state.events.shift();}
  function selectPlayer(player,reason,manual=false){if(!player||player.dismissed||!humans.has(player.team)||player.id===state.controlledIds[player.team])return false;const team=player.team,c=controllers[team];state.controlledIds[team]=player.id;if(team==='home')state.controlledId=player.id;c.lastSwitchAt=worldTime;if(manual)c.manualLockUntil=worldTime+1.7;emit('switch',team,reason+' '+player.number+' · '+player.name,player.id);return true;}
  function finishShot(outcome){const shot=state.lastShot;if(!shot||state.ball.shot?.id!==shot.id)return;if(['goal','saved','blocked','wide'].includes(shot.outcome))return;shot.outcome=outcome;shot.updatedAt=worldTime;if(['goal','saved','parried'].includes(outcome)&&!shot.onTarget){state.stats[shot.team].onTarget++;shot.onTarget=true;}}
- function setOwner(player){const b=state.ball,previous=b.ownerId;if(previous!==player.id){player.protectedUntil=worldTime+.38;player.trapUntil=worldTime+.23;if(!player.keeper&&state.phase==='playing'&&!player.motion)motion(player,'trap',.26);}
+ function setOwner(player){const b=state.ball,previous=b.ownerId;if(previous!==player.id){player.protectedUntil=worldTime+(player.motion?.type==='tackle'?.50:.38);player.trapUntil=worldTime+.23;if(!player.keeper&&state.phase==='playing'&&!player.motion)motion(player,'trap',.26);}
   const c=controllers[player.team];if(humans.has(player.team)&&state.controlModes[player.team]!=='manual'&&!player.keeper&&(c.autoReceive||worldTime>=c.manualLockUntil)){const changed=selectPlayer(player,'控球接管');if(c.autoReceive||changed)emit('receive',player.team,player.name+'接球',player.id);}
   if(b.shot&&player.team!==b.shot.team&&!player.keeper)finishShot('blocked');for(const c of Object.values(controllers))c.autoReceive=false;b.shot=null;b.curve=0;b.targetId=null;b.receivePoint=null;b.ownerId=player.id;b.vx=b.vy=b.vz=0;lastTouch=player.team;player.possessionSince=worldTime;
  }
@@ -93,7 +93,7 @@ export function createFootballSimulation({duration=180,seed=73417,controlMode='s
      if(goalDistance<(p.team==='away'&&state.difficulty==='casual'?20:23)&&Math.abs(p.x)<19)shoot(p,{power:.4+random()*.38,direction:{x:(random()-.5)*1.7,z:sign}});else if(pressure<4.2||random()<(possessionStyle?.48:.18))pass(p);
     }
    }else if(possession!==p.team&&pressers[p.team].includes(p.id)){
-    const first=pressers[p.team][0]===p.id;targetX=first?b.x+b.vx*.25:b.x*.72+p.x*.28;targetZ=b.z+(first?b.vz*.25:-sign*3.1);speed=first?5.55:5.05;
+    const first=pressers[p.team][0]===p.id,target=first?pressureTarget(p,owner,b):null;targetX=first?target.x:b.x*.72+p.x*.28;targetZ=first?target.z:b.z-sign*3.1;speed=first?5.55:5.05;
    }else{
     const system=footballFormations[state.teamSheets[p.team].formation],base=(state.competition?system.positions:formation)[p.index],target=supportPosition(p,b,state.players,{base,role:system.roles[p.index],sign,attacking:possession===p.team,time:worldTime});targetX=target.x;targetZ=target.z;
    }
@@ -107,7 +107,9 @@ export function createFootballSimulation({duration=180,seed=73417,controlMode='s
   }
  }
  function poke(defender,owner,range){const b=state.ball,window=tackleWindow(defender,owner,b,{range});if(!window.canReach||worldTime<(owner.protectedUntil||0))return false;
-  const dx=b.x-defender.x,dz=b.z-defender.z,d=Math.hypot(dx,dz)||1;release(owner,-dx/d*2.4+defender.vx*.18,-dz/d*2.4+defender.vz*.18,.28);lastTouch=defender.team;claimBlockUntil=worldTime+.18;owner.protectedUntil=worldTime+.1;
+  // The displaced carrier needs to recover their feet before another challenge;
+  // covering teammates remain free to contest the same physically loose ball.
+  const dx=b.x-defender.x,dz=b.z-defender.z,d=Math.hypot(dx,dz)||1;if(defender.motion?.type!=='tackle')motion(defender,'tackle',.32);release(owner,-dx/d*2.4+defender.vx*.18,-dz/d*2.4+defender.vz*.18,.28);lastTouch=defender.team;claimBlockUntil=worldTime+.18;owner.protectedUntil=worldTime+.1;owner.tackleAt=Math.max(owner.tackleAt,worldTime+.85);
   state.stats[defender.team].tackles++;emit('tackle',defender.team,defender.name+'出脚断球',defender.id);return true;
  }
  function keeperSave(previous){

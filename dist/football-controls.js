@@ -18,11 +18,11 @@ export function advanceFootballCamera(previous,desired,{player,aspect=16/9,dt=1/
 export function footballCamera(player,{view='third',yaw=0,pitch=-.14,style='follow',ball=player,aspect=16/9,penalty=null}={}){
  if(view==='first')return{position:[player.x,1.68,player.z],target:null,fov:76,yaw,pitch:clamp(pitch,-.95,.5)};
  if(penalty)return penalty==='keeper'?{position:[0,3,-59.8],target:[0,1,-43],fov:aspect<.85?100:68,controlYaw:Math.PI}:{position:[player.x*.2,4.5,aspect<.85?-28:-32],target:[0,.8,-51.5],fov:55,controlYaw:0};
- if(style==='broadcast'){
-  const portrait=aspect<.85,fov=portrait?76:54,tan=Math.tan(fov*Math.PI/360),separation=Math.hypot(player.x-ball.x,player.z-ball.z),span=Math.min(1,34/(separation||1)),bx=player.x+(ball.x-player.x)*span,bz=player.z+(ball.z-player.z)*span,lead=Math.min(1,3/(Math.hypot(ball.vx||0,ball.vz||0)*.12||1)),x=clamp(player.x*.62+bx*.38+(ball.vx||0)*.12*lead,-33,33),z=clamp(player.z*.62+bz*.38+(ball.vz||0)*.12*lead,-52,52),target=[x,.8,z],length=Math.hypot(32,26,8),horizontal=Math.hypot(32,8);
-  const forward=[-32/length,-26/length,-8/length],right=[8/horizontal,0,-32/horizontal],up=[-32*26/(horizontal*length),horizontal/length,-8*26/(horizontal*length)];let scale=1;
+ if(style==='broadcast'||style==='close'){
+  const close=style==='close',portrait=aspect<.85,fov=close?(portrait?68:48):(portrait?76:54),offsetX=close?18:32,offsetY=close?14:26,offsetZ=close?4.5:8,tan=Math.tan(fov*Math.PI/360),separation=Math.hypot(player.x-ball.x,player.z-ball.z),span=Math.min(1,(close?24:34)/(separation||1)),bx=player.x+(ball.x-player.x)*span,bz=player.z+(ball.z-player.z)*span,lead=Math.min(1,3/(Math.hypot(ball.vx||0,ball.vz||0)*.12||1)),x=clamp(player.x*.62+bx*.38+(ball.vx||0)*.12*lead,-33,33),z=clamp(player.z*.62+bz*.38+(ball.vz||0)*.12*lead,-52,52),target=[x,.8,z],length=Math.hypot(offsetX,offsetY,offsetZ),horizontal=Math.hypot(offsetX,offsetZ);
+  const forward=[-offsetX/length,-offsetY/length,-offsetZ/length],right=[offsetZ/horizontal,0,-offsetX/horizontal],up=[-offsetX*offsetY/(horizontal*length),horizontal/length,-offsetZ*offsetY/(horizontal*length)];let scale=1;
   for(const point of [[player.x,0,player.z],[player.x,2,player.z],[bx,Math.max(.11,ball.y||.11),bz]]){const q=point.map((n,i)=>n-target[i]),dot=v=>q.reduce((sum,n,i)=>sum+n*v[i],0),depth=dot(forward),height=dot(up);scale=Math.max(scale,(Math.abs(dot(right))/(tan*Math.max(.3,aspect)*.82)-depth)/length,(Math.abs(height)/(tan*(height>0?.65:.52))-depth)/length);}
-  scale=clamp(scale,1,1.7);return{position:[x+32*scale,target[1]+26*scale,z+8*scale],target,fov,controlYaw:Math.atan2(32,8)};
+  scale=clamp(scale,1,close?3:1.7);return{position:[x+offsetX*scale,target[1]+offsetY*scale,z+offsetZ*scale],target,fov,controlYaw:Math.atan2(offsetX,offsetZ)};
  }
  const distance=8.3,height=4.5-clamp(pitch,-.65,.2)*5;
  return{position:[player.x+Math.sin(yaw)*distance,height,player.z+Math.cos(yaw)*distance],target:[player.x-Math.sin(yaw)*3,1.2+clamp(pitch,-.65,.2)*2,player.z-Math.cos(yaw)*3],fov:66};
