@@ -8,7 +8,8 @@ class Socket{
  static instances=[];
  constructor(url,protocols){this.url=url;this.protocols=protocols;this.readyState=1;this.messages=[];Socket.instances.push(this);}
  send(text){if(this.failSend)throw Error('transport lost');this.messages.push(JSON.parse(text));}
- close(code=1000,reason=''){this.readyState=3;this.onclose?.({code,reason});}
+ close(code=1000,reason=''){this.readyState=3;if(!this.suppressClose)this.onclose?.({code,reason});}
+ loseTransport(state){this.suppressClose=true;this.readyState=state;}
  message(packet){this.onmessage?.({data:JSON.stringify(packet)});}
 }
 const room={started:true,ended:false,seats:['home','away'].map(team=>({team,ready:true,connected:true,paused:false}))};
@@ -45,6 +46,22 @@ test('normal halftime, shared pause and full time remain connected without a sta
 test('a silent paused link recovers even if the platform never fires a WebSocket close event',async t=>{
  const{sim,session,socket}=await connect(t);sim.setPaused(true);socket.message({type:'state',room,state:packOnlineState(sim.state,43)});
  t.mock.timers.tick(11999);assert.equal(session.connection,'connected');t.mock.timers.tick(1);assert.equal(session.connection,'reconnecting');assert.equal(socket.readyState,3);
+});
+
+for(const [label,state]of [['CLOSING',2],['CLOSED',3]])test(`a ${label} transport with no close event recovers on the next heartbeat even after a paused snapshot`,async t=>{
+ const{sim,session,socket}=await connect(t),client=createOnlineSimulation(session);t.after(()=>client.dispose());client.update(1/60,{x:1,z:0});const requestResult=session.request({type:'formation',formation:'442'}).then(()=>null,error=>error);
+ sim.setPaused(true);const disconnectedRoom={...room,seats:room.seats.map(seat=>({...seat,connected:seat.team==='home'}))};socket.message({type:'state',room:disconnectedRoom,state:packOnlineState(sim.state,43)});socket.loseTransport(state);pong(socket);
+ t.mock.timers.tick(999);assert.equal(session.connection,'connected');t.mock.timers.tick(1);assert.equal(session.connection,'reconnecting');assert.equal(Socket.instances.length,1,'a single retry is scheduled after detecting the transport');assert.equal(client.state.paused,true);assert.equal(client.state.predictionSeconds,0);assert.match((await requestResult).message,/恢复后核对/);
+ socket.message({type:'welcome',protocol:2,room});assert.equal(session.connection,'reconnecting','queued messages from the retired socket cannot revive it');t.mock.timers.tick(501);assert.equal(Socket.instances.length,2);const replacement=Socket.instances[1];assert.ok(replacement.protocols.includes('ready-v1'));replacement.message({type:'welcome',protocol:2,room});assert.equal(session.connection,'connected');assert.equal(client.state.paused,true,'reconnection waits for the authoritative match state');
+ Object.assign(sim.state,{paused:false,elapsed:127});Object.assign(sim.state.competition,{period:2,periodStart:90});replacement.message({type:'state',room,state:packOnlineState(sim.state,1)});assert.equal(client.state.paused,false);assert.equal(client.state.elapsed,127);assert.equal(client.state.competition.period,2);assert.deepEqual(client.state.score,sim.state.score);
+});
+
+test('closing during a transport recovery cancels its retry and ignores late welcome messages',async t=>{
+ const{session,socket}=await connect(t);socket.loseTransport(2);t.mock.timers.tick(1000);assert.equal(session.connection,'reconnecting');session.close();socket.message({type:'welcome',protocol:2,room});t.mock.timers.tick(20000);assert.equal(session.connection,'closed');assert.equal(Socket.instances.length,1);
+});
+
+test('a closed transport for an ended room closes the session without reconnecting',async t=>{
+ const{session,socket}=await connect(t);socket.message({type:'state',room:{...room,ended:true,reason:'比赛已结束'},state:session.packet});socket.loseTransport(3);t.mock.timers.tick(1000);assert.equal(session.connection,'closed');assert.equal(session.error,'比赛已结束');t.mock.timers.tick(10000);assert.equal(Socket.instances.length,1);
 });
 
 test('regular snapshots tolerate 300 ms replies and jitter without triggering recovery',async t=>{

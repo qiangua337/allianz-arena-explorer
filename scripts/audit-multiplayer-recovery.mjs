@@ -6,7 +6,7 @@ import {createOnlineSession,requestOnlineSeat} from '../dist/online-client.js';
 const origin=process.argv[2]||'http://127.0.0.1:51736',recordIndex=process.argv.indexOf('--record'),record=recordIndex<0?null:process.argv[recordIndex+1],sessions=[],wires={home:[],away:[]},checks=[];
 let stage='connecting',progress=null,regression=null;
 const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
-function snapshot(session){const p=session.packet;return{team:session.team,connection:session.connection,seq:p?.seq,time:p?.time,elapsed:p?.elapsed,phase:p?.phase,period:p?.competition?.period,paused:p?.paused,score:p?.score,serverClock:p?.serverClock,seats:session.room?.seats.map(({team,connected,ready,paused})=>({team,connected,ready,paused}))};}
+function snapshot(session){const p=session.packet;return{team:session.team,connection:session.connection,transportReadyState:wires[session.team].at(-1)?.readyState,seq:p?.seq,time:p?.time,elapsed:p?.elapsed,phase:p?.phase,period:p?.competition?.period,paused:p?.paused,score:p?.score,serverClock:p?.serverClock,seats:session.room?.seats.map(({team,connected,ready,paused})=>({team,connected,ready,paused}))};}
 function log(value){const line=JSON.stringify(value);console.log(line);if(record)fs.appendFileSync(record,line+'\n');}
 async function until(fn,label,ms=10000){const start=Date.now();while(Date.now()-start<ms){if(regression){log({type:'failed',label:'authoritative clock rolled back',...regression});throw Error('Authoritative clock rolled back');}if(fn())return;await delay(25);}log({type:'failed',label,waitedMs:Date.now()-start,sessions:sessions.map(snapshot)});throw Error('Timed out: '+label);}
 function transport(team){return class{
