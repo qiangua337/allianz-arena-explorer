@@ -2,6 +2,7 @@ import {pressLayout,pressFloorRise,pressCameras,pressFloorSegments} from './faci
 import {hospitalityTables,hospitalityBar} from './hospitality-layout.js';
 import {buildBroadcastCamera,buildTreatmentTable} from './facility-equipment.js';
 import {buildRoomDetail} from './room-detail.js';
+import {buildTacticalBoard} from './tactical-board.js';
 import {buildShopFixtures} from './shop-fixtures.js';
 import {buildTrophyGallery} from './trophy-gallery.js';
 import {awayKitRoster} from './matchday-roster.js';
@@ -25,7 +26,7 @@ import {buildPressSeatInstances,ribbonPanelGeometry} from './venue-models.js';
 export {roomSpecs};
 export function buildInteriors(scene,circulation){
  const root=new THREE.Group();root.name='Accessible interiors | interpretation from public references';scene.add(root);
- const rooms={},shells={},lights=[],colliders=[],tacticalDisplays=[];const ceilings=[],retainedInstances=[];
+ const rooms={},shells={},lights=[],colliders=[],tacticalDisplays=new Map();const ceilings=[],retainedInstances=[];
  const finishes=architecturalMaterials();
  const red=mat(0x94162a,{roughness:.45,envMapIntensity:.14}),recessRed=lockerBackingMaterial(),guestKit=mat(0xe9cb22,{roughness:.86}),redTrim=mat(0xb81d36,{roughness:.48,envMapIntensity:.16}),white=finishes.plaster,dark=mat(0x161b20),metal=mat(0x9caaaf,{metalness:.75,roughness:.27}),wood=mat(0xffffff,{map:repeatTex(floorTexture('wood'),2,1),roughness:.68,envMapIntensity:.35,...surfaceMaps('wood',{repeat:[2,1],strength:.22,albedo:true})}),floorRed=finishes.rubberRed,tile=finishes.stone,cream=finishes.warmPlaster,blackFloor=finishes.charcoal,lightMat=new THREE.MeshBasicMaterial({color:0xecf4ff,toneMapped:false});
  function roomBase(key,wallMat=white,floorMat=tile){const spec=roomSpecs[key],g=new THREE.Group(),shell=new THREE.Group();g.position.set(spec.x,spec.y,spec.z);shell.position.copy(g.position);g.name=key;shell.name=key+' envelope';root.add(g,shell);rooms[key]=g;shells[key]=shell;const b=new Batches(shell);b.add(spec.w,.18,spec.d,0,-.09,0,floorMat);const wall=(w,h,d,x,y,z)=>{b.add(w,h,d,x,y,z,wallMat);wallCollider(colliders,spec.x+x,spec.z+z,w,d,spec.y,spec.y+4.5,key);};
@@ -56,7 +57,7 @@ export function buildInteriors(scene,circulation){
   finishedBox(g,7.2,.15,2.7,0,.92,0,guest?wood:redTrim,.045);b.add(6.6,.8,2.2,0,.47,0,guest?dark:red);for(const x of[-2.3,0,2.3])b.add(1.4,.08,1.6,x,1.04,0,white);
   for(let i=0;i<6;i++){bottle(g,-2.6+i*1.05,1.08,.55);b.add(.43,.09,.3,-2.6+i*1.05,1.06,-.5,redTrim);}
   addCrest(g,1.2,0,1.13,.02).rotation.x=-Math.PI/2;
-  b.add(.15,1.5,2.8,spec.w/2-.2,2.1,-4.3,dark);const tactics=canvasTexture(512,768,(ctx,w,h)=>{ctx.fillStyle='#143c34';ctx.fillRect(0,0,w,h);ctx.strokeStyle='#c7dcce';ctx.lineWidth=4;ctx.strokeRect(30,30,w-60,h-60);ctx.beginPath();ctx.moveTo(30,h/2);ctx.lineTo(w-30,h/2);ctx.stroke();ctx.beginPath();ctx.arc(w/2,h/2,65,0,TAU);ctx.stroke();for(const[x,z]of[[.5,.89],[.18,.72],[.4,.72],[.62,.72],[.84,.72],[.32,.5],[.67,.5],[.15,.32],[.5,.38],[.85,.32],[.5,.15]]){ctx.fillStyle='#d32947';ctx.beginPath();ctx.arc(x*w,z*h,17,0,TAU);ctx.fill();}});const tactical=mesh(new THREE.PlaneGeometry(2.5,1.4),new THREE.MeshBasicMaterial({map:tactics}),g,spec.w/2-.29,2.1,-4.3);tactical.rotation.y=-Math.PI/2;if(!guest)tacticalDisplays.push(tactical.material);
+  const tactical=buildTacticalBoard(g,{roomId:key,spec,metal,dark});tacticalDisplays.set(key,tactical);retainedInstances.push(tactical.display);
   const exit=sign(g,'AUSGANG →',1.55,.31,spec.w/2-.28,2.95,0,{fg:'#fff',bg:'#286b4d',font:70,h:128});exit.rotation.y=-Math.PI/2;
   sign(g,guest?'DORTMUND · AUSSTELLUNG':'FIRST TEAM · '+rosterInfo.season,7,.53,0,3.63,-spec.d/2+.18,{font:100,h:180,fg:guest?'#20384e':'#f1d8d9'});
   // Folded kit, a rolling equipment trunk and massage bench.
@@ -148,5 +149,5 @@ export function buildInteriors(scene,circulation){
  for(const g of [...Object.values(rooms),...Object.values(shells)])compactGroup(g,[...ceilings,...retainedInstances]);
  const roomCuts=['museum','store'].map(key=>{const s=roomSpecs[key];return{minX:s.x-s.w/2,maxX:s.x+s.w/2,minZ:s.z-s.d/2,maxZ:s.z+s.d/2};});rooms.concourse.traverse(o=>{if(o.isMesh){const original=o.geometry;o.geometry=subtractFootprints(original,roomCuts);original.dispose();}});
  function update(position,active){roomDetail.update();const nearby=(Math.abs(position.x)/132)**2.8+(Math.abs(position.z)/152)**2.8<1.1&&position.y<75;for(const[key,g]of Object.entries(rooms)){let show=false;if(key==='concourse'||key==='tunnel'||key==='corridor'||key==='shower')show=nearby;else{const s=roomSpecs[key];show=position.x>s.x-s.w/2-3&&position.x<s.x+s.w/2+5&&position.z>s.z-s.d/2-4&&position.z<s.z+s.d/2+4&&Math.abs(position.y-s.y)<7;}g.visible=show;if(shells[key])shells[key].visible=nearby;}for(const l of lights)l.visible=l.parent.visible&&Math.hypot(l.position.x+l.parent.position.x-position.x,l.position.y+l.parent.position.y-position.y,l.position.z+l.parent.position.z-position.z)<35;}
- return {root,rooms,shells,colliders,update,setTactics(formation){for(const m of tacticalDisplays){const c=m.map.image,ctx=c.getContext('2d');ctx.fillStyle='#143c34';ctx.fillRect(0,0,512,768);ctx.strokeStyle='#d9e8dc';ctx.lineWidth=4;ctx.strokeRect(28,28,456,712);ctx.beginPath();ctx.moveTo(28,384);ctx.lineTo(484,384);ctx.stroke();ctx.fillStyle='#fff';ctx.font='bold 36px Arial';ctx.textAlign='center';ctx.fillText(formation?'4–4–2':'4–2–3–1',256,75);const positions=formation?[[.5,.9],[.16,.73],[.38,.73],[.62,.73],[.84,.73],[.16,.48],[.38,.48],[.62,.48],[.84,.48],[.35,.23],[.65,.23]]:[[.5,.9],[.16,.73],[.38,.73],[.62,.73],[.84,.73],[.35,.54],[.65,.54],[.18,.34],[.5,.34],[.82,.34],[.5,.16]];positions.forEach(([x,z],i)=>{ctx.fillStyle='#da294a';ctx.beginPath();ctx.arc(x*512,z*768,18,0,Math.PI*2);ctx.fill();ctx.fillStyle='#fff';ctx.font='20px Arial';ctx.fillText(i+1,x*512,z*768+7);});m.map.needsUpdate=true;}},setRoof(on){ceilings.forEach(o=>o.visible=on);},night(){},specs:roomSpecs};
+ return {root,rooms,shells,colliders,update,setTactics(formation,roomId='homeRoom'){return tacticalDisplays.get(roomId)?.setFormation(formation);},setRoof(on){ceilings.forEach(o=>o.visible=on);},night(){},specs:roomSpecs};
 }

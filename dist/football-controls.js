@@ -1,4 +1,12 @@
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
+export function penaltyContext(state,team=state.players.find(p=>p.id===state.controlledId)?.team){
+ const ordinary=state.setPiece?.type==='penalty'?state.setPiece:null,contest=state.phase==='penalties'?state.competition?.shootout:null,p=ordinary||contest;
+ if(!p)return null;return{...p,role:p.team===team?'shooter':'keeper',goalZ:ordinary?.goalZ??-52.5,kind:ordinary?'match':'shootout'};
+}
+export function footballControlYaw(state,{cameraMode='close',yaw=0}={}){
+ const penalty=penaltyContext(state);if(penalty&&cameraMode!=='first'){const attacking=penalty.goalZ<0?0:Math.PI;return penalty.role==='keeper'?attacking+Math.PI:attacking;}
+ return['broadcast','close'].includes(cameraMode)?Math.atan2(32,8):yaw;
+}
 export function footballInput({forward=0,side=0,yaw=0,sprint=false,defend=false}={}){
  const length=Math.max(1,Math.hypot(forward,side)),f=forward/length,s=side/length;
  return{x:-Math.sin(yaw)*f+Math.cos(yaw)*s,z:-Math.cos(yaw)*f-Math.sin(yaw)*s,sprint,defend};
@@ -17,7 +25,7 @@ export function advanceFootballCamera(previous,desired,{player,aspect=16/9,dt=1/
 }
 export function footballCamera(player,{view='third',yaw=0,pitch=-.14,style='follow',ball=player,aspect=16/9,penalty=null}={}){
  if(view==='first')return{position:[player.x,1.68,player.z],target:null,fov:76,yaw,pitch:clamp(pitch,-.95,.5)};
- if(penalty)return penalty==='keeper'?{position:[0,3,-59.8],target:[0,1,-43],fov:aspect<.85?100:68,controlYaw:Math.PI}:{position:[player.x*.2,4.5,aspect<.85?-28:-32],target:[0,.8,-51.5],fov:55,controlYaw:0};
+ if(penalty){const role=typeof penalty==='string'?penalty:penalty.role,side=typeof penalty==='string'||penalty.goalZ<0?1:-1;return role==='keeper'?{position:[0,3,-59.8*side],target:[0,1,-43*side],fov:aspect<.85?100:68,controlYaw:side>0?Math.PI:0}:{position:[player.x*.2,4.5,(aspect<.85?-28:-32)*side],target:[0,.8,-51.5*side],fov:55,controlYaw:side>0?0:Math.PI};}
  if(style==='broadcast'||style==='close'){
   const close=style==='close',portrait=aspect<.85,fov=close?(portrait?68:48):(portrait?76:54),offsetX=close?18:32,offsetY=close?14:26,offsetZ=close?4.5:8,tan=Math.tan(fov*Math.PI/360),separation=Math.hypot(player.x-ball.x,player.z-ball.z),span=Math.min(1,(close?24:34)/(separation||1)),bx=player.x+(ball.x-player.x)*span,bz=player.z+(ball.z-player.z)*span,lead=Math.min(1,3/(Math.hypot(ball.vx||0,ball.vz||0)*.12||1)),x=clamp(player.x*.62+bx*.38+(ball.vx||0)*.12*lead,-33,33),z=clamp(player.z*.62+bz*.38+(ball.vz||0)*.12*lead,-52,52),target=[x,.8,z],length=Math.hypot(offsetX,offsetY,offsetZ),horizontal=Math.hypot(offsetX,offsetZ);
   const forward=[-offsetX/length,-offsetY/length,-offsetZ/length],right=[offsetZ/horizontal,0,-offsetX/horizontal],up=[-offsetX*offsetY/(horizontal*length),horizontal/length,-offsetZ*offsetY/(horizontal*length)];let scale=1;

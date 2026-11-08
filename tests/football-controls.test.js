@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {footballInput,footballCamera,matchTime,ballDirection} from '../dist/football-controls.js';
+import {footballInput,footballCamera,matchTime,ballDirection,penaltyContext,footballControlYaw} from '../dist/football-controls.js';
 
 test('camera-relative football movement rotates correctly without diagonal speed gain',()=>{
  assert.deepEqual(footballInput({forward:1}),{x:0,z:-1,sprint:false,defend:false});
@@ -22,4 +22,17 @@ test('the match clock clamps at full time and the ball compass is relative to th
 test('portrait penalty cameras keep the goal posts and full keeper movement inside the horizontal view',()=>{
  for(const penalty of ['shooter','keeper']){const pose=footballCamera({x:0,z:-41.5},{style:'broadcast',aspect:390/844,penalty}),[cx,cy,cz]=pose.position,[tx,ty,tz]=pose.target,dy=ty-cy,dz=tz-cz,d=Math.hypot(dy,dz),depth=((.8-cy)*dy+(-52.5-cz)*dz)/d,half=depth*Math.tan(pose.fov*Math.PI/360)*390/844;assert.ok(half>3.66,'both posts remain visible: '+penalty);assert.equal(pose.controlYaw,penalty==='keeper'?Math.PI:0);}
  const state={elapsed:90,competition:{stage:'regulation',regulationDuration:180}};assert.equal(matchTime(state),'45:00');state.elapsed=240;assert.equal(matchTime(state),'120:00');
+});
+
+test('ordinary penalties frame the actual goal at either end, keep camera-relative controls and preserve first person',()=>{
+ for(const goalZ of[-52.5,52.5])for(const team of['home','away'])for(const role of['shooter','keeper']){
+  const player={id:'selected',team:role==='shooter'?team:team==='home'?'away':'home',keeper:role==='keeper',x:1,z:role==='keeper'?goalZ:goalZ-Math.sign(goalZ)*11.58},state={players:[player],controlledId:player.id,phase:'playing',setPiece:{type:'penalty',team,goalZ,stage:'ready'}},penalty=penaltyContext(state);
+  assert.equal(penalty.role,role);assert.equal(penalty.kind,'match');
+  for(const aspect of[390/844,844/390,16/9]){const pose=footballCamera(player,{penalty,aspect}),delta=pose.target.map((v,i)=>v-pose.position[i]),length=Math.hypot(...delta),horizontal=Math.hypot(delta[0],delta[2]),forward=delta.map(v=>v/length),right=[-delta[2]/horizontal,0,delta[0]/horizontal],tan=Math.tan(pose.fov*Math.PI/360);
+   for(const x of[-3.66,3.66]){const q=[x-pose.position[0],1.22-pose.position[1],goalZ-pose.position[2]],depth=q.reduce((a,v,i)=>a+v*forward[i],0),screen=q.reduce((a,v,i)=>a+v*right[i],0)/(depth*tan*aspect);assert.ok(depth>0&&Math.abs(screen)<.95,'goal post must remain inside the actual penalty view');}
+   const inputYaw=footballControlYaw(state,{cameraMode:'close'}),input=footballInput({side:1,yaw:inputYaw});assert.ok(input.x*right[0]+input.z*right[2]>.99,'right control moves right on screen');
+  }
+  assert.equal(footballControlYaw(state,{cameraMode:'first',yaw:.71}),.71);const eye=footballCamera(player,{view:'first',penalty,yaw:.71});assert.equal(eye.target,null);assert.equal(eye.yaw,.71);assert.deepEqual(eye.position,[player.x,1.68,player.z]);
+ }
+ const live={players:[{id:'p',team:'home'}],controlledId:'p',phase:'playing'};assert.equal(penaltyContext(live),null);assert.equal(footballControlYaw(live,{cameraMode:'follow',yaw:1.1}),1.1);
 });

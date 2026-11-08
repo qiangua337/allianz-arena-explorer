@@ -30,7 +30,7 @@ export function buildBroadcastCamera(parent,{x=0,y=0,z=0,yaw=0,compact=false,flo
 export function buildTreatmentTable(parent,{x=0,z=0,metal,dark,pad}){
  const g=new THREE.Group();g.name='Adjustable treatment table';g.position.set(x,0,z);parent.add(g);
  box(g,1.58,.08,.56,0,.12,0,metal);for(const side of[-1,1]){beam(g,v(-.65,.20,side*.25),v(.57,.80,side*.25),.025,metal,8);beam(g,v(.65,.20,side*.25),v(-.57,.80,side*.25),.025,metal,8);const hub=cylinder(g,.045,.065,0,.49,side*.26,dark,12);hub.rotation.x=Math.PI/2;}
- for(const xx of[-.77,.77])for(const zz of[-.25,.25]){const wheel=cylinder(g,.055,.045,xx,.075,zz,dark,10);wheel.rotation.x=Math.PI/2;}
+ for(const xx of[-.77,.77])for(const zz of[-.25,.25]){const wheel=cylinder(g,.055,.045,xx,.055,zz,dark,10);wheel.rotation.x=Math.PI/2;wheel.name='Treatment trolley wheel';}
  box(g,1.93,.07,.71,0,.83,0,metal);const body=mesh(cushionGeometry(1.55,.76,.10),pad,g,-.21,.925,0);body.rotation.x=-Math.PI/2;const head=mesh(cushionGeometry(.46,.76,.10),pad,g,.82,.95,0);head.rotation.x=-Math.PI/2;head.rotation.z=-.07;
  const aperture=mesh(new THREE.TorusGeometry(.063,.017,8,24),dark,g,.83,1.012,0);aperture.rotation.x=-Math.PI/2;box(g,.20,.045,.14,.58,.045,.31,dark);return g;
 }
