@@ -25,6 +25,13 @@ export function moveControlledFootballer(p,b,owner,input,dt,time){
   const heading=Math.atan2(input.x,input.z),gap=Math.abs(Math.atan2(Math.sin(heading-p.yaw),Math.cos(heading-p.yaw)));
   if(time>=(p.pivotUntil||0)&&Math.hypot(p.vx,p.vz)>3&&gap>2.1)p.pivotUntil=time+.36;
   if(time<(p.pivotUntil||0)){speed*=.35+.65*Math.max(0,Math.cos(gap));turn={heading,rate:9,response:22};}
+  else{
+   // Plant into an ordinary cut instead of changing the travel direction
+   // much faster than the body and its dribbling touch can follow. Straight
+   // acceleration is unchanged; sharper cuts retain a little more momentum.
+   const travel=Math.hypot(p.vx,p.vz)>.4?Math.atan2(p.vx,p.vz):p.yaw,cut=Math.abs(Math.atan2(Math.sin(heading-travel),Math.cos(heading-travel)));
+   turn={rate:9,response:12-3*clamp((cut-.35)/1.2,0,1)};
+  }
  }else p.pivotUntil=0;
  moveFootballer(p,x,z,speed,dt,turn);
  if(input.defend&&b.ownerId!==p.id)p.yaw=turnFootballer(p.yaw,Math.atan2(b.x-p.x,b.z-p.z),dt*9);

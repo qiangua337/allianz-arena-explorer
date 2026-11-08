@@ -40,7 +40,7 @@ test('authored motion loops retain unit quaternions and a seamless gait seam',()
  const walk=motion.clips.Walk_Loop;for(let i=3;i<75;i++)assert.ok(Math.abs(walk.frames[0][i]-walk.frames[60][i])<.002);
 });
 
-const directory=new URL('../dist/assets/players/',import.meta.url),manifest=JSON.parse(fs.readFileSync(new URL('footballer.json',directory))),file=fs.readFileSync(new URL('footballer.bin',directory));
+const directory=new URL('../dist/assets/players/',import.meta.url),manifest=JSON.parse(fs.readFileSync(new URL('footballer-840.json',directory))),file=fs.readFileSync(new URL('footballer-840.bin',directory));
 function part(name){const p=manifest.parts.find(p=>p.name===name),a=new Float32Array(file.buffer,file.byteOffset+p.offset,p.vertices*16),ix=new Uint16Array(file.buffer,file.byteOffset+p.indexOffset,p.indexCount);return{...p,a,ix};}
 function bounds(name){const p=part(name),min=[Infinity,Infinity,Infinity],max=[-Infinity,-Infinity,-Infinity];for(let i=0;i<p.vertices;i++)for(let j=0;j<3;j++){min[j]=Math.min(min[j],p.a[i*16+j]);max[j]=Math.max(max[j],p.a[i*16+j]);}return{min,max};}
 test('all shared character vertices have finite geometry and normalized bone weights',()=>{

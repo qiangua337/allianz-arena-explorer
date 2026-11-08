@@ -1,11 +1,13 @@
-// Small football-specific strokes layered over the CC0 locomotion clips.
-// The left support leg and root stay in the grounded base pose.
+import {applyFootballKick,applyFootballShotPreparation} from './football-kick-pose.js';
+// Football strokes layer over the CC0 locomotion clips before the skeleton's
+// single world update. Kicks plant their support foot and begin at contact.
 export function applyFootballAction(bones,motion,{defending=false,speed=0}={}){
  const t=motion?Math.max(0,Math.min(1,motion.elapsed/motion.duration)):0,pulse=Math.sin(t*Math.PI);
  if(motion?.type==='booking'){bones[12].rotateX(-2.65);bones[13].rotateX(-.2);bones[2].rotateY(.08);return;}
- if(motion?.type==='prepareShot'){const load=.28+Math.min(1,motion.elapsed)*.30;bones[15].rotateX(load);bones[16].rotateX(-load*.32);bones[6].rotateZ(-.20);bones[12].rotateZ(.28);bones[2].rotateX(.08);return;}
+ if(motion?.type==='prepareShot'){const load=.28+Math.min(1,motion.elapsed)*.30,preload=1-Math.exp(-Math.max(0,motion.elapsed-.25)*20.4);if(!applyFootballShotPreparation(bones,preload)){bones[15].rotateX(load);bones[16].rotateX(-load*.32);}bones[6].rotateZ(-.20);bones[12].rotateZ(.28);bones[2].rotateX(.08);return;}
  if(motion?.type==='trap'){bones[15].rotateX(-.17*pulse);bones[16].rotateX(.20*pulse);bones[17].rotateX(.13*pulse);bones[6].rotateZ(-.10*pulse);bones[12].rotateZ(.10*pulse);}
  if(motion?.type==='celebrate'){const lift=Math.min(1,motion.elapsed/.40);bones[6].rotateX(-2.15*lift);bones[12].rotateX(-2.15*lift);bones[7].rotateX(-.35*lift);bones[13].rotateX(-.35*lift);bones[2].rotateY(Math.sin(motion.elapsed*3)*.035);return;}
+ if((motion?.type==='shoot'||motion?.type==='pass')&&applyFootballKick(bones,motion.type,t))return;
  const kick=motion?.type==='shoot'?.82:motion?.type==='pass'?.55:motion?.type==='tackle'?.48:0;
  const strike=motion?.type==='tackle'?pulse:t<.18?Math.sin(t/.18*Math.PI/2):Math.cos((t-.18)/.82*Math.PI/2);
  if(kick&&strike>0){bones[15].rotateX(-kick*strike);bones[16].rotateX(.24*strike);bones[17].rotateX(-.12*strike);bones[6].rotateZ(-.12*strike);bones[12].rotateZ(.15*strike);bones[2].rotateX(.06*strike);}

@@ -23,7 +23,7 @@ test('shielding the ball behind the carrier rejects body-distance steals, while 
  const g=setup(),u=p(g),o=p(g,'away-1');Object.assign(u,{x:0,z:0,yaw:0});Object.assign(o,{x:0,z:1.1,yaw:0});Object.assign(g.state.ball,{ownerId:o.id,x:0,z:1.7,y:.11});assert.equal(g.action('tackle'),false);assert.equal(g.state.ball.ownerId,o.id);assert.ok(g.state.message.includes('护球'));
 });
 test('running turns have angular limits and possession grace prevents immediate repeated body swaps',()=>{
- const g=setup(),user=p(g),before=user.yaw;run(g,.1,{x:1});assert.ok(Math.abs(Math.atan2(Math.sin(user.yaw-before),Math.cos(user.yaw-before)))<.8);
+ const g=setup(),user=p(g),before=user.yaw;run(g,.1,{x:1});assert.ok(Math.abs(Math.atan2(Math.sin(user.yaw-before),Math.cos(user.yaw-before)))<=.9+1e-8);
  const h=setup(),u=p(h),opponent=p(h,'away-1');Object.assign(u,{x:0,z:0,yaw:0});Object.assign(opponent,{x:0,z:.9,yaw:Math.PI});Object.assign(h.state.ball,{ownerId:null,x:0,z:.1,y:.11,vx:0,vz:0,vy:0});run(h,.03);assert.equal(h.state.ball.ownerId,u.id);const events=h.state.eventCount;run(h,.15);assert.equal(h.state.ball.ownerId,u.id);assert.ok(h.state.eventCount-events<=1);
 });
 test('the next-player hint excludes keepers and the current player; assistance settings persist independently of quality',()=>{

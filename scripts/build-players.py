@@ -64,7 +64,7 @@ for side in ['L','R']:
             head=joint_point(bone['head']);tail=joint_point(bone['tail'])
             vector=tail-head;vector/=np.linalg.norm(vector)
             axis=np.cross(vector,palm);axis/=np.linalg.norm(axis)
-            angle=np.deg2rad(([8,17,12] if finger==1 else [14,32,23])[segment-1])
+            angle=np.deg2rad(([18,25,17] if finger==1 else [18,42,27])[segment-1])
             x,y,z=axis;K=np.array([[0,-z,y],[z,0,-x],[-y,x,0]])
             rotation=parent_rotation@(np.eye(3)+np.sin(angle)*K+(1-np.cos(angle))*(K@K))
             new_head=head if previous_tail is None else previous_tail
@@ -148,7 +148,7 @@ def fitted(folder, name):
 
 parts, payload = [], bytearray()
 def add_part(name, points, uvs, faces, influence, *, select=lambda c,w:True,
-             yclip=None, expand=0, projection=None):
+             select_face=lambda face:True, yclip=None, expand=0, projection=None):
     ns = normals(points, faces)
     points = points + ns*expand
     data, indices, unique = [], [], {}
@@ -160,6 +160,7 @@ def add_part(name, points, uvs, faces, influence, *, select=lambda c,w:True,
         if key not in unique: unique[key]=len(data); data.append(record)
         return unique[key]
     for group, face in faces:
+        if not select_face(face): continue
         ids = [i for i,j in face]
         c, w = points[ids].mean(0), influence[ids].mean(0)
         if not select(c,w): continue
@@ -194,7 +195,15 @@ def visible_skin(c,w):
         shoulder=bone_positions['upperarm01.L' if c[0]>0 else 'upperarm01.R']
         return np.linalg.norm(c-shoulder)>.16
     return False
-add_part('skin',P,base_uv,body_faces,weights,select=visible_skin)
+# Allocate facial skin its own atlas patch, keeping the original surface,
+# weights and normals. Hidden torso pixels no longer consume most face detail.
+FACE_UV=(.60,.15,1.,.87)
+def facial_patch(face):
+    return P[[vi for vi,ti in face],1].mean()>1.60 and all(
+        FACE_UV[0]<=base_uv[ti,0]<=FACE_UV[2] and
+        FACE_UV[1]<=base_uv[ti,1]<=FACE_UV[3] for vi,ti in face)
+add_part('skin',P,base_uv,body_faces,weights,select=visible_skin,select_face=lambda f:not facial_patch(f))
+add_part('face',P,base_uv,body_faces,weights,select=visible_skin,select_face=facial_patch)
 
 shirt = fitted('clothes/toigo_basic_tucked_t-shirt','t_shirt_basic_tucked')
 # The source is a high tucked tee. Extend its lower panels to overlap the shorts
@@ -220,16 +229,17 @@ add_part('socks',P,base_uv,body_faces,weights,select=lambda c,w:.055<c[1]<.49,
          yclip=(.075,.48),expand=.002,projection=lambda p,c:[p[0]*10,p[1]*3])
 
 # A low boot last is independent of the anatomical toes, with a continuous sole.
+boot_bounds=None
 for side in ['L','R']:
     ankle=bone_positions['foot.'+side]
     pts,uv,faces=[],[],[]
-    sections=[(-.105,.026,.062),(-.085,.046,.104),(-.025,.052,.115),(.045,.054,.099),(.115,.054,.075),(.18,.043,.051),(.205,.005,.035)]
+    sections=[(-.105,.026,.062),(-.085,.046,.104),(-.025,.052,.115),(.045,.054,.099),(.115,.054,.075),(.18,.043,.051),(.205,.024,.035)]
     N=24
     for j,(z,r,h) in enumerate(sections):
         for k in range(N):
             t=k/N*np.pi*2
             pts.append([ankle[0]+np.cos(t)*r,.027+max(0,np.sin(t))*h+min(0,np.sin(t))*.006,ankle[2]+z])
-            uv.append([k/N,j/(len(sections)-1)])
+            uv.append([k/N*.78,j/(len(sections)-1)])
     for j in range(len(sections)-1):
         for k in range(N):
             a=j*N+k;b=j*N+(k+1)%N
@@ -241,7 +251,39 @@ for side in ['L','R']:
             a=j*N+k;b=j*N+(k+1)%N
             ids=[center,a,b] if reverse else [center,b,a]
             faces.append(('cap',[(i,i) for i in ids]))
+    # A continuous low outsole and six closed studs distinguish football boots
+    # from the old smooth, pointed slippers. They keep the foot's single draw.
+    outline=[(ankle[0]+r,ankle[2]+z) for z,r,h in sections[:-1]]
+    outline += [(ankle[0]+.022,ankle[2]+.203),(ankle[0]-.022,ankle[2]+.203)]
+    outline += [(ankle[0]-r,ankle[2]+z) for z,r,h in reversed(sections[:-1])]
+    start=len(pts);count=len(outline)
+    for yy in [.014,.026]:
+        for xx,zz in outline: pts.append([xx,yy,zz]);uv.append([.90,.5])
+    for i in range(count):
+        j=(i+1)%count
+        faces.append(('sole',[(start+i,start+i),(start+count+i,start+count+i),(start+count+j,start+count+j),(start+j,start+j)]))
+    for layer,reverse in [(0,True),(1,False)]:
+        center=len(pts);pts.append([ankle[0],.014 if layer==0 else .026,ankle[2]+.04]);uv.append([.90,.5])
+        for i in range(count):
+            a=start+layer*count+i;b=start+layer*count+(i+1)%count
+            ids=[center,a,b] if reverse else [center,b,a]
+            faces.append(('sole',[(v,v) for v in ids]))
+    for xx,zz in [(-.026,-.065),(.026,-.065),(-.032,.035),(.032,.035),(-.025,.135),(.025,.135)]:
+        start=len(pts);n=8
+        for yy,rr in [(.003,.008),(.017,.011)]:
+            for i in range(n):
+                angle=i/n*np.pi*2;pts.append([ankle[0]+xx+np.cos(angle)*rr,yy,ankle[2]+zz+np.sin(angle)*rr]);uv.append([.97,.5])
+        for i in range(n):
+            j=(i+1)%n;ids=[start+i,start+n+i,start+n+j,start+j];faces.append(('stud',[(v,v) for v in ids]))
+        for layer,reverse in [(0,True),(1,False)]:
+            center=len(pts);pts.append([ankle[0]+xx,.003 if layer==0 else .017,ankle[2]+zz]);uv.append([.97,.5])
+            for i in range(n):
+                a=start+layer*n+i;b=start+layer*n+(i+1)%n;ids=[center,a,b] if reverse else [center,b,a];faces.append(('stud',[(v,v) for v in ids]))
     wi=np.zeros((len(pts),len(kept)));wi[:,kept.index('foot.'+side)]=1
+    local=np.array(pts)-ankle
+    if boot_bounds is None: boot_bounds={'min':local.min(0),'max':local.max(0)}
+    else:
+        boot_bounds['min']=np.minimum(boot_bounds['min'],local.min(0));boot_bounds['max']=np.maximum(boot_bounds['max'],local.max(0))
     add_part('boot'+side,np.array(pts),np.array(uv),faces,wi)
 
 for name in ['short02']:
@@ -260,10 +302,10 @@ add_part('crop',hair_points,base_uv,body_faces,weights,
 add_part('eyes',*fitted('eyes/low-poly','low-poly'))
 add_part('eyebrows',*fitted('eyebrows/eyebrow002','eyebrow002'))
 
-(OUT/'footballer.bin').write_bytes(payload)
-manifest=dict(version=1,stride=16,height=1.86,bones=bones,parts=parts,
+(OUT/'footballer-840.bin').write_bytes(payload)
+manifest=dict(version=2,stride=16,height=1.86,bones=bones,parts=parts,faceUV=list(FACE_UV),bootBounds={k:v.round(7).tolist() for k,v in boot_bounds.items()},
               eyes={side:metres(body[rig['joints'][rig['bones']['eye.'+side]['head']]].mean(0)).tolist() for side in ['L','R']})
-(OUT/'footballer.json').write_text(json.dumps(manifest,separators=(',',':')),encoding='utf-8')
+(OUT/'footballer-840.json').write_text(json.dumps(manifest,separators=(',',':')),encoding='utf-8')
 textures={
     'skin-light.webp':('skins/young_caucasian_male/young_lightskinned_male_diffuse.png',1024),
     'skin-dark.webp':('skins/young_african_male/young_darkskinned_male_diffuse.png',1024),

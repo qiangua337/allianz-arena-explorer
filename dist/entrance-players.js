@@ -4,7 +4,7 @@ import {opponentSquad} from './football-teams.js';
 import {THREE,mat,canvasTexture} from './kit.js';
 import {matchdayPeople} from './matchday-roster.js';
 import {createFootballMotion} from './football-motion.js';
-import {atlasGeometry,characterAtlas,drawJersey} from './football-appearance.js';
+import {atlasGeometry,characterAtlas,drawJersey,drawBootTexture} from './football-appearance.js';
 import {simplifySkinnedGeometry} from './player-lod.js';
 import {sampleQueuePlayer} from './entrance-choreography.js';
 import {installAthleteSurface,createActorContactShadows,updateActorContactShadows,flushActorContactShadows} from './football-materials.js';
@@ -39,10 +39,10 @@ export function buildEntrancePlayers(scene,{mobile=false}={}){
  const root=new THREE.Group();root.name='Skinned football entrance queue';root.visible=false;scene.add(root);let loading,players=[],ready=false,lastMatchTime=null,playerAssets=null,opponent='dortmund';const officials=new Map();
  async function prepare(){if(loading)return loading;loading=(async()=>{
   const loader=new THREE.TextureLoader(),loadTexture=name=>loader.loadAsync(asset(name)),[data,binary,light,dark,short02,eyes,brows,crest,motion,awayCrest]=await Promise.all([
-   fetch(asset('footballer.json')).then(r=>{if(!r.ok)throw Error('Player manifest '+r.status);return r.json();}),fetch(asset('footballer.bin')).then(r=>{if(!r.ok)throw Error('Player mesh '+r.status);return r.arrayBuffer();}),loadTexture('skin-light.webp'),loadTexture('skin-dark.webp'),loadTexture('hair-short02.webp'),loadTexture('eyes.webp'),loadTexture('brows.webp'),new THREE.ImageLoader().loadAsync(new URL('./assets/fc-bayern.svg',import.meta.url).href),fetch(asset('walk-cycle.json')).then(r=>{if(!r.ok)throw Error('Motion '+r.status);return r.json();}),new THREE.ImageLoader().loadAsync(new URL('./assets/borussia-dortmund.svg',import.meta.url).href)
+   fetch(asset('footballer-840.json')).then(r=>{if(!r.ok)throw Error('Player manifest '+r.status);return r.json();}),fetch(asset('footballer-840.bin')).then(r=>{if(!r.ok)throw Error('Player mesh '+r.status);return r.arrayBuffer();}),loadTexture('skin-light.webp'),loadTexture('skin-dark.webp'),loadTexture('hair-short02.webp'),loadTexture('eyes.webp'),loadTexture('brows.webp'),new THREE.ImageLoader().loadAsync(new URL('./assets/fc-bayern.svg',import.meta.url).href),fetch(asset('walk-cycle.json')).then(r=>{if(!r.ok)throw Error('Motion '+r.status);return r.json();}),new THREE.ImageLoader().loadAsync(new URL('./assets/borussia-dortmund.svg',import.meta.url).href)
   ]);for(const t of[light,dark,short02,eyes,brows]){t.colorSpace=THREE.SRGBColorSpace;t.anisotropy=4;}
   const shadow=canvasTexture(64,64,c=>{const g=c.createRadialGradient(32,32,1,32,32,31);g.addColorStop(0,'rgba(0,0,0,.8)');g.addColorStop(.4,'rgba(0,0,0,.4)');g.addColorStop(1,'rgba(0,0,0,0)');c.fillStyle=g;c.fillRect(0,0,64,64);});
-  const boot=canvasTexture(256,256,c=>{c.fillStyle='#e7e8e3';c.fillRect(0,0,256,256);c.fillStyle='#555b5e';c.fillRect(130,0,126,256);c.strokeStyle='#666c6c';c.lineWidth=2;c.beginPath();c.moveTo(5,4);c.lineTo(5,252);c.moveTo(124,4);c.lineTo(124,252);c.stroke();c.strokeStyle='#f8f7ef';c.lineWidth=4;for(let y=90;y<177;y+=13){c.beginPath();c.moveTo(43,y);c.lineTo(86,y+6);c.stroke();}c.strokeStyle='#626967';c.lineWidth=3;for(const x of[13,109]){c.beginPath();c.moveTo(x,68);c.lineTo(x+9,119);c.stroke();}});
+  const boot=canvasTexture(256,256,drawBootTexture);
   const raw=Object.fromEntries(data.parts.map(p=>[p.name,makeGeometry(binary,p)])),geometries={short02:atlasGeometry(raw,'short02'),crop:atlasGeometry(raw,'crop')};for(const g of Object.values(raw))g.dispose();for(const g of Object.values(geometries)){g.userData.medium=simplifySkinnedGeometry(g,.035);g.userData.low=simplifySkinnedGeometry(g,.085);}
   const flag=canvasTexture(64,64,c=>{c.fillStyle='#f3c431';c.fillRect(0,0,64,64);c.fillStyle='#eb622e';c.fillRect(0,0,32,32);c.fillRect(32,32,32,32);});
   const textures={light,dark,short02,eyes,brows,crest,awayCrest,shadow,boot,flag};

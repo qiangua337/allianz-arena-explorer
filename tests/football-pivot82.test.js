@@ -22,8 +22,8 @@ test('the reversal is unchanged by 15, 30 or 60 fps rendering and a new directio
  for(const sample of samples)for(let i=0;i<sample.length;i++)assert.ok(Math.abs(sample[i]-samples[0][i])<1e-8);
  const f=fixture();for(let i=0;i<6;i++)f.game.update(1/60,{home:f.input});const x=f.p.x;f.game.update(1/60,{home:{x:1,z:0,sprint:true}});assert.ok(f.p.x>x+.01,'new direction takes over in the same movement frame');
 });
-test('ordinary ninety-degree turns retain their existing motion and losing the ball cancels a dribble pivot',()=>{
- const f=fixture();for(let i=0;i<6;i++)f.game.update(1/60,{home:{x:1,z:0,sprint:true}});assert.ok(!f.p.pivotUntil);assert.ok(f.p.yaw<.8);
+test('ordinary ninety-degree turns do not trigger a reversal pivot and losing the ball cancels a dribble pivot',()=>{
+ const f=fixture();for(let i=0;i<6;i++)f.game.update(1/60,{home:{x:1,z:0,sprint:true}});assert.ok(!f.p.pivotUntil);assert.ok(f.p.yaw>0&&f.p.yaw<=9*.1+1e-8);assert.ok(Math.hypot(f.p.vx,f.p.vz)>4,'ordinary cuts keep forward momentum');
  const reversing=fixture();reversing.game.update(1/60,{home:reversing.input});assert.ok(reversing.p.pivotUntil>reversing.s.time);reversing.s.ball.ownerId=null;reversing.game.update(1/60,{home:reversing.input});assert.equal(reversing.p.pivotUntil,0);
 });
 test('both network sides predict the same bounded pivot and checkpoint restoration retains its remaining movement',()=>{

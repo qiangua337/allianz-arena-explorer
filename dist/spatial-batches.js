@@ -10,6 +10,16 @@ export function partitionGeometry(geometry,sectors=16){
  }
  return [...bins.values()].map(bin=>{const g=new THREE.BufferGeometry();for(const[key,a]of attributes)g.setAttribute(key,new THREE.BufferAttribute(new a.array.constructor(bin.arrays[key]),a.itemSize,a.normalized));g.setIndex(bin.index);g.computeBoundingBox();g.computeBoundingSphere();return{geometry:g,sector:bin.sector};});
 }
+// Use only for explicitly selected, immutable surfaces. Keep their owning
+// group, transforms and visibility while giving each arc a useful frustum box.
+export function partitionStaticMesh(mesh,sectors=16){
+ if(!mesh?.parent||!mesh.isMesh||mesh.isInstancedMesh||mesh.isSkinnedMesh||Array.isArray(mesh.material))return null;
+ const parts=partitionGeometry(mesh.geometry,sectors);
+ if(parts.length<2){for(const part of parts)part.geometry.dispose();return null;}
+ const root=new THREE.Group();root.name=mesh.name;root.position.copy(mesh.position);root.quaternion.copy(mesh.quaternion);root.scale.copy(mesh.scale);root.visible=mesh.visible;root.layers.mask=mesh.layers.mask;root.userData={...mesh.userData,partitionedStaticSurface:true};
+ for(const {geometry,sector}of parts){const part=new THREE.Mesh(geometry,mesh.material);part.name=(mesh.name||'Arena static surface')+' · sector '+sector;part.castShadow=mesh.castShadow;part.receiveShadow=mesh.receiveShadow;part.customDepthMaterial=mesh.customDepthMaterial;part.customDistanceMaterial=mesh.customDistanceMaterial;part.renderOrder=mesh.renderOrder;part.layers.mask=mesh.layers.mask;root.add(part);}
+ mesh.parent.add(root);mesh.removeFromParent();mesh.geometry.dispose();return root;
+}
 export function spatializeArchitecture(group,sectors=8){
  group.updateWorldMatrix(true,true);group.userData.spatialParts=[];
  const meshes=[];group.traverse(o=>{if(o.isMesh&&!o.isInstancedMesh&&!o.isSkinnedMesh&&!Array.isArray(o.material))meshes.push(o);});let split=0;
