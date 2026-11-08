@@ -53,9 +53,9 @@ test('shot aiming shows body-condition dispersion and stops at first landing wit
 });
 
 test('a ball previously frozen with the static arena still visibly moves through its world matrix during live play',()=>{
- const frozenBall=new THREE.Mesh(new THREE.SphereGeometry(.11),new THREE.MeshBasicMaterial());frozenBall.position.set(0,.115,0);scene.add(frozenBall);frozenBall.updateMatrix();frozenBall.matrixAutoUpdate=false;
+ const frozenBall=new THREE.Mesh(new THREE.SphereGeometry(.11),new THREE.MeshBasicMaterial());frozenBall.position.set(0,.115,0);scene.add(frozenBall);frozenBall.updateMatrix();frozenBall.matrixAutoUpdate=false;frozenBall.matrixWorldAutoUpdate=false;
  const view=buildFootballView(scene,frozenBall,actors),state=makeState();view.setEnabled(true);Object.assign(state.ball,{x:12,y:1.4,z:-21});view.update(state,3,new THREE.Vector3());scene.updateMatrixWorld(true);
- assert.equal(frozenBall.matrixAutoUpdate,true);assert.deepEqual(frozenBall.getWorldPosition(new THREE.Vector3()).toArray(),[12,1.4,-21]);Object.assign(state.ball,{x:-4,y:.11,z:7});view.update(state,3.1,new THREE.Vector3());scene.updateMatrixWorld(true);assert.deepEqual(frozenBall.getWorldPosition(new THREE.Vector3()).toArray(),[-4,.115,7]);
+ assert.equal(frozenBall.matrixAutoUpdate,true);assert.equal(frozenBall.matrixWorldAutoUpdate,true);assert.deepEqual(frozenBall.getWorldPosition(new THREE.Vector3()).toArray(),[12,1.4,-21]);Object.assign(state.ball,{x:-4,y:.11,z:7});view.update(state,3.1,new THREE.Vector3());scene.updateMatrixWorld(true);assert.deepEqual(frozenBall.getWorldPosition(new THREE.Vector3()).toArray(),[-4,.115,7]);
 });
 
 

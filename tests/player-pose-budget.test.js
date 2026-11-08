@@ -1,0 +1,35 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import {registerHooks} from 'node:module';
+registerHooks({resolve(s,c,next){return s==='three'?{url:new URL('../dist/vendor/three.module.js',import.meta.url).href,shortCircuit:true}:next(s,c);}});
+const context=new Proxy({createRadialGradient:()=>({addColorStop(){}}),createLinearGradient:()=>({addColorStop(){}})},{get:(o,k)=>k in o?o[k]:()=>{}});
+globalThis.document={createElement:()=>({getContext:()=>context}),createElementNS:()=>{const listeners={};return{addEventListener:(k,f)=>listeners[k]=f,removeEventListener(){},set src(value){queueMicrotask(()=>listeners.load?.call(this));}};}};
+const {THREE}=await import('../dist/kit.js'),{buildEntrancePlayers}=await import('../dist/entrance-players.js'),{createFootballSimulation}=await import('../dist/football-simulation.js');
+const fetchOriginal=globalThis.fetch;globalThis.fetch=async url=>{const data=await fs.readFile(new URL(url));return{ok:true,json:async()=>JSON.parse(data),arrayBuffer:async()=>data.buffer.slice(data.byteOffset,data.byteOffset+data.byteLength)};};
+const scene=new THREE.Scene(),actors=buildEntrancePlayers(scene,{mobile:true});await actors.prepare();globalThis.fetch=fetchOriginal;
+
+test('a moving phone match retains all 52 people while avoiding duplicate skeleton traversals and unused clip sampling',()=>{
+ const state=createFootballSimulation().state,positions=state.players.map(p=>[p.x,p.z]),viewer=new THREE.Vector3(18,14,4.5);state.phase='playing';actors.reset();const update=THREE.Object3D.prototype.updateMatrixWorld,slerp=THREE.Quaternion.prototype.slerpQuaternions;let traversals=0,samples=0;
+ try{THREE.Object3D.prototype.updateMatrixWorld=function(...args){traversals++;return update.apply(this,args);};THREE.Quaternion.prototype.slerpQuaternions=function(...args){samples++;return slerp.apply(this,args);};
+  for(let i=0;i<300;i++){const t=i/30;for(let j=0;j<state.players.length;j++){const p=state.players[j];p.x=positions[j][0]+Math.sin(t*.5+j)*2;p.z=positions[j][1]+Math.cos(t*.4+j)*2;p.vx=Math.cos(t*.5+j);p.vz=-.8*Math.sin(t*.4+j);p.yaw=Math.atan2(p.vx,p.vz);}state.time=t;actors.updateMatch(state,t,viewer);scene.updateMatrixWorld(true);}
+ }finally{THREE.Object3D.prototype.updateMatrixWorld=update;THREE.Quaternion.prototype.slerpQuaternions=slerp;}
+ // The pre-optimisation fixture performed 499,727 traversals and 209,484
+ // quaternion samples, while missing its intended 20/12Hz animation rates.
+ // Retaining those real rates still requires less work. This is no FPS claim.
+ assert.ok(traversals<470000,'world traversals '+traversals);assert.ok(samples<190000,'quaternion samples '+samples);assert.equal(actors.root.children.filter(o=>o.isGroup).length,52);assert.equal(actors.root.children.filter(o=>o.userData.role==='player'&&o.visible).length,22);
+});
+
+test('a 30Hz phone loop actually delivers 20Hz middle-distance and 12Hz distant poses without starving the controlled player',()=>{
+ const state=createFootballSimulation().state;state.phase='playing';const target=state.players.find(p=>p.team==='home'&&p.index===2),controlled=state.players.find(p=>p.id===state.controlledId),viewer=new THREE.Vector3(0,14,20),groups=actors.root.children.filter(o=>o.userData.role==='player'&&o.userData.team==='home'),group=groups.find(o=>o.userData.playerNumber===target.number),own=groups.find(o=>o.userData.playerNumber===controlled.number),update=group.updateMatrixWorld,ownUpdate=own.updateMatrixWorld;let poses=0,ownPoses=0;
+ group.updateMatrixWorld=function(...args){poses++;return update.apply(this,args);};own.updateMatrixWorld=function(...args){ownPoses++;return ownUpdate.apply(this,args);};
+ try{for(const[distance,expected]of[[20,200],[40,120]]){actors.reset();poses=0;ownPoses=0;Object.assign(target,{x:0,z:20-distance,vx:0,vz:0});for(let i=0;i<300;i++){state.time=i/30;actors.updateMatch(state,state.time,viewer);}assert.ok(Math.abs(poses-expected)<=1,JSON.stringify({distance,poses,expected}));assert.equal(ownPoses,300);}}
+ finally{group.updateMatrixWorld=update;own.updateMatrixWorld=ownUpdate;}
+});
+
+test('combined football strokes and locomotion leave officials accessories on the animated hand',()=>{
+ const state=createFootballSimulation().state;state.phase='playing';state.time=5;state.discipline.lastDecision={card:'yellow',at:4.5};actors.reset();const p=state.players[1];p.motion={type:'shoot',elapsed:.2,duration:.46};p.vz=-6;p.yaw=Math.PI;actors.updateMatch(state,5,new THREE.Vector3(0,12,0));scene.updateMatrixWorld(true);
+ const referee=actors.root.children.find(o=>o.userData.role==='referee'),card=referee.children.find(o=>o.isMesh&&o.name!=='athlete'),hand=referee.getObjectByName('athlete').skeleton.bones[14].getWorldPosition(new THREE.Vector3());assert.equal(card.visible,true);assert.ok(card.getWorldPosition(new THREE.Vector3()).distanceTo(hand)<1e-9);
+ for(const official of actors.root.children.filter(o=>o.userData.role==='assistantReferee')){const flag=official.children.find(o=>o.isGroup&&!o.isBone),wrist=official.getObjectByName('athlete').skeleton.bones[14].getWorldPosition(new THREE.Vector3());assert.ok(flag.getWorldPosition(new THREE.Vector3()).distanceTo(wrist)<1e-9);}
+ for(const actor of actors.root.children.filter(o=>o.isGroup))for(const bone of actor.getObjectByName('athlete').skeleton.bones){assert.ok(bone.matrixWorld.elements.every(Number.isFinite));assert.ok(Math.abs(bone.quaternion.length()-1)<.00001);}
+});

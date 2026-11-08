@@ -8,7 +8,11 @@ export function compactStaticMeshes(group,exclude=[]){
  compactGroup(group,skipped);
 }
 export function freezeArchitecture(group,exclude=[]){
- group.updateWorldMatrix(true,true);group.traverse(o=>{for(let p=o;p&&p!==group;p=p.parent)if(exclude.includes(p))return;o.updateMatrix();o.matrixAutoUpdate=false;});
+ const fixed=[];group.traverse(o=>{for(let p=o;p&&p!==group;p=p.parent)if(exclude.includes(p))return;fixed.push(o);o.updateMatrix();o.matrixWorldAutoUpdate=true;});
+ // These transforms and their ancestors remain fixed for the lifetime of the
+ // venue. Reusing only local matrices still lets the Scene's forced traversal
+ // multiply every world matrix on every rendered frame.
+ group.updateWorldMatrix(true,true);for(const o of fixed){o.matrixAutoUpdate=false;o.matrixWorldAutoUpdate=false;}
 }
 export function bowlIsVisible(position,mode){
  if(enclosedPlayerPosition(position))return false;

@@ -8,8 +8,10 @@ import {atlasGeometry,characterAtlas,drawJersey} from './football-appearance.js'
 import {simplifySkinnedGeometry} from './player-lod.js';
 import {sampleQueuePlayer} from './entrance-choreography.js';
 import {installAthleteSurface,createActorContactShadows,updateActorContactShadows,flushActorContactShadows} from './football-materials.js';
+import {createFramePacer} from './frame-pacing.js';
 
 const asset=name=>new URL('./assets/players/'+name,import.meta.url).href;
+const noActionOptions={};
 function makeGeometry(binary,part){
  const a=new Float32Array(binary,part.offset,part.vertices*16),g=new THREE.BufferGeometry(),attributes={position:3,normal:3,uv:2,skinIndex:4,skinWeight:4};let offset=0;
  for(const[name,size]of Object.entries(attributes)){const out=name==='skinIndex'?new Uint16Array(part.vertices*size):new Float32Array(part.vertices*size);for(let i=0;i<part.vertices;i++)for(let j=0;j<size;j++)out[i*size+j]=a[i*16+offset+j];g.setAttribute(name,new THREE.BufferAttribute(out,size));offset+=size;}
@@ -26,7 +28,11 @@ function athlete(data,geometries,textures,definition,motion,atlasSize){
  const motionPlayer=createFootballMotion(data,motion,bones,group,definition);
  let accessory;if(definition.flag){accessory=new THREE.Group();group.add(accessory);const handle=new THREE.Mesh(new THREE.CylinderGeometry(.012,.012,.44,6),mat(0x263339));handle.position.y=-.19;accessory.add(handle);const flag=new THREE.Mesh(new THREE.PlaneGeometry(.36,.30),new THREE.MeshBasicMaterial({map:textures.flag,side:THREE.DoubleSide}));flag.position.set(-.18,-.29,0);accessory.add(flag);}
  const booking=definition.role==='referee'?new THREE.Mesh(new THREE.BoxGeometry(.12,.18,.015),new THREE.MeshBasicMaterial({color:0xf1d14c})):null;if(booking){booking.visible=false;group.add(booking);}
- const hand=new THREE.Vector3(),updateHand=()=>{if(accessory||booking){bones[14].getWorldPosition(hand);if(accessory)accessory.position.copy(group.worldToLocal(hand.clone()));if(booking)booking.position.copy(group.worldToLocal(hand.clone()));}};return{group,body,definition,reset:motionPlayer.reset,showBooking(type){if(booking){booking.visible=!!type;booking.material.color.set(type==='yellow'?0xf1d14c:0xe82d42);}},actionPose(motion,options){applyFootballAction(bones,motion,options);group.updateMatrixWorld(true);updateHand();},pose(...args){motionPlayer.pose(...args);updateHand();}};
+ const hand=new THREE.Vector3(),updateHand=()=>{if(accessory||booking){bones[14].getWorldPosition(hand);group.worldToLocal(hand);if(accessory)accessory.position.copy(hand);if(booking)booking.position.copy(hand);}};return{group,body,definition,reset:motionPlayer.reset,showBooking(type){if(booking){booking.visible=!!type;booking.material.color.set(type==='yellow'?0xf1d14c:0xe82d42);}},pose(x,z,heading,time,moving,seatY=0,action=null,options=noActionOptions){
+  // Apply locomotion and the football stroke before propagating the skeleton
+  // once. Stairs keep their intermediate matrices for foot placement.
+  motionPlayer.pose(x,z,heading,time,moving,seatY,true);if(action||options.defending||options.speed>5.5)applyFootballAction(bones,action,options);group.updateMatrixWorld(true);updateHand();
+ },poseBudget:createFramePacer()};
 }
 
 export function buildEntrancePlayers(scene,{mobile=false}={}){
@@ -69,10 +75,14 @@ export function buildEntrancePlayers(scene,{mobile=false}={}){
    const heading=p.yaw??(moving?Math.atan2(p.vx,p.vz):0);
    // Pose even a hidden first-person avatar, so its world position and future
    // third-person animation never fall back to the old entrance queue.
-   const cadence=controlled?0:d.role!=='player'?.10:distance>(mobile?28:35)?(mobile?1/12:.065):mobile&&distance>14?1/20:0,animate=actor.lastPoseTime==null||time-actor.lastPoseTime>=cadence||time<actor.lastPoseTime;
-   if((actor.group.visible||controlled)&&animate){actor.pose(p.x,p.z,heading,time,moving,d.seated&&d.role==='assistant'?.45:0);actor.lastPoseTime=time;if(d.role==='player'){
-    const celebrating=goal?.team===d.team&&!p.keeper&&(p.id===state.lastShot?.playerId||Math.hypot(p.x-state.ball.x,p.z-state.ball.z)<24),charging=controlled&&state.chargePower>0,action=celebrating?{type:'celebrate',elapsed:state.phaseTime,duration:3.6}:charging?{type:'prepareShot',elapsed:state.chargePower,duration:1}:p.motion;actor.actionPose(action,{defending:p.defending,speed:Math.hypot(p.vx||0,p.vz||0)});
-   }else if(d.role==='referee'&&card)actor.actionPose({type:'booking',elapsed:state.time-decision.at,duration:3},{});}else if(d.role==='player'||!actor.group.visible&&!controlled){actor.group.position.set(p.x,0,p.z);actor.group.rotation.y=heading;}
+   const cadence=controlled?0:d.role!=='player'?.10:distance>(mobile?28:35)?(mobile?1/12:.065):mobile&&distance>14?1/20:0,observable=actor.group.visible||controlled;
+   if(!observable||actor.lastPoseTime==null||time<actor.lastPoseTime||cadence===0)actor.poseBudget.reset();
+   // Retain fractional deadlines: .05 seconds sampled by a 30Hz match loop
+   // must average 20 poses/second, rather than resetting to an effective 15Hz.
+   const animate=observable&&(cadence===0||actor.poseBudget.ready(time,1/cadence));
+   if((actor.group.visible||controlled)&&animate){let action=null,options=noActionOptions;if(d.role==='player'){
+    const celebrating=goal?.team===d.team&&!p.keeper&&(p.id===state.lastShot?.playerId||Math.hypot(p.x-state.ball.x,p.z-state.ball.z)<24),charging=controlled&&state.chargePower>0;action=celebrating?{type:'celebrate',elapsed:state.phaseTime,duration:3.6}:charging?{type:'prepareShot',elapsed:state.chargePower,duration:1}:p.motion;options={defending:p.defending,speed:Math.hypot(p.vx||0,p.vz||0)};
+   }else if(d.role==='referee'&&card)action={type:'booking',elapsed:state.time-decision.at,duration:3};actor.pose(p.x,p.z,heading,time,moving,d.seated&&d.role==='assistant'?.45:0,action,options);actor.lastPoseTime=time;}else if(d.role==='player'||!actor.group.visible&&!controlled){actor.group.position.set(p.x,0,p.z);actor.group.rotation.y=heading;}
    updateActorContactShadows(root.userData.shadows,i,actor,animate);
   }
   flushActorContactShadows(root.userData.shadows);
