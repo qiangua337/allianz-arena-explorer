@@ -6,13 +6,13 @@ const {THREE}=await import('../dist/kit.js');
 const {buildPlayableMatch}=await import('../dist/playable-match.js');
 const {createFootballSimulation}=await import('../dist/football-simulation.js');
 const {packOnlineState}=await import('../dist/online-protocol.js');
-function fixture(){
+function fixture(mobile=false){
  const nodes=new Map(),node=id=>{if(!nodes.has(id)){const handlers={};nodes.set(id,{hidden:false,textContent:'',dataset:{},classList:{toggle(){}},setAttribute(k,v){this[k]=v;},addEventListener(k,v){handlers[k]=v;},fire(k,v){handlers[k]?.(v);},showModal(){this.open=true;},close(){if(this.open){this.open=false;handlers.close?.();}},focus(){}});}return nodes.get(id);};
  const context=new Proxy({createRadialGradient:()=>({addColorStop(){}})},{get:(o,k)=>k in o?o[k]:()=>{}}),classes=new Set();
  globalThis.document={createElement:()=>({getContext:()=>context}),getElementById:node,querySelectorAll:()=>[],exitPointerLock(){},body:{dataset:{},classList:{add:x=>classes.add(x),remove:x=>classes.delete(x)}}};
- let actorUpdates=0,cheers=0;const audio={muted:false,state:'playing',cheer(){},cue(){},setMuted(value){this.muted=value;}},players={ready:true,root:new THREE.Group(),updateMatch(){actorUpdates++;}};let game;const views=[];
- game=buildPlayableMatch({scene:new THREE.Scene(),stadium:{matchBall:new THREE.Mesh()},players,audio,onCamera(){},onView:v=>views.push(v),onPause:value=>game.setPaused(value),onRestart:()=>game.start(),onExit:()=>game.exit(),onCheer:()=>cheers++});
- return{game,node,audio,views,classes,get actorUpdates(){return actorUpdates;},get cheers(){return cheers;}};
+ let actorUpdates=0,scoreUpdates=0,cheers=0;const audio={muted:false,state:'playing',cheer(){},cue(){},setMuted(value){this.muted=value;}},players={ready:true,root:new THREE.Group(),updateMatch(){actorUpdates++;}},ball=new THREE.Mesh();let game;const views=[];
+ game=buildPlayableMatch({scene:new THREE.Scene(),stadium:{matchBall:ball,setMatchScore(){scoreUpdates++;}},players,audio,mobile,onCamera(){},onView:v=>views.push(v),onPause:value=>game.setPaused(value),onRestart:()=>game.start(),onExit:()=>game.exit(),onCheer:()=>cheers++});
+ return{game,node,audio,views,classes,ball,get actorUpdates(){return actorUpdates;},get scoreUpdates(){return scoreUpdates;},get cheers(){return cheers;}};
 }
 const run=(game,seconds,input={})=>{for(let i=0;i<Math.round(seconds*60);i++)game.update(1/60,input,{x:0,y:5,z:9});};
 test('the actual match HUD presents half time and continues into the second half instead of remaining under a pause overlay',async()=>{
@@ -68,6 +68,20 @@ test('changing opponent replaces the simulated squad and scoreboard while camera
 
 test('pausing stops repeated skeleton work while a paused perspective change still refreshes the scene once',()=>{
  const f=fixture();f.game.start();f.game.ready();run(f.game,3.2);f.game.setPaused(true);const before=f.actorUpdates;run(f.game,1);assert.equal(f.actorUpdates,before);f.game.setCamera('first');run(f.game,.2);assert.equal(f.actorUpdates,before+1);f.game.setPaused(false);run(f.game,.2);assert.ok(f.actorUpdates>before+5);
+});
+
+test('unchanged online pauses stop actor uploads while retaining neutral input heartbeats on desktop and mobile',()=>{
+ for(const mobile of [false,true]){
+  const server=createFootballSimulation({humanTeams:['home','away']});run(server,3.1);server.setPaused(true);const listeners=new Set(),inputs=[],session={team:'home',opponent:'dortmund',code:'ABCDEFGH',connection:'connected',latency:80,room:{started:true,seats:[{team:'home',paused:false},{team:'away',paused:true}]},packet:packOnlineState(server.state,1),subscribe:fn=>{listeners.add(fn);return()=>listeners.delete(fn);},setReady(){},send:()=>true,sendInput:p=>{inputs.push(p);return inputs.length;}};
+  const f=fixture(mobile);f.game.start({},session);f.game.ready();run(f.game,.1);const before=f.actorUpdates,hud=f.scoreUpdates;
+  // The server can continue sending identical paused poses with new packet IDs.
+  for(let i=0;i<200;i++){session.packet=packOnlineState(server.state,i+2);for(const receive of listeners)receive();run(f.game,.05);}
+  assert.equal(f.actorUpdates,before,'paused acknowledgement packets do not rebuild 22 actors');assert.ok(f.scoreUpdates-hud<=11,'unchanged paused HUD refreshes at most once a second');assert.ok(inputs.length>=40,'neutral input and session heartbeats continue');assert.ok(inputs.every(p=>!p.x&&!p.z&&!p.defend&&!p.charging));
+  server.state.players[0].x+=2;server.state.ball.x=5;session.packet=packOnlineState(server.state,203);for(const receive of listeners)receive();run(f.game,.1);assert.equal(f.actorUpdates,before+1,'a new authoritative paused pose refreshes once');assert.equal(f.ball.position.x,5);
+  const atPause=f.actorUpdates;f.game.setCamera('first');run(f.game,.1);assert.equal(f.actorUpdates,atPause+1,'paused camera choices still update actor visibility');
+  session.connection='reconnecting';for(const receive of listeners)receive();run(f.game,1/60);assert.equal(f.node('game-overlay-title').textContent,'正在重新连接','connection state is shown on the next frame');
+  session.connection='connected';server.setPaused(false);run(server,.1);session.packet=packOnlineState(server.state,204);for(const receive of listeners)receive();run(f.game,.2);assert.equal(f.game.state.paused,false);assert.ok(f.actorUpdates>atPause+3,'a resumed authoritative match animates again');assert.equal(f.node('game-overlay').hidden,true);
+ }
 });
 
 test('cheering works independently of ball possession and cannot fire during loading, pause or after exit',()=>{

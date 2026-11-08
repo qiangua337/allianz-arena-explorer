@@ -1,5 +1,9 @@
 # 参考资料与复原判断
 
+## 8.1 商店展陈核对（2026-11-08）
+
+查阅[安联官方商店介绍](https://allianz-arena.com/en/store-catering)及设计实施方 [Gruschwitz 的 FC Bayern Megastore 项目记录](https://gruschwitz.de/en/projekte/projekte-fc-bayern-megastore/)。后者记录 2019 年改造的中央特色展台、环形灯及定制服务区；本版参考展台与环灯语言，补全模型的货架、尺码和球衣识别信息。资料不足以测绘现有店铺，游戏内布局与滑动门是为连续通行作出的近似设计，不宣称逐件或最新现状一比一复制。
+
 ## 7.1 直接全景核对（2026-11-05）
 
 实际进入 [安联官方 360° 游览（2022）](https://allianz-arena.com/360/allianzarena/?source=startseite_en)，查看 Spielfeld、Pressekonferenz 与 Spielertunnel，对应修改内膜材、钢构、发布厅座椅和通道饰面。它是有年份的画面证据，不足以确认全部地下连接和 2026 整修后现状。具体区域、改动与近似范围见 [SCENE-AND-PLAY-7.1.md](SCENE-AND-PLAY-7.1.md)。同时查阅 [官方楼层资料](https://allianz-arena.com/binaries/content/assets/downloads/allianz-arena/events/logenkunden-portal/allgemeine-informationen/englisch/skybox-season-information?v=1698138132057)，不将其中的示意图当作完整 BIM 或复制其素材。

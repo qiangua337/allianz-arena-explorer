@@ -2,6 +2,7 @@ import {pressLayout,pressFloorRise,pressCameras,pressFloorSegments} from './faci
 import {hospitalityTables,hospitalityBar} from './hospitality-layout.js';
 import {buildBroadcastCamera,buildTreatmentTable} from './facility-equipment.js';
 import {buildRoomDetail} from './room-detail.js';
+import {buildShopFixtures} from './shop-fixtures.js';
 import {buildTrophyGallery} from './trophy-gallery.js';
 import {awayKitRoster} from './matchday-roster.js';
 import {surfaceMaps} from './visual-assets.js';
@@ -138,7 +139,7 @@ export function buildInteriors(scene,circulation){
   for(let i=0;i<32;i++){const t=(i+.5)/32*TAU,p=superpoint(100,116,t,2.8),n=supernormal(100,116,t,2.8),yaw=Math.atan2(n.x,n.z)+Math.PI;if(clearCore(p.x,p.z)||roomFootprint(p.x,p.z,4))continue;const k=new THREE.Group();k.position.set(p.x,12.2,p.z);k.rotation.y=yaw;g.add(k);const kb=new Batches(k);kb.add(5.8,3.8,.18,0,1.9,-1.3,dark);kb.add(5.8,1.1,1.4,0,.55,.45,red);kb.add(6,.08,1.6,0,1.14,.45,metal);kb.add(6.1,.72,.25,0,3.1,1.1,redTrim);kb.add(.1,1.7,.12,-3,2,1.1,metal);kb.add(.1,1.7,.12,3,2,1.1,metal);for(let j=0;j<5;j++){kb.add(.5,.08,.35,-2+j,1.22,.45,white);kb.add(.35,.6,.35,-2+j,1.5,-.65,j%2?redTrim:cream);}kb.flush();const cp=superpoint(89,107,t,2.8);b.add(.55,4.5,.55,cp.x,14.45,cp.z,white);const lamp=box(g,.12,.03,4,cp.x+n.x*7,16.62,cp.z+n.z*7,lightMat);lamp.rotation.y=yaw;}
   for(let i=0;i<12;i++){const p=superpoint(91,109,i/12*TAU,2.8);const l=new THREE.PointLight(0xffeee0,25,22,2);l.position.set(p.x,15.7,p.z);g.add(l);lights.push(l);}b.flush();}
  // A representative FC Bayern shop, with shirt rails, scarf displays and a checkout.
- {const{g,b}=roomBase('store',white,tile);addCrest(g,2.1,0,2.5,-6.8);sign(g,'FC BAYERN STORE',10,.7,0,3.7,-6.75,{font:115,h:160,fg:'#bb1834'});for(const s of[-1,1])for(let j=0;j<7;j++){const x=s*12,z=-5+j*1.6;if(s>0&&Math.abs(z)<2.5)continue;b.add(2.6,.12,1.15,x,.8,z,wood);b.add(.08,2.6,1.2,x-s*1.25,1.5,z,metal);for(let k=0;k<3;k++)b.add(1.6,.15,.75,x,1+k*.28,z,k%2?white:redTrim);}for(let row=0;row<3;row++)for(let side=0;side<2;side++){const x=-7+side*13,z=-3+row*3.1;b.add(4.3,.055,.055,x,2.2,z,metal);for(const dx of[-2,2])b.add(.055,2.2,.055,x+dx,1.1,z,metal);for(let j=0;j<5;j++)jersey(g,[9,10,17,14,6][j],playerByNumber([9,10,17,14,6][j]).name,x-1.6+j*.8,1.42,z,0,row===2);}finishedBox(g,5.3,1.1,1.5,2,.55,5,red,.045);finishedBox(g,5.5,.07,1.6,2,1.14,5,wood,.025);b.add(.7,.55,.08,2.5,1.48,4.9,dark);sign(g,'SERVUS!',2.5,.45,2,.65,5.76,{font:120,h:180});for(let j=0;j<10;j++){const x=-11+j*.9;b.add(.5,1.8,.04,x,2.3,-6.7,j%2?redTrim:white);}b.flush();}
+ {const{g}=roomBase('store',white,tile);addCrest(g,2.1,0,2.5,-6.8);sign(g,'FC BAYERN STORE',10,.7,0,3.7,-6.75,{font:115,h:160,fg:'#bb1834'});buildShopFixtures(g,{wood,metal,redTrim,white,dark,red,lightMat,jersey});}
  circulation.decorateConcourse(rooms.concourse);
  finishDisplayHardware(rooms,{metal});const roomDetail=buildRoomDetail(rooms);roomDetail.update();
  for(const key of ['store','museum','press'])finishFixtureShadows(rooms[key],roomSpecs[key],key);

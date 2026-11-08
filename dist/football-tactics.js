@@ -15,13 +15,21 @@ export function passOption(players,player,ball,{direction=null,type='pass',power
 }
 export const shotKinds=['drive','finesse','lob'];
 export const shotLabels={drive:'劲射',finesse:'搓射',lob:'挑射'};
-export function shotOption(player,ball,{direction=null,power=.5,error=0,kind='drive',keeper=null}={}){
- kind=shotKinds.includes(kind)?kind:'drive';power=clamp(power,.15,1);
+// Assistance chooses a useful goal target; preparation describes how reliably
+// the player can actually strike it. No random state is consumed by a preview.
+export function shotPreparation(player,ball,{power=.5,pressure=Infinity}={}){
+ power=clamp(power,.15,1);const sign=player.attackSign??(player.team==='home'?-1:1),dx=-ball.x,dz=sign*52.5-ball.z,distance=Math.hypot(dx,dz),yaw=Number.isFinite(player.yaw)?player.yaw:Math.atan2(dx,dz),alignment=distance>.01?(Math.sin(yaw)*dx+Math.cos(yaw)*dz)/distance:1;
+ const back=clamp((Math.acos(clamp(alignment,-1,1))-.85)/1.8,0,1),speed=clamp((Math.hypot(player.vx||0,player.vz||0)-3)/5,0,1),range=clamp((distance-24)/42,0,1.6),over=clamp((power-.8)/.2,0,1),crowded=clamp((3-pressure)/3,0,1),quality=clamp(1-back*.40-speed*.25-range*.19-over*.10-crowded*.12,.08,1);
+ const preparation=back>.25?'backfoot':speed>.4?'rushed':crowded>.5?'pressured':over>.6?'overpowered':range>.25?'long-range':'balanced';
+ return{quality,preparation,spread:.12+distance*(range*.011+back*.040+speed*.014+over*.008+crowded*.008),heightSpread:.02+range*.35+back*.40+speed*.20+over*.60+crowded*.18,heightBias:over*(.4+back*.6+range*.25)};
+}
+export function shotOption(player,ball,{direction=null,power=.5,error=0,heightError=null,kind='drive',keeper=null,pressure=Infinity}={}){
+ kind=shotKinds.includes(kind)?kind:'drive';power=clamp(power,.15,1);const preparation=shotPreparation(player,ball,{power,pressure});
  const sign=player.attackSign??(player.team==='home'?-1:1),goalZ=sign*52.5,dz=goalZ-ball.z,strength=direction?Math.hypot(direction.x,direction.z):0,explicit=strength>.18;
- const openSide=keeper?keeper.x>ball.x*.12?-1:1:player.x>0?-1:1,corner=explicit?clamp(direction.x/strength,-1,1)*3.12:openSide*2.65,x=clamp(corner+error,-4.6,4.6),dx=x-ball.x,distance=Math.hypot(dx,dz),nominal=kind==='finesse'?17+power*10:20+power*14;
- const flight=kind==='lob'?Math.max(.72,distance/(12+power*5)):-Math.log(Math.max(.25,1-.08*distance/nominal))/.08,speed=distance*.08/(1-Math.exp(-.08*flight)),y=kind==='lob'?1.75+power*.25:kind==='finesse'?1.05+power*.55:.42+power*.62,curve=kind==='finesse'?Math.sign(corner)*(4.2+power*1.8):0;
- const travel=(1-Math.exp(-.08*flight))/.08,curveTravel=(flight-travel)/.08,vx=(dx-curve*curveTravel)/travel,vz=dz/travel,vy=(y-(ball.y||.11)+4.905*flight*flight)/flight;
- return{x,y,z:goalZ,speed,vx,vz,vy,curve,flight,distance,kind};
+ const openSide=keeper?keeper.x>ball.x*.12?-1:1:player.x>0?-1:1,corner=explicit?clamp(direction.x/strength,-1,1)*3.12:openSide*2.65,x=clamp(corner+error,-9,9),dx=x-ball.x,distance=Math.hypot(dx,dz),nominal=kind==='finesse'?17+power*10:16+power*19;
+ const flight=kind==='lob'?Math.max(.72,distance/(12+power*5)):-Math.log(Math.max(.25,1-.08*distance/nominal))/.08,speed=distance*.08/(1-Math.exp(-.08*flight)),y=clamp((kind==='lob'?1.75+power*.25:kind==='finesse'?1.05+power*.55:.42+power*.62)+(heightError??preparation.heightBias),.08,4.6),curve=kind==='finesse'?Math.sign(corner)*(4.2+power*1.8):0;
+ const travel=(1-Math.exp(-.08*flight))/.08,curveTravel=(flight-travel)/.08,vx=(dx-curve*curveTravel)/travel,vz=dz/travel,requiredLift=(y-(ball.y||.11)+4.905*flight*flight)/flight,maxLift=kind==='lob'?9+power*5:nominal*(kind==='finesse'?.30+power*.12:.25+power*.13),vy=Math.min(requiredLift,maxLift);
+ return{x,y,z:goalZ,speed,vx,vz,vy,curve,flight,distance,kind,quality:preparation.quality,preparation:preparation.preparation,spread:preparation.spread,heightSpread:preparation.heightSpread,limited:requiredLift>maxLift};
 }
 export function receivingPoint(player,ball){
  if(ball.y>.72||ball.vy>1.2){const vy=ball.vy||0,t=clamp((vy+Math.sqrt(Math.max(0,vy*vy+19.62*(ball.y-.55))))/9.81,0,2.2),travel=(1-Math.exp(-.08*t))/.08;return{x:clamp(ball.x+(ball.vx||0)*travel,-33,33),z:clamp(ball.z+(ball.vz||0)*travel,-51.3,51.3)};}

@@ -43,6 +43,15 @@ test('ball and selected-player cues follow simulation state and switching perspe
 });
 
 
+test('shot aiming shows body-condition dispersion and stops at first landing without altering the simulated shot',()=>{
+ const state=makeState(),p=state.players.find(p=>p.id===state.controlledId),view=buildFootballView(new THREE.Scene(),null,{ready:true,root:new THREE.Group(),updateMatch(){}});view.setEnabled(true);state.ball.ownerId=p.id;state.chargePower=.7;state.shotKind='drive';state.shotPreview={x:2,y:.8,z:-52.5,vx:1,vz:-28,vy:4,flight:1,distance:28,quality:.4,preparation:'backfoot',spread:2,heightSpread:.6};
+ const before=JSON.stringify(state);view.update(state,1,new THREE.Vector3());assert.equal(JSON.stringify(state),before);
+ const guide=view.root.getObjectByName('Directional pass or charged shot preview'),dispersion=view.root.getObjectByName('Shot preparation dispersion'),aim=view.root.getObjectByName('Charged shot goal target'),points=guide.geometry.attributes.position;
+ assert.equal(guide.visible,true);assert.equal(dispersion.visible,true);assert.equal(dispersion.geometry.drawRange.count,6);assert.equal(aim.rotation.x,-Math.PI/2);assert.ok(points.getZ(32)>state.shotPreview.z);assert.ok(Math.abs(points.getY(32)-.11)<1e-6);assert.equal(guide.material.color.getHex(),0xf39483);
+ Object.assign(state.shotPreview,{vy:6,flight:.5,quality:1,preparation:'balanced'});view.update(state,1.1,new THREE.Vector3());assert.equal(dispersion.geometry.drawRange.count,12);assert.equal(aim.rotation.x,0);assert.equal(guide.material.color.getHex(),0xf2c46c);
+ state.chargePower=0;state.shotPreview=null;state.passPreview=null;view.update(state,1.2,new THREE.Vector3());assert.equal(guide.visible,false);assert.equal(aim.visible,false);assert.equal(dispersion.visible,false);
+});
+
 test('a ball previously frozen with the static arena still visibly moves through its world matrix during live play',()=>{
  const frozenBall=new THREE.Mesh(new THREE.SphereGeometry(.11),new THREE.MeshBasicMaterial());frozenBall.position.set(0,.115,0);scene.add(frozenBall);frozenBall.updateMatrix();frozenBall.matrixAutoUpdate=false;
  const view=buildFootballView(scene,frozenBall,actors),state=makeState();view.setEnabled(true);Object.assign(state.ball,{x:12,y:1.4,z:-21});view.update(state,3,new THREE.Vector3());scene.updateMatrixWorld(true);
