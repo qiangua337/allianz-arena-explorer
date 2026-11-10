@@ -18,7 +18,7 @@ const used=[51,42,41,40,1,0,19,18,17,46,45,44,38,37,36,50,49,48,43,47,2,21];
 const rest=used.map(i=>({name:nodes[i].name,position:nodes[i].getWorldPosition(new THREE.Vector3()).toArray(),quaternion:nodes[i].getWorldQuaternion(new THREE.Quaternion()).toArray()}));
 for(const name of ['Walk_Loop','Jog_Fwd_Loop','Sprint_Loop','Idle_Loop','Sitting_Idle_Loop','Idle_Talking_Loop']){select(name);const frames=Array.from({length:61},(_,i)=>{sample(i/60*duration);return used.map(j=>[...nodes[j].getWorldPosition(new THREE.Vector3()).toArray(),...nodes[j].getWorldQuaternion(new THREE.Quaternion()).toArray()].map(x=>+x.toFixed(6)));});clips[name]={duration,frames};}
 const output={version:1,source:'Quaternius / Universal Animation Library Standard / CC0',rest,clips};
-const manifest=JSON.parse(fs.readFileSync(new URL('../dist/assets/players/footballer-840.json',import.meta.url))),meshData=fs.readFileSync(new URL('../dist/assets/players/footballer-840.bin',import.meta.url));
+const manifest=JSON.parse(fs.readFileSync(new URL('../dist/assets/players/footballer-850.json',import.meta.url))),meshData=fs.readFileSync(new URL('../dist/assets/players/footballer-850.bin',import.meta.url));
 const target=manifest.bones.map(b=>{const o=new THREE.Object3D();o.position.fromArray(b.head);if(b.parent>=0)o.position.sub(new THREE.Vector3().fromArray(manifest.bones[b.parent].head));return o;});
 manifest.bones.forEach((b,i)=>{if(b.parent>=0)target[b.parent].add(target[i]);});
 const sourceAt=Object.fromEntries(rest.map((b,i)=>[b.name,i]));

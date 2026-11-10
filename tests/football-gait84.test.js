@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import {registerHooks} from 'node:module';
 registerHooks({resolve(s,c,next){return s==='three'?{url:new URL('../dist/vendor/three.module.js',import.meta.url).href,shortCircuit:true}:next(s,c);}});
 const {THREE}=await import('../dist/kit.js'),{createFootballMotion}=await import('../dist/football-motion.js'),{applyFootballAction}=await import('../dist/football-action-pose.js');
-const directory=new URL('../dist/assets/players/',import.meta.url),data=JSON.parse(fs.readFileSync(new URL('footballer-840.json',directory))),motion=JSON.parse(fs.readFileSync(new URL('walk-cycle.json',directory))),file=fs.readFileSync(new URL('footballer-840.bin',directory)),binary=file.buffer.slice(file.byteOffset,file.byteOffset+file.byteLength),boots=data.parts.filter(p=>p.name.startsWith('boot')).map(p=>({vertices:new Float32Array(binary,p.offset,p.vertices*16)}));
+const directory=new URL('../dist/assets/players/',import.meta.url),data=JSON.parse(fs.readFileSync(new URL('footballer-850.json',directory))),motion=JSON.parse(fs.readFileSync(new URL('walk-cycle.json',directory))),file=fs.readFileSync(new URL('footballer-850.bin',directory)),binary=file.buffer.slice(file.byteOffset,file.byteOffset+file.byteLength),boots=data.parts.filter(p=>p.name.startsWith('boot')).map(p=>({vertices:new Float32Array(binary,p.offset,p.vertices*16)}));
 function fixture(definition={}){
  const group=new THREE.Group(),bones=data.bones.map(b=>{const bone=new THREE.Bone();bone.name=b.name;return bone;});
  data.bones.forEach((b,i)=>{(b.parent<0?group:bones[b.parent]).add(bones[i]);bones[i].position.fromArray(b.head);if(b.parent>=0)bones[i].position.sub(new THREE.Vector3().fromArray(data.bones[b.parent].head));});

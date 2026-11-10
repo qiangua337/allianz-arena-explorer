@@ -148,7 +148,8 @@ def fitted(folder, name):
 
 parts, payload = [], bytearray()
 def add_part(name, points, uvs, faces, influence, *, select=lambda c,w:True,
-             select_face=lambda face:True, yclip=None, expand=0, projection=None):
+             select_face=lambda face:True, yclip=None, expand=0, projection=None,
+             close_waist=False):
     ns = normals(points, faces)
     points = points + ns*expand
     data, indices, unique = [], [], {}
@@ -178,11 +179,50 @@ def add_part(name, points, uvs, faces, influence, *, select=lambda c,w:True,
             for row in polygon: row[6:8]=projection(row[:3], c)
         for i in range(1,len(polygon)-1):
             indices += [store(polygon[j]) for j in [0,i,i+1]]
+    closure=None
+    if close_waist:
+        # The clipped helper-tights have a real open waist. The tucked shirt
+        # is narrower and uses different spine weights, so mere height overlap
+        # still exposes the hollow interior when leaning or seen from above.
+        # Close the actual emitted boundary, sharing its exact skinning.
+        def point_key(i): return tuple(np.round(data[i][:3],6))
+        edges={}
+        for j in range(0,len(indices),3):
+            face=indices[j:j+3]
+            for k in range(3):
+                a,b=face[k],face[(k+1)%3]
+                key=tuple(sorted((point_key(a),point_key(b))))
+                count,_,_=edges.get(key,(0,a,b));edges[key]=(count+1,a,b)
+        rim=[(a,b) for count,a,b in edges.values() if count==1 and
+             abs(data[a][1]-yclip[1])<1e-5 and abs(data[b][1]-yclip[1])<1e-5]
+        assert len(rim)>=16, ('shorts waist boundary',len(rim))
+        unique_rim={point_key(i):i for edge in rim for i in edge}
+        center=np.zeros(16,dtype='<f4')
+        center[:3]=np.mean([data[i][:3] for i in unique_rim.values()],axis=0)
+        center[3:6]=[0,1,0];center[6:8]=cloth_uv(center[:3],center[:3])
+        mean_weights=np.zeros(len(kept))
+        for i in unique_rim.values():
+            for j in range(4): mean_weights[int(data[i][8+j])]+=data[i][12+j]/len(unique_rim)
+        order=np.argsort(mean_weights)[-4:][::-1]
+        center[8:12]=order;center[12:16]=mean_weights[order]/mean_weights[order].sum()
+        first_vertex=len(data);first_index=len(indices);center_index=len(data);data.append(center)
+        cap_vertices={}
+        def cap_vertex(i):
+            key=point_key(i)
+            if key not in cap_vertices:
+                row=data[i].copy();row[3:6]=[0,1,0]
+                cap_vertices[key]=len(data);data.append(row)
+            return cap_vertices[key]
+        for a,b in rim: indices += [cap_vertex(b),cap_vertex(a),center_index]
+        closure=dict(firstVertex=first_vertex,vertices=len(data)-first_vertex,
+                     firstIndex=first_index,indexCount=len(indices)-first_index)
     a=np.array(data,dtype='<f4'); ix=np.array(indices,dtype='<u2')
     assert len(data)<65536
     while len(payload)%4: payload.append(0)
     offset=len(payload); payload.extend(a.tobytes()); io=len(payload); payload.extend(ix.tobytes())
-    parts.append(dict(name=name,vertices=len(data),triangles=len(indices)//3,offset=offset,indexOffset=io,indexCount=len(indices)))
+    entry=dict(name=name,vertices=len(data),triangles=len(indices)//3,offset=offset,indexOffset=io,indexCount=len(indices))
+    if closure: entry['waistClosure']=closure
+    parts.append(entry)
     print(name, len(data), len(indices)//3)
 
 P=metres(body)
@@ -224,7 +264,7 @@ add_part('shirt',*shirt,expand=.004,projection=shirt_uv)
 tights=[f for f in base_faces if f[0]=='helper-tights']
 def cloth_uv(p,c): return [(.5 if p[0]<0 else 0)+np.clip(abs(p[0])/.4,0,1)*.5,p[1]*2]
 add_part('shorts',P,base_uv,tights,weights,select=lambda c,w:.69<c[1]<1.10,
-         yclip=(.715,1.065),expand=.021,projection=cloth_uv)
+         yclip=(.715,1.065),expand=.021,projection=cloth_uv,close_waist=True)
 add_part('socks',P,base_uv,body_faces,weights,select=lambda c,w:.055<c[1]<.49,
          yclip=(.075,.48),expand=.002,projection=lambda p,c:[p[0]*10,p[1]*3])
 
@@ -302,10 +342,10 @@ add_part('crop',hair_points,base_uv,body_faces,weights,
 add_part('eyes',*fitted('eyes/low-poly','low-poly'))
 add_part('eyebrows',*fitted('eyebrows/eyebrow002','eyebrow002'))
 
-(OUT/'footballer-840.bin').write_bytes(payload)
+(OUT/'footballer-850.bin').write_bytes(payload)
 manifest=dict(version=2,stride=16,height=1.86,bones=bones,parts=parts,faceUV=list(FACE_UV),bootBounds={k:v.round(7).tolist() for k,v in boot_bounds.items()},
               eyes={side:metres(body[rig['joints'][rig['bones']['eye.'+side]['head']]].mean(0)).tolist() for side in ['L','R']})
-(OUT/'footballer-840.json').write_text(json.dumps(manifest,separators=(',',':')),encoding='utf-8')
+(OUT/'footballer-850.json').write_text(json.dumps(manifest,separators=(',',':')),encoding='utf-8')
 textures={
     'skin-light.webp':('skins/young_caucasian_male/young_lightskinned_male_diffuse.png',1024),
     'skin-dark.webp':('skins/young_african_male/young_darkskinned_male_diffuse.png',1024),
@@ -313,7 +353,7 @@ textures={
     'eyes.webp':('eyes/materials/brown_eye.png',256),
     'brows.webp':('eyebrows/eyebrow002/eyebrow002.png',256),
 }
-for dst,(src,size) in textures.items():
+for dst,(src,size) in ({} if '--geometry-only' in sys.argv[2:] else textures).items():
     img=Image.open(CACHE/src);img.thumbnail((size,size),Image.Resampling.LANCZOS)
     img.save(OUT/dst,format='WEBP',quality=88,method=6)
 print('Geometry bytes',len(payload))

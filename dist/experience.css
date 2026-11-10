@@ -67,7 +67,7 @@ dialog .close-dialog{border:1px solid var(--arena-line);border-radius:50%;width:
  .game-tools{max-width:calc(100vw - 185px);overflow:auto;scrollbar-width:none}.game-tools #game-cheer,.game-tools #game-replay-launch{display:none}.game-tools button{font-size:9px;padding:5px;min-width:29px}.game-tools #game-team{min-width:39px}
  .game-score{gap:7px}.game-score .game-clock{min-width:62px}.game-score .game-clock small{font-size:7px}.game-period{font-size:7px}.game-score .game-clock time{font-size:12px}
  .game-referee-note{top:155px;font-size:10px}.game-penalty-hint{bottom:150px;width:calc(100vw - 44px);max-width:310px;font-size:10px}
- body.game-active[data-control-context=attack] .game-actions [data-game-action=switch],body.game-active[data-control-context=attack] .game-actions [data-game-action=tackle]{display:none}body.game-active[data-control-context=loose] .game-actions [data-game-action=tackle]{position:absolute;left:0;top:-52px;width:58px;height:44px;font-size:11px;border-radius:8px;background:#12232ce8}
+ body.game-active[data-control-context=attack] .game-actions [data-game-action=switch],body.game-active[data-control-context=attack] .game-actions [data-game-action=tackle]{display:none}body.game-active[data-control-context=loose] .game-actions [data-game-action=tackle]{position:absolute;grid-area:auto!important;left:0;right:auto;top:-52px;width:58px;height:44px;font-size:11px;border-radius:8px;background:#12232ce8}
  body.game-active[data-control-context=defend] .game-actions [data-game-action=pass],body.game-active[data-control-context=defend] .game-actions [data-game-action=through],body.game-active[data-control-context=defend] .game-actions #game-shoot{display:none}
  body.game-active[data-control-context=attack] .game-actions{grid-template-columns:repeat(2,53px)}
  body.game-active[data-control-context^=penalty] .game-actions>*{display:none}
@@ -117,4 +117,9 @@ body.game-active[data-game-paused=true] #movement,body.game-active[data-game-pha
 @media(max-width:760px){.setup-row{grid-template-columns:1fr;gap:4px}#camera-options button{white-space:nowrap}}
 
 /* Pause settings live inside the overlay, so covered toolbar buttons are not offered. */
-.game-overlay-settings{display:flex;gap:8px;margin:10px 0 16px}.game-overlay-settings button{flex:1;min-height:42px;padding:9px 8px;border:1px solid #ffffff26;border-radius:6px;color:#e7cb87;font-size:12px}body.game-active[data-game-paused=true] .game-tools,body.game-active[data-game-phase=fulltime] .game-tools{display:none!important}
+.game-overlay-settings{display:flex;gap:8px;margin:10px 0 16px}.game-overlay-settings button{flex:1;min-height:44px;padding:9px 8px;border:1px solid #ffffff26;border-radius:6px;color:#e7cb87;font-size:12px}body.game-active[data-game-paused=true] .game-tools,body.game-active[data-game-phase=fulltime] .game-tools{display:none!important}
+
+@media(max-width:760px),(max-height:500px) and (min-width:600px){#game-assist-toggle,#game-shot-toggle{min-height:44px}}
+
+/* The dark match report keeps its own contrast in daytime venues too. */
+.game-overlay{--panel:#14232c;--ink:#edf3ef;--muted:#b9c6c8;--rule:#ffffff26;--subtle:#ffffff0c;color:var(--ink)}

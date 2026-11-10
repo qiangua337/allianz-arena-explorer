@@ -48,7 +48,7 @@ const places={
  pitch:{title:'草坪',tag:'ON THE PITCH',desc:'从中圈到球门，体验 105 × 68 米草坪与四周看台的真实尺度。',pos:[29,7.5,42],target:[0,9,-20],walk:[0,1.7,13],look:[0,3,-48],accuracy:'草坪尺寸按米建模'},
  tunnel:{title:'球员通道',tag:'THE PLAYERS’ TUNNEL',desc:'红色几何墙面、白色长灯带、向上的台阶。前方，就是草坪。',pos:[-63,-1.02,.3],target:[-42,-.7,0],walk:[-63,-1,0],look:[-39,0,0],accuracy:'参考用户视频 · 布局近似'},
  homeRoom:{title:'主队更衣室',tag:'FC BAYERN DRESSING ROOM',desc:'红色更衣柜、悬挂球衣、木质长凳、球鞋与战术板。走进比赛前的空间。',pos:[-75.8,-.9,5.8],target:[-85.3,-1,0],walk:[-76.2,-1,4.6],look:[-88,-.9,-3],accuracy:'现役一线队 · 名单核对 '+rosterInfo.checked},
- guestRoom:{title:'客队更衣室',tag:'GUEST DRESSING ROOM',desc:'黄黑球衣、备战长桌与相邻淋浴区；以多特蒙德作客队示范陈列，与可选比赛日的队伍保持一致。',pos:[-76,-.9,33.5],target:[-86,-1,27],walk:[-76,-1,32],look:[-89,-.8,25],accuracy:'多特蒙德示范陈列 · 非真实比赛名单'},
+ guestRoom:{title:'客队更衣室',tag:'GUEST DRESSING ROOM',desc:'客队备战区：球衣、更衣长凳、战术板与淋浴区；当前为多特蒙德示范陈列。',pos:[-76,-.9,33.5],target:[-86,-1,27],walk:[-76,-1,32],look:[-89,-.8,25],accuracy:'多特蒙德示范陈列 · 非真实比赛名单'},
  press:{title:'新闻发布厅',tag:'THE PRESS CONFERENCE',desc:'180 席阶梯媒体座椅、鹅颈麦克风、转播摄像机与灯架；参考官方发布厅照片与设施说明。',pos:[-82,.35,-23.3],target:[-82,-1.05,-37],walk:[-82,-.3,-23.5],look:[-82,-1,-37],accuracy:'参考用户视频 · 布局近似'},
  lounge:{title:'贵宾包厢',tag:'HOSPITALITY & SKYBOX',desc:'透过落地玻璃俯瞰草坪，近看餐桌、吧台与看台之间的细节。',pos:[93,25.2,11.8],target:[86.2,25,-2],walk:[90,25.3,7],look:[0,4,0],accuracy:'代表性包厢 · 陈设近似'},
  museum:{title:'荣誉展厅',tag:'A GALLERY OF HONOURS',desc:'8 组球队奖杯与 10 组个人荣誉：金球、金靴、金手套。对准展柜标题或展品按 F，或打开展览目录查看官方资料。',pos:[-96,14.05,69.1],target:[-96,14.0,49],walk:[-93,13.7,67],look:[-96,13.8,48],accuracy:'参考真实展陈 · 空间压缩呈现'},

@@ -5,7 +5,7 @@ import {registerHooks} from 'node:module';
 registerHooks({resolve(s,c,next){return s==='three'?{url:new URL('../dist/vendor/three.module.js',import.meta.url).href,shortCircuit:true}:next(s,c);}});
 const{THREE}=await import('../dist/kit.js');
 const{atlasGeometry,athleteAtlasCells,faceTextureWindow}=await import('../dist/football-appearance.js');
-const dir=new URL('../dist/assets/players/',import.meta.url),data=JSON.parse(fs.readFileSync(new URL('footballer-840.json',dir))),file=fs.readFileSync(new URL('footballer-840.bin',dir));
+const dir=new URL('../dist/assets/players/',import.meta.url),data=JSON.parse(fs.readFileSync(new URL('footballer-850.json',dir))),file=fs.readFileSync(new URL('footballer-850.bin',dir));
 function raw(part){const g=new THREE.BufferGeometry(),a=new Float32Array(file.buffer,file.byteOffset+part.offset,part.vertices*16);let offset=0;for(const[name,size]of Object.entries({position:3,normal:3,uv:2,skinIndex:4,skinWeight:4})){const values=[];for(let i=0;i<part.vertices;i++)values.push(...a.slice(i*16+offset,i*16+offset+size));g.setAttribute(name,new THREE.BufferAttribute(name==='skinIndex'?new Uint16Array(values):new Float32Array(values),size));offset+=size;}g.setIndex(new THREE.BufferAttribute(new Uint16Array(file.buffer,file.byteOffset+part.indexOffset,part.indexCount),1));return g;}
 const geometries=Object.fromEntries(data.parts.map(p=>[p.name,raw(p)]));
 test('the facial patch preserves all 17,700 anatomical triangles and their original positions, normals and skinning',()=>{
