@@ -43,3 +43,8 @@ test('exit also stops outstanding cheers and generated footsteps',async t=>{
 test('ball impacts and whistles obey pause and mute, and exit stops every outstanding source',async t=>{
  setup(t);const a=createMatchdayAudio();await a.start();const c=Context.instances[0];a.kick(1);a.whistle();assert.equal(c.sources.length,4);const before=c.sources.length;a.setMuted(true);a.kick();a.whistle();assert.equal(c.sources.length,before);a.setMuted(false);a.setPaused(true);a.kick();a.whistle();assert.equal(c.sources.length,before);a.stop();assert.ok(c.sources.every(n=>n.stopped));
 });
+
+test('training starts ball effects without downloading or looping a crowd and a later match still loads ambience',async t=>{
+ let fetches=0;setup(t,async()=>{fetches++;return response;});const a=createMatchdayAudio();assert.equal(await a.start({ambience:false}),true);const c=Context.instances[0];assert.equal(a.state,'playing');assert.equal(fetches,0);assert.equal(c.sources.length,0);a.kick();assert.equal(c.sources.length,2);a.cheer();assert.equal(c.sources.length,2);a.setPaused(true);assert.equal(a.state,'paused');a.setPaused(false);a.stop();
+ assert.equal(await a.start(),true);assert.equal(fetches,1);const loop=c.sources.find(n=>n.loop);assert.ok(loop);await a.start({ambience:false});assert.equal(loop.stopped,true,'changing from a match to practice cannot leave its crowd loop running');assert.equal(a.state,'playing');a.stop();
+});

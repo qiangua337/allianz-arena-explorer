@@ -22,6 +22,22 @@ test('hidden fixtures fade out and changing rooms keeps the same two render ligh
  const scene=new THREE.Scene(),room=new THREE.Group(),lamp=new THREE.PointLight(0xffffff,60);lamp.position.set(-82,1,0);room.add(lamp);scene.add(room);const budget=buildLightBudget(scene),identities=budget.lights.slice(),p=new THREE.Vector3(-82,-1,0);assert.equal(budget.update(p,.016),true);settle(budget,p);room.visible=false;settle(budget,p);assert.ok(budget.lights.every(l=>l.intensity<.001));assert.deepEqual(budget.lights,identities);
 });
 
+test('the two nearest fixtures keep traversal-order ties and react to lamp and ancestor changes',()=>{
+ const scene=new THREE.Scene(),room=new THREE.Group(),p=new THREE.Vector3(-82,-1,0),lamps=[];scene.add(room);
+ for(const [x,z,color]of[[-84,0,0xff0000],[-80,0,0x00ff00],[-82,3,0x0000ff]]){const lamp=new THREE.PointLight(color,60,13,1.5);lamp.position.set(x,1,z);room.add(lamp);lamps.push(lamp);}
+ const budget=buildLightBudget(scene);settle(budget,p);assert.ok(budget.lights[0].color.r>.999);assert.ok(budget.lights[1].color.g>.999,'equidistant lamps keep scene order');
+ lamps[0].intensity=0;settle(budget,p);assert.ok(budget.lights[0].color.g>.999);assert.ok(budget.lights[1].color.b>.999);
+ lamps[2].color.set(0xff00ff);lamps[2].distance=21;lamps[2].decay=2;settle(budget,p);assert.ok(budget.lights[1].color.r>.999);assert.equal(budget.lights[1].distance,21);assert.equal(budget.lights[1].decay,2);
+ room.visible=false;settle(budget,p);assert.ok(budget.lights.every(l=>l.intensity<.001));room.visible=true;settle(budget,p);assert.ok(budget.lights.every(l=>l.intensity>59.99));
+});
+
+test('a dense room measures each fixture at most once when selecting its two render lights',()=>{
+ const scene=new THREE.Scene(),count=32;for(let i=0;i<count;i++){const lamp=new THREE.PointLight(0xffffff,60);lamp.position.set(-88+i*.35,1,(i%5)-2);scene.add(lamp);}
+ const budget=buildLightBudget(scene),original=THREE.Vector3.prototype.distanceToSquared;let distances=0;
+ try{THREE.Vector3.prototype.distanceToSquared=function(p){distances++;return original.call(this,p);};budget.update(new THREE.Vector3(-82,-1,0),.25);}finally{THREE.Vector3.prototype.distanceToSquared=original;}
+ assert.ok(distances<=count+2,'selection stays linear instead of repeatedly measuring the same candidates during sorting');assert.ok(budget.lights.every(l=>l.intensity>0));
+});
+
 test('room corner occlusion remains bounded, respects the actual floor and leaves outside surfaces alone',()=>{
  const s=roomSpecs.homeRoom,at=(x,y,z)=>roomAmbientOcclusion({x:s.x+x,y:s.y+y,z:s.z+z},s);
  assert.ok(at(s.w/2,0,s.d/2)<at(0,0,0));assert.ok(at(0,0,0)<at(0,2,0));assert.equal(at(s.w,0,0),1);assert.equal(at(0,9,0),1);

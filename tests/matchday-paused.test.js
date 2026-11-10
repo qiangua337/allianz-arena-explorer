@@ -25,7 +25,7 @@ const {buildMatchdayExperience}=await import('../dist/matchday.js');
 test('remote pauses and halftime freeze crowd/audio clocks but keep online updates and resume without a time jump',async()=>{
  const nodes=new Map(),classes=new Set(),node=id=>{if(!nodes.has(id)){const handlers={};nodes.set(id,{hidden:false,textContent:'',style:{},dataset:{},classList:{add(){},remove(){},toggle(){}},setAttribute(k,v){this[k]=v;},addEventListener(k,v){handlers[k]=v;},append(){},close(){this.open=false;},showModal(){this.open=true;},focus(){}});}return nodes.get(id);};
  const context=new Proxy({createRadialGradient:()=>({addColorStop(){}})},{get:(o,k)=>k in o?o[k]:()=>{}});
- globalThis.document={createElement:()=>({append(){},getContext:()=>context}),getElementById:node,querySelectorAll:()=>[],exitPointerLock(){},body:{dataset:{},classList:{add:x=>classes.add(x),remove:x=>classes.delete(x),toggle(x,value){value?classes.add(x):classes.delete(x);}}}};
+ globalThis.document={createElement:()=>({dataset:{},append(){},getContext:()=>context}),getElementById:node,querySelectorAll:()=>[],exitPointerLock(){},body:{dataset:{},classList:{add:x=>classes.add(x),remove:x=>classes.delete(x),toggle(x,value){value?classes.add(x):classes.delete(x);}}}};
  const audioPauses=[],pauseEvents=[],crowdTimes=[];let audioUpdates=0,actorUpdates=0;
  const audio={muted:false,state:'playing',duration:10,level:0,start:async()=>true,stop(){},setPaused:value=>audioPauses.push(value),setVolume(){},setMuted(){},cheer(){},kick(){},whistle(){},update(){audioUpdates++;}};
  const crowd={root:new THREE.Group(),count:100,nearCount:0,visitorCount:10,assetState:'ready',prepare:async()=>true,setEnabled(){},setQuality(){},night(){},setOpponent(){},react(){},update:time=>crowdTimes.push(time)};

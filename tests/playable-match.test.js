@@ -17,6 +17,17 @@ function fixture(mobile=false){
 }
 const run=(game,seconds,input={})=>{for(let i=0;i<Math.round(seconds*60);i++)game.update(1/60,input,{x:0,y:5,z:9});};
 
+test('training HUD uses physical receptions, keeps course results separate, and returning to a match restores its controls',()=>{
+ const f=fixture(true);f.game.start({training:'passing'});assert.equal(f.game.training,'passing');assert.equal(f.node('training-hud').hidden,false);assert.equal(f.node('game-training-reset').disabled,true);f.game.ready();assert.equal(f.game.state.phase,'playing');assert.equal(f.node('game-result').hidden,true);assert.equal(f.scoreUpdates,0,'practice cannot overwrite the real stadium screens with a match clock');assert.equal(f.game.startReplay(),false);
+ for(let i=0;i<5;i++){assert.equal(f.game.action('pass'),true);run(f.game,2.5);}
+ assert.equal(f.game.state.training.metrics.completedPasses,5);assert.equal(f.game.state.phase,'fulltime');assert.equal(f.node('game-overlay-title').textContent,'训练完成');assert.equal(f.node('game-result').hidden,true);assert.equal(f.node('training-result').hidden,false);assert.ok(f.node('training-result').innerHTML.includes('成功传接'));assert.equal(f.node('game-overlay-team').hidden,true);
+ f.game.exit();assert.equal(document.body.dataset.gameTraining,'');f.game.start();f.game.ready();run(f.game,3.1);assert.equal(f.game.training,null);assert.equal(f.node('training-hud').hidden,true);assert.equal(f.node('training-result').hidden,true);f.game.setPaused(true);assert.equal(f.node('game-overlay-title').textContent,'比赛已暂停');assert.equal(f.node('game-change-match').textContent,'更换对手与难度 →');assert.equal(f.node('game-result').hidden,false);assert.equal(f.node('game-overlay-team').hidden,false);
+});
+test('training reset cancels held shooting and pressure, restores a ball position and retains actual attempted shots',()=>{
+ const f=fixture(true);f.game.start({training:'shooting'});f.game.ready();f.game.action('shoot',{power:.55});run(f.game,4);assert.equal(f.game.state.training.metrics.shots,1);assert.equal(f.game.beginCharge(),true);run(f.game,.2);f.node('game-training-reset').onclick();assert.equal(f.game.releaseCharge(),false);assert.equal(f.game.state.chargePower,0);assert.equal(f.game.state.training.metrics.shots,1);assert.equal(f.game.state.ball.ownerId,f.game.state.controlledId);assert.equal(f.game.state.training.attempt,2);
+ f.node('training-pause').onclick();const elapsed=f.game.state.time;run(f.game,4);assert.equal(f.game.state.time,elapsed);assert.equal(f.node('game-overlay-title').textContent,'训练已暂停');f.node('game-resume').onclick();assert.equal(f.game.state.paused,false);f.node('training-exit').onclick();assert.equal(f.game.active,false);
+});
+
 test('touch short passes leave the foot on contact, never wait for release, and do not repeat after the compatibility click',()=>{
  const{game,node}=fixture(true);game.start();game.ready();run(game,3.1);const button=node('action-pass'),elapsed=game.state.elapsed;
  const touch={pointerId:2,pointerType:'touch',button:0,preventDefault(){}};button.fire('pointerdown',touch);

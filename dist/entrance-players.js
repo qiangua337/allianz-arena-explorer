@@ -60,7 +60,10 @@ export function buildEntrancePlayers(scene,{mobile=false}={}){
   const onField=new Map(state.players.map(p=>[p.team+'-'+p.index,p])),decision=state.discipline?.lastDecision,card=decision?.card&&state.time-decision.at<3?decision.card:null,goal=state.phase==='goal'?state.events?.findLast(e=>e.type==='goal'):null;
   for(let i=0;i<players.length;i++){
    const actor=players[i],d=actor.definition;let p=d;
-   if(d.role==='player'){p=onField.get(d.team+'-'+d.slot);if(p)updateIdentity(actor,p.number,state.fixture?.id);if(p?.dismissed)p=null;}
+   // Lessons render their real participants only. Match officials and benches
+   // return automatically when this same actor pool is reused for a match.
+   if(state.training&&d.role!=='player'){actor.showBooking(null);actor.group.visible=false;updateActorContactShadows(root.userData.shadows,i,actor);continue;}
+   if(d.role==='player'){p=onField.get(d.team+'-'+d.slot);if(p)updateIdentity(actor,p.number,state.fixture?.id);if(p?.dismissed||p?.trainingInactive)p=null;}
    else if(d.role==='substitute'){const number=state.teamSheets?.[d.team]?.bench[d.slot];if(number!=null)updateIdentity(actor,number,state.fixture?.id);else if(state.teamSheets)p=null;}
    else if(d.role==='referee'||d.role==='assistantReferee'||d.role==='fourth'){
     const previous=officials.get(i),pose=matchOfficialPose(d,state.ball,previous,dt);officials.set(i,pose);p=pose;

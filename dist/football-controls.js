@@ -5,6 +5,7 @@ export function penaltyContext(state,team=state.players.find(p=>p.id===state.con
 }
 export function footballControlYaw(state,{cameraMode='close',yaw=0}={}){
  const penalty=penaltyContext(state);if(penalty&&cameraMode!=='first'){const attacking=penalty.goalZ<0?0:Math.PI;return penalty.role==='keeper'?attacking+Math.PI:attacking;}
+ if(state.training&&cameraMode==='close'){const player=state.players.find(p=>p.id===state.controlledId);return state.training.id==='shooting'&&player?shootingTrainingYaw(player):Math.atan2(10,8);}
  return['broadcast','close'].includes(cameraMode)?Math.atan2(32,8):yaw;
 }
 export function footballInput({forward=0,side=0,yaw=0,sprint=false,defend=false}={}){
@@ -23,9 +24,10 @@ export function advanceFootballCamera(previous,desired,{player,aspect=16/9,dt=1/
  const cut=instant||!desired.target||!previous.target||changed&&!footballerInFrame(previous,player,aspect),amount=cut?1:1-Math.exp(-clamp(dt,0,.25)*rate),blend=(from,to)=>to.map((n,i)=>from[i]+(n-from[i])*amount);
  return{...desired,position:blend(previous.position,desired.position),target:desired.target?blend(previous.target||desired.target,desired.target):null,cut};
 }
-export function footballCamera(player,{view='third',yaw=0,pitch=-.14,style='follow',ball=player,aspect=16/9,penalty=null}={}){
+export function footballCamera(player,{view='third',yaw=0,pitch=-.14,style='follow',ball=player,aspect=16/9,penalty=null,training=null}={}){
  if(view==='first')return{position:[player.x,1.68,player.z],target:null,fov:76,yaw,pitch:clamp(pitch,-.95,.5)};
  if(penalty){const role=typeof penalty==='string'?penalty:penalty.role,side=typeof penalty==='string'||penalty.goalZ<0?1:-1;return role==='keeper'?{position:[0,3,-59.8*side],target:[0,1,-43*side],fov:aspect<.85?100:68,controlYaw:side>0?Math.PI:0}:{position:[player.x*.2,4.5,(aspect<.85?-28:-32)*side],target:[0,.8,-51.5*side],fov:55,controlYaw:side>0?0:Math.PI};}
+ if(training&&style==='close')return trainingCamera(player,ball,training,aspect);
  if(style==='broadcast'||style==='close'){
   const close=style==='close',portrait=aspect<.85,fov=close?(portrait?68:48):(portrait?76:54),offsetX=close?18:32,offsetY=close?14:26,offsetZ=close?4.5:8,tan=Math.tan(fov*Math.PI/360),separation=Math.hypot(player.x-ball.x,player.z-ball.z),span=Math.min(1,(close?24:34)/(separation||1)),bx=player.x+(ball.x-player.x)*span,bz=player.z+(ball.z-player.z)*span,lead=Math.min(1,3/(Math.hypot(ball.vx||0,ball.vz||0)*.12||1)),x=clamp(player.x*.62+bx*.38+(ball.vx||0)*.12*lead,-33,33),z=clamp(player.z*.62+bz*.38+(ball.vz||0)*.12*lead,-52,52),target=[x,.8,z],length=Math.hypot(offsetX,offsetY,offsetZ),horizontal=Math.hypot(offsetX,offsetZ);
   const forward=[-offsetX/length,-offsetY/length,-offsetZ/length],right=[offsetZ/horizontal,0,-offsetX/horizontal],up=[-offsetX*offsetY/(horizontal*length),horizontal/length,-offsetZ*offsetY/(horizontal*length)];let scale=1;
@@ -34,6 +36,30 @@ export function footballCamera(player,{view='third',yaw=0,pitch=-.14,style='foll
  }
  const distance=8.3,height=4.5-clamp(pitch,-.65,.2)*5;
  return{position:[player.x+Math.sin(yaw)*distance,height,player.z+Math.cos(yaw)*distance],target:[player.x-Math.sin(yaw)*3,1.2+clamp(pitch,-.65,.2)*2,player.z-Math.cos(yaw)*3],fov:66};
+}
+// A lesson has fewer participants than a full match. Start closer and lower,
+// then fit the actual drill: the complete goal in shooting, all three receivers
+// in passing, and only the footballer/ball during a free warm-up.
+function trainingCamera(player,ball,training,aspect){
+ const points=[[player.x,0,player.z],[player.x,2,player.z],[ball.x,Math.max(.11,ball.y||.11),ball.z]];
+ if(training.id==='shooting'){
+  for(const x of[-3.66,3.66])for(const y of[0,2.44])points.push([x,y,-52.5]);
+  // Put the shooter and goal on the same screen axis. A touchline-style
+  // framing had to shrink both to fit their long horizontal separation.
+  const yaw=shootingTrainingYaw(player),lead=Math.min(6,Math.hypot(player.x,player.z+52.5)*.30),x=Math.sin(yaw),z=Math.cos(yaw),target=[player.x-x*lead,.9,player.z-z*lead];
+  return fitTrainingCamera(points,target,[x*(7.5+lead),4.3,z*(7.5+lead)],aspect<.85?68:48,aspect);
+ }
+ if(training.id==='passing')for(const p of training.targets||[])if(Number.isFinite(p.x)&&Number.isFinite(p.z)){points.push([p.x,0,p.z],[p.x,2,p.z]);}
+ const x=(Math.min(...points.map(p=>p[0]))+Math.max(...points.map(p=>p[0])))/2,z=(Math.min(...points.map(p=>p[2]))+Math.max(...points.map(p=>p[2])))/2;
+ return fitTrainingCamera(points,[x,.9,z],[10,6.8,8],aspect<.85?68:48,aspect);
+}
+// Keep the attack direction when dribbling through the goal mouth; the camera
+// must not flip by 180 degrees as the player crosses the goal-centre point.
+function shootingTrainingYaw(player){return Math.atan2(player.x,Math.max(6,player.z+52.5));}
+function fitTrainingCamera(points,target,offset,fov,aspect){
+ const length=Math.hypot(...offset),horizontal=Math.hypot(offset[0],offset[2]),tan=Math.tan(fov*Math.PI/360),forward=offset.map(n=>-n/length),right=[offset[2]/horizontal,0,-offset[0]/horizontal],up=[-offset[0]*offset[1]/(horizontal*length),horizontal/length,-offset[2]*offset[1]/(horizontal*length)];let scale=1;
+ for(const point of points){const q=point.map((n,i)=>n-target[i]),dot=v=>q.reduce((sum,n,i)=>sum+n*v[i],0),depth=dot(forward),height=dot(up);scale=Math.max(scale,(Math.abs(dot(right))/(tan*Math.max(.3,aspect)*.82)-depth)/length,(Math.abs(height)/(tan*(height>0?.65:.52))-depth)/length);}
+ return{position:target.map((n,i)=>n+offset[i]*scale),target,fov,controlYaw:Math.atan2(offset[0],offset[2])};
 }
 export function matchTime(state){if(state.competition?.stage==='shootout')return'点球';const seconds=state.competition?Math.max(0,Math.floor(state.elapsed/state.competition.regulationDuration*5400)):Math.max(0,Math.ceil(state.duration-state.elapsed));return String(Math.floor(seconds/60)).padStart(2,'0')+':'+String(seconds%60).padStart(2,'0');}
 export function ballDirection(player,ball,yaw){
