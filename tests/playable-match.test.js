@@ -28,6 +28,10 @@ test('training reset cancels held shooting and pressure, restores a ball positio
  f.node('training-pause').onclick();const elapsed=f.game.state.time;run(f.game,4);assert.equal(f.game.state.time,elapsed);assert.equal(f.node('game-overlay-title').textContent,'训练已暂停');f.node('game-resume').onclick();assert.equal(f.game.state.paused,false);f.node('training-exit').onclick();assert.equal(f.game.active,false);
 });
 
+test('training starts in its purpose-built close view without overwriting a previous match camera preference',()=>{
+ const{game}=fixture(true);game.start({camera:'follow'});game.ready();assert.equal(game.camera,'follow');game.exit();game.start({training:'shooting'});game.ready();assert.equal(game.camera,'close');game.setCamera('broadcast');assert.equal(game.camera,'broadcast');game.setView('first');game.setView('third');assert.equal(game.camera,'broadcast','a lesson retains its own camera choice');game.exit();game.start();game.ready();assert.equal(game.camera,'follow','ordinary match preferences remain unchanged');game.exit();game.start({training:'passing'});game.ready();assert.equal(game.camera,'close','each course starts in its readable training view');
+});
+
 test('touch short passes leave the foot on contact, never wait for release, and do not repeat after the compatibility click',()=>{
  const{game,node}=fixture(true);game.start();game.ready();run(game,3.1);const button=node('action-pass'),elapsed=game.state.elapsed;
  const touch={pointerId:2,pointerType:'touch',button:0,preventDefault(){}};button.fire('pointerdown',touch);
