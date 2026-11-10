@@ -28,8 +28,8 @@ test('close framing retains the full footballer and nearby ball across phone asp
 test('close cursor changes reframe immediately when needed and do not look through seating decks or the canopy',()=>{
  const scene=new THREE.Scene(),stadium=buildStadium(scene),obstacles=[];scene.updateMatrixWorld(true);
  stadium.root.traverse(o=>{if(o.isMesh&&!o.material.transparent)obstacles.push(o);});
- for(const aspect of[844/390,390/844,16/9])for(const x of[-33,0,33])for(const z of[-51,0,51]){
-  const player={x,z},previous=footballCamera({x:-x,z:-z},{style:'close',aspect}),desired=footballCamera(player,{style:'close',aspect}),pose=advanceFootballCamera(previous,desired,{player,aspect,changed:true}),camera=cameraFor(pose,aspect);
+ for(const aspect of[844/390,390/844,16/9])for(const x of[-33,0,33])for(const z of[-51,0,51])for(const playerFocus of[0,1]){
+  const player={x,z},previous=footballCamera({x:-x,z:-z},{style:'close',aspect}),desired=footballCamera(player,{style:'close',aspect,playerFocus,ball:{x:-x,z:-z,y:.11}}),pose=advanceFootballCamera(previous,desired,{player,aspect,changed:true}),camera=cameraFor(pose,aspect);
   framed([x,0,z],camera);framed([x,2,z],camera);const point=new THREE.Vector3(x,1,z),direction=point.clone().sub(camera.position),distance=direction.length(),hit=new THREE.Raycaster(camera.position,direction.normalize(),0,distance-.5).intersectObjects(obstacles,false)[0];assert.equal(hit,undefined,`unobstructed view from ${x},${z}`);
  }
 });

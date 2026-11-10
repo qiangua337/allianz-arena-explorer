@@ -17,6 +17,21 @@ function fixture(mobile=false){
 }
 const run=(game,seconds,input={})=>{for(let i=0;i<Math.round(seconds*60);i++)game.update(1/60,input,{x:0,y:5,z:9});};
 
+test('touch first-time passing and shooting prepare the actual receiver without taking back a ball in flight',()=>{
+ const f=fixture(true);f.game.start({training:'passing'});f.game.ready();f.game.action('pass');run(f.game,.04);const receiver=f.game.state.receiveTarget.playerId;
+ assert.equal(f.node('action-pass').disabled,false);assert.equal(f.node('game-shoot').disabled,false);assert.equal(f.node('game-tackle').disabled,true);assert.ok(f.node('game-ball-hint').textContent.includes('接应'));
+ assert.equal(f.game.beginCharge(),true);run(f.game,.2);assert.equal(f.node('game-shoot')['aria-pressed'],'true');assert.equal(f.node('game-charge-advice').textContent,'松手预备 · 真实接球后起脚');assert.equal(f.game.root.getObjectByName('Charged shot goal target').visible,false,'incoming reception must not display a fabricated shooting arc');assert.ok([...f.game.root.getObjectByName('Directional pass or charged shot preview').geometry.attributes.position.array].every(Number.isFinite));assert.equal(f.game.releaseCharge(),true);assert.equal(f.game.state.stats.home.shots,0);assert.equal(f.game.state.preparedAction.playerId,receiver);assert.ok(f.node('game-ball-hint').textContent.includes('已预备'));run(f.game,2);assert.equal(f.game.state.stats.home.shots,1);assert.equal(f.game.state.lastShot.playerId,receiver);
+});
+
+test('opponent shot feedback names the opposing team and goal banners replace the small shot status',()=>{
+ const f=fixture(true);f.game.start({opponent:'madrid'});f.game.ready();run(f.game,3.1);const s=f.game.state;s.lastShot={id:12,team:'away',kind:'drive',outcome:'flight',updatedAt:s.time};f.game.setControlMode('semi');assert.ok(f.node('game-shot-feedback').textContent.startsWith('皇马 · '));assert.equal(f.node('game-shot-feedback').hidden,false);s.phase='goal';f.game.setControlMode('semi');assert.equal(f.node('game-shot-feedback').hidden,true);
+});
+test('holding a shot across automatic reception preserves charge and manual release cannot recall the outgoing ball',()=>{
+ const f=fixture(true);f.game.start({training:'passing'});f.game.ready();f.game.action('pass');run(f.game,.04);const receiver=f.game.state.receiveTarget.playerId;assert.equal(f.game.beginCharge(),true);
+ for(let i=0;i<180&&f.game.state.ball.ownerId!==receiver;i++)f.game.update(1/60,{},{});assert.equal(f.game.state.ball.ownerId,receiver);assert.equal(f.node('game-shoot')['aria-pressed'],'true');assert.equal(f.game.releaseCharge(),true);assert.equal(f.game.state.lastShot.playerId,receiver);
+ f.game.exit();f.game.start({training:'passing'});f.game.ready();f.game.setControlMode('manual');f.game.action('pass');run(f.game,.04);assert.equal(f.game.beginCharge(),false);assert.equal(f.node('action-pass').disabled,true);assert.ok(f.node('game-ball-hint').textContent.includes('换控接应'));
+});
+
 test('training HUD uses physical receptions, keeps course results separate, and returning to a match restores its controls',()=>{
  const f=fixture(true);f.game.start({training:'passing'});assert.equal(f.game.training,'passing');assert.equal(f.node('training-hud').hidden,false);assert.equal(f.node('game-training-reset').disabled,true);f.game.ready();assert.equal(f.game.state.phase,'playing');assert.equal(f.node('game-result').hidden,true);assert.equal(f.scoreUpdates,0,'practice cannot overwrite the real stadium screens with a match clock');assert.equal(f.game.startReplay(),false);
  for(let i=0;i<5;i++){assert.equal(f.game.action('pass'),true);run(f.game,2.5);}

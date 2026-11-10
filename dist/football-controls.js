@@ -1,4 +1,10 @@
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
+// Off-ball close views keep the controlled player readable; the existing edge
+// cue points to a distant ball. Reception and active possession retain it.
+export function footballPlayerFocus(state){
+ if(state.training||state.phase!=='playing'||state.ball.ownerId===state.controlledId||state.ball.targetId===state.controlledId)return 0;
+ const p=state.players.find(p=>p.id===state.controlledId);return p?clamp((Math.hypot(p.x-state.ball.x,p.z-state.ball.z)-14)/16,0,1):0;
+}
 export function penaltyContext(state,team=state.players.find(p=>p.id===state.controlledId)?.team){
  const ordinary=state.setPiece?.type==='penalty'?state.setPiece:null,contest=state.phase==='penalties'?state.competition?.shootout:null,p=ordinary||contest;
  if(!p)return null;return{...p,role:p.team===team?'shooter':'keeper',goalZ:ordinary?.goalZ??-52.5,kind:ordinary?'match':'shootout'};
@@ -24,14 +30,14 @@ export function advanceFootballCamera(previous,desired,{player,aspect=16/9,dt=1/
  const cut=instant||!desired.target||!previous.target||changed&&!footballerInFrame(previous,player,aspect),amount=cut?1:1-Math.exp(-clamp(dt,0,.25)*rate),blend=(from,to)=>to.map((n,i)=>from[i]+(n-from[i])*amount);
  return{...desired,position:blend(previous.position,desired.position),target:desired.target?blend(previous.target||desired.target,desired.target):null,cut};
 }
-export function footballCamera(player,{view='third',yaw=0,pitch=-.14,style='follow',ball=player,aspect=16/9,penalty=null,training=null}={}){
+export function footballCamera(player,{view='third',yaw=0,pitch=-.14,style='follow',ball=player,aspect=16/9,penalty=null,training=null,playerFocus=0}={}){
  if(view==='first')return{position:[player.x,1.68,player.z],target:null,fov:76,yaw,pitch:clamp(pitch,-.95,.5)};
  if(penalty){const role=typeof penalty==='string'?penalty:penalty.role,side=typeof penalty==='string'||penalty.goalZ<0?1:-1;return role==='keeper'?{position:[0,3,-59.8*side],target:[0,1,-43*side],fov:aspect<.85?100:68,controlYaw:side>0?Math.PI:0}:{position:[player.x*.2,4.5,(aspect<.85?-28:-32)*side],target:[0,.8,-51.5*side],fov:55,controlYaw:side>0?0:Math.PI};}
  if(training&&style==='close')return trainingCamera(player,ball,training,aspect);
  if(style==='broadcast'||style==='close'){
-  const close=style==='close',portrait=aspect<.85,fov=close?(portrait?68:48):(portrait?76:54),offsetX=close?18:32,offsetY=close?14:26,offsetZ=close?4.5:8,tan=Math.tan(fov*Math.PI/360),separation=Math.hypot(player.x-ball.x,player.z-ball.z),span=Math.min(1,(close?24:34)/(separation||1)),bx=player.x+(ball.x-player.x)*span,bz=player.z+(ball.z-player.z)*span,lead=Math.min(1,3/(Math.hypot(ball.vx||0,ball.vz||0)*.12||1)),x=clamp(player.x*.62+bx*.38+(ball.vx||0)*.12*lead,-33,33),z=clamp(player.z*.62+bz*.38+(ball.vz||0)*.12*lead,-52,52),target=[x,.8,z],length=Math.hypot(offsetX,offsetY,offsetZ),horizontal=Math.hypot(offsetX,offsetZ);
+  const close=style==='close',focus=close?clamp(Number(playerFocus)||0,0,1):0,portrait=aspect<.85,fov=close?(portrait?68:48):(portrait?76:54),offsetX=close?18:32,offsetY=close?14:26,offsetZ=close?4.5:8,tan=Math.tan(fov*Math.PI/360),separation=Math.hypot(player.x-ball.x,player.z-ball.z),span=Math.min(1,(close?24-16*focus:34)/(separation||1)),bx=player.x+(ball.x-player.x)*span,bz=player.z+(ball.z-player.z)*span,lead=Math.min(1,3/(Math.hypot(ball.vx||0,ball.vz||0)*.12||1)),x=clamp(player.x*.62+bx*.38+(ball.vx||0)*.12*lead,-33,33),z=clamp(player.z*.62+bz*.38+(ball.vz||0)*.12*lead,-52,52),target=[x,.8,z],length=Math.hypot(offsetX,offsetY,offsetZ),horizontal=Math.hypot(offsetX,offsetZ);
   const forward=[-offsetX/length,-offsetY/length,-offsetZ/length],right=[offsetZ/horizontal,0,-offsetX/horizontal],up=[-offsetX*offsetY/(horizontal*length),horizontal/length,-offsetZ*offsetY/(horizontal*length)];let scale=1;
-  for(const point of [[player.x,0,player.z],[player.x,2,player.z],[bx,Math.max(.11,ball.y||.11),bz]]){const q=point.map((n,i)=>n-target[i]),dot=v=>q.reduce((sum,n,i)=>sum+n*v[i],0),depth=dot(forward),height=dot(up);scale=Math.max(scale,(Math.abs(dot(right))/(tan*Math.max(.3,aspect)*.82)-depth)/length,(Math.abs(height)/(tan*(height>0?.65:.52))-depth)/length);}
+  for(const point of [[player.x,0,player.z],[player.x,2,player.z],[bx,Math.max(.11,(ball.y||.11)*(1-focus)),bz]]){const q=point.map((n,i)=>n-target[i]),dot=v=>q.reduce((sum,n,i)=>sum+n*v[i],0),depth=dot(forward),height=dot(up);scale=Math.max(scale,(Math.abs(dot(right))/(tan*Math.max(.3,aspect)*.82)-depth)/length,(Math.abs(height)/(tan*(height>0?.65:.52))-depth)/length);}
   scale=clamp(scale,1,close?3:1.7);return{position:[x+offsetX*scale,target[1]+offsetY*scale,z+offsetZ*scale],target,fov,controlYaw:Math.atan2(offsetX,offsetZ)};
  }
  const distance=8.3,height=4.5-clamp(pitch,-.65,.2)*5;

@@ -5,6 +5,7 @@ docs/PLAYER-ASSETS.md. Only asset data is used; no MakeHuman program code runs.
 The shipped skin mesh excludes the body hidden by the kit.
 """
 import json, pathlib, sys
+sys.dont_write_bytecode = True
 import numpy as np
 from PIL import Image
 
@@ -49,30 +50,34 @@ source_weights=json.loads((CACHE/'default_weights.mhw').read_text(encoding='utf-
 # original authoring pose spreads every finger; it is unsuitable for walking.
 open_body=body.copy()
 def joint_point(name): return open_body[rig['joints'][name]].mean(0)
-hand_delta=np.zeros_like(body)
-for side in ['L','R']:
-    index=joint_point(rig['bones']['finger2-1.'+side]['head'])
-    pinky=joint_point(rig['bones']['finger5-1.'+side]['head'])
-    middle=rig['bones']['finger3-1.'+side]
-    direction=joint_point(middle['tail'])-joint_point(middle['head'])
-    palm=np.cross(pinky-index,direction);palm/=np.linalg.norm(palm)
-    if palm[2]>0: palm=-palm
-    for finger in range(1,6):
-        parent_rotation=np.eye(3);previous_tail=None
-        for segment in range(1,4):
-            name=f'finger{finger}-{segment}.{side}';bone=rig['bones'][name]
-            head=joint_point(bone['head']);tail=joint_point(bone['tail'])
-            vector=tail-head;vector/=np.linalg.norm(vector)
-            axis=np.cross(vector,palm);axis/=np.linalg.norm(axis)
-            angle=np.deg2rad(([18,25,17] if finger==1 else [18,42,27])[segment-1])
-            x,y,z=axis;K=np.array([[0,-z,y],[z,0,-x],[-y,x,0]])
-            rotation=parent_rotation@(np.eye(3)+np.sin(angle)*K+(1-np.cos(angle))*(K@K))
-            new_head=head if previous_tail is None else previous_tail
-            for vi,weight in source_weights.get(name,[]):
-                posed=new_head+rotation@(open_body[vi]-head)
-                hand_delta[vi]+=(posed-open_body[vi])*weight
-            previous_tail=new_head+rotation@(tail-head);parent_rotation=rotation
-body+=hand_delta
+def pose_hands(thumb, fingers):
+    delta=np.zeros_like(body)
+    for side in ['L','R']:
+        index=joint_point(rig['bones']['finger2-1.'+side]['head'])
+        pinky=joint_point(rig['bones']['finger5-1.'+side]['head'])
+        middle=rig['bones']['finger3-1.'+side]
+        direction=joint_point(middle['tail'])-joint_point(middle['head'])
+        palm=np.cross(pinky-index,direction);palm/=np.linalg.norm(palm)
+        if palm[2]>0: palm=-palm
+        for finger in range(1,6):
+            parent_rotation=np.eye(3);previous_tail=None
+            for segment in range(1,4):
+                name=f'finger{finger}-{segment}.{side}';bone=rig['bones'][name]
+                head=joint_point(bone['head']);tail=joint_point(bone['tail'])
+                vector=tail-head;vector/=np.linalg.norm(vector)
+                axis=np.cross(vector,palm);axis/=np.linalg.norm(axis)
+                angle=np.deg2rad((thumb if finger==1 else fingers)[segment-1])
+                x,y,z=axis;K=np.array([[0,-z,y],[z,0,-x],[-y,x,0]])
+                rotation=parent_rotation@(np.eye(3)+np.sin(angle)*K+(1-np.cos(angle))*(K@K))
+                new_head=head if previous_tail is None else previous_tail
+                for vi,weight in source_weights.get(name,[]):
+                    posed=new_head+rotation@(open_body[vi]-head)
+                    delta[vi]+=(posed-open_body[vi])*weight
+                previous_tail=new_head+rotation@(tail-head);parent_rotation=rotation
+    return delta
+# Preserve the exact shipped bind rig, while relaxing the visible fingers.
+rig_body=open_body+pose_hands([18,25,17],[18,42,27])
+body+=pose_hands([14,18,14],[12,30,20])
 kept = ['root','spine05','spine03','spine01','neck01','head']
 for side in ['L','R']:
     kept += [x+'.'+side for x in ['upperarm01','lowerarm01','wrist','upperleg01','lowerleg01','foot']]
@@ -103,8 +108,8 @@ for name in kept:
     b = rig['bones'][name]
     parent = b['parent']
     while parent and parent not in kept: parent = rig['bones'][parent]['parent']
-    head = metres(body[rig['joints'][b['head']]].mean(0))
-    tail = metres(body[rig['joints'][b['tail']]].mean(0))
+    head = metres(rig_body[rig['joints'][b['head']]].mean(0))
+    tail = metres(rig_body[rig['joints'][b['tail']]].mean(0))
     bones.append(dict(name=name, parent=kept.index(parent) if parent else -1,
                       head=head.round(7).tolist(), tail=tail.round(7).tolist()))
 bone_positions = {b['name']:np.array(b['head']) for b in bones}
@@ -149,8 +154,8 @@ def fitted(folder, name):
 parts, payload = [], bytearray()
 def add_part(name, points, uvs, faces, influence, *, select=lambda c,w:True,
              select_face=lambda face:True, yclip=None, expand=0, projection=None,
-             close_waist=False):
-    ns = normals(points, faces)
+             close_waist=False, surface_normals=None, clipper=None):
+    ns = normals(points, faces) if surface_normals is None else surface_normals
     points = points + ns*expand
     data, indices, unique = [], [], {}
     def store(row):
@@ -175,6 +180,7 @@ def add_part(name, points, uvs, faces, influence, *, select=lambda c,w:True,
                     if (da>=0)!=(db>=0): clipped.append(a+(b-a)*da/(da-db))
                 polygon=clipped
                 if not polygon: break
+        if clipper:polygon=clipper(polygon,c,w)
         if projection:
             for row in polygon: row[6:8]=projection(row[:3], c)
         for i in range(1,len(polygon)-1):
@@ -224,6 +230,7 @@ def add_part(name, points, uvs, faces, influence, *, select=lambda c,w:True,
     if closure: entry['waistClosure']=closure
     parts.append(entry)
     print(name, len(data), len(indices)//3)
+    return a,ix
 
 P=metres(body)
 body_faces=[f for f in base_faces if f[0]=='body']
@@ -242,8 +249,81 @@ def facial_patch(face):
     return P[[vi for vi,ti in face],1].mean()>1.60 and all(
         FACE_UV[0]<=base_uv[ti,0]<=FACE_UV[2] and
         FACE_UV[1]<=base_uv[ti,1]<=FACE_UV[3] for vi,ti in face)
-add_part('skin',P,base_uv,body_faces,weights,select=visible_skin,select_face=lambda f:not facial_patch(f))
+hand_axes={}
+for side in ['L','R']:
+    wrist=bone_positions['wrist.'+side]
+    direction=np.array(bones[kept.index('wrist.'+side)]['tail'])-wrist;direction/=np.linalg.norm(direction)
+    across=metres(joint_point(rig['bones']['finger5-1.'+side]['head']))-metres(joint_point(rig['bones']['finger2-1.'+side]['head']))
+    across-=direction*np.dot(across,direction);across/=np.linalg.norm(across)
+    palm=np.cross(across,direction);palm/=np.linalg.norm(palm)
+    if palm[2]>0: palm=-palm
+    hand_axes[side]=(wrist,direction,across,palm)
+def hand_face(face):
+    ids=[vi for vi,ti in face];c=P[ids].mean(0)
+    side='L' if c[0]>0 else 'R';wrist,direction,across,palm=hand_axes[side]
+    return weights[ids,kept.index('wrist.'+side)].mean()>.65 and np.dot(c-wrist,direction)>-.028
+def wrist_patch(face):
+    ids=[vi for vi,ti in face];c=P[ids].mean(0);side='L' if c[0]>0 else 'R';wrist,direction,across,palm=hand_axes[side]
+    return weights[ids][:,arm_cols].sum(1).mean()>.6 and np.dot(c-wrist,direction)>-.18
+WRIST_CUT=-.043
+def covered_wrist(polygon,c,w):
+    side='L' if c[0]>0 else 'R';wrist,direction,across,palm=hand_axes[side];clipped=[]
+    for i,a in enumerate(polygon):
+        b=polygon[(i+1)%len(polygon)];da=WRIST_CUT-np.dot(a[:3]-wrist,direction);db=WRIST_CUT-np.dot(b[:3]-wrist,direction)
+        if da>=0:clipped.append(a)
+        if (da>=0)!=(db>=0):clipped.append(a+(b-a)*da/(da-db))
+    return clipped
+add_part('skin',P,base_uv,body_faces,weights,select=visible_skin,select_face=lambda f:not facial_patch(f) and not hand_face(f) and not wrist_patch(f))
 add_part('face',P,base_uv,body_faces,weights,select=visible_skin,select_face=facial_patch)
+add_part('hands',P,base_uv,body_faces,weights,select_face=hand_face)
+add_part('wrists',P,base_uv,body_faces,weights,select=visible_skin,select_face=lambda f:wrist_patch(f) and not hand_face(f))
+keeper_wrists,_=add_part('keeperWrists',P,base_uv,body_faces,weights,select=visible_skin,select_face=lambda f:wrist_patch(f) and not hand_face(f),clipper=covered_wrist)
+cuff_fits={}
+for side in ['L','R']:
+    wrist,direction,across,palm=hand_axes[side];rim={}
+    for row in keeper_wrists:
+        delta=row[:3]-wrist
+        if row[0]*(1 if side=='L' else -1)>0 and abs(np.dot(delta,direction)-WRIST_CUT)<1e-5:rim[tuple(row[:3])]=row
+    assert len(rim)>=8,('actual keeper wrist cut',side,len(rim))
+    rim=np.array(list(rim.values()));offset=rim[:,:3]-wrist;xy=np.column_stack([offset@across,offset@palm]);center=xy.mean(0);radii=np.max(np.abs(xy-center),axis=0)+.004
+    radii*=max(1,np.max(np.linalg.norm((xy-center)/radii,axis=1)))*1.035
+    wrist_weights=np.sum(np.where(rim[:,8:12]==kept.index('wrist.'+side),rim[:,12:16],0),axis=1)
+    cuff_fits[side]={'center':center,'radii':radii,'rim':xy,'weights':wrist_weights}
+
+# Original equipment is a closed, padded palm with five gently flexed fingers.
+# Stretching the old skin weights into an open glove pulled the palm into thin
+# triangles, so the glove volume is authored independently at the real wrist.
+from keeper_glove import build_glove_surface
+local_points,local_triangles,local_normals=build_glove_surface()
+glove_points,glove_normals,glove_faces,glove_weights=[],[],[],[]
+for side in ['L','R']:
+    wrist,direction,across,palm=hand_axes[side];basis=np.column_stack([across,palm,direction]);start=len(glove_points)
+    glove_points.extend(wrist+local_points@basis.T);glove_normals.extend(local_normals@basis.T)
+    for tri in local_triangles:
+        if np.linalg.det(basis)<0:tri=tri[[0,2,1]]
+        glove_faces.append(('glove',[(start+i,start+i) for i in tri]))
+    rear_weight=cuff_fits[side]['weights'].mean()
+    for p in local_points:
+        blend=rear_weight+(1-rear_weight)*np.clip((p[2]+.048)/.066,0,1);w=np.zeros(len(kept));w[kept.index('wrist.'+side)]=blend;w[kept.index('lowerarm01.'+side)]=1-blend;glove_weights.append(w)
+def glove_uv(p,c):
+    side='L' if c[0]>0 else 'R';wrist,direction,across,palm=hand_axes[side]
+    across_u=np.clip(.5+np.dot(p-wrist,across)/.135,.015,.985)
+    palm_side=np.dot(c-wrist,palm)>0
+    return [(.5 if palm_side else 0)+across_u*.5,np.clip((np.dot(p-wrist,direction)+.05)/.245,.01,.99)]
+add_part('gloves',np.array(glove_points),np.zeros((len(glove_points),2)),glove_faces,np.array(glove_weights),projection=glove_uv,surface_normals=np.array(glove_normals))
+cuff_points,cuff_uvs,cuff_faces,cuff_weights=[],[],[],[]
+for side in ['L','R']:
+    wrist,direction,across,palm=hand_axes[side];start=len(cuff_points);N=16
+    for along,outer in [(-.048,True),(.018,True),(-.048,False),(.018,False)]:
+        for k in range(N):
+            angle=k/N*np.pi*2;fit=cuff_fits[side];center=fit['center'] if along<0 else np.zeros(2);radii=fit['radii'] if along<0 else np.array([.034,.024]);radii=radii if outer else radii-.004;xy=center+np.array([np.cos(angle),np.sin(angle)])*radii
+            cuff_points.append(wrist+direction*along+across*xy[0]+palm*xy[1])
+            cuff_uvs.append([k/N,.04 if along<0 else .19]);blend=fit['weights'][np.argmin(np.linalg.norm(fit['rim']-xy,axis=1))] if along<0 else 1;w=np.zeros(len(kept));w[kept.index('wrist.'+side)]=blend;w[kept.index('lowerarm01.'+side)]=1-blend;cuff_weights.append(w)
+    for k in range(N):
+        j=(k+1)%N
+        for ids in [[k,j,N+j,N+k],[2*N+k,3*N+k,3*N+j,2*N+j],[k,2*N+k,2*N+j,j],[N+k,N+j,3*N+j,3*N+k]]:
+            cuff_faces.append(('cuff',[(start+i,start+i) for i in ids]))
+add_part('gloveCuffs',np.array(cuff_points),np.array(cuff_uvs),cuff_faces,np.array(cuff_weights))
 
 shirt = fitted('clothes/toigo_basic_tucked_t-shirt','t_shirt_basic_tucked')
 # The source is a high tucked tee. Extend its lower panels to overlap the shorts
@@ -342,10 +422,12 @@ add_part('crop',hair_points,base_uv,body_faces,weights,
 add_part('eyes',*fitted('eyes/low-poly','low-poly'))
 add_part('eyebrows',*fitted('eyebrows/eyebrow002','eyebrow002'))
 
-(OUT/'footballer-850.bin').write_bytes(payload)
+(OUT/'footballer-910.bin').write_bytes(payload)
 manifest=dict(version=2,stride=16,height=1.86,bones=bones,parts=parts,faceUV=list(FACE_UV),bootBounds={k:v.round(7).tolist() for k,v in boot_bounds.items()},
+              gloveFrames={side:{name:v.round(7).tolist() for name,v in zip(['wrist','forward','across','palm'],frame)} for side,frame in hand_axes.items()},
+              keeperWristCut=WRIST_CUT,
               eyes={side:metres(body[rig['joints'][rig['bones']['eye.'+side]['head']]].mean(0)).tolist() for side in ['L','R']})
-(OUT/'footballer-850.json').write_text(json.dumps(manifest,separators=(',',':')),encoding='utf-8')
+(OUT/'footballer-910.json').write_text(json.dumps(manifest,separators=(',',':')),encoding='utf-8')
 textures={
     'skin-light.webp':('skins/young_caucasian_male/young_lightskinned_male_diffuse.png',1024),
     'skin-dark.webp':('skins/young_african_male/young_darkskinned_male_diffuse.png',1024),

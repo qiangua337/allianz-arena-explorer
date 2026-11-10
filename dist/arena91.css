@@ -1,0 +1,2 @@
+/* A pass already on its way has receiving actions, rather than a tackle. */
+body[data-game-receiving=true] .game-actions #game-tackle{display:none!important}

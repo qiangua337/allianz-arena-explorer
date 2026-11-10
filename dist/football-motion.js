@@ -8,7 +8,7 @@ export function createFootballMotion(data,motion,bones,group,definition){
  setFootballBootBounds(bones,data.bootBounds);
  const footPlant=definition.role==='player'?createFootballFootPlant(bones):null;
  const rest=data.bones.map(b=>new THREE.Vector3().fromArray(b.head)),world=data.bones.map(()=>new THREE.Quaternion()),q=new THREE.Quaternion(),a=new THREE.Quaternion(),b=new THREE.Quaternion(),hip=new THREE.Vector3(),knee=new THREE.Vector3(),ankle=new THREE.Vector3(),axis=new THREE.Vector3(),bend=new THREE.Vector3(),v=new THREE.Vector3(),u=new THREE.Vector3();
- let distance=0,hasLast=false,lastX=0,lastZ=0,blend=0,lastTime=null,travelSpeed=0,gaitDirection=1;
+ let distance=0,hasLast=false,lastX=0,lastZ=0,blend=0,lastTime=null,travelSpeed=0,gaitDirection=1,lateralSteer=0,lateralBlend=0;
  let heightScale=definition.height/1.86;const walk=motion.clips.Walk_Loop,jog=motion.clips.Jog_Fwd_Loop||walk,sprint=motion.clips.Sprint_Loop||jog,idle=motion.clips[definition.seated?'Sitting_Idle_Loop':definition.role==='coach'?'Idle_Talking_Loop':'Idle_Loop'];
  const rootWalk=new THREE.Vector3(),rootIdle=new THREE.Vector3(),rootOffset=new THREE.Vector3(),rootJog=new THREE.Vector3(),rootSprint=new THREE.Vector3(),jogQ=new THREE.Quaternion(),sprintQ=new THREE.Quaternion();
  const walkFrames={},idleFrames={},jogFrames={},sprintFrames={};
@@ -21,7 +21,8 @@ export function createFootballMotion(data,motion,bones,group,definition){
   // A defender can retreat while still facing the ball. Advancing the same
   // forward clip made both planted feet slide at nearly twice travel speed.
   // Signed *actual displacement* also works at distant 12Hz pose updates.
-  if(hasLast&&step<2){const along=(px-lastX)*Math.sin(heading)+(pz-lastZ)*Math.cos(heading);if(!stair&&!definition.seated&&step>.0001){if(along<-.35*step)gaitDirection=-1;else if(along>.35*step)gaitDirection=1;}else gaitDirection=1;distance+=step*gaitDirection/(heightScale*stride);}lastX=px;lastZ=pz;hasLast=true;blend=THREE.MathUtils.damp(blend,moving?1:0,10,dt);if(definition.seated)blend=0;
+  let steer=0,lateral=0;if(hasLast&&step<2){const along=(px-lastX)*Math.sin(heading)+(pz-lastZ)*Math.cos(heading),sideways=(px-lastX)*Math.cos(heading)-(pz-lastZ)*Math.sin(heading);if(!stair&&!definition.seated&&step>.0001){lateral=definition.role==='player'&&!definition.keeper?clamp((Math.abs(sideways)/step-.45)/.4,0,1)*(1-run):0;if(along<-.35*step)gaitDirection=-1;else if(along>.35*step||lateral>.95)gaitDirection=1;steer=clamp(Math.atan2(sideways*gaitDirection,Math.abs(along)),-1.05,1.05)*lateral;}else gaitDirection=1;distance+=step*gaitDirection/(heightScale*stride);}lastX=px;lastZ=pz;hasLast=true;blend=THREE.MathUtils.damp(blend,moving?1:0,10,dt);if(definition.seated)blend=0;
+  if(stair||definition.seated||discontinuity||step>=2)lateralSteer=lateralBlend=0;else{lateralSteer=THREE.MathUtils.damp(lateralSteer,moving?steer:0,10,dt);lateralBlend=THREE.MathUtils.damp(lateralBlend,moving?lateral:0,10,dt);}
   // Reuse frame windows, and sample only clips that contribute to this pose.
   // Standing staff no longer decode three unused locomotion clips per frame.
   const phase=distance+definition.phase/(Math.PI*2),locomotion=blend>0,walkWeight=fast<1&&run<1,jogWeight=fast<1&&run>0;
@@ -34,8 +35,12 @@ export function createFootballMotion(data,motion,bones,group,definition){
    if(locomotion){if(fast===1)readQuaternion(sprintFrames,i,world[i]);else{if(run===1)readQuaternion(jogFrames,i,world[i]);else readQuaternion(walkFrames,i,world[i]);if(run>.001&&run<1)world[i].slerp(readQuaternion(jogFrames,i,jogQ),run);if(fast>.001)world[i].slerp(readQuaternion(sprintFrames,i,sprintQ),fast);}}
    if(blend===1)bones[i].quaternion.copy(world[i]);else{readQuaternion(idleFrames,i,q);bones[i].quaternion.copy(q);if(locomotion)bones[i].quaternion.slerp(world[i],blend);}
   }
+  // A defensive side step is not a forward walk translated sideways. Turn the
+  // hips toward actual travel while sharing the counter-turn across the back
+  // and neck, keeping the chest/head readable toward the ball.
+  if(Math.abs(lateralSteer)>.00001){bones[0].rotateY(lateralSteer);bones[2].rotateY(-lateralSteer*.55);bones[3].rotateY(-lateralSteer*.15);bones[4].rotateY(-lateralSteer*.30);}
   bones[0].position.copy(rest[0]).add(rootOffset);const floor=stair?clamp((px+45.9)/5.4,0,1)*2.7-2.7:entranceFloor(px);
-  group.position.set(px,floor+seatY,pz);group.rotation.y=heading;group.scale.setScalar(heightScale);footPlant?.update(px,pz,heading,heightScale,phase,fast,dt,moving&&travelSpeed>3.4&&blend>.9,stair||definition.seated||px< -39.6||discontinuity||step>=2);
+  group.position.set(px,floor+seatY,pz);group.rotation.y=heading;group.scale.setScalar(heightScale);footPlant?.update(px,pz,heading,heightScale,phase,fast,dt,moving&&(travelSpeed>3.4||lateralBlend>.12&&travelSpeed>.8)&&blend>.9,stair||definition.seated||px< -39.6||discontinuity||step>=2,lateralBlend*(1-run));
   // Interpolated clip rotations do not preserve the exporters' grounded soles.
   // Correct only mixed flat-ground poses; stairs retain their own real treads.
   if(footPlant&&!stair&&!definition.seated&&px>=-39.6&&(blend>.03&&blend<.995||run>.001&&run<.999||fast>.001&&fast<.999))keepFootballBootsAboveFloor(bones);
@@ -55,5 +60,5 @@ export function createFootballMotion(data,motion,bones,group,definition){
    group.updateMatrixWorld(true);let lowest=Infinity;for(const foot of[11,17])for(const x of[-.039,.039])for(const z of[-.08,.16]){v.set(rest[foot].x+x,.023,rest[foot].z+z).sub(rest[foot]).applyMatrix4(bones[foot].matrixWorld);lowest=Math.min(lowest,v.y-entranceFloor(v.x));}if(Number.isFinite(lowest)){bones[0].position.y-=clamp(lowest,-.20,.24)/heightScale;group.updateMatrixWorld(true);}
   }
  }
- return{pose,reset(){distance=0;hasLast=false;blend=0;lastTime=null;travelSpeed=0;gaitDirection=1;footPlant?.reset();}};
+ return{pose,reset(){distance=0;hasLast=false;blend=0;lastTime=null;travelSpeed=0;gaitDirection=1;lateralSteer=lateralBlend=0;footPlant?.reset();}};
 }

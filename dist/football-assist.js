@@ -30,3 +30,22 @@ export function pressureTarget(defender,owner,ball){
  }
  return target;
 }
+
+// Sweep the ball against the player's actual movement during this fixed step.
+// The existing foot-contact radius is unchanged; a fast ball cannot skip a
+// grazing interception simply because both frame endpoints fall outside it.
+export function sweptBallContact(player,ball,previous,{dt=1/60,range=.85,maxHeight=.72,playerPrevious=null}={}){
+ const ax=previous.x-(playerPrevious?.x??player.x-(player.vx||0)*dt),az=previous.z-(playerPrevious?.z??player.z-(player.vz||0)*dt),
+  dx=ball.x-player.x-ax,dz=ball.z-player.z-az,a=dx*dx+dz*dz,b=2*(ax*dx+az*dz),c=ax*ax+az*az-range*range;
+ let enter=0,exit=1;
+ if(a<1e-12){if(c>0)return null;}else{
+  const discriminant=b*b-4*a*c;if(discriminant<0)return null;
+  const root=Math.sqrt(discriminant);enter=Math.max(0,(-b-root)/(2*a));exit=Math.min(1,(-b+root)/(2*a));
+ }
+ const fromY=previous.y??ball.y,dy=ball.y-fromY;
+ if(Math.abs(dy)<1e-12){if(fromY>=maxHeight)return null;}
+ else if(dy<0)enter=Math.max(enter,(maxHeight-fromY)/dy);
+ else exit=Math.min(exit,(maxHeight-fromY)/dy);
+ if(enter>exit||exit<0||enter>1)return null;
+ return{t:Math.max(0,enter)};
+}
