@@ -4,6 +4,13 @@
 
 [在线探索](https://allianz-arena-explorer.pages.dev/) · [GitHub 源码](https://github.com/qiangua337/allianz-arena-explorer) · [Cloudflare 部署说明](docs/DEPLOYMENT.md) · [MIT 许可证](LICENSE)
 
+版本 **9.2.0：球星影像与界面视觉更新**。
+
+- 首页改为照片主视觉、明确的开球入口和四色模式卡片；使用凯恩真实写真和穆西亚拉德国队照片，拍摄背景与作者见站内[影像与字体来源](https://allianz-arena-explorer.pages.dev/visual-credits.html)。照片不替代游戏中的通用人物模型。
+- 中文改用本地子集字体 Arena Sans SC（基于 Noto Sans SC 的 500/800 字重），英文与数字使用 Arena Condensed（基于 Barlow Condensed）。字体随项目提供，首次字体下载失败时保留系统回退，不依赖外部字体服务。
+- 手机卡片改为紧凑的两列布局，正文保持可读字号；比赛、训练和联机页面沿用相同字体与红色选中状态。只增加一次性淡入及鼠标悬停反馈，支持减少动态偏好。
+- 两张 WebP 共 161,840 B，字体与图片分别遵循 OFL 1.1 与 CC BY-SA 4.0，应用代码继续使用 MIT。字体来源、固定版本和文件校验见 `dist/assets/fonts/SOURCES.json`；可用 `scripts/build-ui-fonts.py` 重新制作字集。
+
 版本 **9.1.0：真实一脚接传、近景人物与联机画面更新**。
 
 - 快连按传球不再把已传出的足球吸回。半自动和辅助模式可预备接球队员的一脚传球、直塞或射门，保留原方向与力度，等实际触球后才出脚；手动模式仍由玩家换控。松球附近仍可预备传射，不会在几米外直接获得球权。对照场景中，24 次快连按回吸由 24 次降为 0 次，半自动 / 辅助的实际接球后一脚再传由 0/16 变为 16/16。

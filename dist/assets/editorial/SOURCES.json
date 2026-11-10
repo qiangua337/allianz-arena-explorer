@@ -1,0 +1,46 @@
+{
+  "images": [
+    {
+      "id": "kane-2025",
+      "file": "kane.webp",
+      "width": 1000,
+      "height": 1022,
+      "bytes": 64790,
+      "originalWidth": 3315,
+      "originalHeight": 3389,
+      "filePage": "https://commons.wikimedia.org/wiki/File:FC_Red_Bull_Salzburg_gegen_Bayern_M%C3%BCnchen_(2025-01-06_Testspiel)_28.jpg",
+      "originalUrl": "https://upload.wikimedia.org/wikipedia/commons/b/ba/FC_Red_Bull_Salzburg_gegen_Bayern_M%C3%BCnchen_%282025-01-06_Testspiel%29_28.jpg",
+      "author": "Werner100359",
+      "authorUrl": "https://commons.wikimedia.org/wiki/User:Werner100359",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0/",
+      "date": "2025-01-06",
+      "context": "Bayern black warm-up jacket at Salzburg friendly, not current home kit",
+      "changeNotice": "Resized and encoded as WebP; CSS crops, color filters and gradient overlays in the page.",
+      "sha256": "2ec5c1b96e3a9a1c8c2c6caa17f25b3ed6b79c70bd74d8c51f7e06d934354037"
+    },
+    {
+      "id": "musiala-2026",
+      "file": "musiala.webp",
+      "width": 800,
+      "height": 1200,
+      "bytes": 97050,
+      "originalWidth": 3333,
+      "originalHeight": 5000,
+      "filePage": "https://commons.wikimedia.org/wiki/File:Jamal_Musiala_Ecuador_v_Germany_25_June_2026-174.jpg",
+      "originalUrl": "https://upload.wikimedia.org/wikipedia/commons/3/3b/Jamal_Musiala_Ecuador_v_Germany_25_June_2026-174.jpg",
+      "author": "Bryan Berlin / WikiPortraits",
+      "authorUrl": "https://commons.wikimedia.org/wiki/User:Berlination",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0/",
+      "date": "2026-06-25",
+      "context": "Ecuador v Germany, World Cup 2026; Germany navy/aqua number 10 kit, not Bayern training",
+      "changeNotice": "Resized and encoded as WebP; CSS crops, color filters and gradient overlays in the page.",
+      "sha256": "7dd17e31f6b3412123f404fa3a6c4499586034bd7a28aa7ab780765b6746a444"
+    }
+  ],
+  "license": "CC BY-SA 4.0",
+  "codeLicenseSeparate": true,
+  "totalBytes": 161840,
+  "credits": "../../visual-credits.html"
+}

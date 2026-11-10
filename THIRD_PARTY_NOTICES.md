@@ -1,5 +1,9 @@
 # 第三方许可与标识
 
+界面字体 `dist/assets/fonts/arena-sans-sc-500.woff2` 与 `arena-sans-sc-800.woff2` 由 Google Fonts 上游 Noto Sans SC 制作：按当前界面字集子集化、实例化字重并改名为 Arena Sans SC，原始版权为 Copyright 2014–2021 Adobe，保留字体名 Source。`arena-condensed-600.woff2` 由 Barlow Condensed SemiBold 制作并改名为 Arena Condensed，Copyright 2017 The Barlow Project Authors。两者采用 SIL OFL 1.1，完整原始许可与固定源版本、SHA-256 及处理方法在 `dist/assets/fonts/`，不适用代码 MIT 许可。
+
+首页照片 `dist/assets/editorial/kane.webp`：Harry Kane，2025-01-06，摄影 Werner100359 / Wikimedia Commons，[原文件页](https://commons.wikimedia.org/wiki/File:FC_Red_Bull_Salzburg_gegen_Bayern_M%C3%BCnchen_(2025-01-06_Testspiel)_28.jpg)。`musiala.webp`：Jamal Musiala，厄瓜多尔对德国，2026-06-25，摄影署名 Bryan Berlin / WikiPortraits / Wikimedia Commons，[原文件页](https://commons.wikimedia.org/wiki/File:Jamal_Musiala_Ecuador_v_Germany_25_June_2026-174.jpg)。两张采用 [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/)，经缩放、WebP 编码，并在页面中以 CSS 裁切、渐变及颜色调整展示；照片及相关衍生展示保留 CC BY-SA 4.0，不纳入 MIT。完整可访问的署名和修改声明见 `dist/visual-credits.html`，照片不表示任何个人或机构对网站的认可。
+
 Quaternius Universal Animation Library Standard：行走、站立、坐姿和交谈动作，作者 Quaternius，CC0 1.0。项目对动作进行取样和骨架适配，未使用任何足球商业游戏的资产。来源：<https://quaternius.com/packs/universalanimationlibrary.html>、<https://opengameart.org/content/universal-animation-library>。原始声明保存在 `dist/assets/players/LICENSE.ANIMATIONS.txt`。
 
 Borussia Dortmund 队徽：`dist/assets/borussia-dortmund.svg`，来源 <https://commons.wikimedia.org/wiki/File:Borussia_Dortmund_logo.svg>，2023-08-26 从 bvb.de 更新的 SVG。Commons 标为 PD-textlogo；商标权仍属于俱乐部，不属于本项目 MIT 许可的授权范围。
