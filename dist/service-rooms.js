@@ -1,8 +1,10 @@
 import {THREE,mat,box,sign,Batches} from './kit.js';
 import {finishedBox,contactShadow} from './finishes.js';
-import {serviceRooms,serviceWorld,serviceCoordinates} from './service-layout.js';
+import {serviceRooms,serviceWorld} from './service-layout.js';
 import {orientedCollider} from './access-layout.js';
 import {compactStaticMeshes,freezeArchitecture} from './scene-budget.js';
+import {updateServiceDoor} from './service-door-motion.js';
+import {positionStateChanged} from './position-state.js';
 
 export function buildServiceRooms(scene){
  const root=new THREE.Group();root.name='Openable service doors and ancillary rooms';scene.add(root);
@@ -29,10 +31,9 @@ export function buildServiceRooms(scene){
   }
   doors.push(record);
  }
- function update(position,dt){for(const entry of interiors)entry.group.visible=Math.hypot(position.x-entry.room.x,position.z-entry.room.z)<18&&Math.abs(position.y-entry.room.y)<6;
-  for(const d of doors){d.front.visible=Math.hypot(position.x-d.x,position.z-d.z)<42&&Math.abs(position.y-d.y)<8;d.target=d.open?Math.PI*.48:0;const p=serviceCoordinates(d,position.x,position.z);if(!d.open&&Math.abs(position.y-d.y-1.7)<2&&Math.abs(p.side)<1.9&&Math.abs(p.depth)<1.1)d.target=Math.max(d.angle,Math.PI*.48);if(Math.abs(d.angle-d.target)<.00001)continue;d.angle=THREE.MathUtils.damp(d.angle,d.target,10,dt);
-   for(const leaf of d.leaves){const angle=-leaf.side*d.angle;leaf.hinge.rotation.y=angle;const x=leaf.side*1.88-leaf.side*.93*Math.cos(angle),z=leaf.side*.93*Math.sin(angle),world=serviceWorld(d,x,z);leaf.collider.cx=world.x;leaf.collider.cz=world.z;leaf.collider.yaw=d.yaw+angle;}
-  }
+ const visibilityChanged=positionStateChanged();
+ function update(position,dt){const changed=visibilityChanged(position);if(changed)for(const entry of interiors)entry.group.visible=Math.hypot(position.x-entry.room.x,position.z-entry.room.z)<18&&Math.abs(position.y-entry.room.y)<6;
+  for(const d of doors){if(changed)d.front.visible=Math.hypot(position.x-d.x,position.z-d.z)<42&&Math.abs(position.y-d.y)<8;if(changed||Math.abs(d.angle-d.target)>.00001||d.open!==(d.target>0))updateServiceDoor(d,position,dt);}
  }
  return{root,colliders,walls,doors,update,isAnimating:()=>doors.some(d=>Math.abs(d.angle-d.target)>.003),nearest(position){return doors.find(d=>Math.hypot(position.x-d.x,position.z-d.z)<3.5&&Math.abs(position.y-d.y-1.7)<2);},toggle(door){door.open=!door.open;return door.open;}};
 }

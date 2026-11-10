@@ -2,6 +2,7 @@ import {pressLayout,pressFloorRise,pressCameras,pressFloorSegments} from './faci
 import {hospitalityTables,hospitalityBar} from './hospitality-layout.js';
 import {buildBroadcastCamera,buildTreatmentTable} from './facility-equipment.js';
 import {buildRoomDetail} from './room-detail.js';
+import {positionStateChanged} from './position-state.js';
 import {buildTacticalBoard} from './tactical-board.js';
 import {buildShopFixtures} from './shop-fixtures.js';
 import {buildTrophyGallery} from './trophy-gallery.js';
@@ -148,6 +149,7 @@ export function buildInteriors(scene,circulation){
  for(const ceiling of ceilings)ceiling.userData.visibilityManaged=true;
  for(const g of [...Object.values(rooms),...Object.values(shells)])compactGroup(g,[...ceilings,...retainedInstances]);
  const roomCuts=['museum','store'].map(key=>{const s=roomSpecs[key];return{minX:s.x-s.w/2,maxX:s.x+s.w/2,minZ:s.z-s.d/2,maxZ:s.z+s.d/2};});rooms.concourse.traverse(o=>{if(o.isMesh){const original=o.geometry;o.geometry=subtractFootprints(original,roomCuts);original.dispose();}});
- function update(position,active){roomDetail.update();const nearby=(Math.abs(position.x)/132)**2.8+(Math.abs(position.z)/152)**2.8<1.1&&position.y<75;for(const[key,g]of Object.entries(rooms)){let show=false;if(key==='concourse'||key==='tunnel'||key==='corridor'||key==='shower')show=nearby;else{const s=roomSpecs[key];show=position.x>s.x-s.w/2-3&&position.x<s.x+s.w/2+5&&position.z>s.z-s.d/2-4&&position.z<s.z+s.d/2+4&&Math.abs(position.y-s.y)<7;}g.visible=show;if(shells[key])shells[key].visible=nearby;}for(const l of lights)l.visible=l.parent.visible&&Math.hypot(l.position.x+l.parent.position.x-position.x,l.position.y+l.parent.position.y-position.y,l.position.z+l.parent.position.z-position.z)<35;}
+ const visibilityChanged=positionStateChanged();
+ function update(position,active){roomDetail.update();if(!visibilityChanged(position))return;const nearby=(Math.abs(position.x)/132)**2.8+(Math.abs(position.z)/152)**2.8<1.1&&position.y<75;for(const[key,g]of Object.entries(rooms)){let show=false;if(key==='concourse'||key==='tunnel'||key==='corridor'||key==='shower')show=nearby;else{const s=roomSpecs[key];show=position.x>s.x-s.w/2-3&&position.x<s.x+s.w/2+5&&position.z>s.z-s.d/2-4&&position.z<s.z+s.d/2+4&&Math.abs(position.y-s.y)<7;}g.visible=show;if(shells[key])shells[key].visible=nearby;}for(const l of lights)l.visible=l.parent.visible&&Math.hypot(l.position.x+l.parent.position.x-position.x,l.position.y+l.parent.position.y-position.y,l.position.z+l.parent.position.z-position.z)<35;}
  return {root,rooms,shells,colliders,update,setTactics(formation,roomId='homeRoom'){return tacticalDisplays.get(roomId)?.setFormation(formation);},setRoof(on){ceilings.forEach(o=>o.visible=on);},night(){},specs:roomSpecs};
 }

@@ -33,6 +33,13 @@ export function keepFootballBootsAboveFloor(bones){
  const rig=rigFor(bones);if(!rig)return;const {min,max}=rig.bounds,point=rig.v[10],foot=rig.q[3];
  for(let side=0;side<2;side++){const ankle=rig.goals[side];readFootballAnkle(bones,side,ankle);foot.copy(rig.q[2]).multiply(bones[rig.legs[side].foot].quaternion);let lowest=Infinity;for(let x=0;x<2;x++)for(let y=0;y<2;y++)for(let z=0;z<2;z++)lowest=Math.min(lowest,ankle.y+point.set(x?max[0]:min[0],y?max[1]:min[1],z?max[2]:min[2]).applyQuaternion(foot).y);if(lowest<.001)placeFoot(bones,rig.legs[side],rig,rig.readGoal[side],null,1,0);}
 }
+// A diving goalkeeper has no planted leg to solve against. Keep the shared
+// boots clear by moving only the local pose root, never the simulated player.
+export function liftFootballBootsAboveFloor(bones){
+ const rig=rigFor(bones);if(!rig)return;const {min,max}=rig.bounds,point=rig.v[10],foot=rig.q[3];let lowest=Infinity;
+ for(let side=0;side<2;side++){const ankle=rig.goals[side];readFootballAnkle(bones,side,ankle);foot.copy(rig.q[2]).multiply(bones[rig.legs[side].foot].quaternion);for(let x=0;x<2;x++)for(let y=0;y<2;y++)for(let z=0;z<2;z++)lowest=Math.min(lowest,ankle.y+point.set(x?max[0]:min[0],y?max[1]:min[1],z?max[2]:min[2]).applyQuaternion(foot).y);}
+ if(lowest<.008)bones[0].position.y+=.008-lowest;
+}
 export function applyFootballShotPreparation(bones,amount){
  const rig=rigFor(bones);if(!rig)return false;const weight=clamp(amount,0,1);if(weight<=0)return true;bones[0].position.y-=.10*weight;
  placeFoot(bones,rig.legs[0],rig,(hip,target)=>target.set(hip.x+.025,.085,hip.z+.12),0,weight);

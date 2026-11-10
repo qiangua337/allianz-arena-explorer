@@ -5,7 +5,7 @@ registerHooks({resolve(specifier,context,next){return specifier==='three'?{url:n
 // Rendering is verified in the browser. This canvas stub lets the actual
 // scene builders supply their collision geometry to the walking regression.
 const context=new Proxy({createRadialGradient:()=>({addColorStop(){}}),createLinearGradient:()=>({addColorStop(){}}),measureText:t=>({width:String(t).length*20}),getImageData:(x,y,w,h)=>({data:new Uint8ClampedArray(w*h*4)})},{get:(o,k)=>k in o?o[k]:()=>{}});
-globalThis.document={body:{dataset:{}},getElementById:()=>({hidden:true,style:{},classList:{toggle(){}},focus(){}}),createElement:()=>({width:0,height:0,getContext:()=>context}),createElementNS:()=>{const listeners={};return{addEventListener:(k,f)=>listeners[k]=f,removeEventListener:()=>{},set src(value){queueMicrotask(()=>listeners.load?.call(this));}};}};
+globalThis.document={body:{dataset:{}},getElementById:()=>({hidden:true,style:{},setAttribute(k,v){this[k]=v;},classList:{toggle(){}},focus(){}}),createElement:()=>({width:0,height:0,getContext:()=>context}),createElementNS:()=>{const listeners={};return{addEventListener:(k,f)=>listeners[k]=f,removeEventListener:()=>{},set src(value){queueMicrotask(()=>listeners.load?.call(this));}};}};
 const {THREE,loadBrandAssets}=await import('../dist/kit.js');
 const {buildStadium}=await import('../dist/stadium.js');
 const {buildInteriors,roomSpecs}=await import('../dist/interiors.js');
@@ -169,6 +169,35 @@ test('arrival stays complete while exploring; selecting a new destination resume
  const exploring=new THREE.Vector3(-88,-1,7);guide.update(exploring,0,2.5,'walk');assert.equal(guide.getRoute().length,0);
  guide.setGoal('entrance',exploring);guide.update(exploring,0,.2,'walk');assert.ok(guide.getRoute().length>1);assert.ok(guide.getRoute().some(n=>n.id==='homeDoor'));
  const start={x:exploring.x,y:exploring.y-1.7,z:exploring.z};assert.equal(walkSegmentClear(start,guide.getRoute()[0],geometry,navigationObstacles(start,obstacleGroups)),true,'the next instruction uses a clear aisle from the actual position');
+});
+
+test('arriving by another open aisle does not require backtracking through stale waypoints',()=>{
+ const guide=buildWalkGuide(scene,geometry,{obstacles:obstacleGroups}),start=new THREE.Vector3(0,-1.2,113),n=tourNodes.concourse,end=new THREE.Vector3(n.x,n.y+1.7,n.z);
+ guide.setGoal('concourse',start);guide.update(start,0,.2,'walk');assert.ok(guide.getRoute().length>1);
+ const nearby=new THREE.Vector3(97.175,13.9,-46.634);guide.update(nearby,0,.2,'walk');assert.equal(guide.isArrived(),false);assert.deepEqual(guide.getRoute().map(p=>p.id),['concourse'],'the real observed location has an open final aisle');
+ guide.update(end,0,.2,'walk');assert.equal(guide.isArrived(),true);assert.equal(guide.getRoute().length,0);assert.equal(document.body.dataset.guideState,'arrived');
+ const otherFloor=new THREE.Vector3(94,-1.2,-47);guide.setGoal('concourse',otherFloor);guide.update(otherFloor,0,.2,'walk');assert.equal(guide.isArrived(),false,'the same map coordinate on the entrance floor is not an arrival');
+});
+
+test('the compact arrival action names the next place and starts a real walk from the current position',()=>{
+ const original=document.getElementById,nodes=new Map();document.getElementById=id=>{if(!nodes.has(id))nodes.set(id,{hidden:true,style:{},setAttribute(k,value){this[k]=value;},classList:{toggle(){}},focus(){}});return nodes.get(id);};
+ try{
+  const guide=buildWalkGuide(scene,geometry,{obstacles:obstacleGroups}),p=new THREE.Vector3(0,-1.2,113);guide.update(p,0,.2,'walk');guide.arrive('arcade',p);
+  const next=nodes.get('guide-next');assert.equal(guide.captureState().collapsed,true);assert.equal(next.hidden,false);assert.equal(next['aria-label'],'步行前往公共大厅');
+  const before=p.clone();next.onclick();assert.equal(guide.getGoal(),'concourse');assert.deepEqual(p,before,'continuing must not teleport');assert.ok(guide.getRoute().length>1);assert.equal(guide.getRoute().at(-1).id,'concourse');assert.equal(next.hidden,true);
+ }finally{document.getElementById=original;}
+});
+
+test('arrival follows the selected guided itinerary and completes its last stop instead of falling back to reception',async()=>{
+ const{createWalkingTour}=await import('../dist/walk-tours.js'),tour=createWalkingTour(),original=document.getElementById,nodes=new Map();
+ document.getElementById=id=>{if(!nodes.has(id))nodes.set(id,{hidden:true,style:{},setAttribute(k,value){this[k]=value;},classList:{toggle(){}},focus(){}});return nodes.get(id);};
+ try{
+  let completed=false;const guide=buildWalkGuide(scene,geometry,{obstacles:obstacleGroups,nextDestination:()=>tour.state()?.nextGoal,onContinue:()=>{if(!tour.state())return false;const id=tour.next();if(id)guide.setGoal(id);else completed=true;return true;}});tour.start('players');
+  for(const [goal,next]of[['homeRoom','tunnel'],['tunnel','pitch'],['pitch','guestRoom'],['guestRoom','press'],['press',null]]){
+   const n=tourNodes[goal],p=new THREE.Vector3(n.x,n.y+1.7,n.z);guide.update(p,0,.2,'walk');tour.update(goal,true);guide.arrive(goal,p);assert.equal(nodes.get('guide-next')['aria-label'],next?'步行前往'+({tunnel:'球员入场通道',pitch:'草坪',guestRoom:'客队更衣室',press:'新闻发布厅'}[next]):'完成当前步行导览');nodes.get('guide-next').onclick();if(next)assert.equal(guide.getGoal(),next);
+  }
+  assert.equal(completed,true);assert.equal(tour.state(),null);
+ }finally{document.getElementById=original;}
 });
 
 test('leaving a temporary experience restores the prior guide selection and arrival',()=>{

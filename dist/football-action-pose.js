@@ -1,4 +1,4 @@
-import {applyFootballKick,applyFootballShotPreparation} from './football-kick-pose.js';
+import {applyFootballKick,applyFootballShotPreparation,keepFootballBootsAboveFloor,liftFootballBootsAboveFloor} from './football-kick-pose.js';
 // Football strokes layer over the CC0 locomotion clips before the skeleton's
 // single world update. Kicks plant their support foot and begin at contact.
 export function applyFootballAction(bones,motion,{defending=false,speed=0}={}){
@@ -16,7 +16,11 @@ export function applyFootballAction(bones,motion,{defending=false,speed=0}={}){
   const fall=Math.min(1,motion.elapsed/.32),rise=motion.elapsed<.58?1:Math.max(0,1-(motion.elapsed-.58)/Math.max(.15,motion.duration-.58)),lean=Math.sin(fall*Math.PI/2)*rise,side=motion.direction||1;
   bones[0].rotateZ(-side*1.08*lean);bones[0].position.y-=.36*lean;bones[0].position.x+=side*.13*lean;
   bones[6].rotateX(-.85*lean);bones[12].rotateX(-.85*lean);bones[6].rotateZ(-.40*lean);bones[12].rotateZ(.40*lean);bones[7].rotateZ(-.18*lean);bones[13].rotateZ(.18*lean);bones[16].rotateX(.35*lean);
+  // Dives have no fixed support foot. Keep the local skinned pose clear of
+  // the turf without moving the authoritative player or changing save reach.
+  if(lean>0){bones[0].position.y=Math.max(.28,bones[0].position.y);liftFootballBootsAboveFloor(bones);}
  }
+ if(motion?.type==='trap'||motion?.type==='tackle')keepFootballBootsAboveFloor(bones);
  if(defending){bones[6].rotateZ(-.13);bones[12].rotateZ(.13);bones[2].rotateX(.07);}
  else if(speed>5.5)bones[2].rotateX(Math.min(.11,(speed-5.5)*.055));
 }

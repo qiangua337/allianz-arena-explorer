@@ -7,11 +7,12 @@ export function saveFootballSettings(storage,settings){try{storage?.setItem('are
 export function turnFootballer(current,target,limit){let delta=Math.atan2(Math.sin(target-current),Math.cos(target-current));return current+Math.max(-limit,Math.min(limit,delta));}
 export function cursorCandidate(players,ball,{exclude=null,team='home',direction=null,from=null}={}){
  const owner=players.find(p=>p.id===ball.ownerId),point={x:ball.x+(ball.vx||0)*.22,z:ball.z+(ball.vz||0)*.22},reference=from||players.find(p=>p.id===exclude)||players.find(p=>p.team===team),ownGoal=-(reference?.attackSign??(team==='home'?-1:1))*52.5,strength=Math.hypot(direction?.x||0,direction?.z||0);
- return players.filter(p=>!p.dismissed&&p.team===team&&!p.keeper&&p.id!==exclude).map(p=>{
+ let nearest=null,best=Infinity;for(const p of players){if(p.dismissed||p.team!==team||p.keeper||p.id===exclude)continue;
   const distance=Math.hypot(p.x-point.x,p.z-point.z),behindBall=(p.z-point.z)*Math.sign(ownGoal)<-1.5;
   const dx=p.x-(reference?.x??point.x),dz=p.z-(reference?.z??point.z),gap=Math.hypot(dx,dz),aim=reference&&strength>.18&&gap>1?(dx*direction.x+dz*direction.z)/(gap*strength):0;
-  return{p,score:distance+(owner?.team===team&&owner.id===p.id?-6:0)+(owner?.team!==team&&behindBall?1.8:0)-aim*8};
- }).sort((a,b)=>a.score-b.score)[0]?.p||null;
+  const score=distance+(owner?.team===team&&owner.id===p.id?-6:0)+(owner?.team!==team&&behindBall?1.8:0)-aim*8;
+  if(score<best){best=score;nearest=p;}
+ }return nearest;
 }
 // A defender must reach the actual exposed ball. A nearby body alone is
 // insufficient, especially when the carrier has turned their back to shield.

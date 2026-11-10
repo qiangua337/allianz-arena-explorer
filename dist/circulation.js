@@ -1,4 +1,5 @@
 import {compactStaticMeshes} from './scene-budget.js';
+import {positionStateChanged} from './position-state.js';
 import {finishReception,finishedBox,contactShadow} from './finishes.js';
 import {inCoreShaft,publicWallOpening,clearCore,roomFootprint} from './building-layout.js';
 import {THREE,TAU,v,mat,mesh,box,beam,canvasTexture,repeatTex,floorTexture,ringGeometry,Batches,mergeGeometry,addCrest} from './kit.js';
@@ -296,7 +297,9 @@ export function buildCirculation(parent){
   for(const stair of accessStairs)atlas.add(g,stair.id+' · AUSGANG','ESPLANADE ↓',4,.7,stair.topX-stair.nx,15.6,stair.topZ-stair.nz,stair.yaw+Math.PI,{bg:'#356b55'});
   b.flush();atlas.finish(g);
  }
+ const visibilityChanged=positionStateChanged();
  function update(position,privateEnclosed=false){
+  if(!visibilityChanged(position,lightingNight))return;
   const nearby=position.y<9&&((Math.abs(position.x)/122)**2.8+(Math.abs(position.z)/140)**2.8<1.2);
   root.visible=true;for(const light of lamps)light.visible=lightingNight&&nearby&&light.position.distanceTo(position)<32;
  }

@@ -9,9 +9,10 @@ import {normalizeDestination} from './arrivals.js';
 import {destinationName} from './destinations.js';
 import {ribbonPoints} from './ribbon-path.js';
 import {playerLinks,containsFloor} from './player-area-layout.js';
+import {nextWalkDestination} from './walk-continuation.js';
 
 export function floorLabel(y,position){if(position){const{x,z}=position;if(inCoreShaft(x,z)&&!coreLevels.some(level=>Math.abs(level-y)<.5))return'楼梯间';if(y<3&&(x>-95&&x<-40&&z>-43&&z<49||playerLinks.some(r=>containsFloor(r,x,z))))return'球员层';if(y>=-.3&&Math.abs(x)<42&&Math.abs(z)<60)return'球场层';}return y<2?'入口层':y<18?'公共大厅层':y<32?'包厢 / 中层':'上层看台';}
-export function buildWalkGuide(scene,geometry,{obstacles={},onChoose,onSelect,onWalk,onTeleport}={}){
+export function buildWalkGuide(scene,geometry,{obstacles={},onChoose,onSelect,onWalk,onTeleport,onContinue,nextDestination}={}){
  const $=id=>document.getElementById(id),panel=$('walk-guide'),select=$('guide-goal'),arrow=$('guide-arrow'),title=$('guide-title'),detail=$('guide-detail'),next=$('guide-next');
  const walkButton=$('guide-walk'),teleportButton=$('guide-teleport'),goalName=$('guide-goal-name'),distanceText=$('guide-distance');
  const group=new THREE.Group();scene.add(group);const positions=new Float32Array(4096*6*3),geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.BufferAttribute(positions,3).setUsage(THREE.DynamicDrawUsage));
@@ -26,12 +27,13 @@ export function buildWalkGuide(scene,geometry,{obstacles={},onChoose,onSelect,on
  select.onclick=()=>onChoose?.();
  $('guide-collapse').onclick=()=>{collapsed=!collapsed;panel.classList.toggle('collapsed',collapsed);$('guide-collapse').textContent=collapsed?'详情':'收起';};
  walkButton.onclick=()=>{expand();onWalk?.();};teleportButton.onclick=()=>onTeleport?.(goal);
- next.onclick=()=>choose(goal==='arcade'?'concourse':goal==='concourse'?'store':goal==='store'?'museum':goal==='museum'?'lounge':goal==='lounge'?'stands':goal==='pitch'?'tunnel':goal==='tunnel'?'homeRoom':'arcade');
+ const following=()=>{const id=nextDestination?.();return id===undefined?nextWalkDestination(goal):id;};
+ next.onclick=()=>{if(!arrived)return;if(onContinue?.())return;const id=following();if(id)choose(id);};
  function refresh(yaw=0){
   panel.hidden=suppressed||lastMode!=='walk'&&!selected;group.visible=!suppressed&&lastMode==='walk'&&!blocked&&!arrived;
   const p=feet(lastPosition);document.body.dataset.destination=goal;document.body.dataset.guideState=arrived?'arrived':blocked?'blocked':'routing';
-  walkButton.hidden=lastMode==='walk';teleportButton.title='传送到'+tourGoals[goal]+'（T）';next.hidden=!arrived;distanceText.textContent=arrived?floorLabel(p.y,p):lastMode==='walk'?'沿地面指引前行':'步行 / 直接传送';
-  if(arrived){document.body.dataset.routeMetres=0;title.textContent='已到达 · '+tourGoals[goal];detail.textContent='自由探索，靠近门、展品与设施可按 F 互动。';arrow.textContent='✓';arrow.style.transform='none';next.textContent='下一站 →';document.body.dataset.guideTarget=goal;delete document.body.dataset.guidePoint;}
+  panel.classList.toggle('arrived',arrived&&lastMode==='walk');walkButton.hidden=lastMode==='walk';teleportButton.title='传送到'+tourGoals[goal]+'（T）';next.hidden=!arrived||lastMode!=='walk';distanceText.textContent=arrived?floorLabel(p.y,p):lastMode==='walk'?'沿地面指引前行':'步行 / 直接传送';
+  if(arrived){const id=following();document.body.dataset.routeMetres=0;title.textContent='已到达 · '+tourGoals[goal];detail.textContent='自由探索，靠近门、展品与设施可按 F 互动。';arrow.textContent='✓';arrow.style.transform='none';next.textContent=id?destinationName(id)+' →':'完成导览';next.setAttribute('aria-label',id?'步行前往'+destinationName(id):'完成当前步行导览');next.title=id?'步行前往'+destinationName(id):'完成当前步行导览';document.body.dataset.guideTarget=goal;delete document.body.dataset.guidePoint;}
   else if(blocked){title.textContent='当前位置暂未找到可通行路线';detail.textContent='回到开放过道后会重新规划，也可直接传送。';arrow.textContent='!';arrow.style.transform='none';document.body.dataset.guideTarget='';delete document.body.dataset.guidePoint;}
   else if(lastMode!=='walk'){title.textContent='已选择 · '+tourGoals[goal];detail.textContent='从上次步行位置出发，或直接传送到目的地。';arrow.textContent='↗';arrow.style.transform='none';}
   else if(path.length){const target=path[0],instruction=movementInstruction(p,yaw,target,path[1]);arrow.textContent='↑';arrow.style.transform=`rotate(${instruction.angle}rad)`;title.textContent=instruction.action;distanceText.textContent=Math.round(instruction.distance)+' m · '+floorLabel(p.y,p);const summary=routeSummary(p,path);distanceText.textContent=Math.round(instruction.distance)+' m · 余 '+summary.metres+' m';detail.textContent=floorLabel(p.y,p)+' · '+instruction.hint+' 距离目的地约 '+summary.metres+' 米，步行约 '+Math.max(1,Math.ceil(summary.seconds/60))+' 分钟。';document.body.dataset.routeMetres=summary.metres;document.body.dataset.guideTarget=target.id;document.body.dataset.guidePoint=[target.x,target.y,target.z].join(',');}
@@ -41,6 +43,13 @@ export function buildWalkGuide(scene,geometry,{obstacles={},onChoose,onSelect,on
   eyeHeight=currentEyeHeight;lastPosition.copy(position);lastMode=mode;if(suppressed){panel.hidden=true;group.visible=false;return;}timer+=dt;planClock+=dt;if(timer<.12)return;timer=0;const p=feet(position);
   if(!anchor)reset(position);
   const walls=navigationObstacles(p,obstacles);
+  // A visitor may take another open aisle instead of visiting every old node.
+  // Arrival still requires the same floor and an unobstructed final segment.
+  const destination=tourNodes[goal],remaining=Math.hypot(p.x-destination.x,p.z-destination.z);
+  if(!arrived&&remaining<8&&Math.abs(p.y-destination.y)<1&&walkSegmentClear(p,destination,geometry,walls)){
+   blocked=false;if(remaining<2.3){path=[];arrived=true;lastDraw=null;}
+   else if(path.length!==1||path[0].id!==goal){anchor={...p};path=[destination];lastDraw=null;}
+  }
   // Never advance a corner if the resulting shortcut crosses a fixture.
   while(path.length&&waypointReached(p,path[0],anchor,path[1],path.length===1)&&(!path[1]||walkSegmentClear(p,path[1],geometry,walls))){anchor=path.shift();lastDraw=null;}
   if(!path.length&&!blocked&&!arrived){const destination=tourNodes[goal];if(Math.hypot(p.x-destination.x,p.z-destination.z)<2.3&&Math.abs(p.y-destination.y)<1)arrived=true;else reset(position);}

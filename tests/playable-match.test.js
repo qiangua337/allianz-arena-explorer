@@ -33,6 +33,7 @@ test('instant cursor and tackle controls survive canceled touches, focus clearin
  button.fire('pointerdown',{...touch,pointerId:12});assert.notEqual(game.state.controlledId,next);game.clearInput();const frozen=game.state.controlledId;button.fire('click',{detail:1});assert.equal(game.state.controlledId,frozen);
  game.setPaused(true);button.fire('pointerdown',{...touch,pointerId:13});assert.equal(game.state.controlledId,frozen);game.setPaused(false);game.exit();game.start();game.ready();run(game,3.1);button.fire('pointerdown',{...touch,pointerId:14});assert.notEqual(game.state.controlledId,'home-1','a previous held pointer cannot block a new match');
  const s=game.state,p=s.players.find(p=>p.id===s.controlledId);s.ball.ownerId=null;s.ball.x=p.x+1.2;s.ball.z=p.z;s.ball.y=.11;p.tackleAt=0;game.update(1/60,{},{});
+ assert.equal(document.body.dataset.controlContext,'loose');assert.equal(node('game-tackle').disabled,false,'possession change enables the action on the first frame');assert.equal(node('game-tackle-label').textContent,'争球');assert.equal(node('game-shoot').disabled,false,'the loose-ball layout also preserves one-touch shooting');
  node('game-tackle').fire('pointerdown',{...touch,pointerId:15});assert.equal(p.motion.type,'tackle','the actual tackle motion starts before the finger is released');
 });
 
@@ -77,9 +78,33 @@ test('control assistance can change during a match without resetting it, and pre
  node('game-control-mode').onclick();assert.equal(game.state.controlMode,'semi');
 });
 
+test('mobile expanded settings change assistance and shot type without restarting or kicking',()=>{
+ const{game,node}=fixture(true);game.start();game.ready();run(game,3.2);node('game-more').onclick();
+ const before={elapsed:game.state.elapsed,controlled:game.state.controlledId,owner:game.state.ball.ownerId,score:{...game.state.score},shots:game.state.stats.home.shots};
+ assert.equal(node('game-assist-toggle')['aria-label'],'切换换人辅助，当前半自动');
+ node('game-assist-toggle').onclick();assert.equal(game.state.controlMode,'assisted');assert.equal(node('game-control-mode').textContent,'辅助 ↻');
+ node('game-assist-toggle').onclick();assert.equal(game.state.controlMode,'manual');node('game-control-mode').onclick();assert.equal(game.state.controlMode,'semi');assert.equal(node('game-assist-toggle').textContent,'半自动 ↻');
+ node('game-shot-toggle').onclick();assert.equal(game.state.shotKind,'finesse');assert.equal(node('game-shot-mode').textContent,'搓射 Z');
+ node('game-shot-mode').onclick();assert.equal(game.state.shotKind,'lob');assert.equal(node('game-shot-toggle').textContent,'挑射 ↻');
+ assert.equal(game.state.elapsed,before.elapsed);assert.equal(game.state.controlledId,before.controlled);assert.equal(game.state.ball.ownerId,before.owner);assert.deepEqual(game.state.score,before.score);assert.equal(game.state.stats.home.shots,before.shots);assert.equal(game.state.paused,false);
+ game.setPaused(true);assert.equal(node('game-ui').dataset.more,'false');assert.equal(node('game-overlay-settings').hidden,false);node('game-overlay-assist').onclick();assert.equal(game.state.controlMode,'assisted');node('game-overlay-shot').onclick();assert.equal(game.state.shotKind,'drive');assert.equal(game.state.paused,true);assert.equal(game.state.elapsed,before.elapsed);assert.deepEqual(game.state.score,before.score);
+});
+
 test('a charged shot releases exactly once, pointer cancellation and pausing discard it safely',()=>{
  const speeds=[];for(const hold of[.1,.8]){const{game,node}=fixture();game.start();game.ready();run(game,3.1);assert.equal(game.beginCharge(),true);run(game,hold);assert.equal(node('game-shoot')['aria-pressed'],'true');assert.equal(game.releaseCharge(),true);assert.equal(game.state.stats.home.shots,1);assert.equal(game.releaseCharge(),false);speeds.push(Math.hypot(game.state.ball.vx,game.state.ball.vz));}assert.ok(speeds[1]>speeds[0]+7);
  const{game,node}=fixture();game.start();game.ready();run(game,3.1);const shoot=node('game-shoot');shoot.fire('pointerdown',{pointerId:9,preventDefault(){}});run(game,.3);shoot.fire('pointercancel',{pointerId:9});assert.equal(game.state.chargePower,0);assert.equal(game.state.stats.home.shots,0);assert.equal(game.releaseCharge(),false);assert.equal(game.beginCharge(),true);game.setPaused(true);game.setPaused(false);assert.equal(game.releaseCharge(),false);assert.equal(game.state.stats.home.shots,0);
+});
+
+test('manual support play explains teammate possession and offers switching instead of an ineffective tackle',()=>{
+ const{game,node}=fixture(true);game.start();game.ready();run(game,3.1);game.setControlMode('manual');const state=game.state,controlled=state.controlledId,mate=state.players.find(p=>p.team==='home'&&p.id!==controlled&&!p.keeper);
+ Object.assign(state.ball,{ownerId:mate.id,x:mate.x,z:mate.z});game.setControlMode('manual');assert.equal(node('game-ball-hint').textContent,'队友控球 · 换控接管');assert.equal(node('game-tackle').disabled,true);assert.equal(node('game-pressure').disabled,true);assert.equal(node('action-switch').disabled,false);assert.equal(node('action-pass').disabled,true);
+ node('action-switch').fire('click',{detail:0,preventDefault(){}});assert.equal(state.controlledId,mate.id);assert.equal(node('action-pass').disabled,false);assert.equal(node('game-pressure').disabled,false);
+});
+
+test('a loose ball leaving shooting range cancels touch charge and old fingers cannot fire or block the next shot',()=>{
+ const{game,node}=fixture(true);game.start();game.ready();run(game,3.1);game.setControlMode('manual');const s=game.state,p=s.players.find(p=>p.id===s.controlledId);for(const other of s.players)if(other!==p)Object.assign(other,{x:25,z:45,vx:0,vz:0});Object.assign(p,{x:0,z:0,vx:0,vz:0});Object.assign(s.ball,{ownerId:null,x:4,y:.11,z:0,vx:25,vy:0,vz:0,targetId:null});
+ const shoot=node('game-shoot');shoot.fire('pointerdown',{pointerId:91,preventDefault(){}});assert.equal(shoot['aria-pressed'],'true');run(game,.3);assert.ok(Math.hypot(s.ball.x-p.x,s.ball.z-p.z)>5);assert.equal(shoot['aria-pressed'],'false');assert.equal(s.chargePower,0);assert.equal(s.stats.home.shots,0);
+ Object.assign(s.ball,{ownerId:p.id,x:p.x,y:.11,z:p.z-.6,vx:0,vy:0,vz:0});shoot.fire('pointerdown',{pointerId:92,preventDefault(){}});assert.equal(shoot['aria-pressed'],'true');run(game,.1);shoot.fire('pointerup',{pointerId:91});assert.equal(s.stats.home.shots,0);assert.equal(shoot['aria-pressed'],'true');shoot.fire('pointerup',{pointerId:92});assert.equal(s.stats.home.shots,1);assert.equal(shoot['aria-pressed'],'false');
 });
 
 test('clearing focus input cancels held charge and pressure without pausing or firing a delayed shot',()=>{
