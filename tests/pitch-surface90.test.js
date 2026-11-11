@@ -10,7 +10,7 @@ function compiled(){const shader={uniforms:{},vertexShader:THREE.ShaderLib.stand
 
 test('nearby turf stays within its fixed two draw and 16k/26k instance budget, with low mode disabled',()=>{
  const camera=new THREE.PerspectiveCamera();camera.position.set(1.001,1.7,-.713);surface.update(camera);assert.equal(root.children.length,2);assert.equal(tufts.geometry.attributes.position.count,5);assert.equal(tufts.geometry.index.count,9);assert.equal(tufts.geometry.attributes.bladeOffset.count,26000);assert.equal(tufts.geometry.instanceCount,16000);assert.equal(tufts.visible,true);
- const shader=compiled();assert.deepEqual(shader.uniforms.bladeCenter.value.toArray(),[1.001,-.713]);camera.position.x=1.002;surface.update(camera,true);assert.equal(tufts.geometry.instanceCount,26000);assert.equal(shader.uniforms.bladeCenter.value.x,1.002,'continuous fade window does not snap every two metres');surface.update(camera,true,true);assert.equal(tufts.visible,false);camera.position.y=10;surface.update(camera);assert.equal(tufts.visible,false);
+ const shader=compiled();assert.deepEqual(shader.uniforms.bladeCenter.value.toArray(),[1.001,-.713]);camera.position.x=1.002;surface.update(camera,true);assert.equal(tufts.geometry.instanceCount,26000);assert.equal(shader.uniforms.bladeCenter.value.x,1.002,'continuous fade window does not snap every two metres');surface.update(camera,false,false,true);assert.equal(tufts.geometry.instanceCount,8500);assert.equal(tufts.visible,true);surface.update(camera,true,true);assert.equal(tufts.visible,false);camera.position.y=10;surface.update(camera);assert.equal(tufts.visible,false);
 });
 
 test('the grass shader rotates its normals before normal projection and removes fully faded triangles before rasterization',()=>{

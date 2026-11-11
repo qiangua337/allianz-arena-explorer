@@ -2,6 +2,12 @@
 
 人物参考真实人体比例与足球游戏的入场呈现方式，使用 MakeHuman 通用人体拓扑、皮肤和骨骼权重。
 
+## 9.7.2 画面与特写
+
+球员特写使用三分之四视角起步，保留正面、侧面和全身。灯光随查看角度调整，以便阅读轮廓；布光与材质方案调研了 [Three.js 室内环境示例](https://github.com/mrdoob/three.js/blob/dev/examples/jsm/environments/RoomEnvironment.js) 和 [材质示例](https://github.com/mrdoob/three.js/blob/dev/examples/webgl_materials_physical_clearcoat.html)。特写按需渲染，浏览器不会为特写资源在比赛画面再开一轮绘制。调研了 [3DDFA_V2](https://github.com/cleardusk/3DDFA_V2) 的离线对齐方法，未将其推理库与模型权重加入游戏。
+
+两张面部贴图使用已署名的真人照片重绘颜色和肤质，眼睛、唇线和头部轮廓仍由比赛模型呈现。新版两张 WebP 共 17,716 字节。摄影署名和衍生贴图的 CC BY-SA 4.0 许可见[影像与字体来源](../dist/visual-credits.html)。可通过 `python scripts/bake-player-portraits.py --kane-photo /path/to/credited-kane-219-crop.jpg` 重新生成。
+
 ## 9.7.1 正面与侧面
 
 依据 [凯恩正面肖像](https://www.bundesliga.com/pt/jogador/harry-kane)、[拜仁凯恩采访](https://fcbayern.com/fcbayerntv/de/video/2024/08/video-interview-mit-harry-kane-vor-dem-testspiel-bei-tottenham-hotspur)、[穆西亚拉官方肖像](https://fcbayern.com/en/teams/first-team/jamal-musiala)和[拜仁训练图集](https://fcbayern.com/de/bilder/2026/05/galerie-in-neuer-teamline-start-der-psg-vorbereitung)校正脸部比例。另参考 [eFootball 官方展示](https://www.konami.com/games/ca/en/topics/2259/) 的面部呈现。照片和商业游戏画面只作为造型参考，发布的蒙皮和贴图以现有 MakeHuman CC0 资源为底。

@@ -1,12 +1,14 @@
 import {THREE} from './kit.js';
 
 export function createGoalNetMaterial(){
- const material=new THREE.LineBasicMaterial({color:0xdde5df,transparent:true,opacity:.72}),time={value:10},hit={value:new THREE.Vector2()},power={value:0};
+ const material=new THREE.LineBasicMaterial({color:0xe6e9e3,transparent:true,opacity:.53,depthWrite:false}),time={value:10},hit={value:new THREE.Vector2()},power={value:0};
  material.onBeforeCompile=shader=>{Object.assign(shader.uniforms,{netTime:time,netHit:hit,netPower:power});shader.vertexShader='uniform float netTime;uniform vec2 netHit;uniform float netPower;\n'+shader.vertexShader;shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>',`#include <begin_vertex>
 float netDistance=length(position.xy-netHit);
 float netWave=sin(netDistance*7.-netTime*15.)*exp(-netDistance*.55)*exp(-netTime*3.8);
-transformed.z+=netWave*netPower*smoothstep(0.,.65,position.z);`);};
- material.customProgramCacheKey=()=> 'goal-net-impact-v4';
+float netAnchoring=smoothstep(.02,.34,position.y)*smoothstep(0.,.90,position.z);
+float tiedCorner=smoothstep(3.26,3.59,abs(position.x))*smoothstep(2.18,2.44,position.y);
+transformed.z+=netWave*netPower*netAnchoring*(1.-tiedCorner);`);};
+ material.customProgramCacheKey=()=> 'goal-net-impact-v5';
  return{material,pulse(x,y){hit.value.set(x,y);time.value=0;power.value=.34;},update(dt){time.value=Math.min(10,time.value+Math.max(0,Math.min(.25,dt)));},reset(){time.value=10;power.value=0;}};
 }
 

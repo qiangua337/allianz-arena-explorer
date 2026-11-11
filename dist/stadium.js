@@ -2,6 +2,7 @@ import {buildBucketSeat} from './facility-equipment.js';
 import {drawPitchArtwork,drawApronArtwork} from './pitch-artwork.js';
 import {buildPitchsideDetails} from './pitchside-details.js';
 import {createGoalNetMaterial,goalFeedbackController} from './goal-feedback.js';
+import {buildGoalNetGeometry} from './goal-net.js';
 import {fitoutShaderCuts} from './room-volumes.js';
 import {surfaceMaps} from './visual-assets.js';
 import {buildNearSeatDetails,detailedSeatGeometry} from './near-seat-details.js';
@@ -134,7 +135,7 @@ export function buildStadium(scene){
   const glass=mat(0xa5c6d9,{transparent:true,opacity:.21,metalness:.2,roughness:.2,side:THREE.DoubleSide,depthWrite:false});box(g,.08,2.5,17,-1.6,1.55,0,glass);box(g,3.3,.08,17,0,2.8,0,glass);for(let j=0;j<7;j++){const z=-8.5+j*17/6;beam(g,v(-1.65,.2,z),v(-1.65,2.8,z),.035,steel);beam(g,v(-1.65,2.8,z),v(1.65,2.8,z),.035,steel);}const a=sign(g,'FC BAYERN MÜNCHEN',15,.36,-1.71,2.65,0,{font:65,h:128});a.rotation.y=-Math.PI/2;compactGroup(g);
  }
  batch.flush();compactGroup(closeLabels);const pitchside=buildPitchsideDetails(bowl);const bowlLighting=buildBowlLighting(bowl),visibilityChanged=positionStateChanged();
- return {root,roof,circulation,bowl,matchBall,updateMatchEffects:feedback.update,resetMatchEffects:feedback.reset,get detailSeatCount(){return nearSeats.count;},setMatchday:screens.setMatchday,setMatchScore:screens.setMatchScore,seatCount:seats.length,seatPositions:seats,panelCount,tiers,update(camera,mode='orbit',high=false,low=false,playing=false){const small=typeof innerWidth==='number'&&innerWidth<=760,state=(mode==='walk'?1:0)|(high?2:0)|(low?4:0)|(playing?8:0)|(small?16:0);if(!visibilityChanged(camera.position,state))return;pitchSurface.update(camera,high,low);pitchside.update(camera.position,low);for(const shell of shellMeshes)shell.visible=!enclosedPlayerPosition(camera.position)&&(shell.userData.shellSection===1||facadeSectorVisible(camera.position,shell.userData.sectorCenter));bowl.visible=bowlIsVisible(camera.position,mode);nearSeats.update(camera.position,!playing&&bowl.visible&&(!low||mode==='walk'),low?32:high?384:small?128:192);roofDetails.visible=bowl.visible||camera.position.y>30;closeLabels.visible=camera.position.length()<180;for(const inst of seatInstances){const center=inst.boundingSphere.center;const distance=camera.position.distanceTo(center);const detail=seatingDetail({distance,high,low,playing,tunnel:camera.position.x> -70&&camera.position.x< -41&&Math.abs(camera.position.z)<3.5&&camera.position.y<3.5});inst.geometry=detail==='far'?farSeat:detail==='coarse'?coarseSeat:seatGeom;}},night(n){bowlLighting.night(n);circulation.night(n);shellMaterials[0].color.set(n?0xe52a49:0xe5e8e4);shellMaterials[0].emissive.set(n?0xd7082c:0x000000);shellMaterials[0].emissiveIntensity=n?.72:0;shellMaterials[0].roughness=n?.76:.58;shellMaterials[1].color.set(n?0xcfc0c4:0xf4f4ed);shellMaterials[1].emissive.set(n?0x9d1736:0x000000);shellMaterials[1].emissiveIntensity=n?.22:0;lightMaterial.color.set(n?0xf7fbff:0xb9c6cb);logo.material.map=logoBack.material.map=n?logoNightMap:logoDayMap;}};
+ return {root,roof,circulation,bowl,matchBall,updateMatchEffects:feedback.update,resetMatchEffects:feedback.reset,get detailSeatCount(){return nearSeats.count;},setMatchday:screens.setMatchday,setMatchScore:screens.setMatchScore,seatCount:seats.length,seatPositions:seats,panelCount,tiers,update(camera,mode='orbit',high=false,low=false,playing=false){const small=typeof innerWidth==='number'&&innerWidth<=760,state=(mode==='walk'?1:0)|(high?2:0)|(low?4:0)|(playing?8:0)|(small?16:0);if(!visibilityChanged(camera.position,state))return;pitchSurface.update(camera,high,low,small);pitchside.update(camera.position,low);for(const shell of shellMeshes)shell.visible=!enclosedPlayerPosition(camera.position)&&(shell.userData.shellSection===1||facadeSectorVisible(camera.position,shell.userData.sectorCenter));bowl.visible=bowlIsVisible(camera.position,mode);nearSeats.update(camera.position,!playing&&bowl.visible&&(!low||mode==='walk'),low?32:high?384:small?128:192);roofDetails.visible=bowl.visible||camera.position.y>30;closeLabels.visible=camera.position.length()<180;for(const inst of seatInstances){const center=inst.boundingSphere.center;const distance=camera.position.distanceTo(center);const detail=seatingDetail({distance,high,low,playing,tunnel:camera.position.x> -70&&camera.position.x< -41&&Math.abs(camera.position.z)<3.5&&camera.position.y<3.5});inst.geometry=detail==='far'?farSeat:detail==='coarse'?coarseSeat:seatGeom;}},night(n){bowlLighting.night(n);circulation.night(n);shellMaterials[0].color.set(n?0xe52a49:0xe5e8e4);shellMaterials[0].emissive.set(n?0xd7082c:0x000000);shellMaterials[0].emissiveIntensity=n?.72:0;shellMaterials[0].roughness=n?.76:.58;shellMaterials[1].color.set(n?0xcfc0c4:0xf4f4ed);shellMaterials[1].emissive.set(n?0x9d1736:0x000000);shellMaterials[1].emissiveIntensity=n?.22:0;lightMaterial.color.set(n?0xf7fbff:0xb9c6cb);logo.material.map=logoBack.material.map=n?logoNightMap:logoDayMap;}};
 }
 
 function buildPitch(root,batch,{white,dark,red,steel}){
@@ -145,10 +146,16 @@ function buildPitch(root,batch,{white,dark,red,steel}){
  const nets=[];
  for(const s of[-1,1]){
   const net=createGoalNetMaterial();nets.push(net);const g=new THREE.Group();g.position.z=s*52.5;if(s<0)g.rotation.y=Math.PI;root.add(g);
-  for(const x of[-3.66,3.66]){beam(g,v(x,.02,0),v(x,2.44,0),.06,white,12);beam(g,v(x,.02,2.1),v(x,2.44,1.5),.025,steel);beam(g,v(x,2.44,0),v(x,2.44,1.5),.025,steel);}beam(g,v(-3.66,2.44,0),v(3.66,2.44,0),.06,white,12);
-  const points=[];const line=(a,b)=>points.push(...a,...b);
-  for(let x=-3.66;x<3.67;x+=.15){line([x,0,2.1],[x,2.44,1.5]);line([x,2.44,0],[x,2.44,1.5]);}for(let y=0;y<2.45;y+=.15)line([-3.66,y,2.1-y/2.44*.6],[3.66,y,2.1-y/2.44*.6]);for(let z=0;z<=2.1;z+=.15)for(const x of[-3.66,3.66])line([x,0,z],[x,2.44,Math.min(z,1.5)]);for(let y=.15;y<2.44;y+=.15)for(const x of[-3.66,3.66])line([x,y,0],[x,y,2.1-y/2.44*.6]);
-  const ng=new THREE.BufferGeometry();ng.setAttribute('position',new THREE.Float32BufferAttribute(points,3));g.add(new THREE.LineSegments(ng,net.material));compactGroup(g);
+  for(const sign of [-1,1]){
+   const x=sign*3.66,post=sign*5.12,back=sign*3.595;
+   beam(g,v(x,.02,0),v(x,2.44,0),.06,white,12);
+   // The narrow supports and their ties stay behind and outside the goal net.
+   beam(g,v(post,.02,3.48),v(post,2.54,3.48),.028,steel,8);
+   beam(g,v(back,2.44,1.93),v(post,2.54,3.48),.009,steel,6);
+   beam(g,v(x,.02,0),v(back,.02,2.1),.016,steel,6);
+  }
+  beam(g,v(-3.66,2.44,0),v(3.66,2.44,0),.06,white,12);
+  const meshNet=new THREE.LineSegments(buildGoalNetGeometry(),net.material);meshNet.name='Goal net with joined top, back and side panels';g.add(meshNet);compactGroup(g);
  }
  for(const x of[-34.3,34.3])for(const z of[-52.8,52.8]){cylinder(root,.022,1.5,x,.75,z,white,6);const f=box(root,.48,.32,.008,x+.24,1.35,z,red);}
  // Centre ball, pitch sprinklers, photographers' stools and broadcast cameras.

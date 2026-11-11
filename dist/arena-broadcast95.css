@@ -1,10 +1,10 @@
 body.game-active {
-  --match-ink: #fff7ec;
-  --match-muted: #c6c0b8;
-  --match-surface: #201e20f5;
-  --match-inset: #171618f7;
-  --match-line: #fff7ec2e;
-  --match-red: #ab2340;
+  --match-ink: #faf7f0;
+  --match-muted: #c7c5d2;
+  --match-surface: #181923ef;
+  --match-inset: #11121bf5;
+  --match-line: #e2dceb36;
+  --match-red: #a52440;
   --match-gold: #f4d18d;
   --match-left: max(18px, calc(env(safe-area-inset-left, 0px) + 8px));
   --match-right: max(18px, calc(env(safe-area-inset-right, 0px) + 8px));
@@ -30,7 +30,7 @@ body.game-active {
   color: var(--match-ink);
   background: var(--match-surface);
   border-color: var(--match-line);
-  border-radius: 7px;
+  border-radius: 8px;
   box-shadow: 0 3px 12px #0004;
 }
 
@@ -80,8 +80,9 @@ body:not([data-game-training]:not([data-game-training=""])) #game-ui .game-score
   min-width: 0;
   font: 600 31px/1 var(--sport-font, system-ui);
   font-variant-numeric: tabular-nums;
-  background: #f3eee5;
-  color: #201b1d;
+  background: #31303e;
+  color: #fff8f2;
+  border-block-end: 2px solid #ee678280;
 }
 
 #game-ui .game-score .game-clock {
@@ -241,9 +242,10 @@ body.game-active #game-ui .game-actions button {
   background: var(--match-surface);
   color: var(--match-ink);
   border-color: var(--match-line);
-  border-radius: 11px;
+  border-radius: 14px;
   font-size: 13px;
-  font-weight: 550;
+  font-weight: 650;
+  box-shadow: inset 0 -2px 0 #0002, 0 2px 5px #0003;
 }
 
 #game-ui .game-actions kbd {
@@ -349,15 +351,15 @@ body.game-active #movement #touch-sprint {
 }
 
 #game-ui .game-overlay {
-  --panel: #201e20;
+  --panel: #181923;
   --ink: #fff7ec;
   --muted: #c6c0b8;
   --rule: #fff7ec2e;
   --subtle: #fff7ec0d;
-  background: #201e20fa !important;
+  background: #181923fa !important;
   border-color: var(--match-line);
   color-scheme: dark;
-  scrollbar-color: #746a71 #201e20;
+  scrollbar-color: #78758a #181923;
 }
 
 #game-ui #training-hud {
@@ -544,4 +546,24 @@ body.game-active #movement #touch-sprint {
   #game-ui:has(> .game-referee-note:not([hidden])) .game-shot-feedback {
     top: calc(var(--match-top) + var(--match-score-height) + 52px);
   }
+}
+
+/* Use the same button locations when play changes sides. Colour identifies
+   an available primary action without covering more of the pitch. */
+body.game-active #game-ui .game-actions button:disabled { opacity: .45; box-shadow: none }
+body.game-active[data-control-context="defend"] #game-ui #game-tackle:enabled {
+  background: #6c402d;
+  border-color: #e2aa7fbb;
+}
+body.game-active[data-control-context="attack"] #game-ui [data-game-action="pass"]:enabled,
+body.game-active[data-control-context="loose"] #game-ui [data-game-action="pass"]:enabled {
+  background: #2b4651;
+  border-color: #91c7d2b3;
+}
+body.game-active #game-ui .game-actions button:active:not(:disabled) {
+  box-shadow: inset 0 0 0 2px #fff7ec70;
+}
+@media (max-width: 760px), (max-height: 500px) {
+  body.game-active #game-ui .game-actions button { min-width: 44px; min-height: 44px }
+  #game-ui .game-player #game-ball-hint { line-height: 1.4; text-wrap: pretty }
 }

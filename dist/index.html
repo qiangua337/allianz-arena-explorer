@@ -9,7 +9,7 @@
  <script type="importmap">{"imports":{"three":"./vendor/three.module.js"}}</script>
 <link rel="stylesheet" href="museum.css?v=5100">
 <link rel="stylesheet" href="online.css?v=7100"><link rel="stylesheet" href="experience.css?v=9000"><link rel="stylesheet" href="arena90.css?v=9000"><link rel="stylesheet" href="arena91.css?v=9100"><link rel="stylesheet" href="arena92.css?v=9200">
-<link rel="stylesheet" href="arena-cover.css?v=9500"><link rel="stylesheet" href="arena-visit95.css?v=9500"><link rel="stylesheet" href="arena-match95.css?v=9500"><link rel="stylesheet" href="arena-broadcast95.css?v=9600"><link rel="stylesheet" href="player-studio.css?v=9710"></head>
+<link rel="stylesheet" href="arena-cover.css?v=9720"><link rel="stylesheet" href="arena-visit95.css?v=9720"><link rel="stylesheet" href="arena-match95.css?v=9720"><link rel="stylesheet" href="arena-broadcast95.css?v=9720"><link rel="stylesheet" href="player-studio.css?v=9720"></head>
 <body>
  <main id="viewer" aria-label="安联球场三维互动场景"><canvas id="scene" tabindex="0" aria-label="三维场景，第三人称可拖动环绕，第一人称可用 WASD 移动"></canvas></main>
  <div class="vignette"></div>
@@ -21,7 +21,7 @@
  <button class="nav-trigger glass" id="nav-trigger" aria-controls="explore" aria-expanded="false"><svg viewBox="0 0 20 20"><path d="M3 5h14M3 10h14M3 15h14"/></svg><span>选择区域</span></button>
  <button class="match-launch glass" id="matchday-launch" aria-label="打开比赛日选项"><span class="match-live-dot" aria-hidden="true"></span>比赛日选项 <span aria-hidden="true">↗</span></button>
  <aside class="explore glass" id="explore" hidden aria-label="探索主场">
-  <div class="section-heading"><span>去哪里探索</span><button id="toggle-nav" aria-label="关闭区域导航">×</button></div>
+  <div class="section-heading"><h2>场馆导航</h2><button id="toggle-nav" aria-label="关闭区域导航">×</button></div>
   <div class="explore-entrypoints"><button type="button" id="nav-visit-start">从正门开始</button><button type="button" id="nav-match-start">比赛大厅</button><button type="button" id="nav-museum-start">展览目录</button></div><label class="destination-search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></svg><input type="search" id="destination-search" placeholder="搜索地点" aria-label="搜索地点" autocomplete="off"></label>
   <div class="destination-tabs" role="tablist" aria-label="地点分类"><button role="tab" aria-selected="true" data-destination-group="all">全部</button><button role="tab" aria-selected="false" data-destination-group="public">大厅</button><button role="tab" aria-selected="false" data-destination-group="pitch">球场</button><button role="tab" aria-selected="false" data-destination-group="team">球员区</button><button role="tab" aria-selected="false" data-destination-group="outside">场外</button></div>
   <nav aria-label="场景区域" id="locations">
@@ -68,25 +68,25 @@
  <header class="hub-header"><span class="hub-wordmark"><i aria-hidden="true"></i> ALLIANZ ARENA</span><button id="hub-close">继续探索 <span aria-hidden="true">↗</span></button></header>
  <div class="hub-body">
  <section class="hub-stage" aria-labelledby="hub-title">
+  <img class="hub-stadium" src="assets/editorial/arena-night.webp" width="640" height="228" alt="安联球场夜景" fetchpriority="high" decoding="async">
   <div class="hub-lead">
-   <div class="hub-intro"><p class="hub-eyebrow">MÜNCHEN · DEUTSCHLAND</p><h1 id="hub-title">安联球场</h1><p class="hub-description">走进拜仁主场。踢一场比赛，或从看台走到球员通道。</p></div>
+   <div class="hub-intro"><p class="hub-eyebrow">MÜNCHEN, DE</p><h1 id="hub-title">安联球场</h1><p class="hub-description">拜仁慕尼黑的主场</p></div>
    <div class="hub-cta"><button class="hub-kickoff" data-hub-mode="match">开始比赛 <span aria-hidden="true">→</span></button><button class="hub-explore" data-hub-mode="explore">自由参观 <span aria-hidden="true">↗</span></button></div>
   </div>
-  <figure class="hub-feature" id="hub-cover" data-player="kane">
-   <img id="hub-cover-image" src="assets/editorial/kane.webp" width="1000" height="1022" alt="哈里·凯恩，拜仁热身服，2025年" fetchpriority="high" decoding="async">
-   <figcaption><span id="hub-cover-context">BAYERN / SALZBURG 2025</span><strong id="hub-cover-name">HARRY KANE</strong><small><span id="hub-cover-number">09</span> <span id="hub-cover-cn">哈里·凯恩</span></small></figcaption>
-   <div class="cover-picker" role="group" aria-label="球星影像"><button type="button" data-cover-player="kane" aria-pressed="true">KANE</button><button type="button" data-cover-player="musiala" aria-pressed="false">MUSIALA</button></div>
-  </figure>
  </section>
  <nav class="hub-directory" aria-labelledby="hub-mode-title">
   <h2 id="hub-mode-title">选择体验</h2>
   <div class="hub-modes">
-   <button data-hub-mode="training" class="hub-mode"><img class="hub-card-photo" src="assets/editorial/bayern-running.webp" alt="" decoding="async"><b>球场训练 <span aria-hidden="true">↗</span></b><p>控球、传球与射门</p></button>
-   <button data-hub-mode="online" class="hub-mode"><img class="hub-card-photo" src="assets/editorial/teammates.webp" alt="" decoding="async"><b>好友联机 <span aria-hidden="true">↗</span></b><p>创建房间 · 邀请朋友</p></button>
-   <button data-hub-mode="explore" class="hub-mode"><img class="hub-card-photo" src="assets/editorial/arena-night.webp" alt="" decoding="async"><b>自由参观 <span aria-hidden="true">↗</span></b><p>步行探索 · 一键传送</p></button>
-   <button data-hub-mode="entrance" class="hub-mode"><img class="hub-card-photo" src="assets/editorial/player-tunnel.webp" alt="" decoding="async"><b>球员入场 <span aria-hidden="true">↗</span></b><p>从通道走上球场</p></button>
+   <button data-hub-mode="training" class="hub-mode"><img class="hub-card-photo" src="assets/editorial/bayern-running.webp" width="493" height="820" alt="" loading="lazy" decoding="async"><b>球场训练 <span aria-hidden="true">↗</span></b><small>控球、传球与射门</small></button>
+   <button data-hub-mode="online" class="hub-mode"><img class="hub-card-photo" src="assets/editorial/teammates.webp" width="500" height="360" alt="" loading="lazy" decoding="async"><b>好友联机 <span aria-hidden="true">↗</span></b><small>房间码邀请</small></button>
+   <button data-hub-mode="entrance" class="hub-mode"><img class="hub-card-photo" src="assets/editorial/player-tunnel.webp" width="640" height="853" alt="" loading="lazy" decoding="async"><b>球员入场 <span aria-hidden="true">↗</span></b><small>从通道走上球场</small></button>
   </div>
  </nav>
+ <figure class="hub-feature" id="hub-cover" data-player="kane">
+  <img id="hub-cover-image" src="assets/editorial/kane.webp" width="1000" height="1022" alt="哈里·凯恩，拜仁热身服，2025年" loading="lazy" decoding="async">
+  <figcaption><span id="hub-cover-context">BAYERN / SALZBURG 2025</span><strong id="hub-cover-name">HARRY KANE</strong><small><span id="hub-cover-number">09</span> <span id="hub-cover-cn">哈里·凯恩</span></small></figcaption>
+  <div class="cover-picker" role="group" aria-label="球星影像"><button type="button" data-cover-player="kane" aria-pressed="true">KANE</button><button type="button" data-cover-player="musiala" aria-pressed="false">MUSIALA</button></div>
+ </figure>
  </div>
  <footer class="hub-footer"><p>非官方球迷作品 <span>·</span> <a href="visual-credits.html" target="_blank" rel="noopener">影像与字体来源 ↗</a></p><div class="hub-preferences"><div class="hub-time" aria-label="主场光线"><button data-hub-time="day" aria-pressed="true">☀ 白天</button><button data-hub-time="night" aria-pressed="false">☾ 黑夜</button></div><label>画质 <select id="hub-quality"><option value="low">流畅</option><option value="standard">均衡 · 自适应</option><option value="high">精细</option></select></label></div></footer>
  </dialog>
@@ -111,20 +111,32 @@
   <p class="match-intro-note">下面两项为固定拜仁 × 多特示范的参观及入场体验。点击后开启声音；普通参观默认不显示比赛人员。</p>
   <details class="match-credits"><summary>制作与声音来源</summary><p>人群录音：Work With Sounds / Torsten Nilsson，<a href="https://commons.wikimedia.org/wiki/File:WWS_FootballAustriavs.Sweden.ogg" target="_blank" rel="noopener">足球现场录音</a>，<a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>。本项目截取并混音为通用球场声景，非拜仁比赛同期声。人物采用通用人体，并非球星扫描肖像。</p></details>
  </dialog>
- <dialog id="player-studio" aria-labelledby="player-studio-title">
-  <button type="button" id="player-studio-close" class="close-dialog" aria-label="关闭球员特写">×</button>
-  <h2 id="player-studio-title">球员特写</h2>
-  <div class="studio-players" role="group" aria-label="选择球员">
-   <button type="button" data-studio-player="kane" aria-pressed="true">9 · 凯恩</button>
-   <button type="button" data-studio-player="musiala" aria-pressed="false">10 · 穆西亚拉</button>
-  </div>
-  <div class="studio-stage" id="player-studio-stage">
-   <p id="player-studio-status" role="status">正在加载球员模型…</p>
-   <output id="player-studio-measure" aria-live="polite"></output>
+ <dialog id="player-studio" aria-labelledby="player-studio-title" data-player="kane">
+  <header class="studio-head">
+   <p class="studio-kicker"><i aria-hidden="true"></i> FC BAYERN MÜNCHEN <span> / </span> FIRST TEAM</p>
+   <h2 id="player-studio-title">球员特写</h2>
+   <button type="button" id="player-studio-close" class="close-dialog" aria-label="关闭球员特写">×</button>
+  </header>
+  <div class="studio-layout">
+   <div class="studio-stage" id="player-studio-stage">
+    <p id="player-studio-status" role="status">正在加载球员模型…</p>
+   </div>
+   <aside class="studio-panel">
+    <div class="studio-identity">
+     <span id="player-studio-role" class="studio-role">09 / FORWARD</span>
+     <strong id="player-studio-name" lang="en">HARRY KANE</strong>
+     <span id="player-studio-local">哈里·凯恩</span>
+     <output id="player-studio-measure" aria-live="polite"></output>
+    </div>
+    <div class="studio-players" role="group" aria-label="选择球员">
+     <button type="button" data-studio-player="kane" aria-pressed="true"><span>9</span> · 凯恩</button>
+     <button type="button" data-studio-player="musiala" aria-pressed="false"><span>10</span> · 穆西亚拉</button>
+    </div>
+   </aside>
   </div>
   <div class="studio-controls">
-   <div role="group" aria-label="特写视角"><button type="button" data-studio-view="front" aria-pressed="true">正面</button><button type="button" data-studio-view="side" aria-pressed="false">侧面</button><button type="button" data-studio-view="body" aria-pressed="false">全身</button></div>
-   <label for="player-studio-angle">角度 <input type="range" id="player-studio-angle" min="-180" max="180" step="1" value="0" aria-valuetext="0°"></label>
+   <div class="studio-presets" role="group" aria-label="特写视角"><button type="button" data-studio-view="portrait" aria-pressed="true">特写</button><button type="button" data-studio-view="front" aria-pressed="false">正面</button><button type="button" data-studio-view="side" aria-pressed="false">侧面</button><button type="button" data-studio-view="body" aria-pressed="false">全身</button></div>
+   <label for="player-studio-angle"><span>角度</span> <input type="range" id="player-studio-angle" min="-180" max="180" step="1" value="-32" aria-valuetext="-32°"></label>
   </div>
  </dialog>
  <div class="match-countdown" id="match-countdown" hidden aria-live="off"></div>
@@ -151,5 +163,5 @@
  <dialog id="game-help-dialog" aria-labelledby="game-help-title"><button class="close-dialog" id="game-help-close" aria-label="关闭比赛操作说明">×</button><div class="eyebrow">YOU ARE ON THE PITCH</div><h2 id="game-help-title">看清空当，再出脚。</h2><p id="game-help-opponent">控制拜仁对战 AI。金色脚环是你，浅色连线指向当前传球目标；雷达箭头显示当前进攻方向，中场后换边。</p><div class="game-help-grid"><b>移动与带球</b><span>WASD / 方向键 · 手机左下摇杆，方向与当前画面一致</span><b>加速</b><span>Shift · 手机「跑」</span><b>短传 / 直塞</b><span>J / L · 手机按下出脚，先用方向键或摇杆选择传球方向；球传出后可预备接球队员的下一脚</span><b>蓄力射门</b><span>按住 K / F，松手射门 · 手机按住「射门」</span><b>射门方式</b><span>Z · 点击比赛设置或球员卡上的射门方式，在劲射、搓射与挑射间切换；蓄力时显示起脚条件、弧线与偏差范围；跑动、背身和受压会影响精度</span><b>逼抢 / 护球</b><span>按住 E · 手机按住「逼抢」；持球时减速护球</span><b>抢断 / 换控</b><span>空格抢断 / 推方向再按 Q 定向切换控制球员；真正的替补换人请点「阵容」</span><b>比赛点球</b><span>犯规点球会自动切换主罚者或门将；方向瞄准、按住射门蓄力，守门时横移并点「扑救」或按空格。准备时停表，结束后恢复比赛。</span><b>比赛镜头</b><span>C 循环近景、广角、跟随、第一人称；跟随和第一人称可拖动转头</span><b>精彩回放</b><span>R · 右上「回放」，回看上次进球或最近片段；退出回放后点继续</span><b>为拜仁助威</b><span>G · 手机右上「助威」，触发声浪与看台动作</span><b>暂停</b><span>Esc · 顶部暂停按钮</span></div><p id="game-network-help" hidden>顶部显示网络往返毫秒数与画面帧率。网络波动时，其他球员会稍作平滑缓冲；本机移动及时响应，最终球权和进球由服务器确认。</p><button id="game-low-quality" class="match-manual">切换到流畅画质 · 降低细节</button><div class="assist-mode-options" aria-label="换人辅助"><button data-control-mode="manual">手动</button><button data-control-mode="semi">半自动</button><button data-control-mode="assisted">辅助</button></div><p>半自动在接球和夺回球权后接管持球队员；短传自动接管时会继续迎球，变向或松开再推即可接手；辅助额外选择防守球员；手动按 Q 换控。传球途中接球队员会迎球，在球靠近后可接管；无方向输入时继续迎球，移动即可覆盖辅助。球到脚前短按传球可预备一脚出球。阵容按钮可登记替补换人，死球执行，中场不占换人窗口。可选常规赛、加时与点球；犯规会判任意球或点球，鲁莽或危险接触会出牌。越位、补时与 VAR 暂未加入。</p></dialog>
  <dialog id="match-roster-dialog" aria-labelledby="match-roster-title"><button id="match-roster-close" class="close-dialog" aria-label="关闭比赛阵容">×</button><div class="eyebrow">EXHIBITION · MATCHDAY</div><h2 id="match-roster-title">拜仁 × 多特蒙德</h2><p>演示阵容与站位；姓名和号码依据俱乐部官网核对，不代表某场真实比赛首发。</p><button id="match-visit-bench" class="match-manual">传送到场边 · 看替补与教练医护 →</button><div id="match-roster-content"></div><p class="roster-note">场上 22 人，替补 18 人，教练及医护 8 人，裁判组 4 人。名单核对：2026-10-26。</p></dialog>
  <section class="loading" id="loading"><div class="loading-arena" aria-hidden="true"><i></i><i></i><i></i></div><small>ALLIANZ ARENA</small><h2>正在加载球场</h2><p id="load-status">正在构建球场与内部空间…</p><div class="load-track" aria-hidden="true"><span></span></div><noscript>需要启用 JavaScript 才能探索球场。</noscript></section>
- <script type="module" src="app.js?v=20261111-profiles-9710"></script>
+ <script type="module" src="app.js?v=20261111-arena-9720"></script>
 </body></html>

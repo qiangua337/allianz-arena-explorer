@@ -71,8 +71,16 @@ export function characterAtlas(d,textures,jerseyTexture,size=1024){
     const image=name==='shirt'?jersey.image:name==='eyes'?textures.eyes.image:name==='eyebrows'?textures.brows.image:name==='bootL'?textures.boot.image:null;
     if(image)c.drawImage(image,...cell);
    }
-   if(name==='eyes'&&id==='kane')paintKaneEyes(c,cell);
-   if(name==='eyebrows'&&id){c.globalCompositeOperation='source-atop';c.fillStyle=id==='kane'?'#77614a':'#3c2e29';c.fillRect(...cell);}
+   if(name==='eyes'&&id){
+    c.globalCompositeOperation='multiply';
+    c.fillStyle=id==='kane'?'#d7cbc1':'#d2c7ba';c.fillRect(...cell);
+    c.globalCompositeOperation='source-over';
+    if(id==='kane')paintKaneEyes(c,cell);
+   }
+   if(name==='eyebrows'&&id){
+    c.globalCompositeOperation='source-atop';c.fillStyle=id==='kane'?'rgba(121,100,81,.76)':'rgba(73,56,43,.54)';c.fillRect(...cell);
+    c.globalCompositeOperation='destination-out';c.fillStyle='rgba(0,0,0,.18)';c.fillRect(...cell);
+   }
    if(name==='bootL'){c.globalCompositeOperation='multiply';c.fillStyle=new THREE.Color(d.boot||0xcac6bd).getStyle();c.fillRect(...cell);}if(name==='gloves'){c.translate(cell[0],cell[1]);drawGloveTexture(c,cell[2],cell[3]);}c.restore();}
   const cell=cells.short02;c.save();c.beginPath();c.rect(...cell);c.clip();c.clearRect(...cell);if(id)drawLikenessHair(c,cell,id);else if(d.hair==='crop'){c.fillStyle='#27231e';c.fillRect(...cell);}else{c.drawImage(textures.short02.image,...cell);c.globalCompositeOperation='multiply';c.fillStyle=new THREE.Color(d.hairColor||0x9a8476).getStyle();c.fillRect(...cell);c.globalCompositeOperation='destination-in';c.drawImage(textures.short02.image,...cell);}c.restore();
  });jersey.dispose();return texture;

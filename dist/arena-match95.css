@@ -493,7 +493,7 @@
   #match-dialog .team-edit-entry:not(:disabled):hover,
   #match-dialog .online-join-form button:not(:disabled):hover,
   #match-dialog .online-room-actions button:not(:disabled):hover {
-    background: #343137;
+    background: #32313f;
   }
 
   #match-dialog #match-play:hover,

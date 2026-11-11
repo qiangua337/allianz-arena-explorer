@@ -8,10 +8,10 @@ export function installAthleteSurface(material){
  material.onBeforeCompile=function(shader,...args){before.call(this,shader,...args);
   shader.fragmentShader=shader.fragmentShader.replace('#include <roughnessmap_fragment>',`#include <roughnessmap_fragment>
 float athleteRoughness=.88;
-if(vMapUv.y>.5){athleteRoughness=vMapUv.x<.5?.57:.89;}
-else if(vMapUv.y>.25){athleteRoughness=vMapUv.x<.5?.91:vMapUv.x<.75?.34:.24;}
+if(vMapUv.y>.5){athleteRoughness=vMapUv.x<.5?.71:.89;}
+else if(vMapUv.y>.25){athleteRoughness=vMapUv.x<.5?.91:vMapUv.x<.75?.34:.40;}
 roughnessFactor=athleteRoughness;`);
- };material.customProgramCacheKey=()=>key+'|athlete-surface-v1';
+ };material.customProgramCacheKey=()=>key+'|athlete-surface-v2';
  return material;
 }
 
@@ -26,14 +26,26 @@ export function createActorContactShadows(parent,count,texture){
  const mesh=new THREE.InstancedMesh(geometry,material,count*3);mesh.name='Contact shadows';mesh.frustumCulled=false;mesh.renderOrder=1;mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);parent.add(mesh);return mesh;
 }
 const inverse=new THREE.Matrix4(),pose=new THREE.Object3D();
+function writeShadow(mesh,alpha,index,x,z,width,depth,opacity,floor){
+ pose.position.set(x,floor+.013,z);
+ pose.scale.set(width,1,depth);
+ pose.updateMatrix();
+ mesh.setMatrixAt(index,pose.matrix);
+ alpha.setX(index,opacity);
+}
 export function updateActorContactShadows(mesh,index,actor,refresh=false){
  const {group,body}=actor,base=index*3,alpha=mesh.geometry.attributes.contactOpacity;
  if(!group.visible){pose.scale.setScalar(0);pose.updateMatrix();for(let j=0;j<3;j++){mesh.setMatrixAt(base+j,pose.matrix);alpha.setX(base+j,0);}return;}
  const feet=actor.contactFeet??(actor.contactFeet=[new THREE.Vector3(.18,.08,0),new THREE.Vector3(-.18,.08,0)]);
  if(refresh){inverse.copy(group.matrixWorld).invert();for(let j=0;j<2;j++)feet[j].setFromMatrixPosition(body.skeleton.bones[j?17:11].matrixWorld).applyMatrix4(inverse);}
  const yaw=group.rotation.y,c=Math.cos(yaw),s=Math.sin(yaw),scale=group.scale.x,floor=entranceFloor(group.position.x);
- const write=(j,x,z,w,d,a,y=floor)=>{pose.position.set(x,y+.013,z);pose.rotation.set(0,yaw,0);pose.scale.set(w,1,d);pose.updateMatrix();mesh.setMatrixAt(base+j,pose.matrix);alpha.setX(base+j,a);};
- write(0,group.position.x,group.position.z,.82*scale,.94*scale,actor.definition.seated?.12:.20);
- for(let j=0;j<2;j++){const f=feet[j],x=f.x*scale,z=(f.z+.045)*scale,wx=group.position.x+x*c+z*s,wz=group.position.z+z*c-x*s,ground=entranceFloor(wx),lift=Math.max(0,group.position.y+f.y*scale-ground-.075*scale),spread=1+Math.min(lift,.4)*.7;write(j+1,wx,wz,.24*scale*spread,.38*scale*spread,.55*Math.exp(-lift*11),ground);}
+ pose.rotation.set(0,yaw,0);
+ writeShadow(mesh,alpha,base,group.position.x+.055*scale,group.position.z-.045*scale,.96*scale,1.06*scale,actor.definition.seated?.16:.30,floor);
+ for(let j=0;j<2;j++){
+  const f=feet[j],x=f.x*scale,z=(f.z+.045)*scale;
+  const wx=group.position.x+x*c+z*s,wz=group.position.z+z*c-x*s,ground=entranceFloor(wx);
+  const lift=Math.max(0,group.position.y+f.y*scale-ground-.075*scale),spread=1+Math.min(lift,.4)*.7;
+  writeShadow(mesh,alpha,base+j+1,wx,wz,.24*scale*spread,.38*scale*spread,.55*Math.exp(-lift*11),ground);
+ }
 }
 export function flushActorContactShadows(mesh){mesh.instanceMatrix.needsUpdate=true;mesh.geometry.attributes.contactOpacity.needsUpdate=true;}

@@ -1,25 +1,22 @@
 import {surfaceMaps} from './visual-assets.js';
 import {THREE,mat,mesh,canvasTexture,seeded} from './kit.js';
-import {installMowingSheen} from './pitch-artwork.js';
 export function buildPitchSurface(root,turf){
- const detail=surfaceMaps('grass',{channel:1,repeat:[.28,.28],strength:.18});
+ const detail=surfaceMaps('grass',{channel:1,repeat:[.28,.28],strength:.15});
  if(!detail.normalMap){
   const random=seeded(1880);
-  const fibres=canvasTexture(512,512,(c,w,h)=>{
+  const fibres=canvasTexture(256,256,(c,w,h)=>{
    c.fillStyle='#888';c.fillRect(0,0,w,h);
-   for(let i=0;i<52000;i++){
-    const x=random()*w,y=random()*h,length=1+random()*6;
-    c.strokeStyle=random()>.5?'#b6b6b6':'#5d5d5d';c.lineWidth=.4+random()*.55;
-    c.beginPath();c.moveTo(x,y);c.lineTo(x+.8,y+length);c.stroke();
+   for(const tone of ['#a5a5a5','#686868']){
+    c.fillStyle=tone;
+    for(let i=0;i<6900;i++)c.fillRect(random()*w,random()*h,.45+random()*.45,.7+random()*2.6);
    }
   });
   fibres.wrapS=fibres.wrapT=THREE.RepeatWrapping;fibres.repeat.set(24,37);fibres.anisotropy=8;
   detail.bumpMap=fibres;detail.bumpScale=.012;
  }
  turf.anisotropy=8;
- const groundMaterial=mat(0xffffff,{map:turf,roughness:.94,...detail});
+ const groundMaterial=mat(0xffffff,{map:turf,roughness:1,...detail});
  groundMaterial.userData.arenaPitch=true;
- installMowingSheen(groundMaterial);
  const ground=mesh(new THREE.PlaneGeometry(72,111),groundMaterial,root,0,.005,0);ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;ground.name='Mown grass with painted pitch markings';
  // Only a small patch around a ground-level visitor has actual blades. The
  // distant field uses the same colour map, with no stadium-wide grass mesh.
@@ -40,5 +37,11 @@ transformed=vec3(p.x,position.y+.008,p.y);vMapUv=vec2(p.x/72.+.5,.5-p.y/111.);bl
 // The same fade test applies to every vertex of a blade. Collapse the fully
 // discarded blades before rasterization instead of shading invisible grass.
 transformed*=step(.15,bladeFade);`);shader.fragmentShader='varying float bladeFade;\n'+shader.fragmentShader;shader.fragmentShader=shader.fragmentShader.replace('#include <clipping_planes_fragment>','#include <clipping_planes_fragment>\nif(vMapUv.x<.006||vMapUv.x>.994||vMapUv.y<.006||vMapUv.y>.994||bladeFade<.15)discard;');};material.customProgramCacheKey=()=> 'local-grass-fibres-v2';const tufts=mesh(blade,material,root);tufts.name='Nearby turf blades';tufts.frustumCulled=false;
- return{ground,update(camera,high=false,low=false){tufts.visible=!low&&camera.position.y<5&&camera.position.y>.3&&Math.abs(camera.position.x)<43&&Math.abs(camera.position.z)<62;blade.instanceCount=high?26000:16000;center.value.set(camera.position.x,camera.position.z);}};
+ return{ground,update(camera,high=false,low=false,mobile=false){
+  tufts.visible=!low&&camera.position.y<5&&camera.position.y>.3&&Math.abs(camera.position.x)<43&&Math.abs(camera.position.z)<62;
+  // At phone resolution the baked grass remains visible between the closest
+  // blades. Submitting fewer of them reduces overdraw at eye level.
+  blade.instanceCount=mobile?(high?16000:8500):(high?26000:16000);
+  center.value.set(camera.position.x,camera.position.z);
+ }};
 }

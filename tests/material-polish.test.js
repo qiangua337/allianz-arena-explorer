@@ -5,6 +5,7 @@ registerHooks({resolve(s,c,next){return s==='three'?{url:new URL('../dist/vendor
 const {THREE}=await import('../dist/kit.js');
 const {createActorContactShadows,updateActorContactShadows,flushActorContactShadows}=await import('../dist/football-materials.js');
 const {buildPitchsideDetails}=await import('../dist/pitchside-details.js');
+const {buildGoalNetGeometry}=await import('../dist/goal-net.js');
 
 test('body and planted-foot contacts use one draw, stay on the floor and fade when the foot lifts',()=>{
  const root=new THREE.Group(),shadows=createActorContactShadows(root,2,new THREE.Texture()),group=new THREE.Group(),bones=Array.from({length:18},()=>new THREE.Bone());
@@ -28,4 +29,21 @@ test('pitchside polish preserves the clear player entrance and the whole playabl
   });
   assert.ok(meshes<45,'static equipment is compacted, rather than one draw per bottle or bevel');assert.equal(details.root.children.filter(o=>o.isLight).length,0);details.update(new THREE.Vector3(0,30,0),true);assert.ok(details.root.getObjectByName('Technical area pitchside markings').visible,'essential pitch markings survive low quality');
  }finally{globalThis.document=previous;}
+});
+
+test('the goal stays open at the front and its net sides meet the rear face without crossing the mouth',()=>{
+ const geometry=buildGoalNetGeometry(),points=geometry.attributes.position;
+ const near=(a,b)=>Math.abs(a-b)<1e-5;
+ let rearLeft=0,rearRight=0,sag=false;
+ for(let i=0;i<points.count;i++){
+  const x=points.getX(i),y=points.getY(i),z=points.getZ(i);
+  assert.ok(Math.abs(x)<=3.66001&&y>=.01799&&y<=2.44001&&z>=0&&z<=2.10001);
+  if(near(z,0)&&y<2.43)assert.ok(near(Math.abs(x),3.66),'front attachments below the bar stay on the posts');
+  if(near(y,1.229)&&near(z,2.015)&&near(x,-3.595))rearLeft++;
+  if(near(y,1.229)&&near(z,2.015)&&near(x,3.595))rearRight++;
+  if(near(x,0)&&near(z,.965)&&y>2.34&&y<2.41)sag=true;
+ }
+ assert.ok(rearLeft>=2&&rearRight>=2,'the side and back nets use coincident rear corners');
+ assert.ok(sag,'the top cloth dips gently between the posts and stanchions');
+ assert.ok(points.count/2<600,'the full net is one small line draw');
 });

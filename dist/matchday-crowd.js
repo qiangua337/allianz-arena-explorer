@@ -26,7 +26,16 @@ export function buildMatchdayCrowd(parent,seats,{mobile=false,reducedMotion=fals
   const records=layout.records.filter(r=>(r.seat.sector??0)===sector);if(!records.length)continue;
   const g=new THREE.PlaneGeometry(1,1).translate(0,.5,0),tiles=new Float32Array(records.length),detailFlags=new Float32Array(records.length),phases=new Float32Array(records.length),visitors=new Float32Array(records.length),fans=new THREE.InstancedMesh(g,material,records.length);
   fans.name='Audience sprites · sector '+sector;fans.receiveShadow=false;
-  records.forEach((r,i)=>{const s=r.seat,frame=supporterAtlas.frames[r.frame];dummy.position.set(s.x,s.y-.19,s.z);dummy.rotation.set(0,s.yaw+Math.PI,0);dummy.scale.set(frame[2]/frame[3]*1.50*r.scale,1.50*r.scale,1);dummy.updateMatrix();fans.setMatrixAt(i,dummy.matrix);const brightness=.85+(r.phase/(Math.PI*2))*.15;fans.setColorAt(i,shade.setRGB(brightness,brightness,brightness));tiles[i]=r.frame;phases[i]=r.phase;visitors[i]=r.visitor?1:0;r.mesh=fans;r.slot=i;});
+  records.forEach((r,i)=>{
+   const s=r.seat,frame=supporterAtlas.frames[r.frame];
+   dummy.position.set(s.x,s.y-.19,s.z);dummy.rotation.set(0,s.yaw+Math.PI,0);dummy.scale.set(frame[2]/frame[3]*1.50*r.scale,1.50*r.scale,1);dummy.updateMatrix();fans.setMatrixAt(i,dummy.matrix);
+   // Seat heights are fixed. Bake the darker upper rows into instance colors
+   // so the stand reads in tiers, without per-fragment lighting for sprites.
+   const spill=Math.max(.67,.985-Math.max(0,s.y-9)*.0085);
+   const brightness=spill*(.85+r.phase/(Math.PI*2)*.15);
+   fans.setColorAt(i,shade.setRGB(brightness*.986,brightness,brightness*1.012));
+   tiles[i]=r.frame;phases[i]=r.phase;visitors[i]=r.visitor?1:0;r.mesh=fans;r.slot=i;
+  });
   g.setAttribute('fanTile',new THREE.InstancedBufferAttribute(tiles,1));g.setAttribute('fanDetail',new THREE.InstancedBufferAttribute(detailFlags,1).setUsage(THREE.DynamicDrawUsage));g.setAttribute('fanPhase',new THREE.InstancedBufferAttribute(phases,1));g.setAttribute('fanVisitor',new THREE.InstancedBufferAttribute(visitors,1));fans.computeBoundingSphere();root.add(fans);
  }
  const budget=crowdDetailBudget(mobile),geometry=supporterGeometry(),nearMaterial=new THREE.MeshLambertMaterial({vertexColors:true,emissive:0x111015});animateSupporterMaterial(nearMaterial,time,excitement);

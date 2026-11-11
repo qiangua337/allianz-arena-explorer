@@ -29,6 +29,7 @@ export function kaneSculpt(x,y,z,target){
  const lid=gaussian(1.744,.014,y)*gaussian(.033,.020,side)*face;
  const eyeFold=gaussian(1.747,.006,y)*gaussian(.040,.017,side)*face;
  const brow=gaussian(1.759,.011,y)*gaussian(.036,.023,side)*face;
+ const innerBrow=gaussian(1.755,.009,y)*gaussian(.021,.012,side)*face;
  const mouth=gaussian(1.674,.015,y)*gaussian(0,.032,x)*lowerFace;
  const mouthCorner=gaussian(1.675,.009,y)*gaussian(.025,.012,side)*lowerFace;
  const temple=gaussian(1.788,.035,y)*gaussian(.066,.021,side)*face;
@@ -39,7 +40,7 @@ export function kaneSculpt(x,y,z,target){
  return target.set(
   x*(1+aboveNeck*(width-1))-.09*aboveNeck*(side-.033)*Math.sign(x)*lid,
   y+aboveNeck*(-.007*chin+.0018*jawCorner+.004*noseTip-.08*(y-eyeCenter)*lid
-   -.0018*brow+.0014*mouthCorner+.011*middleFace),
+   -.0026*brow+.0032*innerBrow+.0014*mouthCorner+.011*middleFace),
   z+aboveNeck*(.006*bridge-.0065*noseTip+.0042*cheek*face+.0033*chin-.0017*mouth
    +.0014*jawCorner-.0014*eyeFold+.0017*brow)
  );
@@ -67,9 +68,9 @@ export function kaneHairOffset(x,y,z,nx,ny,nz,root,front,volume){
 
 export function paintKaneHair(c){
  const color=c.createLinearGradient(0,0,0,1);
- color.addColorStop(0,'#7a644e');
- color.addColorStop(.42,'#66523f');
- color.addColorStop(.76,'#594638');
+ color.addColorStop(0,'#81715a');
+ color.addColorStop(.42,'#6b5b49');
+ color.addColorStop(.76,'#5c4e40');
  color.addColorStop(.87,'rgba(101,80,64,.88)');
  color.addColorStop(.95,'rgba(110,91,75,.42)');
  color.addColorStop(1,'rgba(113,96,81,0)');
@@ -83,9 +84,9 @@ export function paintKaneHair(c){
   const x=(i+.43*Math.sin(i*2.61))/104-.039;
   const lean=x<.45?-.09:.095;
   const arc=.023*Math.sin(i*1.59);
-  c.lineWidth=.0017+.0027*(.5+.5*Math.cos(i*2.17));
-  c.strokeStyle=i%5===0?'rgba(186,156,117,.27)':
-   i%3===0?'rgba(173,146,115,.17)':'rgba(35,24,20,.23)';
+  c.lineWidth=.0013+.0018*(.5+.5*Math.cos(i*2.17));
+  c.strokeStyle=i%5===0?'rgba(191,172,138,.21)':
+   i%3===0?'rgba(166,151,124,.17)':'rgba(43,35,27,.16)';
   c.beginPath();
   c.moveTo(x,.965-.045*Math.sin(i*1.7)**2);
   c.bezierCurveTo(x+arc,.74,x+lean*.6+arc,.33,x+lean,.025+.12*Math.sin(i*2.1)**2);
@@ -112,8 +113,8 @@ export function paintKaneEyes(c,[x,y,w,h]){
   const iris=c.createRadialGradient(u,v,.025,u,v,.114);
   iris.addColorStop(0,'#564b3e');
   iris.addColorStop(.32,'#66695f');
-  iris.addColorStop(.62,'#697b7e');
-  iris.addColorStop(.85,'#5b6b6d');
+  iris.addColorStop(.62,'#5f716f');
+  iris.addColorStop(.85,'#526261');
   iris.addColorStop(.95,'#354346');
   iris.addColorStop(1,'rgba(69,83,84,0)');
   c.fillStyle=iris;
@@ -127,7 +128,7 @@ export function paintKaneEyes(c,[x,y,w,h]){
    c.beginPath();c.moveTo(u+dx*.041,v+dy*.041);c.lineTo(u+dx*.098,v+dy*.098);c.stroke();
   }
   c.fillStyle='#19201f';
-  c.beginPath();c.arc(u,v,.039,0,Math.PI*2);c.fill();
+  c.beginPath();c.arc(u,v,.044,0,Math.PI*2);c.fill();
  }
  c.restore();
 }
