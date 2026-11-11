@@ -104,6 +104,34 @@ test('both featured players share their studio model with the live match and pre
  for(const actor of profiles){actor.body.material.map.dispose();actor.body.material.dispose();actor.body.skeleton.dispose();}
 });
 
+test('every numbered Bayern player previews a distinct head and reserves can start with that same model',async()=>{
+ const {numberedPlayers}=await import('../dist/roster.js');
+ const {defaultSelection}=await import('../dist/football-squads.js');
+ const {rosterHeadProfile}=await import('../dist/football-roster-heads.js');
+ const models=new Map();
+ for(const {number} of numberedPlayers){
+  const actor=await actors.preview(String(number));
+  const geometry=actor.body.geometry;
+  assert.equal(actor.definition.player.number,number);
+  assert.equal(geometry.groups.length,0);
+  if(number!==9&&number!==10)assert.ok(rosterHeadProfile(actor.definition),'missing appearance for #'+number);
+  models.set(number,geometry);
+  actor.body.material.map.dispose();actor.body.material.dispose();actor.body.skeleton.dispose();
+ }
+ assert.equal(new Set(models.values()).size,numberedPlayers.length);
+ const kim=models.get(3),ito=models.get(21);
+ assert.notDeepEqual(kim.attributes.position.array,ito.attributes.position.array);
+ const selection=defaultSelection('home');selection.xi[2]=47;
+ const state=createFootballSimulation({selections:{home:selection}}).state;
+ const reserve=state.players.find(p=>p.team==='home'&&p.number===47);
+ assert.ok(reserve);
+ actors.reset();actors.updateMatch(state,0,new THREE.Vector3(reserve.x,1.7,reserve.z));
+ const rendered=actors.root.children.find(o=>o.userData.team==='home'&&o.userData.role==='player'&&o.userData.playerNumber===47);
+ assert.equal(rendered.getObjectByName('athlete').geometry,models.get(47));
+ assert.equal(state.teamSheets.home.bench.length,9);
+ actors.setOpponent('dortmund');
+});
+
 test('live substitutions replace the same field actor and sent-off players disappear from the rendered eleven',()=>{
  const sim=createFootballSimulation({rules:{mode:'league',duration:180}}),s=sim.state;actors.setOpponent('dortmund');actors.reset();actors.updateMatch(s,0,new THREE.Vector3(0,20,0));const actor=actors.root.children.find(o=>o.userData.role==='player'&&o.userData.team==='home'&&o.userData.playerNumber===9),oldMap=actor.getObjectByName('athlete').material.map;
  assert.equal(sim.substitute('home','home-1',7).ok,true);actors.updateMatch(s,.1,new THREE.Vector3(0,20,0));assert.equal(actor.userData.playerNumber,7);assert.ok(actor.name.endsWith('GNABRY'));assert.notEqual(actor.getObjectByName('athlete').material.map,oldMap);assert.ok(actor.visible);

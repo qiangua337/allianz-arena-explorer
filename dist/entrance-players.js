@@ -9,12 +9,25 @@ import {simplifySkinnedGeometry} from './player-lod.js';
 import {sampleQueuePlayer} from './entrance-choreography.js';
 import {installAthleteSurface,createActorContactShadows,updateActorContactShadows,flushActorContactShadows} from './football-materials.js';
 import {createFramePacer} from './frame-pacing.js';
-import {likenessParts,playerLikeness} from './football-likeness.js';
+import {likenessParts,playerLikeness,makeRosterCrop,rosterCropStyles} from './football-likeness.js';
 import {shapeFootballBody} from './football-body-profile.js';
+import {rosterHeadProfile,shapeRosterHead} from './football-roster-heads.js';
 
 const asset=name=>new URL('./assets/players/'+name,import.meta.url).href;
 const noActionOptions={};
-const geometryKey=d=>playerLikeness(d)||d.hair+(d.keeper?'Keeper':'');
+function actorGeometry(geometries,definition){
+ const likeness=playerLikeness(definition);
+ if(likeness)return geometries[likeness];
+ const profile=rosterHeadProfile(definition);
+ const variant=profile?.hair==='crop'&&!definition.keeper?geometries['crop-'+profile.style]:null;
+ const base=variant??geometries[(profile?.hair??definition.hair)+(definition.keeper?'Keeper':'')];
+ if(!profile)return base;
+ const key='home-'+definition.player.number;
+ const geometry=geometries[key]??=shapeRosterHead(base,profile);
+ if(base.userData.medium)geometry.userData.medium??=shapeRosterHead(base.userData.medium,profile);
+ if(base.userData.low)geometry.userData.low??=shapeRosterHead(base.userData.low,profile);
+ return geometry;
+}
 // Keep the head silhouette and facial texture seams in match cameras.
 // Coarser hands and clothing leave room for face detail within the same budget.
 const likenessMediumParts={
@@ -37,7 +50,7 @@ function athlete(data,geometries,textures,definition,motion,atlasSize){
  data.bones.forEach((b,i)=>{const parent=b.parent>=0?bones[b.parent]:group;parent.add(bones[i]);bones[i].position.fromArray(b.head);if(b.parent>=0)bones[i].position.sub(new THREE.Vector3().fromArray(data.bones[b.parent].head));});
  group.updateMatrixWorld(true);const skeleton=new THREE.Skeleton(bones);skeleton.calculateInverses();
  const material=installAthleteSurface(new THREE.MeshStandardMaterial({map:characterAtlas(definition,textures,drawJersey,atlasSize),roughness:.82,alphaTest:.38,side:THREE.DoubleSide}));
- const body=new THREE.SkinnedMesh(geometries[geometryKey(definition)],material);body.name='athlete';body.boundingSphere=new THREE.Sphere(new THREE.Vector3(0,.9,0),1.75);body.castShadow=true;body.receiveShadow=true;group.add(body);body.bind(skeleton,new THREE.Matrix4());
+ const body=new THREE.SkinnedMesh(actorGeometry(geometries,definition),material);body.name='athlete';body.boundingSphere=new THREE.Sphere(new THREE.Vector3(0,.9,0),1.75);body.castShadow=true;body.receiveShadow=true;group.add(body);body.bind(skeleton,new THREE.Matrix4());
  const motionPlayer=createFootballMotion(data,motion,bones,group,definition);
  let accessory;if(definition.flag){accessory=new THREE.Group();group.add(accessory);const handle=new THREE.Mesh(new THREE.CylinderGeometry(.012,.012,.44,6),mat(0x263339));handle.position.y=-.19;accessory.add(handle);const flag=new THREE.Mesh(new THREE.PlaneGeometry(.36,.30),new THREE.MeshBasicMaterial({map:textures.flag,side:THREE.DoubleSide}));flag.position.set(-.18,-.29,0);accessory.add(flag);}
  const booking=definition.role==='referee'?new THREE.Mesh(new THREE.BoxGeometry(.12,.18,.015),new THREE.MeshBasicMaterial({color:0xf1d14c})):null;if(booking){booking.visible=false;group.add(booking);}
@@ -66,6 +79,11 @@ export function buildEntrancePlayers(scene,{mobile=false}={}){
   const boot=canvasTexture(256,256,drawBootTexture);
   const raw=Object.fromEntries(data.parts.map(p=>[p.name,makeGeometry(binary,p)]));
   const geometries={short02:atlasGeometry(raw,'short02'),crop:atlasGeometry(raw,'crop'),short02Keeper:atlasGeometry(raw,'short02',{keeper:true}),cropKeeper:atlasGeometry(raw,'crop',{keeper:true})};
+  for(const style of rosterCropStyles){
+   const crop=makeRosterCrop(raw,style);
+   geometries['crop-'+style]=atlasGeometry({...raw,crop},'crop');
+   crop.dispose();
+  }
   for(const identity of ['kane','musiala']){
    const face=likenessParts(raw,identity),body=shapeFootballBody(face,identity);
    geometries[identity]=atlasGeometry(body,'crop');
@@ -83,7 +101,7 @@ export function buildEntrancePlayers(scene,{mobile=false}={}){
  async function prepare(){if(loading)return loading;loading=(async()=>{
   playerAssets=await loadPlayerAssets();
   const {data,motion,geometries,textures}=playerAssets;
-  for(const key of ['short02','crop','short02Keeper','cropKeeper']){
+  for(const key of ['short02','crop','short02Keeper','cropKeeper',...rosterCropStyles.map(style=>'crop-'+style)]){
    const geometry=geometries[key];
    geometry.userData.medium??=simplifySkinnedGeometry(geometry,.035);
    geometry.userData.low??=simplifySkinnedGeometry(geometry,.085);
@@ -94,13 +112,14 @@ export function buildEntrancePlayers(scene,{mobile=false}={}){
    geometry.userData.low??=simplifySkinnedGeometry(geometry,.105,likenessLowParts);
   }
   const starterSlots={home:0,away:0},benchSlots={home:0,away:0};
-  players=matchdayPeople.map(definition=>{const d={...definition,player:{...definition.player},slot:definition.role==='player'?starterSlots[definition.team]++:definition.role==='substitute'?benchSlots[definition.team]++:null},p=athlete(data,geometries,textures,d,motion,mobile?512:d.role==='player'?1024:512);p.originalDefinition={...definition,player:{...definition.player}};p.geometry=geometries[geometryKey(d)];root.add(p.group);return p;});
+  players=matchdayPeople.map(definition=>{const d={...definition,player:{...definition.player},slot:definition.role==='player'?starterSlots[definition.team]++:definition.role==='substitute'?benchSlots[definition.team]++:null},p=athlete(data,geometries,textures,d,motion,mobile?512:d.role==='player'?1024:512);p.originalDefinition={...definition,player:{...definition.player}};p.geometry=p.body.geometry;root.add(p.group);return p;});
   root.userData.shadows=createActorContactShadows(root,players.length,textures.shadow);
   ready=true;return true;
  })().catch(error=>{loading=null;throw error;});return loading;}
  async function preview(identity){
-  const d=studioPlayers.find(definition=>playerLikeness(definition)===identity);
-  if(!d)throw Error('Unknown player portrait');
+  const member=studioPlayers.find(definition=>playerLikeness(definition)===identity)??squadDefinition('home','dortmund',identity);
+  if(!member)throw Error('Unknown player portrait');
+  const d={...member,role:'player',seated:false};
   const {data,motion,geometries,textures}=await loadPlayerAssets();
   const actor=athlete(data,geometries,textures,d,motion,mobile?512:1024);
   actor.pose(0,0,0,0,false);
@@ -113,7 +132,7 @@ export function buildEntrancePlayers(scene,{mobile=false}={}){
   for(const actor of players){const d=actor.definition;if(d.team==='home'){if(d.role==='player'||d.role==='substitute')updateIdentity(actor,actor.originalDefinition.player.number,id);continue;}if(d.team!=='away')continue;const next=d.role==='player'?squad.xi[d.slot]:d.role==='substitute'?squad.bench[d.slot]:null;d.club=squad.club;d.kit=squad.club.kit;if(next){updateIdentity(actor,next.player.number,id,clubChanged);continue;}if(!clubChanged)continue;const previous=actor.body.material.map;actor.body.material.map=characterAtlas(d,playerAssets.textures,drawJersey,512);previous.dispose();actor.lastPoseTime=null;
   }
  }
- function updateIdentity(actor,number,clubId,force=false){const d=actor.definition;if(number===d.player.number&&!force)return;const member=squadDefinition(d.team,clubId,number);if(!member)return;Object.assign(d,{player:{...member.player},keeper:member.keeper,dark:member.dark,hair:member.hair,height:member.height,hairColor:member.hairColor??d.hairColor});actor.geometry=playerAssets.geometries[geometryKey(d)];actor.body.geometry=actor.geometry;const previous=actor.body.material.map;actor.body.material.map=characterAtlas(d,playerAssets.textures,drawJersey,mobile?512:d.role==='player'?1024:512);previous.dispose();actor.group.userData.playerNumber=number;actor.group.name=d.team+' · '+d.role+' · '+d.player.name;actor.lastPoseTime=null;actor.reset();}
+ function updateIdentity(actor,number,clubId,force=false){const d=actor.definition;if(number===d.player.number&&!force)return;const member=squadDefinition(d.team,clubId,number);if(!member)return;Object.assign(d,{player:{...member.player},keeper:member.keeper,dark:member.dark,hair:member.hair,height:member.height,hairColor:member.hairColor??d.hairColor});actor.geometry=actorGeometry(playerAssets.geometries,d);actor.body.geometry=actor.geometry;const previous=actor.body.material.map;actor.body.material.map=characterAtlas(d,playerAssets.textures,drawJersey,mobile?512:d.role==='player'?1024:512);previous.dispose();actor.group.userData.playerNumber=number;actor.group.name=d.team+' · '+d.role+' · '+d.player.name;actor.lastPoseTime=null;actor.reset();}
  function updateMatch(state,time,viewer,{firstPerson=false}={}){
   if(!ready||!state?.players)return;const dt=lastMatchTime===null?0:Math.max(0,Math.min(.15,time-lastMatchTime));lastMatchTime=time;
   fieldSlots.home.fill(null);fieldSlots.away.fill(null);

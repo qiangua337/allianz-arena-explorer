@@ -1,22 +1,32 @@
 import {THREE} from './kit.js';
+import {numberedPlayers,playerByNumber} from './roster.js';
 
-const players={
- kane:{number:'09',role:'FORWARD',name:'HARRY KANE',local:'哈里·凯恩',weight:86},
- musiala:{number:'10',role:'MIDFIELD',name:'JAMAL MUSIALA',local:'穆西亚拉',weight:75}
+const featuredPlayers={
+ 9:{id:'kane',role:'FORWARD',local:'哈里·凯恩',weight:86},
+ 10:{id:'musiala',role:'MIDFIELD',local:'穆西亚拉',weight:75}
 };
+const featuredNumbers={kane:9,musiala:10};
+const shirtLabel=number=>String(number).padStart(2,'0');
 const presets={portrait:-32,front:0,side:90};
 
 export function buildPlayerStudio(loadActor){
  const dialog=document.getElementById('player-studio'),stage=document.getElementById('player-studio-stage');
  const status=document.getElementById('player-studio-status'),measure=document.getElementById('player-studio-measure');
- const angle=document.getElementById('player-studio-angle');
+ const angle=document.getElementById('player-studio-angle'),roster=document.getElementById('player-studio-roster');
  const role=document.getElementById('player-studio-role');
  const name=document.getElementById('player-studio-name'),local=document.getElementById('player-studio-local');
  const names=[...dialog.querySelectorAll('[data-studio-player]')],views=[...dialog.querySelectorAll('[data-studio-view]')];
+ const rosterOptions=[...numberedPlayers].sort((a,b)=>a.number-b.number).map(player=>{
+  const option=document.createElement('option');
+  option.value=String(player.number);
+  option.textContent=shirtLabel(player.number)+' · '+(featuredPlayers[player.number]?.local||player.fullName);
+  return option;
+ });
+ roster.replaceChildren(...rosterOptions);roster.value='9';
  const scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera(28,1,.035,12);
  const key=new THREE.DirectionalLight(0xfff3e5,2.05),fill=new THREE.DirectionalLight(0xe7efff,.65),rim=new THREE.DirectionalLight(0xe3ebff,.55);
  scene.add(new THREE.HemisphereLight(0xeef0fa,0x938783,1.1),key,fill,rim);
- let identity='kane',view='portrait',renderer=null,actor=null,frame=0,request=0,width=0,height=0,drag=null,observer=null;
+ let selectedNumber=9,view='portrait',renderer=null,actor=null,frame=0,request=0,width=0,height=0,drag=null,observer=null;
 
  function draw(){
   frame=0;
@@ -51,11 +61,17 @@ export function buildPlayerStudio(loadActor){
   scene.remove(value.group);
   value.body.material.map.dispose();value.body.material.dispose();value.body.skeleton.dispose();
  }
- async function select(id){
-  identity=id;
-  const profile=players[id];
-  dialog.dataset.player=id;role.textContent=profile.number+' / '+profile.role;
-  name.textContent=profile.name;local.textContent=profile.local;
+ async function select(number){
+  const player=playerByNumber(number);
+  if(!player||!renderer)return;
+  selectedNumber=number;
+  const featured=featuredPlayers[number],id=featured?.id||String(number);
+  roster.value=String(number);
+  dialog.dataset.player=id;
+  role.textContent=shirtLabel(number)+(featured?' / '+featured.role:' / FC BAYERN');
+  name.textContent=player.fullName.toUpperCase();
+  local.textContent=featured?.local||'';
+  local.hidden=!featured;
   for(const button of names)button.setAttribute('aria-pressed',String(button.dataset.studioPlayer===id));
   const token=++request;
   status.hidden=false;status.textContent='正在加载球员模型…';measure.textContent='';
@@ -64,7 +80,9 @@ export function buildPlayerStudio(loadActor){
    const next=await loadActor(id);
    if(token!==request||!dialog.open){disposeActor(next);return;}
    disposeActor(actor);actor=next;scene.add(actor.group);
-   measure.textContent=Math.round(actor.definition.height*100)+' cm  /  '+profile.weight+' kg';
+   if(featured&&Number.isFinite(actor.definition.height)){
+    measure.textContent=Math.round(actor.definition.height*100)+' cm  /  '+featured.weight+' kg';
+   }
    renderer.domElement.hidden=false;status.hidden=true;
    queueDraw();
   }catch{
@@ -82,7 +100,7 @@ export function buildPlayerStudio(loadActor){
    renderer.domElement.setAttribute('aria-label','球员三维模型');
    stage.prepend(renderer.domElement);
    observer=new ResizeObserver(queueDraw);observer.observe(stage);
-   select(identity);
+   select(selectedNumber);
   }catch{
    status.hidden=false;status.textContent='球员模型未加载，请重新打开。';
   }
@@ -96,9 +114,11 @@ export function buildPlayerStudio(loadActor){
   if(renderer){renderer.dispose();renderer.forceContextLoss();renderer.domElement.remove();renderer=null;}
   width=height=0;
  });
- for(const button of names)button.addEventListener('click',()=>{
-  if(renderer&&(identity!==button.dataset.studioPlayer||status.hidden===false))select(button.dataset.studioPlayer);
- });
+ function selectFromControl(number){
+  if(number!==selectedNumber||!status.hidden)select(number);
+ }
+ for(const button of names)button.addEventListener('click',()=>selectFromControl(featuredNumbers[button.dataset.studioPlayer]));
+ roster.addEventListener('change',()=>selectFromControl(Number(roster.value)));
  for(const button of views)button.addEventListener('click',()=>{
   view=button.dataset.studioView;
   if(view!=='body')angle.value=String(presets[view]);

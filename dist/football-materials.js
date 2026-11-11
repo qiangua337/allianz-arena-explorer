@@ -8,10 +8,10 @@ export function installAthleteSurface(material){
  material.onBeforeCompile=function(shader,...args){before.call(this,shader,...args);
   shader.fragmentShader=shader.fragmentShader.replace('#include <roughnessmap_fragment>',`#include <roughnessmap_fragment>
 float athleteRoughness=.88;
-if(vMapUv.y>.5){athleteRoughness=vMapUv.x<.5?.71:.89;}
-else if(vMapUv.y>.25){athleteRoughness=vMapUv.x<.5?.91:vMapUv.x<.75?.34:.40;}
+if(vMapUv.y>.5){athleteRoughness=vMapUv.x<.5?.78:.89;}
+else if(vMapUv.y>.25){athleteRoughness=vMapUv.x<.5?.91:vMapUv.x<.75?.34:.29;}
 roughnessFactor=athleteRoughness;`);
- };material.customProgramCacheKey=()=>key+'|athlete-surface-v2';
+ };material.customProgramCacheKey=()=>key+'|athlete-surface-v3';
  return material;
 }
 

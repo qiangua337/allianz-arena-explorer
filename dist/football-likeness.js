@@ -43,9 +43,20 @@ function sculptPart(source,id){
  return geometry;
 }
 
-function scalpHair(sculpted,id){
+export const rosterCropStyles=['buzz','fade','braids','curls'];
+
+function rosterHairline(x,z,style){
+ const front=ramp(.086,.151,z),temple=ramp(.047,.075,Math.abs(x));
+ const nape=1-ramp(-.032,.028,z),short=style==='buzz';
+ const forehead=style==='braids'?.035:.042;
+ return 1.750+forehead*front+.006*temple-.027*nape+(short?.006:0);
+}
+
+function scalpHair(sculpted,id,style=null){
  const positions=[],indices=[],uv=[],skinIndex=[],skinWeight=[],vertexMap=new Map();
- const kane=id==='kane',hairline=kane?kaneHairline:musialaHairline,offset=new THREE.Vector3();
+ const kane=id==='kane';
+ const hairline=style?(x,z)=>rosterHairline(x,z,style):kane?kaneHairline:musialaHairline;
+ const offset=new THREE.Vector3();
  // The shared rig stores the neck immediately before the head. These are
  // the only two influences on the scalp, including the clipped hairline.
  const head=sculpted.eyes.attributes.skinIndex.getX(0),neck=head-1;
@@ -55,7 +66,12 @@ function scalpHair(sculpted,id){
   if(vertexMap.has(key))return vertexMap.get(key);
   const index=positions.length/3,depth=y-hairline(x,z);
   const root=ramp(0,.037,depth),front=ramp(.075,.145,z),volume=ramp(1.763,1.847,y);
-  if(kane)positions.push(...kaneHairOffset(x,y,z,nx,ny,nz,root,front,volume));
+  if(style){
+   const depthFade=ramp(0,.028,depth);
+   const wave=Math.sin(235*x+156*z)*Math.cos(255*z-123*x);
+   const thickness=.005+depthFade*(style==='curls'?.011+.002*wave:style==='buzz'?.0025:.005);
+   positions.push(x+nx*thickness,y+ny*thickness,z+nz*thickness);
+  }else if(kane)positions.push(...kaneHairOffset(x,y,z,nx,ny,nz,root,front,volume));
   else{musialaHairOffset(x,y,z,depth,nx,ny,nz,offset);positions.push(offset.x,offset.y,offset.z);}
   if(kane)uv.push(.5+x/.22,Math.max(.006,Math.min(.994,.006+depth/.083)));
   else uv.push(...musialaHairUV(x,y,z,depth));
@@ -90,7 +106,7 @@ function scalpHair(sculpted,id){
    }
   }
  }
- if(!kane)addMusialaCurls(positions,indices,uv,skinIndex,skinWeight,head);
+ if(!kane&&!style)addMusialaCurls(positions,indices,uv,skinIndex,skinWeight,head);
  const geometry=new THREE.BufferGeometry();
 
  geometry.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));
@@ -98,6 +114,17 @@ function scalpHair(sculpted,id){
  geometry.setAttribute('skinIndex',new THREE.Uint16BufferAttribute(skinIndex,4));
  geometry.setAttribute('skinWeight',new THREE.Float32BufferAttribute(skinWeight,4));
  geometry.setIndex(indices);geometry.computeVertexNormals();geometry.computeBoundingSphere();
+ if(style){
+  geometry.userData.parts={crop:{start:0,count:positions.length/3,indexStart:0,indexCount:indices.length}};
+  const maxTriangles=sculpted.crop.index.count/3;
+  for(const cell of [.015,.020,.024,.029,.036]){
+   const cap=simplifySkinnedGeometry(geometry,cell,{crop:{uvGrid:11}});
+   if(cap.index.count/3<=maxTriangles){geometry.dispose();return cap;}
+   cap.dispose();
+  }
+  geometry.dispose();
+  return sculpted.crop.clone();
+ }
  if(!kane)return geometry;
  // The wider scalp patch gives the tapered sides room to fade. Compact the
  // underlying patch without spending any extra triangles on the match actor.
@@ -106,6 +133,8 @@ function scalpHair(sculpted,id){
  geometry.dispose();
  return optimized;
 }
+
+export function makeRosterCrop(raw,style){return scalpHair(raw,null,style);}
 
 export function likenessParts(raw,id){
  const variant={...raw};

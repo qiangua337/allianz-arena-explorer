@@ -12,37 +12,46 @@ function gaussian(center,radius,value){
 
 export function kaneSculpt(x,y,z,target){
  if(y<=1.60)return target.set(x,y,z);
- const side=Math.abs(x);
+ const side=Math.abs(x),sign=Math.sign(x);
  const aboveNeck=smoothstep(1.60,1.652,y);
  const face=smoothstep(.076,.140,z);
  const lowerFace=smoothstep(.084,.154,z);
- const jaw=gaussian(1.653,.025,y);
- const cheek=gaussian(1.715,.025,y)*gaussian(.056,.023,side);
- const chin=gaussian(1.641,.014,y)*gaussian(0,.029,x)*lowerFace;
- const jawCorner=jaw*gaussian(.051,.025,side)*smoothstep(.071,.127,z);
+ const jawAngle=gaussian(1.647,.027,y)*gaussian(.055,.026,side)*smoothstep(.061,.127,z);
+ const chin=gaussian(1.638,.017,y)*gaussian(0,.030,x)*lowerFace;
+ const lowerCheek=gaussian(1.683,.032,y)*gaussian(.045,.028,side)*face;
+ const cheekbone=gaussian(1.718,.024,y)*gaussian(.054,.021,side)*face;
+ const temple=gaussian(1.788,.036,y)*gaussian(.062,.022,side)*face;
 
- // Keep the bridge high in profile and let the tip turn down gently.
  const bridge=gaussian(1.727,.022,y)*gaussian(0,.015,x)*smoothstep(.141,.176,z);
  const noseTip=gaussian(1.703,.013,y)*gaussian(0,.018,x)*smoothstep(.151,.183,z);
  const noseWing=gaussian(1.704,.010,y)*gaussian(.015,.010,side)*face;
 
- const lid=gaussian(1.744,.014,y)*gaussian(.033,.020,side)*face;
- const eyeFold=gaussian(1.747,.006,y)*gaussian(.040,.017,side)*face;
- const brow=gaussian(1.759,.011,y)*gaussian(.036,.023,side)*face;
- const innerBrow=gaussian(1.755,.009,y)*gaussian(.021,.012,side)*face;
- const mouth=gaussian(1.674,.015,y)*gaussian(0,.032,x)*lowerFace;
- const mouthCorner=gaussian(1.675,.009,y)*gaussian(.025,.012,side)*lowerFace;
- const temple=gaussian(1.788,.035,y)*gaussian(.066,.021,side)*face;
+ // Close the almond-shaped lid opening toward its centre. Fade into the
+ // surrounding orbit so the lower lid and eyeball meet from side views.
+ const lid=gaussian(1.743,.013,y)*gaussian(.033,.022,side)*face;
+ const lidCentre=1.742+.029*(side-.033);
+ const upperFold=gaussian(1.748,.006,y)*gaussian(.034,.021,side)*face;
+ const browArch=gaussian(1.758,.010,y)*gaussian(.036,.019,side)*face;
+ const innerBrow=gaussian(1.755,.009,y)*gaussian(.020,.011,side)*face;
 
- const middleFace=gaussian(1.689,.032,y)*gaussian(0,.049,x)*lowerFace;
- const width=1+.08*jawCorner+.09*cheek*face-.08*temple-.085*noseWing;
- const eyeCenter=1.744+.024*(side-.033);
+ // The lip seam sits lower at the corners. Flatten the projecting upper
+ // lip and shape the cupid's bow independently of the lower lip.
+ const mouthSeam=1.670-.09*side;
+ const lip=gaussian(1.671,.010,y)*gaussian(0,.032,x)*lowerFace;
+ const upperLip=gaussian(1.676,.007,y)*gaussian(0,.023,x)*lowerFace;
+ const lowerLip=gaussian(1.663,.006,y)*gaussian(0,.024,x)*lowerFace;
+ const mouthCorner=gaussian(1.669,.006,y)*gaussian(.024,.008,side)*lowerFace;
+ const philtrum=gaussian(1.685,.010,y)*gaussian(0,.024,x)*lowerFace;
+ const midFace=gaussian(1.689,.036,y)*gaussian(0,.050,x)*lowerFace;
+ const width=1+.12*jawAngle+.13*chin+.035*cheekbone+.025*lowerCheek-.095*temple-.078*noseWing-.065*lip;
+
  return target.set(
-  x*(1+aboveNeck*(width-1))-.09*aboveNeck*(side-.033)*Math.sign(x)*lid,
-  y+aboveNeck*(-.007*chin+.0018*jawCorner+.004*noseTip-.08*(y-eyeCenter)*lid
-   -.0026*brow+.0032*innerBrow+.0014*mouthCorner+.011*middleFace),
-  z+aboveNeck*(.006*bridge-.0065*noseTip+.0042*cheek*face+.0033*chin-.0017*mouth
-   +.0014*jawCorner-.0014*eyeFold+.0017*brow)
+  x*(1+aboveNeck*(width-1))-.115*aboveNeck*(side-.033)*sign*lid,
+  y+aboveNeck*(-.009*chin-.0013*jawAngle+.004*noseTip-.15*(y-lidCentre)*lid
+   -.0022*browArch+.0025*innerBrow-.34*(y-mouthSeam)*lip+.0013*mouthCorner+.0073*midFace),
+  z+aboveNeck*(.006*bridge-.0065*noseTip+.0025*cheekbone+.0018*lowerCheek+.0055*chin
+   +.0013*jawAngle+.0011*upperFold+.0009*browArch-.0045*upperLip-.0018*lowerLip
+   +.0013*philtrum-.0009*mouthCorner)
  );
 }
 

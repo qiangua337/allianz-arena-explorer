@@ -16,35 +16,46 @@ export function sculptMusiala(x, y, z, target) {
  const neck = smooth(1.60, 1.649, y);
  if (!neck) return target.set(x, y, z);
  const side = Math.abs(x);
- const front = smooth(.058, .136, z);
- const face = smooth(.112, .157, z);
- const jaw = bell(1.668, .029, y);
- const chin = bell(1.647, .017, y) * bell(0, .039, x) * front;
- const cheek = bell(1.705, .032, y);
- const cheekPad = cheek * bell(.042, .023, side) * front;
- const chinPoint = bell(1.637, .008, y) * bell(0, .023, x) * face;
- const bridge = bell(1.722, .024, y) * bell(0, .016, x) * face;
- const tip = bell(1.705, .009, y) * bell(0, .014, x) * face;
- const alae = bell(1.698, .008, y) * bell(.016, .009, side) * face;
- const brow = bell(1.755, .012, y) * bell(.031, .027, side) * front;
- const innerBrow = bell(1.756, .007, y) * bell(.022, .010, side) * front;
- const orbit = bell(1.744, .018, y) * bell(.034, .021, side) * front;
- const outerLid = smooth(.035, .053, side) * orbit;
- const mouth = bell(1.672, .011, y) * front;
- const lowerLip = bell(1.667, .006, y) * bell(0, .029, x) * face;
- const upperLip = bell(1.678, .006, y) * bell(0, .028, x) * face;
- const corners = mouth * bell(.027, .011, side);
- const temple = bell(1.778, .027, y) * smooth(.045, .078, side);
+ const front = smooth(.054, .131, z);
+ const profile = smooth(.112, .157, z);
+
+ // Taper the jaw below the cheekbone. Keep the narrowing at the front
+ // of the lower face so the masseter flows into the neck beside the ear.
+ const jaw = bell(1.658, .039, y) * front;
+ const chin = bell(1.641, .016, y) * bell(0, .040, x) * front;
+ const chinUnderside = bell(1.626, .016, y) * bell(0, .040, x) * front;
+ const cheekbone = bell(1.716, .027, y) * bell(.051, .025, side) * front;
+ const buccal = bell(1.687, .023, y) * bell(.048, .019, side) * front;
+
+ const bridge = bell(1.721, .022, y) * bell(0, .017, x) * profile;
+ const noseTip = bell(1.704, .013, y) * bell(0, .012, x) * profile;
+ const noseWing = bell(1.699, .010, y) * bell(.016, .009, side) * profile;
+
+ // Use the same deformation on the eye, socket and brow meshes. Restrict
+ // the lift to the inside of the eyebrow to reduce its steep inner angle.
+ const socket = bell(1.743, .018, y) * bell(.034, .022, side) * front;
+ const eyeOpening = bell(1.744, .014, y) * bell(.034, .020, side) * front;
+ const outerLid = smooth(.036, .054, side) * socket;
+ const lowerOrbit = bell(1.735, .009, y) * bell(.038, .018, side) * front;
+ const medialBrow = bell(1.752, .009, y) * bell(.016, .011, side) * front;
+ const browArch = bell(1.761, .010, y) * bell(.043, .022, side) * front;
+
+ const lips = bell(1.672, .013, y) * profile;
+ const lowerLip = bell(1.667, .006, y) * bell(0, .027, x) * profile;
+ const upperLip = bell(1.677, .008, y) * bell(0, .023, x) * profile;
+ const mouthCorner = lips * bell(.028, .010, side);
  const ear = smooth(.076, .092, side) * bell(1.726, .039, y);
- const width = 1 - .071 * jaw + .033 * cheek + .082 * chin
-  + .15 * alae + .105 * mouth + .033 * temple + .033 * orbit - .041 * ear;
+
+ const width = 1 - .186 * jaw - .07 * chin + .044 * cheekbone
+  + .164 * noseWing - .072 * lips - .042 * ear;
  return target.set(
-  x * (1 + neck * (width - 1)),
-  y + neck * (.005 * chinPoint - .0017 * bridge - .0034 * outerLid
-   - .0013 * brow + .0027 * innerBrow + .0023 * corners + .0007 * x / .07 * mouth),
-  z + neck * (.0064 * cheekPad + .0018 * chin - .0037 * bridge
-   + .0034 * tip + .0015 * alae + .0022 * brow - .0013 * orbit
-   + .0043 * lowerLip + .0017 * upperLip + .0015 * ear)
+  x * (1 + neck * (width - 1)) - .11 * neck * Math.sign(x) * (side - .034) * eyeOpening,
+  y + neck * (.0085 * chinUnderside + .0024 * chin - .0016 * bridge + .0017 * noseTip
+   - .0036 * outerLid + .0037 * medialBrow - .0036 * browArch
+   - .065 * (y - 1.744) * eyeOpening + .0017 * mouthCorner),
+  z + neck * (.0034 * cheekbone + .0015 * buccal - .0058 * chin - .0026 * bridge
+   - .0023 * noseTip + .002 * noseWing + .0018 * medialBrow - .0017 * browArch
+   - .0017 * lowerOrbit + .0039 * lowerLip - .0015 * upperLip + .0015 * ear)
  );
 }
 
@@ -55,8 +66,8 @@ export function musialaHairline(x, z) {
  const temple = smooth(.058, .083, side) * smooth(.023, .065, z)
   * (1 - smooth(.106, .139, z));
  const edge = .0022 * Math.sin(x * 186 + .4) + .0015 * Math.cos(x * 430 + .5);
- const frontShape = .040 + .009 * bell(.066, .018, side) - .003 * bell(.014, .029, x);
- return 1.752 + browFront * (frontShape + edge) - .020 * nape + .012 * temple;
+ const frontShape = .042 + .006 * bell(.063, .019, side) - .004 * bell(.014, .029, x);
+ return 1.755 + browFront * (frontShape + edge) - .022 * nape + .016 * temple;
 }
 
 export function musialaHairOffset(x, y, z, depth, normalX, normalY, normalZ, target) {
@@ -66,8 +77,8 @@ export function musialaHairOffset(x, y, z, depth, normalX, normalY, normalZ, tar
  const front = smooth(.090, .157, z);
  const curls = Math.sin(x * 310 + z * 217) * Math.sin(z * 410 - y * 460)
   + .57 * Math.sin(x * 278 - z * 349 + y * 490);
- const thickness = .00055 + root * (.002 + .022 * bulk + .002 * front
-  - .0013 * side + (.0008 + .0023 * bulk) * curls);
+ const thickness = .00055 + root * (.0015 + .0155 * bulk + .0042 * front
+  - .0011 * side + (.0008 + .0021 * bulk) * curls);
  return target.set(x + normalX * thickness, y + normalY * thickness,
   z + normalZ * thickness);
 }
@@ -104,7 +115,7 @@ export function addMusialaCurls(positions, indices, uv, skinIndex, skinWeight, h
   const normal = hit.normal.normalize();
   rotation.setFromUnitVectors(up, normal);
   const offset = positions.length / 3, angle = index * 2.37;
-  const base = hit.point.addScaledVector(normal, -.0023);
+  const base = hit.point.addScaledVector(normal, -.0025);
   const sampleU = hit.uv.x, sampleV = Math.max(.090, hit.uv.y);
   const sides = 5;
   for (let ring = 0; ring < 2; ring++) {
@@ -112,7 +123,7 @@ export function addMusialaCurls(positions, indices, uv, skinIndex, skinWeight, h
     const a = angle + side * Math.PI * 2 / sides + .27 * ring;
     const size = radius * (1 - .29 * ring) * (1 + .14 * Math.sin(a * 4.2));
     const x = Math.cos(a), z = Math.sin(a);
-    point.set(x * size + .0011 * ring, .0037 * ring, z * size * .82)
+    point.set(x * size + .0011 * ring, .0033 * ring, z * size * .82)
      .applyQuaternion(rotation).add(base);
     positions.push(point.x, point.y, point.z);
     uv.push(Math.min(.99, Math.max(.01, sampleU + x * .016)),
@@ -121,7 +132,7 @@ export function addMusialaCurls(positions, indices, uv, skinIndex, skinWeight, h
     skinWeight.push(1, 0, 0, 0);
    }
   }
-  point.set(.0011, .0056, 0).applyQuaternion(rotation).add(base);
+  point.set(.0011, .0048, 0).applyQuaternion(rotation).add(base);
   positions.push(point.x, point.y, point.z);
   uv.push(sampleU, Math.min(.99, sampleV + .041));
   skinIndex.push(head, 0, 0, 0);

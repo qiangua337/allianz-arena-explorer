@@ -1,4 +1,4 @@
-import {homeXI,substitutes} from './matchday-roster.js';
+import {homeXI,homeReserves,substitutes} from './matchday-roster.js';
 import {opponentSquad} from './football-teams.js';
 
 export const footballFormations={
@@ -9,7 +9,7 @@ export const footballFormations={
 };
 export function teamSquad(team='home',opponent='dortmund'){
  if(team==='away'){const s=opponentSquad(opponent);return[...s.xi,...s.bench];}
- return[...homeXI,...substitutes.filter(p=>p.team==='home')];
+ return[...homeXI,...substitutes.filter(p=>p.team==='home'),...homeReserves];
 }
 export const squadDefinition=(team,opponent,number)=>teamSquad(team,opponent).find(p=>p.player.number===Number(number));
 export function defaultSelection(team='home',opponent='dortmund'){const xi=teamSquad(team,opponent).slice(0,11).map(p=>p.player.number);if(team==='home')[xi[5],xi[6]]=[xi[6],xi[5]];if(team==='away'&&opponent==='dortmund')return{formation:'4231',xi:[1,9,25,3,4,24,26,8,7,14,18]};return{formation:'4231',xi};}
@@ -21,4 +21,4 @@ export function validateSelection(value,team='home',opponent='dortmund'){
  return{ok:true,selection:{formation:value.formation,xi:[...value.xi]}};
 }
 export function normalizeSelection(value,team='home',opponent='dortmund'){const result=validateSelection(value,team,opponent);return result.ok?result.selection:defaultSelection(team,opponent);}
-export function createTeamSheet(value,team,opponent){const selection=normalizeSelection(value,team,opponent);return{...selection,bench:teamSquad(team,opponent).filter(p=>!selection.xi.includes(p.player.number)).map(p=>p.player.number),used:[...selection.xi],substitutions:[],pending:[],windows:0};}
+export function createTeamSheet(value,team,opponent){const selection=normalizeSelection(value,team,opponent);return{...selection,bench:teamSquad(team,opponent).filter(p=>!selection.xi.includes(p.player.number)).slice(0,9).map(p=>p.player.number),used:[...selection.xi],substitutions:[],pending:[],windows:0};}

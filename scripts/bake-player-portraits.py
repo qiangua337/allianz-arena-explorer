@@ -120,6 +120,53 @@ def photo_layer(identity, base, photo, coordinates, covered):
     return base*(1-mask[...,None]) + sampled*mask[...,None]
 
 
+def finish_features(identity, skin, coordinates, covered):
+    """Paint brows, eyelid folds and lip pigment onto the skin surface."""
+    x, y, z = coordinates
+    side = np.abs(x)
+    kane = identity == 'kane'
+    front = covered * smoothstep(.121, .149, z)
+
+    def layer(result, color, alpha):
+        opacity = np.clip(alpha, 0, 1)[..., None]
+        return result*(1-opacity) + np.asarray(color)*opacity
+
+    # Rest-space coordinates follow the same deformation as the eyelids.
+    # Fine fibres replace the separate hard eyebrow cutout in the likenesses.
+    span = smoothstep(.013, .023, side) * (1-smoothstep(.050, .065, side))
+    if kane:
+        brow_y = np.interp(side, [.014,.023,.035,.048,.063], [1.755,1.758,1.760,1.759,1.752])
+        thickness = np.interp(side, [.014,.026,.043,.064], [.0018,.0025,.0020,.0009])
+        brow_color = [78,58,47]
+    else:
+        brow_y = np.interp(side, [.014,.025,.037,.049,.063], [1.754,1.757,1.761,1.761,1.752])
+        thickness = np.interp(side, [.014,.025,.042,.064], [.0021,.0029,.0024,.0010])
+        brow_color = [57,42,37]
+    brow_y += np.sign(x)*.00045
+    deviation = y-brow_y
+    root = bell(deviation, 0, thickness)
+    strands = .50 + .50*np.sin(6900*side + 3200*deviation + 1.5*np.sin(520*side))
+    density = front*span*(.14*bell(deviation, 0, thickness*1.8)+root*(.60+.24*strands))
+    result = layer(skin, brow_color, density)
+
+    lid_span = smoothstep(.015, .022, side)*(1-smoothstep(.041, .052, side))
+    crease_y = 1.749+.0028*bell(side,.030,.013)
+    fold = bell(y, crease_y, .00125)*lid_span*front
+    result = layer(result, [117,82,68] if kane else [81,54,45], fold*.18)
+
+    # Keep fine texture while reducing lipstick-like saturation around the
+    # mouth. The centre seam is narrow and the pigment tapers at each corner.
+    mouth_front = covered*smoothstep(.148,.167,z)
+    lip_width = bell(x,0,.023)*(1-smoothstep(.025,.035,side))
+    lip = bell(y,1.672,.0076)*lip_width*mouth_front
+    neutral = np.sum(result*np.array([.30,.57,.13]),axis=2)
+    muted = neutral[..., None]+(result-neutral[..., None])*.72
+    result = result*(1-lip[..., None]*.54)+muted*lip[..., None]*.54
+    seam_y = 1.673+.0009*bell(side,.006,.006)-.0009*smoothstep(.013,.029,side)
+    seam = bell(y,seam_y,.00125)*lip_width*mouth_front
+    return layer(result, [94,60,53] if kane else [73,44,43], seam*.22)
+
+
 def build(identity, photo_path):
     manifest = json.loads((ASSETS/'footballer-960.json').read_text())
     coordinates, covered = COMMON['face_space'](manifest, (ASSETS/'footballer-960.bin').read_bytes())
@@ -140,6 +187,7 @@ def build(identity, photo_path):
     with Image.open(photo_path) as source:
         photo = source.convert('RGB')
     painted = photo_layer(identity, base, photo, coordinates, covered)
+    painted = finish_features(identity, painted, coordinates, covered)
     path = ASSETS/f'face-{identity}.webp'
     image = Image.fromarray(np.clip(painted,0,255).astype('uint8'))
     byte_limit = 12894 if identity == 'kane' else 7522

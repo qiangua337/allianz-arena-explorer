@@ -1,5 +1,6 @@
 import {THREE,canvasTexture} from './kit.js';
 import {playerLikeness} from './football-likeness.js';
+import {rosterHeadProfile,paintRosterBeard,paintRosterHair} from './football-roster-heads.js';
 import {paintKaneHair,paintKaneEyes} from './football-likeness-kane.js';
 import {paintMusialaHair} from './football-likeness-musiala.js';
 export const faceTextureWindow=[.60,.15,1,.87];
@@ -59,16 +60,18 @@ function paintSkin(c,cell,base,face){
 }
 
 export function characterAtlas(d,textures,jerseyTexture,size=1024){
- const colors=kitColors(d),id=playerLikeness(d),face=textures.likenessFaces?.[id]?.image;
+ const colors=kitColors(d),id=playerLikeness(d),face=textures.likenessFaces?.[id]?.image,profile=rosterHeadProfile(d);
  const jersey=jerseyTexture(d,d.team==='away'?(d.club&&d.club.id!=='dortmund'?null:textures.awayCrest):textures.crest,colors);
  const texture=canvasTexture(size,size,c=>{c.scale(size,size);for(const[name,cell]of Object.entries(cells)){if(['bootR','crop','short02','hands','wrists','keeperWrists','gloveCuffs'].includes(name))continue;c.save();c.beginPath();c.rect(...cell);c.clip();const skin=name==='face'||name==='skin';c.fillStyle=skin?'#b29275':colors[name]||'#eee';if(name==='eyebrows')c.clearRect(...cell);else c.fillRect(...cell);
    if(name==='face'&&face)c.drawImage(face,...cell);
    else if(skin){
-    const crop=name==='face',base=!id&&d.dark?textures.dark.image:textures.light.image;
+    const crop=name==='face',base=!id&&!profile&&d.dark?textures.dark.image:textures.light.image;
     paintSkin(c,cell,base,crop);
-    if(id==='musiala'){c.globalAlpha=.56;paintSkin(c,cell,textures.dark.image,crop);c.globalAlpha=1;}
+    const complexion=id==='musiala'?.56:profile?.complexion??0;
+    if(complexion>0){c.globalAlpha=complexion;paintSkin(c,cell,textures.dark.image,crop);c.globalAlpha=1;}
+    if(crop&&profile)paintRosterBeard(c,cell,profile);
    }else{
-    const image=name==='shirt'?jersey.image:name==='eyes'?textures.eyes.image:name==='eyebrows'?textures.brows.image:name==='bootL'?textures.boot.image:null;
+    const image=name==='shirt'?jersey.image:name==='eyes'?textures.eyes.image:name==='eyebrows'&&!face?textures.brows.image:name==='bootL'?textures.boot.image:null;
     if(image)c.drawImage(image,...cell);
    }
    if(name==='eyes'&&id){
@@ -77,12 +80,19 @@ export function characterAtlas(d,textures,jerseyTexture,size=1024){
     c.globalCompositeOperation='source-over';
     if(id==='kane')paintKaneEyes(c,cell);
    }
-   if(name==='eyebrows'&&id){
+   if(name==='eyebrows'&&profile){
+    c.globalCompositeOperation='source-atop';c.fillStyle=profile.hairColor;c.fillRect(...cell);
+    c.globalCompositeOperation='destination-out';c.fillStyle='rgba(0,0,0,.14)';c.fillRect(...cell);
+   }
+   if(name==='eyebrows'&&id&&!face){
     c.globalCompositeOperation='source-atop';c.fillStyle=id==='kane'?'rgba(121,100,81,.76)':'rgba(73,56,43,.54)';c.fillRect(...cell);
     c.globalCompositeOperation='destination-out';c.fillStyle='rgba(0,0,0,.18)';c.fillRect(...cell);
    }
    if(name==='bootL'){c.globalCompositeOperation='multiply';c.fillStyle=new THREE.Color(d.boot||0xcac6bd).getStyle();c.fillRect(...cell);}if(name==='gloves'){c.translate(cell[0],cell[1]);drawGloveTexture(c,cell[2],cell[3]);}c.restore();}
-  const cell=cells.short02;c.save();c.beginPath();c.rect(...cell);c.clip();c.clearRect(...cell);if(id)drawLikenessHair(c,cell,id);else if(d.hair==='crop'){c.fillStyle='#27231e';c.fillRect(...cell);}else{c.drawImage(textures.short02.image,...cell);c.globalCompositeOperation='multiply';c.fillStyle=new THREE.Color(d.hairColor||0x9a8476).getStyle();c.fillRect(...cell);c.globalCompositeOperation='destination-in';c.drawImage(textures.short02.image,...cell);}c.restore();
+  const cell=cells.short02;c.save();c.beginPath();c.rect(...cell);c.clip();c.clearRect(...cell);if(id)drawLikenessHair(c,cell,id);else if(profile){
+    c.save();paintRosterHair(c,cell,profile);c.restore();
+    if(profile.hair==='short02'&&profile.style!=='shaved'){c.globalCompositeOperation='destination-in';c.drawImage(textures.short02.image,...cell);}
+   }else if(d.hair==='crop'){c.fillStyle='#27231e';c.fillRect(...cell);}else{c.drawImage(textures.short02.image,...cell);c.globalCompositeOperation='multiply';c.fillStyle=new THREE.Color(d.hairColor||0x9a8476).getStyle();c.fillRect(...cell);c.globalCompositeOperation='destination-in';c.drawImage(textures.short02.image,...cell);}c.restore();
  });jersey.dispose();return texture;
 }
 function drawJerseyPanels(c){

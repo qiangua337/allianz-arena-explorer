@@ -1,5 +1,5 @@
-// Official first-team roster, checked 2026-10-26. Keep names and numbers together.
-export const rosterInfo={season:'2026/27',checked:'2026-10-26',source:'https://fcbayern.com/en/teams/first-team'};
+// Official first-team roster, checked 2026-11-11. Keep names and numbers together.
+export const rosterInfo={season:'2026/27',checked:'2026-11-11',source:'https://fcbayern.com/en/teams/first-team'};
 export const firstTeam=[
  {number:1,name:'NEUER',fullName:'Manuel Neuer'},
  {number:26,name:'ULREICH',fullName:'Sven Ulreich'},
@@ -19,7 +19,7 @@ export const firstTeam=[
  {number:39,name:'NDIAYE',fullName:'Bara Sapoko Ndiaye'},
  {number:42,name:'KARL',fullName:'Lennart Karl'},
  {number:45,name:'PAVLOVIĆ',fullName:'Aleksandar Pavlović'},
- {number:null,name:'SANTOS DAIBER',fullName:'David Santos Daiber'},
+ {number:47,name:'SANTOS DAIBER',fullName:'David Santos Daiber'},
  {number:7,name:'GNABRY',fullName:'Serge Gnabry'},
  {number:9,name:'KANE',fullName:'Harry Kane'},
  {number:14,name:'LUIS DÍAZ',fullName:'Luis Díaz'},

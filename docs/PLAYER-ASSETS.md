@@ -2,6 +2,10 @@
 
 人物参考真实人体比例与足球游戏的入场呈现方式，使用 MakeHuman 通用人体拓扑、皮肤和骨骼权重。
 
+## 9.7.3 拜仁一线队外形
+
+按 [拜仁一线队官方档案](https://fcbayern.com/en/teams/first-team) 参考 24 名有号码球员的外形。凯恩和穆西亚拉重塑头部轮廓及五官，脸部贴图内绘制细眉和唇纹。其余拜仁球员按照片近似调整脸宽、下颌、颅形、发型、肤色和胡须。每名球员在特写和实战共用同一组模型，保留同一套蒙皮与球衣图集。运行时共用模型的 UV、索引和骨骼权重，中远景沿用原三角面上限。
+
 ## 9.7.2 画面与特写
 
 球员特写使用三分之四视角起步，保留正面、侧面和全身。灯光随查看角度调整，以便阅读轮廓；布光与材质方案调研了 [Three.js 室内环境示例](https://github.com/mrdoob/three.js/blob/dev/examples/jsm/environments/RoomEnvironment.js) 和 [材质示例](https://github.com/mrdoob/three.js/blob/dev/examples/webgl_materials_physical_clearcoat.html)。特写按需渲染，浏览器不会为特写资源在比赛画面再开一轮绘制。调研了 [3DDFA_V2](https://github.com/cleardusk/3DDFA_V2) 的离线对齐方法，未将其推理库与模型权重加入游戏。
