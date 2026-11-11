@@ -4,6 +4,8 @@
 
 [在线探索](https://allianz-arena-explorer.pages.dev/) · [GitHub 源码](https://github.com/qiangua337/allianz-arena-explorer) · [Cloudflare 部署说明](docs/DEPLOYMENT.md) · [MIT 许可证](LICENSE)
 
+版本 **9.4.0 · 首页体验入口配图**。球场训练、好友联机、自由参观与球员入场各有一张实拍照片。四张本地 WebP 共 249 KB，摄影署名及许可证见[影像与字体来源](https://allianz-arena-explorer.pages.dev/visual-credits.html)。
+
 版本 **9.3.0：主屏层次、球星切换与入口整理**。
 
 - 主标题改为中文，统一入口卡片色调，调整照片、文字与按钮层次；平板保留两列入口，手机横屏采用紧凑布局。
