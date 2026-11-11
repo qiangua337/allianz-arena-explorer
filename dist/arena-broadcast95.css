@@ -612,7 +612,7 @@ body.game-active #game-ui .game-actions button:active:not(:disabled) {
     height: var(--match-action-size);
   }
 
-  body.game-active[data-touch="true"] #game-ui .game-actions [data-game-action="switch"],
+  body.game-active[data-touch="true"] #game-ui .game-actions button[data-game-action="switch"],
   body.game-active[data-touch="true"][data-control-context="loose"] #game-ui .game-actions #game-tackle {
     position: absolute;
     top: calc(0px - var(--match-auxiliary-size) - var(--match-action-gap));
