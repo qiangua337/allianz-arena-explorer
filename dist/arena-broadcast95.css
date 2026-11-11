@@ -476,6 +476,18 @@ body.game-active #movement #touch-sprint {
     width: calc(100% - var(--match-left) - var(--match-right) - 134px);
   }
 
+  body[data-game-training="shooting"] #game-ui .game-shot-feedback {
+    top: calc(var(--match-top) + 154px);
+    width: max-content;
+    max-width: calc(100% - var(--match-left) - var(--match-right));
+    white-space: normal;
+    text-align: center;
+  }
+
+  body[data-game-training="shooting"] #game-ui[data-more="true"] .game-shot-feedback {
+    display: none;
+  }
+
   #game-ui .game-penalty-hint {
     bottom: max(185px, calc(env(safe-area-inset-bottom, 0px) + 166px));
   }
