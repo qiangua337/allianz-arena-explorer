@@ -35,6 +35,19 @@ test('the floor map projects room geometry and selects only destinations on the 
  const view=arenaMapView({x:-82,y:-1,z:0},-2.7),node=tourNodes.homeRoom,hit=mapDestinationAt(view,mapProject(view,node));assert.equal(hit,'homeRoom');assert.equal(mapDestinationAt(view,mapProject(view,tourNodes.store)),null);
  const context=new Proxy({},{get:(o,k)=>k in o?o[k]:()=>{}});assert.doesNotThrow(()=>drawArenaFloorMap(context,{position:{x:-82,y:-1,z:0},feetY:-2.7,goal:'homeRoom',route:[tourNodes.homeRoom]}));
 });
+test('the floor map keeps the visitor in view and ignores non-destination routing points',()=>{
+ for(const point of [{x:-96,y:40,z:10},{x:0,y:23.6,z:85},{x:-32,y:-5.14,z:280}]){
+  const view=arenaMapView(point,point.y);
+  const marker=mapProject(view,point);
+  assert.ok(marker.x>=33&&marker.x<=view.width-33);
+  assert.ok(marker.y>=35&&marker.y<=view.height-35);
+ }
+ const point=tourNodes.arcade,view=arenaMapView(point,point.y),marker=mapProject(view,point);
+ assert.equal(mapDestinationAt(view,marker,{reception:tourNodes.reception}),null);
+ assert.equal(mapDestinationAt(view,marker), 'arcade');
+ const goal={...point,...mapUnproject(view,{x:2,y:marker.y})};
+ assert.equal(mapDestinationAt(view,{x:12,y:marker.y},{arcade:goal}),null);
+});
 test('analog touch control has a radial dead zone, never exceeds unit speed and preserves diagonal direction',()=>{
  assert.equal(joystickAxes(1,1).x,0);const full=joystickAxes(100,-100);assert.ok(Math.abs(Math.hypot(full.x,full.y)-1)<1e-10);assert.ok(Math.abs(full.x-full.y)<1e-10);assert.ok(joystickAxes(12,0).x<joystickAxes(24,0).x);assert.deepEqual(joystickAxes(NaN,1),{x:0,y:0,thumbX:0,thumbY:0});assert.equal(joystickAxes(25,0).y,0);
 });

@@ -567,3 +567,116 @@ body.game-active #game-ui .game-actions button:active:not(:disabled) {
   body.game-active #game-ui .game-actions button { min-width: 44px; min-height: 44px }
   #game-ui .game-player #game-ball-hint { line-height: 1.4; text-wrap: pretty }
 }
+
+/* Both thumb controls use the same safe edge. Keep the information panels
+   above the buttons even when the phone reserves space for its home bar. */
+@media (max-width: 760px), (max-height: 500px) and (min-width: 600px) {
+  body.game-active[data-touch="true"] {
+    --match-control-bottom: max(18px, calc(env(safe-area-inset-bottom, 0px) + 12px));
+    --match-joystick-size: 94px;
+    --match-action-size: 58px;
+    --match-action-gap: 8px;
+    --match-auxiliary-size: 44px;
+    --match-action-stack: calc(2 * var(--match-action-size) + 2 * var(--match-action-gap) + var(--match-auxiliary-size));
+  }
+
+  body.game-active[data-touch="true"] #movement,
+  body.game-active[data-touch="true"] #game-ui .game-actions {
+    bottom: var(--match-control-bottom);
+  }
+
+  body.game-active[data-touch="true"] #movement {
+    gap: 7px;
+    transform: none;
+  }
+
+  body.game-active[data-touch="true"] #movement .joystick {
+    width: var(--match-joystick-size);
+    height: var(--match-joystick-size);
+  }
+
+  body.game-active[data-touch="true"] #movement .joystick-thumb {
+    left: calc(50% - 16px);
+    top: calc(50% - 16px);
+  }
+
+  body.game-active[data-touch="true"]:not([data-control-context^="penalty"]) #game-ui .game-actions {
+    grid-template-columns: repeat(2, var(--match-action-size)) !important;
+    grid-template-rows: repeat(2, var(--match-action-size));
+    gap: var(--match-action-gap);
+    width: calc(2 * var(--match-action-size) + var(--match-action-gap));
+  }
+
+  body.game-active[data-touch="true"]:not([data-control-context^="penalty"]) #game-ui .game-actions button {
+    width: var(--match-action-size);
+    height: var(--match-action-size);
+  }
+
+  body.game-active[data-touch="true"] #game-ui .game-actions [data-game-action="switch"],
+  body.game-active[data-touch="true"][data-control-context="loose"] #game-ui .game-actions #game-tackle {
+    position: absolute;
+    top: calc(0px - var(--match-auxiliary-size) - var(--match-action-gap));
+    width: var(--match-action-size);
+    height: var(--match-auxiliary-size);
+    font-size: 11px;
+    border-radius: 10px;
+  }
+
+  body.game-active[data-touch="true"][data-control-context="loose"] #game-ui .game-actions #game-tackle {
+    left: 0;
+    right: auto;
+  }
+
+  body.game-active[data-touch="true"][data-control-context="defend"] #game-ui .game-actions :is([data-game-action="pass"], [data-game-action="through"], #game-shoot) {
+    display: none;
+  }
+
+  body.game-active[data-touch="true"] #game-ui .game-player {
+    bottom: calc(var(--match-control-bottom) + var(--match-joystick-size) + 10px) !important;
+  }
+
+  body.game-active[data-touch="true"] #game-ui .game-power {
+    top: auto;
+    left: var(--match-left);
+    bottom: calc(var(--match-control-bottom) + var(--match-joystick-size) + 76px);
+    transform: none;
+  }
+
+  body.game-active[data-touch="true"] #game-ui .game-radar {
+    left: auto;
+    right: var(--match-right);
+    bottom: calc(var(--match-control-bottom) + var(--match-action-stack) + 8px);
+    transform: none;
+  }
+
+  body.game-active[data-touch="true"] #game-ui .game-penalty-hint {
+    bottom: calc(var(--match-control-bottom) + var(--match-joystick-size) + 76px);
+  }
+}
+
+@media (max-height: 500px) and (min-width: 540px) and (orientation: landscape) {
+  body.game-active[data-touch="true"] {
+    --match-joystick-size: 88px;
+    --match-action-size: 52px;
+    --match-action-gap: 7px;
+    --match-center-width: calc(100% - var(--match-left) - var(--match-right) - 330px);
+  }
+
+  body.game-active[data-touch="true"] #game-ui .game-radar,
+  body.game-active[data-touch="true"] #game-ui .game-power,
+  body.game-active[data-touch="true"] #game-ui .game-penalty-hint {
+    left: calc(var(--match-left) + (100% - var(--match-left) - var(--match-right)) / 2);
+    right: auto;
+    transform: translateX(-50%);
+  }
+
+  body.game-active[data-touch="true"] #game-ui .game-radar {
+    bottom: var(--match-control-bottom);
+  }
+
+  body.game-active[data-touch="true"] #game-ui .game-power,
+  body.game-active[data-touch="true"] #game-ui .game-penalty-hint {
+    bottom: calc(var(--match-control-bottom) + 85px);
+    max-width: var(--match-center-width);
+  }
+}

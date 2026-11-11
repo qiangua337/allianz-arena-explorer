@@ -179,6 +179,23 @@ test('arriving by another open aisle does not require backtracking through stale
  const otherFloor=new THREE.Vector3(94,-1.2,-47);guide.setGoal('concourse',otherFloor);guide.update(otherFloor,0,.2,'walk');assert.equal(guide.isArrived(),false,'the same map coordinate on the entrance floor is not an arrival');
 });
 
+test('the final route marker does not mark arrival through an intervening wall',()=>{
+ const goal=tourNodes.concourse,nearbyWall={x0:goal.x-.8,x1:goal.x+.8,z0:goal.z+.55,z1:goal.z+.65,y0:goal.y,y1:goal.y+2.3};
+ const obstacles={...obstacleGroups,building:[...obstacleGroups.building,nearbyWall]};
+ const guide=buildWalkGuide(scene,geometry,{obstacles});
+ const front=new THREE.Vector3(goal.x,goal.y+1.7,goal.z-.9);
+ const back=new THREE.Vector3(goal.x,goal.y+1.7,goal.z+1.2);
+ const aisle=new THREE.Vector3(97.175,13.9,-46.634);
+ guide.setGoal('concourse',aisle);guide.update(aisle,0,.2,'walk');
+ assert.deepEqual(guide.getRoute().map(p=>p.id),['concourse']);
+ assert.equal(walkSegmentClear({x:back.x,y:goal.y,z:back.z},goal,geometry,navigationObstacles(goal,obstacles)),false);
+ guide.update(back,0,.2,'walk');
+ assert.equal(guide.isArrived(),false);
+ assert.notDeepEqual(guide.getRoute().map(p=>p.id),['concourse']);
+ guide.update(front,0,.2,'walk');
+ assert.equal(guide.isArrived(),true);
+});
+
 test('the compact arrival action names the next place and starts a real walk from the current position',()=>{
  const original=document.getElementById,nodes=new Map();document.getElementById=id=>{if(!nodes.has(id))nodes.set(id,{hidden:true,style:{},setAttribute(k,value){this[k]=value;},classList:{toggle(){}},focus(){}});return nodes.get(id);};
  try{

@@ -1,5 +1,3 @@
-import {buildEditorialCover} from './editorial-cover.js';
-import {buildExperienceHub,shouldOpenExperienceHub} from './experience-hub.js';
 import {drawArenaFloorMap,mapDestinationAt} from './arena-floor-map.js';
 import {joystickAxes} from './touch-control.js';
 import {replayCamera} from './football-replay.js';
@@ -42,7 +40,6 @@ import {serviceRoomAt} from './service-layout.js';
 
 const $=id=>document.getElementById(id),canvas=$('scene');
 const ballCue=$('game-ball-cue'),ballCueArrow=$('game-ball-cue-arrow'),ballCueDistance=$('game-ball-cue-distance');
-buildEditorialCover();
 let experienceHub;
 let visitorStorage;try{visitorStorage=window.localStorage;}catch{}const visitorSettings=loadVisitorSettings(visitorStorage),walkingTour=createWalkingTour(),smoothInput={x:0,z:0};let qualityMode=visitorSettings.quality,matchFps=visitorSettings.matchFps,tourUIState='';
 const places={
@@ -78,9 +75,10 @@ const walkGeometry=()=>({tiers:stadium.tiers,rooms:roomSpecs});
 const navigationPosition=()=>mode==='walk'?walkPosition.set(camera.position.x,(walkFeet??camera.position.y-desiredEye)+desiredEye,camera.position.z):walker.position;
 const toast=text=>{clearTimeout(toastTimer);$('toast').textContent=text;$('toast').classList.add('visible');toastTimer=setTimeout(()=>$('toast').classList.remove('visible'),3500);};
 
-async function init(){
+export async function startArena({hub, initial, nightAtStart}){
+ experienceHub=hub;
  $('quality').value=qualityMode;syncMatchFpsOptions();
- try{renderer=new THREE.WebGLRenderer({canvas,antialias:qualityMode==='high'||!(innerWidth<=760||window.matchMedia('(pointer:coarse)').matches),alpha:false,preserveDrawingBuffer:false,powerPreference:'high-performance'});}catch(error){$('load-status').innerHTML='当前浏览器未能启用 WebGL。请使用支持硬件加速的 Chrome / Edge 打开。';document.querySelector('.load-track').hidden=true;console.error(error);return;}
+ try{renderer=new THREE.WebGLRenderer({canvas,antialias:qualityMode==='high'||!(innerWidth<=760||window.matchMedia('(pointer:coarse)').matches),alpha:false,preserveDrawingBuffer:false,powerPreference:'high-performance'});}catch(error){throw new Error('当前浏览器未能启用 WebGL。请检查浏览器的硬件加速设置。',{cause:error});}
  setQuality();renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.17;renderer.shadowMap.type=THREE.PCFShadowMap;renderer.shadowMap.autoUpdate=false;renderer.shadowMap.needsUpdate=true;
  scene=new THREE.Scene();scene.fog=new THREE.FogExp2(0xb8cbd6,.00082);
  camera=new THREE.PerspectiveCamera(48,innerWidth/innerHeight,.06,4500);camera.position.fromArray(places.exterior.pos);
@@ -94,11 +92,36 @@ async function init(){
  matchday.setQuality(qualityMode,qualityScale);visualAssets.registerOutdoor(world.group,stadium.root);applyArchitecturalUV(stadium.root);applyArchitecturalUV(stadium.circulation.root);applyArchitecturalUV(interiors.root);applyArchitecturalUV(building.root);applyArchitecturalUV(world.group);installInteriorShading(interiors.root);
  spatializeArchitecture(stadium.circulation.root);spatializeArchitecture(interiors.rooms.concourse);
  setExplorationMatchMode=suspendExplorationDuringMatch([world.group,building.root,interiors.root,serviceRooms.root,stadium.circulation.root]);
- freezeArchitecture(world.group,[world.rotor]);freezeArchitecture(stadium.root,[stadium.matchBall]);freezeArchitecture(stadium.circulation.root);freezeArchitecture(interiors.root);freezeArchitecture(building.root);buildDestinationMenu();buildHotspots();bindUI();experienceHub=buildExperienceHub({getSettings:()=>({night,quality:qualityMode}),onOpen:()=>{const state={ready:walkReady,matchPaused:matchday.paused};stopTour();clearWalkInput();document.exitPointerLock?.();if(matchday.active)matchday.setPaused(true);setWalkReady(false);setNavOpen(false);return state;},onClose:state=>{if(matchday.active)matchday.setPaused(state.matchPaused);setWalkReady(state.ready);frameBudget.invalidate();},onExplore:()=>{if(matchday.active)matchday.exit();setMode('walk',{place:'entrance'});teleportToDestination('entrance');beginWalk();},onTraining:()=>{if(matchday.active)matchday.exit();matchday.launch('training');},onMatch:()=>{if(matchday.active)matchday.exit();matchday.launch('play');},onOnline:()=>{if(matchday.active)matchday.exit();matchday.launch('online');},onEntrance:()=>{if(matchday.active)matchday.exit();matchday.launch('tour');},onEnvironment:value=>{setDayNight(value);updateLocationURL();},onQuality:value=>{$('quality').value=value;setQuality();persistDisplaySettings();}});setNavOpen(false);document.body.dataset.mode=mode;setDayNight(false);applySurfaceQuality(scene,qualityMode);clock.time=performance.now();document.body.dataset.version='9.7.6';document.body.dataset.seats=stadium.seatCount;document.body.dataset.panels=stadium.panelCount;
- const initial=new URLSearchParams(location.search);if(initial.get('night')==='1')setDayNight(true);const place=initial.get('place');if(initial.get('view')==='walk')setMode('walk',{place:place&&(places[place]||tourGoals[place])?place:'arcade'});else if(place&&(places[place]||tourGoals[place]))goPlace(place,false);
- $('load-status').textContent='正在准备室内与室外画面…';await renderer.compileAsync(scene,camera);document.body.dataset.ready='true';clock.time=performance.now();renderer.setAnimationLoop(render);requestAnimationFrame(()=>{$('loading').classList.add('finished');$('load-status').textContent='场景已就绪';if(initial.get('experience')==='football'||initial.has('room'))matchday.launch();else if(initial.get('experience')==='training')matchday.launch('training');else if(shouldOpenExperienceHub(initial))experienceHub.open();});
+ freezeArchitecture(world.group,[world.rotor]);freezeArchitecture(stadium.root,[stadium.matchBall]);freezeArchitecture(stadium.circulation.root);freezeArchitecture(interiors.root);freezeArchitecture(building.root);buildDestinationMenu();buildHotspots();bindUI();setNavOpen(false);document.body.dataset.mode=mode;setDayNight(nightAtStart);applySurfaceQuality(scene,qualityMode);clock.time=performance.now();document.body.dataset.version='9.7.7';document.body.dataset.seats=stadium.seatCount;document.body.dataset.panels=stadium.panelCount;
+ const place=initial.get('place');if(initial.get('view')==='walk')setMode('walk',{place:place&&(places[place]||tourGoals[place])?place:'arcade'});else if(place&&(places[place]||tourGoals[place]))goPlace(place,false);
+ $('load-status').textContent='正在准备室内与室外画面…';await renderer.compileAsync(scene,camera);document.body.dataset.ready='true';clock.time=performance.now();renderer.setAnimationLoop(render);
  window.addEventListener('resize',resize);canvas.addEventListener('webglcontextlost',e=>{e.preventDefault();toast('图形上下文已暂停，请重新加载页面恢复。');});
+ return arenaEntry;
 }
+
+const arenaEntry={
+ getSettings(){return{night,quality:qualityMode};},
+ setEnvironment(value){setDayNight(value);updateLocationURL();},
+ setQuality(value){$('quality').value=value;setQuality();persistDisplaySettings();},
+ pauseForHub(){
+  const state={ready:walkReady,matchPaused:matchday.paused};
+  stopTour();clearWalkInput();document.exitPointerLock?.();
+  if(matchday.active)matchday.setPaused(true);
+  setWalkReady(false);setNavOpen(false);
+  return state;
+ },
+ resumeFromHub(state){
+  if(matchday.active)matchday.setPaused(state.matchPaused);
+  setWalkReady(state.ready);frameBudget.invalidate();
+ },
+ enter(panel){
+  if(matchday.active)matchday.exit();
+  if(panel==='explore'){
+   setMode('walk',{place:'entrance'});
+   teleportToDestination('entrance');beginWalk();
+  }else matchday.launch(panel);
+ }
+};
 
 function buildSky(){
  const uniform={top:{value:new THREE.Color(0x7e9db4)},bottom:{value:new THREE.Color(0xdfe8e6)},sunDirection:{value:v(-.45,.7,.45).normalize()},night:{value:0}};
@@ -425,6 +448,3 @@ function showInteractiveInfo(title,text,goals=[],exhibit=null){$('info-dialog').
 function openDialog(type){clearWalkInput();document.exitPointerLock?.();if(type==='help')$('dialog-content').innerHTML=`<div class="eyebrow">ARENA EXPLORER</div><h2>自由探索主场</h2><h3>电脑操作</h3><p>第三人称：拖动环绕、滚轮缩放、右键平移。第一人称：WASD / 方向键移动，拖动画面或 Q / E 转头，Shift 加速。L 锁定或释放鼠标，Esc 暂停，点击画面继续。</p><h3>手机操作</h3><p>第一人称用左下摇杆移动，拖动空白画面转头；「跑」切换移动速度。第三人称用单指环绕、双指缩放和平移。横竖屏均可使用。靠近可互动设施后，点击右下提示按钮操作。</p><h3>选区、步行与传送</h3><p>点击「选择区域」或底部地点，可搜索、按类别筛选目的地。第一人称选区后更新方向、距离与脚下黄线；想直接抵达时，再点击「传送」或按 T。路线详情按需展开，地图用右上地图按钮或 M 打开。眼睛按钮或 U 隐藏界面，再次点击恢复。</p><p>首次进入第一人称从南侧正门出发，之后切回会恢复上次步行位置。大厅右侧的参观通道通往草坪，东侧室内楼梯连接公共大厅、包厢和看台。商店与展厅的自动门靠近即开；公共大厅的 SERVICE 双门需要靠近后按 F 或点击互动按钮，打开后可走入并返回。</p><h3>场景与互动</h3><p>靠近奖杯、球衣、战术板与座位按 F 或点击互动按钮。N 切换昼夜，P 切换视角，Home 返回正门，H 查看说明。显示设置里可关闭屋顶或选择画质。默认采用流畅画质；设备性能有限时建议保留默认设置。</p>`;
  else $('dialog-content').innerHTML=`<div class="eyebrow">BUILT FROM PUBLIC REFERENCES</div><h2>尽量走近真实的安联。</h2><p>这是以公开照片、建筑介绍、官方平面图和用户视频为参考的程序化三维复原。采用米制坐标，主要外形与草坪遵循公布的尺寸；并非测绘模型，未取得施工图、摄影测量数据或完整室内尺寸，因此无法保证逐处 1:1。</p><div class="fact-grid"><div><b>258 × 227 m</b><small>建筑外廓参考</small></div><div><b>105 × 68 m</b><small>标准比赛草坪</small></div><div><b>2,784</b><small>官方气枕数量参考</small></div></div><h3>本轮直接参观的官方全景</h3><p><a href="https://allianz-arena.com/360/allianzarena/?source=startseite_en" target="_blank" rel="noopener">安联官方 360° 全景游览（2022） ↗</a> · <a href="https://allianz-arena.com/arena3d/" target="_blank" rel="noopener">官方 3D 座席预览 ↗</a></p><p>7.1 按全景中实际看到的屋顶内侧、发布厅中央支脚弧形座椅、灯架、球员通道斜纹墙面与顶面队徽细化对应模型。全景是有年份的实景依据，室内连接及未公开尺寸仍是近似，不能视为完整现状测绘。</p><h3>可查阅的室内实景依据</h3><p><a href="https://fcbayern.com/museum/de/news/2026/06/update-umbau-mit-einer-allee-der-erfolge-und-vielem-mehr" target="_blank" rel="noopener">2026 博物馆改造实景 ↗</a> · <a href="https://fcbayern.com/museum/en/news/2024/12/display-case-from-and-for-harry-kane-in-the-museum" target="_blank" rel="noopener">凯恩真实展柜 ↗</a> · <a href="https://allianz-arena.com/en/event-venue/rooms/presseclub--foyer" target="_blank" rel="noopener">发布厅官方设施 ↗</a> · <a href="https://allianz-arena.com/de/news/2019/09/spielertunnel-der-allianz-arena-renoviert-und-umgestaltet" target="_blank" rel="noopener">球员通道 LED 实景 ↗</a></p><h3>本次还原的细节</h3><p>鼓起的菱形气枕、红色夜间外壳、屋顶开口与悬挑桁架、环形照明、三层阶梯看台、${stadium.seatCount.toLocaleString()} 个独立座椅模型、楼梯过道与分区牌、场边广告、替补席、球门网、角旗、摄像机，以及南广场、停车场采光口、道路、轨道与周边建筑。</p><p>室内包含主客队更衣室、球衣球鞋与装备、更衣长凳、战术板、淋浴区、红色球员通道、新闻发布厅、代表性贵宾包厢、荣誉展厅、环形公共大厅与球迷商店。更衣室以 2022 年官方照片的红色衣柜与木凳为主要视觉参考；场馆于 2026 年另有更衣室整修公告，尚未取得整修后完整室内参考，因此不能把本模型视为 2026 年现状的精确记录。球衣姓名和号码按拜仁官网 2026-10-26 的一线队名单核对，更衣室与商店共用同一份名单。室内精确尺寸与连接仍属近似。荣誉展厅参考 2026 年官方改造照片的双排透光奖杯展台、深色设备顶，以及凯恩球衣和纪念物展柜；这里为压缩布展，并非完整博物馆平面。新闻发布厅增至 180 席，补充转播机镜头、液压云台、线缆与灯架，替补席采用红色高背侧翼座椅。设备细部按照片估算，没有厂商 CAD 或现场测量资料。看台文字和座椅数为视觉建模，不等同于售票座位清单。</p><h3>主要参考资料</h3><ol><li><a href="https://fcbayern.com/en/teams/first-team" target="_blank" rel="noopener">拜仁官方 · 当前一线队名单</a>：球员姓名与号码，核对日期 2026-10-26。</li><li><a href="https://allianz-arena.com/en/arena/facts/general-information" target="_blank" rel="noopener">安联球场官方 · Facts & Figures</a>：建筑尺寸、气枕数、草坪、看台坡度与场馆设施。</li><li><a href="https://www.herzogdemeuron.com/projects/205-allianz-arena/" target="_blank" rel="noopener">Herzog & de Meuron · Allianz Arena</a>：外壳形态、三层看台与广场设计。</li><li><a href="https://allianz-arena.com/en/news/2022/10/fc-bayern-team-areas-open-again-for-tours" target="_blank" rel="noopener">球场官方 · 2022 年更衣室图像</a>：红色衣柜、球衣与木质长凳。</li><li><a href="https://allianz-arena.com/en/news/2026/05/renovation-work-in-fc-bayern-dressing-room" target="_blank" rel="noopener">球场官方 · 2026 年更衣室整修公告</a>：室内现状可能与早期照片不同。</li><li><a href="https://fcbayern.com/de/bilder/2018/08/galerie-die-allianz-arena-im-neuen-gewand" target="_blank" rel="noopener">拜仁官方 · 2018 年内场改造照片</a>：红白座椅与主场装饰。</li><li><a href="https://fcbayern.com/en/tickets/fc-bayern-hospitality-tickets/general-information" target="_blank" rel="noopener">拜仁官方 · 各层平面图与场地地图</a>：设施与接待区位置参考。</li><li><a href="https://allianz-arena.com/de/news/2019/einsatzuebung-zur-europameisterschaft-2020" target="_blank" rel="noopener">球场官方 · 外观航拍</a>：南广场步道、停车设施和周边环境。</li><li><a href="https://www.douyin.com/video/7491434777543806266" target="_blank" rel="noopener">NancyChoU · 球员入场通道（用户提供）</a>：白色顶灯、红色墙面与上行台阶。</li><li><a href="https://v.douyin.com/2j99UtAX4TY/" target="_blank" rel="noopener">凯罗同学 · 安联球场参观（用户提供）</a>。</li><li><a href="https://v.douyin.com/ixGw7sUOSUg/" target="_blank" rel="noopener">🌈把爱留在阿根廷 · 球场视频（用户提供）</a>。</li><li><a href="https://github.com/mrdoob/three.js" target="_blank" rel="noopener">Three.js · 官方开源引擎</a>，版本 0.186.1，MIT 许可。</li></ol><p>建模说明：白天使用自然色外壳，黑夜使用拜仁红与场内照明；材质与日夜 HDR 环境参考 Poly Haven CC0 素材（Powered by Poly Haven），光照为实时艺术化效果。项目为非官方球迷探索作品，与 FC Bayern、Allianz 及球场运营方无隶属关系。</p>`;
  $('info-dialog').showModal();}
-
-window.addEventListener('error',e=>{console.error('Arena error:',e.error||e.message);if(document.body.dataset.ready!=='true')$('load-status').textContent='加载遇到问题，请刷新页面或查看启动说明。';});
-setTimeout(()=>init().catch(error=>{console.error('Arena loading failed:',error);$('load-status').textContent='场景资源加载失败，请刷新页面重试。';}),60);

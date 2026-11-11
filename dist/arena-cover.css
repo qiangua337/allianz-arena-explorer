@@ -288,3 +288,20 @@
 @media (prefers-reduced-motion: reduce) {
   .editorial-cover :is(.hub-mode, .hub-mode>b>span, .hub-kickoff, .hub-explore) { transition: none }
 }
+body[data-startup=home] #loading { visibility: hidden }
+body[data-startup=error] .load-track { display: none }
+#load-actions:not([hidden]) {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+#load-actions button {
+  min-height: 44px;
+  padding-inline: 14px;
+  border: 1px solid currentColor;
+  border-radius: 6px;
+  color: #28353a;
+  font-size: 13px;
+}

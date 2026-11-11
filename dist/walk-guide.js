@@ -46,13 +46,19 @@ export function buildWalkGuide(scene,geometry,{obstacles={},onChoose,onSelect,on
   // A visitor may take another open aisle instead of visiting every old node.
   // Arrival still requires the same floor and an unobstructed final segment.
   const destination=tourNodes[goal],remaining=Math.hypot(p.x-destination.x,p.z-destination.z);
-  if(!arrived&&remaining<8&&Math.abs(p.y-destination.y)<1&&walkSegmentClear(p,destination,geometry,walls)){
-   blocked=false;if(remaining<2.3){path=[];arrived=true;lastDraw=null;}
-   else if(path.length!==1||path[0].id!==goal){anchor={...p};path=[destination];lastDraw=null;}
+  if(!arrived&&remaining<8&&Math.abs(p.y-destination.y)<1){
+   if(walkSegmentClear(p,destination,geometry,walls)){
+    blocked=false;
+    if(remaining<2.3){path=[];arrived=true;lastDraw=null;}
+    else if(path.length!==1||path[0].id!==goal){anchor={...p};path=[destination];lastDraw=null;}
+   }else if(path.length===1&&path[0].id===goal){
+    reset(position);
+   }
   }
-  // Never advance a corner if the resulting shortcut crosses a fixture.
-  while(path.length&&waypointReached(p,path[0],anchor,path[1],path.length===1)&&(!path[1]||walkSegmentClear(p,path[1],geometry,walls))){anchor=path.shift();lastDraw=null;}
-  if(!path.length&&!blocked&&!arrived){const destination=tourNodes[goal];if(Math.hypot(p.x-destination.x,p.z-destination.z)<2.3&&Math.abs(p.y-destination.y)<1)arrived=true;else reset(position);}
+  // Advance intermediate waypoints only. The final destination uses the
+  // clear-segment check above, even when it is just on the other side of a wall.
+  while(path.length>1&&waypointReached(p,path[0],anchor,path[1])&&walkSegmentClear(p,path[1],geometry,walls)){anchor=path.shift();lastDraw=null;}
+  if(!path.length&&!blocked&&!arrived)reset(position);
   if(planClock>1.2&&!arrived){planClock=0;const target=path[0],distance=Math.hypot(p.x-anchor.x,p.z-anchor.z);
    if(blocked?distance>.7:target&&(!walkSegmentClear(p,target,geometry,walls)||distance>55))reset(position);
   }
