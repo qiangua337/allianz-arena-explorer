@@ -1,6 +1,7 @@
 const rates = [120, 90, 75, 60, 45, 30];
 const minScale = {standard: .68, low: .78, high: 1};
 const snapScale = value => Math.round(value * 100) / 100;
+const SCALE_RETRY_WINDOWS = 16;
 
 function availableRate(cap, rafFps) {
  return rates.find(rate => rate <= cap && rafFps >= rate * .94) ?? 30;
@@ -12,8 +13,10 @@ function availableRate(cap, rafFps) {
 // a scene that first needs fewer pixels, then let spare callbacks reopen it.
 export function createMatchFrameRate(options = {}) {
  let cap, quality, current, goodSamples, limitedSamples, slowSamples, hold, retryDelay, mobile, native120;
+ let trialScale, scaleRetry, settleSamples;
 
  function publish(rate, scale) {
+  if(current&&current.rate!==rate)trialScale=null;
   if (!current || rate !== current.rate || scale !== current.scale) {
    current = Object.freeze({rate, scale});
   }
@@ -25,7 +28,14 @@ export function createMatchFrameRate(options = {}) {
   quality = Object.hasOwn(minScale, requestedQuality) ? requestedQuality : 'standard';
   mobile=small;native120=false;goodSamples = limitedSamples = slowSamples = hold = 0;
   retryDelay = 3;
+  trialScale = null;
+  scaleRetry = settleSamples = 0;
   return publish(cap, mobile&&cap===120&&quality!=='high'?.90:1);
+ }
+
+ function interrupt(){
+  goodSamples = limitedSamples = slowSamples = 0;
+  settleSamples = 1;
  }
 
  function update({rafFps, renderFps, frameMs, gap95, rafGap95, active = true} = {}) {
@@ -33,6 +43,7 @@ export function createMatchFrameRate(options = {}) {
    goodSamples = limitedSamples = slowSamples = 0;
    return current;
   }
+  if(settleSamples>0){settleSamples--;return current;}
   const {rate, scale} = current;
   if(rafFps>=117&&rafFps<=123&&rafGap95<=10)native120=true;
   const possible = availableRate(cap, rafFps);
@@ -41,6 +52,7 @@ export function createMatchFrameRate(options = {}) {
   const displayLimited = possible < rate && (!native120||possible===60||possible===30) && cheap && Math.abs(rafFps - renderFps) <= 3 && Math.abs(rafFps - possible) <= 4;
   limitedSamples = displayLimited ? limitedSamples + 1 : 0;
   if (hold > 0) hold--;
+  if (scaleRetry > 0) scaleRetry--;
 
   if (displayLimited) {
    goodSamples = slowSamples = 0;
@@ -57,6 +69,12 @@ export function createMatchFrameRate(options = {}) {
    slowSamples=0;
    const floor = minScale[quality];
    if (scale > floor) {
+    if(trialScale?.rate===rate){
+     const safeScale=trialScale.previous;
+     trialScale=null;
+     scaleRetry=SCALE_RETRY_WINDOWS;
+     return publish(rate,safeScale);
+    }
     const drop = renderFps < rate * .75 ? .13 : .08;
     return publish(rate, snapScale(Math.max(floor, scale - drop)));
    }
@@ -72,6 +90,7 @@ export function createMatchFrameRate(options = {}) {
   slowSamples=0;
   const stable = !uneven&&renderFps >= rate * .95 && (!hasTiming || frameMs < 1000 / rate * .82);
   goodSamples = stable ? goodSamples + 1 : 0;
+  if(trialScale?.rate===rate&&goodSamples>=4)trialScale=null;
   if (hold || !stable) return current;
 
   // Faster modes get the first opportunity to spend the regained headroom.
@@ -83,13 +102,14 @@ export function createMatchFrameRate(options = {}) {
    if(native120)return current;
    return publish(possible,scale);
   }
-  if (possible <= rate && scale < 1 && goodSamples >= 5) {
+  if (possible <= rate && scale < 1 && !scaleRetry && goodSamples >= 5) {
    goodSamples = 0;
+   trialScale={rate,previous:scale};
    return publish(rate, snapScale(Math.min(1, scale + .05)));
   }
   return current;
  }
 
  reset(options);
- return {reset, update, get state() { return current; }};
+ return {reset, interrupt, update, get state() { return current; }};
 }

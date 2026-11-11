@@ -6,13 +6,13 @@ const {THREE}=await import('../dist/kit.js');
 const {buildPlayableMatch}=await import('../dist/playable-match.js');
 const {createFootballSimulation}=await import('../dist/football-simulation.js');
 const {packOnlineState}=await import('../dist/online-protocol.js');
-function fixture(mobile=false){
+function fixture(mobile=false,{onReadGameInput,now}={}){
  const nodes=new Map(),node=id=>{if(!nodes.has(id)){const handlers={};nodes.set(id,{hidden:false,textContent:'',dataset:{},classList:{toggle(){}},setAttribute(k,v){this[k]=v;},addEventListener(k,v){handlers[k]=v;},fire(k,v){handlers[k]?.(v);},showModal(){this.open=true;},close(){if(this.open){this.open=false;handlers.close?.();}},focus(){}});}return nodes.get(id);};
  let radarDraws=0;const context=new Proxy({clearRect(){radarDraws++;},createRadialGradient:()=>({addColorStop(){}})},{get:(o,k)=>k in o?o[k]:()=>{}}),classes=new Set(),actions=['pass','through','switch','tackle'].map(type=>{const b=node(type==='tackle'?'game-tackle':'action-'+type);b.dataset.gameAction=type;return b;});
  globalThis.document={createElement:()=>({getContext:()=>context}),getElementById:node,querySelectorAll:selector=>selector==='[data-game-action]'?actions:[],exitPointerLock(){},body:{dataset:{},classList:{add:x=>classes.add(x),remove:x=>classes.delete(x)}}};
  node('game-radar').getContext=()=>context;
  let actorUpdates=0,scoreUpdates=0,cheers=0;const audio={muted:false,state:'playing',cheer(){},cue(){},setMuted(value){this.muted=value;}},players={ready:true,root:new THREE.Group(),updateMatch(){actorUpdates++;}},ball=new THREE.Mesh();let game;const views=[];
- game=buildPlayableMatch({scene:new THREE.Scene(),stadium:{matchBall:ball,setMatchScore(){scoreUpdates++;}},players,audio,mobile,onCamera(){},onView:v=>views.push(v),onPause:value=>game.setPaused(value),onRestart:()=>game.start(),onExit:()=>game.exit(),onCheer:()=>cheers++});
+ game=buildPlayableMatch({scene:new THREE.Scene(),stadium:{matchBall:ball,setMatchScore(){scoreUpdates++;}},players,audio,mobile,onReadGameInput,now,onCamera(){},onView:v=>views.push(v),onPause:value=>game.setPaused(value),onRestart:()=>game.start(),onExit:()=>game.exit(),onCheer:()=>cheers++});
  return{game,node,audio,views,classes,ball,get actorUpdates(){return actorUpdates;},get scoreUpdates(){return scoreUpdates;},get cheers(){return cheers;},get radarDraws(){return radarDraws;}};
 }
 const run=(game,seconds,input={})=>{for(let i=0;i<Math.round(seconds*60);i++)game.update(1/60,input,{x:0,y:5,z:9});};
@@ -153,6 +153,27 @@ test('a cleared online HUD sends neutral input on subsequent frames instead of r
  const server=createFootballSimulation({humanTeams:['home','away']});run(server,3.1);const inputs=[],messages=[],session={team:'home',opponent:'dortmund',code:'ABCDEFGH',connection:'connected',latency:0,room:{started:true,seats:[{team:'home'},{team:'away'}]},packet:packOnlineState(server.state,1),subscribe:()=>()=>{},setReady(){},send:p=>{messages.push(p);return true;},sendInput:p=>{inputs.push(p);return inputs.length;}};
  const{game,node}=fixture();game.start({},session);game.ready();node('game-pressure').fire('pointerdown',{pointerId:7,preventDefault(){}});node('game-shoot').fire('pointerdown',{pointerId:9,preventDefault(){}});run(game,.2);
  assert.ok(inputs.some(p=>p.charging&&p.defend));game.clearInput();run(game,.2);const latest=inputs.at(-1);assert.equal(latest.charging,false);assert.equal(latest.defend,false);assert.equal(latest.power,0);assert.equal(game.state.paused,false);assert.equal(game.releaseCharge(),false);assert.equal(messages.some(p=>p.type==='pause'),false);assert.equal(messages.some(p=>p.type==='action'&&p.action==='shoot'),false);
+});
+
+test('online touch actions sample current aim and shot hold time between rendered frames',()=>{
+ const server=createFootballSimulation({humanTeams:['home','away']});run(server,3.1);
+ const messages=[],session={team:'home',opponent:'dortmund',code:'ABCDEFGH',connection:'connected',latency:200,room:{started:true,seats:[{team:'home'},{team:'away'}]},packet:packOnlineState(server.state,1),subscribe:()=>()=>{},setReady(){},send:p=>{messages.push(p);return true;},sendInput:p=>{messages.push({type:'input',...p});return messages.length;},leave(){}};
+ let aim={x:0,z:0},time=1000;
+ const {game,node}=fixture(true,{onReadGameInput:()=>aim,now:()=>time});
+ try{
+  game.start({},session);game.ready();run(game,.02,{x:0,z:1});
+  aim={x:1,z:0};
+  node('action-pass').fire('pointerdown',{pointerId:7,pointerType:'touch',preventDefault(){}});
+  assert.equal(messages.find(p=>p.action==='pass').direction.x,1);
+  aim={x:-1,z:0};
+  node('game-shoot').fire('pointerdown',{pointerId:8,pointerType:'touch',preventDefault(){}});
+  time+=425;
+  node('game-shoot').fire('pointerup',{pointerId:8,pointerType:'touch'});
+  const shot=messages.find(p=>p.action==='shoot');
+  assert.equal(shot.direction.x,-1);
+  assert.equal(shot.power,.625,'425 ms of charge counts without another render');
+  assert.equal(game.state.ball.ownerId,server.state.ball.ownerId,'sending a shot cannot change authoritative possession');
+ }finally{game.exit();}
 });
 
 test('changing opponent replaces the simulated squad and scoreboard while camera switches preserve a live match',()=>{

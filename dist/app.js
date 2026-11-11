@@ -60,7 +60,7 @@ const places={
  store:{title:'球迷商店',tag:'FC BAYERN STORE',desc:'球衣衣架、红白围巾、装备陈列与服务台。走进球迷商店。',pos:[9.5,14.05,123.2],target:[-3,13.8,116.2],walk:[0,13.9,123],look:[0,14,113],accuracy:'代表性球迷商店 · 布局近似'}
 };
 const frameBudget=buildFrameBudget(),gameDrawBudget=createFramePacer(),visitDrawBudget=createFramePacer(),telemetryBudget=createFramePacer();let drawnFrames=0,sceneTime=0,gameCameraInstant=true;let gameCameraLook=null,gameCameraPeriod=null,gameCameraPlayer=null,gameCameraStoppage=null,gameCameraPhase=null;
-const matchFrameRate=createMatchFrameRate({cap:matchFps,quality:qualityMode});let matchBudgetActive=false,matchSampleTime=0,matchSampleFrames=0,matchSampleDraws=0,matchSampleWork=0;
+const matchFrameRate=createMatchFrameRate({cap:matchFps,quality:qualityMode});let matchBudgetActive=false,matchSampling=false,pendingMatchScale,matchSampleTime=0,matchSampleFrames=0,matchSampleDraws=0,matchSampleWork=0;
 const matchRafGaps=new Uint16Array(101),matchDrawGaps=new Uint16Array(101);let previousRaf=0,previousDraw=0;
 let building,lightBudget,interactions,serviceRooms,matchday,setExplorationMatchMode,matchSnapshot=null,matchStarting=false,qualityScale=1,recoveryFrames=0;
 let visualAssets,renderer,scene,camera,controls,stadium,world,interiors,walkGuide,sky,stars,dayLight,arenaFill,hemi,ambient;
@@ -88,11 +88,11 @@ export async function startArena({hub, initial, nightAtStart}){
  arenaFill=new THREE.DirectionalLight(0xdce7f5,.25);arenaFill.position.set(130,110,-150);scene.add(arenaFill);buildSky();
  $('load-status').textContent='正在加载材质与环境光…';const assetResults=await Promise.all([loadBrandAssets(),loadVisualAssets(renderer,{progress:(n,total)=>{$('load-status').textContent='正在加载材质与环境光 '+n+' / '+total;}})]);visualAssets=assetResults[1];if(visualAssets.environments.indoor)setMaterialEnvironment(visualAssets.environments.indoor);else prepareMaterialLighting(renderer);document.body.dataset.surfaceResolution=visualAssets.resolution;document.body.dataset.assetFailures=visualAssets.failed.length;
  world=buildWorld(scene);stadium=buildStadium(scene);interiors=buildInteriors(scene,stadium.circulation);
- building=buildWalkBuilding(scene);serviceRooms=buildServiceRooms(scene);walkGuide=buildWalkGuide(scene,walkGeometry(),{obstacles:{world:world.colliders,building:building.colliders,interiors:interiors.colliders,circulation:stadium.circulation.colliders,service:serviceRooms.walls},onChoose:()=>setNavOpen(true),onSelect:id=>{stopTour();goPlace(id,false);},onWalk:followDestination,onTeleport:teleportToDestination,onContinue:()=>{if(!walkingTour.state())return false;$('tour-advance').click();return true;},nextDestination:()=>walkingTour.state()?.nextGoal});interactions=buildInteractions(scene,interiors,{toast,serviceRooms,navigate:id=>goPlace(id),setEye:y=>desiredEye=y,seats:stadium.seatPositions,onSit:seatIntoView,onStand:standFromSeat,onFocusSeat:focusArenaSeat,showInfo:showInteractiveInfo});lightBudget=buildLightBudget(scene);matchday=buildMatchdayExperience({scene,stadium,reducedMotion:mediaReduced,mobile:innerWidth<=1024,toast,onBegin:beginMatchday,onPose:applyEntrancePose,onFinish:finishMatchdayEntrance,onVisitBench:visitMatchdayBench,onGameCamera:applyGameCamera,onGameView:updateGameView,onExit:restoreFromMatchday,onPrepare:root=>{applySurfaceQuality(root,qualityMode);return renderer.compileAsync(root,camera,scene);},onPause:value=>{clearWalkInput();setWalkReady(!value);}});
+ building=buildWalkBuilding(scene);serviceRooms=buildServiceRooms(scene);walkGuide=buildWalkGuide(scene,walkGeometry(),{obstacles:{world:world.colliders,building:building.colliders,interiors:interiors.colliders,circulation:stadium.circulation.colliders,service:serviceRooms.walls},onChoose:()=>setNavOpen(true),onSelect:id=>{stopTour();goPlace(id,false);},onWalk:followDestination,onTeleport:teleportToDestination,onContinue:()=>{if(!walkingTour.state())return false;$('tour-advance').click();return true;},nextDestination:()=>walkingTour.state()?.nextGoal});interactions=buildInteractions(scene,interiors,{toast,serviceRooms,navigate:id=>goPlace(id),setEye:y=>desiredEye=y,seats:stadium.seatPositions,onSit:seatIntoView,onStand:standFromSeat,onFocusSeat:focusArenaSeat,showInfo:showInteractiveInfo});lightBudget=buildLightBudget(scene);matchday=buildMatchdayExperience({scene,stadium,reducedMotion:mediaReduced,mobile:innerWidth<=1024,toast,onBegin:beginMatchday,onPose:applyEntrancePose,onFinish:finishMatchdayEntrance,onVisitBench:visitMatchdayBench,onGameCamera:applyGameCamera,onGameView:updateGameView,onReadGameInput:()=>gameInput(0),onExit:restoreFromMatchday,onPrepare:root=>{applySurfaceQuality(root,qualityMode);return renderer.compileAsync(root,camera,scene);},onPause:value=>{clearWalkInput();setWalkReady(!value);}});
  matchday.setQuality(qualityMode,qualityScale);visualAssets.registerOutdoor(world.group,stadium.root);applyArchitecturalUV(stadium.root);applyArchitecturalUV(stadium.circulation.root);applyArchitecturalUV(interiors.root);applyArchitecturalUV(building.root);applyArchitecturalUV(world.group);installInteriorShading(interiors.root);
  spatializeArchitecture(stadium.circulation.root);spatializeArchitecture(interiors.rooms.concourse);
  setExplorationMatchMode=suspendExplorationDuringMatch([world.group,building.root,interiors.root,serviceRooms.root,stadium.circulation.root]);
- freezeArchitecture(world.group,[world.rotor]);freezeArchitecture(stadium.root,[stadium.matchBall]);freezeArchitecture(stadium.circulation.root);freezeArchitecture(interiors.root);freezeArchitecture(building.root);buildDestinationMenu();buildHotspots();bindUI();setNavOpen(false);document.body.dataset.mode=mode;setDayNight(nightAtStart);applySurfaceQuality(scene,qualityMode);clock.time=performance.now();document.body.dataset.version='9.7.7';document.body.dataset.seats=stadium.seatCount;document.body.dataset.panels=stadium.panelCount;
+ freezeArchitecture(world.group,[world.rotor]);freezeArchitecture(stadium.root,[stadium.matchBall]);freezeArchitecture(stadium.circulation.root);freezeArchitecture(interiors.root);freezeArchitecture(building.root);buildDestinationMenu();buildHotspots();bindUI();setNavOpen(false);document.body.dataset.mode=mode;setDayNight(nightAtStart);applySurfaceQuality(scene,qualityMode);clock.time=performance.now();document.body.dataset.version='9.7.8';document.body.dataset.seats=stadium.seatCount;document.body.dataset.panels=stadium.panelCount;
  const place=initial.get('place');if(initial.get('view')==='walk')setMode('walk',{place:place&&(places[place]||tourGoals[place])?place:'arcade'});else if(place&&(places[place]||tourGoals[place]))goPlace(place,false);
  $('load-status').textContent='正在准备室内与室外画面…';await renderer.compileAsync(scene,camera);document.body.dataset.ready='true';clock.time=performance.now();renderer.setAnimationLoop(render);
  window.addEventListener('resize',resize);canvas.addEventListener('webglcontextlost',e=>{e.preventDefault();toast('图形上下文已暂停，请重新加载页面恢复。');});
@@ -280,8 +280,14 @@ function render(timestamp){
   if(a===1)transition=null;
  }
  const phone=innerWidth<=1024;
- const sample=playing&&!matchday.paused&&!matchday.gameReplaying&&$('game-overlay').hidden&&!document.hidden;
- const drawFrame=playing?gameDrawBudget.ready(timestamp/1000,matchFrameRate.state.rate,.0007):visitDrawBudget.ready(elapsed,phone?60:90);
+ const phase=playing?matchday.gameState?.phase:null;
+ const replay=playing&&matchday.gameReplaying;
+ const matchPaused=playing&&matchday.paused;
+ const sample=(phase==='playing'||phase==='penalties')&&!matchPaused&&!replay&&$('game-overlay').hidden&&!document.hidden;
+ // Keep processing network traffic during halftime while the stationary
+ // camera and match overlay only need occasional visual updates.
+ const drawRate=matchPaused&&!replay?24:matchFrameRate.state.rate;
+ const drawFrame=playing?gameDrawBudget.ready(timestamp/1000,drawRate,.0007):visitDrawBudget.ready(elapsed,phone?60:90);
  const measureStart=sample&&drawFrame?performance.now():0;
  let rendered=false;
  if(!playing){
@@ -294,6 +300,12 @@ function render(timestamp){
   if(tourElapsed>7.5){tourElapsed=0;tourIndex=(tourIndex+1)%Object.keys(places).length;goPlace(Object.keys(places)[tourIndex]);}
  }
  if(drawFrame){
+  if(playing&&pendingMatchScale!==undefined){
+   // Resizing clears the buffer. Resize immediately before a draw so there
+   // is no cleared frame between adapting and presenting the next picture.
+   applyAdaptiveScale(pendingMatchScale);
+   pendingMatchScale=undefined;
+  }
   const modalOpen=!!document.querySelector('dialog[open]')||!!playing&&!$('game-overlay').hidden;
   if(modalWasOpen!==modalOpen)frameBudget.invalidate();
   modalWasOpen=modalOpen;
@@ -330,10 +342,14 @@ function render(timestamp){
    document.body.dataset.frameGap95=String(gap95??'');
    document.body.dataset.matchRenderedFps=String(renderFps);
    const readout='最近实测 '+renderFps+' FPS';if($('game-frame-rate-status').textContent!==readout)$('game-frame-rate-status').textContent=readout;
-   applyAdaptiveScale(scale);
+   if(scale!==qualityScale)pendingMatchScale=scale;
    clearMatchSample();
   }
- }else if(matchSampleTime)clearMatchSample();
+ }else if(matchSampling){
+  clearMatchSample();
+  matchFrameRate.interrupt();
+ }
+ matchSampling=sample;
  if(drawFrame&&telemetryBudget.ready(elapsed,20)){
   if(!playing){updateHotspots();if(!document.querySelector('.minimap').hidden)drawMap();}
   document.body.dataset.camera=camera.position.toArray().map(x=>x.toFixed(3)).join(',');
@@ -346,6 +362,7 @@ function frameGap95(histogram,count){if(count<2)return undefined;const limit=Mat
 function clearMatchSample(){matchSampleTime=matchSampleFrames=matchSampleDraws=matchSampleWork=previousRaf=previousDraw=0;matchRafGaps.fill(0);matchDrawGaps.fill(0);}
 function resetMatchBudget(){
  const {rate}=matchFrameRate.reset({cap:matchFps,quality:qualityMode,mobile:innerWidth<=1024});gameDrawBudget.reset();clearMatchSample();recoveryFrames=0;
+ matchSampling=false;pendingMatchScale=undefined;
  document.body.dataset.targetFps=rate;document.body.dataset.matchFpsCap=matchFps;
  delete document.body.dataset.frameGap95;delete document.body.dataset.matchRenderedFps;
  $('game-frame-rate-status').textContent='开球后测量实际帧率';
@@ -378,12 +395,30 @@ function bindUI(){
  $('nav-visit-start').onclick=()=>teleportToDestination('entrance');$('nav-match-start').onclick=()=>{setNavOpen(false);matchday.launch();};$('nav-museum-start').onclick=()=>{setNavOpen(false);$('museum-catalog').click();};
  $('map-toggle').onclick=toggleMap;$('toggle-hud').onclick=toggleHUD;
  const joystick=$('joystick'),thumb=$('joystick-thumb');
- const steer=e=>{const r=joystick.getBoundingClientRect(),axes=joystickAxes(e.clientX-r.left-r.width/2,e.clientY-r.top-r.height/2);touchAxes.x=axes.x;touchAxes.y=axes.y;thumb.style.transform=`translate(${axes.thumbX}px,${axes.thumbY}px)`;};
- joystick.addEventListener('pointerdown',e=>{if(mode!=='walk'||matchday?.playing&&matchday.paused)return;e.preventDefault();beginWalk();joystickPointer=e.pointerId;joystick.setPointerCapture(e.pointerId);steer(e);});
+ let joystickBounds;
+ const steer=e=>{
+  const r=joystickBounds??=joystick.getBoundingClientRect();
+  const axes=joystickAxes(e.clientX-r.left-r.width/2,e.clientY-r.top-r.height/2);
+  touchAxes.x=axes.x;touchAxes.y=axes.y;thumb.style.transform=`translate(${axes.thumbX}px,${axes.thumbY}px)`;
+  matchday?.flushGameInput();
+ };
+ joystick.addEventListener('pointerdown',e=>{
+  if(mode!=='walk'||matchday?.playing&&matchday.paused)return;
+  e.preventDefault();beginWalk();joystickPointer=e.pointerId;
+  joystickBounds=undefined;joystick.setPointerCapture(e.pointerId);steer(e);
+ });
  joystick.addEventListener('pointermove',e=>{if(e.pointerId===joystickPointer){e.preventDefault();steer(e);}});
- const releaseJoystick=e=>{if(e.pointerId===joystickPointer){touchAxes.x=touchAxes.y=0;joystickPointer=null;thumb.style.transform='none';}};
+ const releaseJoystick=e=>{
+  if(e.pointerId!==joystickPointer)return;
+  touchAxes.x=touchAxes.y=0;joystickPointer=null;joystickBounds=undefined;thumb.style.transform='none';
+  matchday?.flushGameInput();
+ };
  joystick.addEventListener('pointerup',releaseJoystick);joystick.addEventListener('pointercancel',releaseJoystick);joystick.addEventListener('lostpointercapture',releaseJoystick);
- $('touch-sprint').onclick=()=>{touchSprint=!touchSprint;$('touch-sprint').setAttribute('aria-pressed',String(touchSprint));};
+ window.addEventListener('resize',()=>{joystickBounds=undefined;});
+ $('touch-sprint').onclick=()=>{
+  touchSprint=!touchSprint;$('touch-sprint').setAttribute('aria-pressed',String(touchSprint));
+  matchday?.flushGameInput();
+ };
  $('environment-more').onclick=()=>{const panel=document.querySelector('.environment'),expanded=panel.classList.toggle('expanded');$('environment-more').setAttribute('aria-expanded',String(expanded));};
  document.querySelectorAll('.location').forEach(b=>b.onclick=()=>{stopTour();goPlace(b.dataset.place);});$('home').onclick=e=>{e.preventDefault();experienceHub.open();};$('reset').onclick=()=>goPlace(active);$('day').onclick=()=>{setDayNight(false);updateLocationURL();};$('night').onclick=()=>{setDayNight(true);updateLocationURL();};$('orbit-mode').onclick=()=>setMode('orbit');$('walk-mode').onclick=()=>setMode('walk');$('start-walk').onclick=beginWalk;
  $('roof').onchange=e=>{stadium.roof.visible=e.target.checked;stadium.circulation.setRoof(e.target.checked);interiors.setRoof(e.target.checked);renderer.shadowMap.needsUpdate=true;};$('autorotate').onchange=e=>{if(mode==='walk'){e.target.checked=false;toast('自动环绕可在第三人称视角中使用。');return;}controls.autoRotate=e.target.checked;};
@@ -416,7 +451,15 @@ function bindUI(){
  window.addEventListener('pointerup',releasePointer);window.addEventListener('pointercancel',releasePointer);
  document.addEventListener('museum-open',()=>{clearWalkInput();stopTour();});
  window.addEventListener('blur',()=>{if(matchday?.active){if(matchday.online)matchday.clearOnlineInput();else matchday.setPaused(true);}if(mode==='walk')setWalkReady(false);else clearWalkInput();});
- document.addEventListener('visibilitychange',()=>{clearMatchSample();if(document.hidden){if(matchday?.active){if(matchday.online)matchday.clearOnlineInput();else matchday.setPaused(true);}clearWalkInput();renderer.setAnimationLoop(null);}else{clock.time=performance.now();renderer.setAnimationLoop(render);}});
+ document.addEventListener('visibilitychange',()=>{
+  clearMatchSample();
+  if(matchSampling)matchFrameRate.interrupt();
+  matchSampling=false;
+  if(document.hidden){
+   if(matchday?.active){if(matchday.online)matchday.clearOnlineInput();else matchday.setPaused(true);}
+   clearWalkInput();renderer.setAnimationLoop(null);
+  }else{clock.time=performance.now();renderer.setAnimationLoop(render);}
+ });
  document.addEventListener('pointerlockchange',()=>{clearWalkInput();pointerLockPending=false;if(mode==='walk'&&document.pointerLockElement===canvas)setWalkReady(true);updateLookHint();});
  document.addEventListener('pointerlockerror',()=>{pointerLockPending=false;updateLookHint();if(mode==='walk')setWalkReady(true);});
  document.querySelectorAll('[data-move]').forEach(b=>{

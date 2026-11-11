@@ -5,13 +5,44 @@ import {createFootballSimulation} from '../dist/football-simulation.js';
 import {packOnlineState} from '../dist/online-protocol.js';
 import {createFramePacer} from '../dist/frame-pacing.js';
 
-function fixture(team='home'){
+function fixture(team='home',timing){
  const sim=createFootballSimulation({humanTeams:['home','away'],controlMode:'manual',opponent:'madrid'});for(let i=0;i<200;i++)sim.update(1/60);
  const listeners=new Set(),sent=[];let sequence=0,packetSequence=0;
  const session={team,opponent:'madrid',connection:'connected',latency:300,room:{started:true,ended:false},packet:packOnlineState(sim.state,++packetSequence),subscribe(fn){listeners.add(fn);return()=>listeners.delete(fn);},sendInput(input){sent.push({...input,seq:++sequence});return sequence;},send(packet){sent.push(packet);return true;},setReady(){},leave(){}};
- const client=createOnlineSimulation(session,{controlMode:'manual'});
+ const client=createOnlineSimulation(session,{controlMode:'manual'},timing);
  return{sim,session,client,sent,deliver(ack=0){session.packet=packOnlineState(sim.state,++packetSequence,{[team]:ack});for(const listener of listeners)listener();}};
 }
+test('touch intent is transmitted while rendering is stalled, with a bound on coalesced moves',t=>{
+ t.mock.timers.enable({apis:['Date','setTimeout']});
+ const {sim,client,sent,deliver}=fixture('home',{now:Date.now});
+ try{
+  client.flushInput({x:1});
+  assert.equal(sent[0].x,1,'first touch goes out without update()');
+  client.flushInput({z:-1});
+  client.flushInput({z:1,sprint:true});
+  client.action('pass',{direction:{z:1}});
+  assert.equal(sent[1].type,'action','pass does not wait for the next input slot');
+  assert.equal(sent[1].direction.z,1);
+  t.mock.timers.tick(16);
+  assert.equal(sent.length,2);
+  t.mock.timers.tick(1);
+  assert.equal(sent.length,3);
+  assert.equal(sent[2].z,1,'only the newest queued direction goes out');
+  assert.equal(sent[2].sprint,true);
+  client.flushInput({x:-1});
+  sim.setPaused(true);deliver();
+  t.mock.timers.tick(20);
+  assert.equal(sent.length,3,'a queued touch cannot cross a server pause');
+  sim.setPaused(false);deliver();
+  client.flushInput({x:-1});
+  assert.equal(sent[3].x,-1);
+  client.flushInput({x:1});
+  client.clearInput();
+  assert.equal(sent[4].x,0,'focus loss sends neutral immediately');
+  t.mock.timers.tick(20);
+  assert.equal(sent.length,5,'a queued touch cannot undo focus loss');
+ }finally{client.dispose();}
+});
 test('300 ms network latency does not hold local movement, dribbling or input submission until a server reply',()=>{
  const {sim,client,sent}=fixture(),before={...client.state.players[1]},ball={...client.state.ball},elapsed=client.state.elapsed;
  client.update(1/60,{x:1,z:0});assert.ok(client.state.players[1].x>before.x+.005);assert.equal(sent[0].seq,1);assert.equal(sent[0].x,1);assert.notDeepEqual(client.state.ball,ball);

@@ -30,7 +30,7 @@ function looseKickAvailable(state,player){
  return x*x+z*z<25&&!leavingPass(state,player);
 }
 
-export function buildPlayableMatch({scene,stadium,players,audio,onCamera,onView,onPause,onRestart,onExit,onChangeMatch,onCheer,onCrowdReaction,toast,mobile=false}){
+export function buildPlayableMatch({scene,stadium,players,audio,onCamera,onView,onPause,onRestart,onExit,onChangeMatch,onCheer,onCrowdReaction,onReadGameInput,toast,mobile=false,now=()=>performance.now()}){
  let storage;try{storage=globalThis.localStorage;}catch{}
  const elements=Object.create(null),$=id=>elements[id]??=(document.getElementById(id));
  const settings=loadFootballSettings(storage),pressurePointers=new Set(),view=buildFootballView(scene,stadium.matchBall,players),radar=buildFootballRadar($('game-radar'));
@@ -129,23 +129,41 @@ export function buildPlayableMatch({scene,stadium,players,audio,onCamera,onView,
  function cycleCamera(){const modes=['close','broadcast','follow','first'];return setCamera(modes[(modes.indexOf(cameraMode)+1)%modes.length]);}
  function cycleShotKind(){if(replay)return;cancelCharge();simulation.setShotKind(shotKinds[(shotKinds.indexOf(simulation.state.shotKind)+1)%shotKinds.length]);render();return simulation.state.shotKind;}
  function setControlMode(value){settings.controlMode=simulation.setControlMode(value);saveFootballSettings(storage,settings);render();return settings.controlMode;}
- function action(type,options={}){if(!active||pending||failed||simulation.state.paused)return false;const success=simulation.action(type,{direction:lastInput,...options});render();return success;}
+ function currentInput(){return onReadGameInput?.()??lastInput;}
+ function flushInput(input){
+  if(!network||!active||pending||failed||simulation.state.paused)return;
+  const sampled=input??currentInput();
+  simulation.flushInput({...sampled,defend:sampled.defend||pressurePointers.size>0,charging:!!charge});
+ }
+ function action(type,options={}){
+  if(!active||pending||failed||simulation.state.paused)return false;
+  const sampled=currentInput();
+  flushInput(sampled);
+  // Keep aim on the action packet even when the movement packet is throttled.
+  const success=simulation.action(type,{direction:sampled,...options});
+  render();return success;
+ }
  function cancelCharge(){charge=null;shootPointer=null;simulation.state.chargePower=0;write('game-charge','hidden',true);writeHudAttribute($('game-shoot'),'aria-pressed','false');}
  function beginCharge(){
   const s=simulation.state,penalty=penaltyContext(s,network?.team||'home');if(!active||pending||failed||s.paused||!['playing','penalties'].includes(s.phase)||charge||penalty&&(penalty.role!=='shooter'||penalty.stage!=='ready'))return false;const receiving=s.receiveTarget,p=s.players.find(p=>p.id===(receiving?.playerId||s.controlledId));
   if(!receiving&&s.ball.ownerId!==p.id&&!looseKickAvailable(s,p)){s.message='没有控球 · 按住逼抢后择机抢断';render();return false;}
-  charge={elapsed:0,playerId:p.id,receiving:!!receiving};s.chargePower=.25;render();return true;
+  charge={elapsed:0,startedAt:now(),playerId:p.id,receiving:!!receiving};s.chargePower=.25;flushInput();render();return true;
  }
- function releaseCharge(){if(!charge)return false;const power=.25+Math.min(1,charge.elapsed/.85)*.75,id=charge.playerId,valid=id===simulation.state.controlledId||charge.receiving&&simulation.state.receiveTarget?.playerId===id;cancelCharge();return valid&&action('shoot',{power});}
+ function shotPower(){
+  // A missed rendering frame cannot shorten the time a player held the button.
+  const elapsed=network?Math.max(charge.elapsed,(now()-charge.startedAt)/1000):charge.elapsed;
+  return .25+Math.min(1,elapsed/.85)*.75;
+ }
+ function releaseCharge(){if(!charge)return false;const power=shotPower(),id=charge.playerId,valid=id===simulation.state.controlledId||charge.receiving&&simulation.state.receiveTarget?.playerId===id;cancelCharge();if(!valid){flushInput();return false;}return action('shoot',{power});}
  function clearPressure(){pressurePointers.clear();writeHudAttribute($('game-pressure'),'aria-pressed','false');}
- function clearInput(){cancelCharge();clearPressure();for(const binding of instantActions)binding.clear();shootPointer=null;lastInput={x:0,z:0};}
+ function clearInput(){cancelCharge();clearPressure();for(const binding of instantActions)binding.clear();shootPointer=null;lastInput={x:0,z:0};if(active&&!pending&&network)simulation.clearInput();}
  const instantActions=actionButtons.map(button=>bindInstantAction(button,()=>{action(button.dataset.gameAction);$('scene').focus({preventScroll:true});}));
  $('game-training-reset').onclick=()=>{if(!active||pending||failed||!simulation.state.training)return;clearInput();simulation.resetAttempt();visualDirty=true;render();};$('training-pause').onclick=()=>onPause(!simulation.state.paused);$('training-exit').onclick=onExit;
  $('game-shot-mode').onclick=$('game-shot-toggle').onclick=$('game-overlay-shot').onclick=cycleShotKind;
  $('game-control-mode').onclick=$('game-assist-toggle').onclick=$('game-overlay-assist').onclick=()=>setControlMode(controlModes[(controlModes.indexOf(simulation.state.controlMode)+1)%controlModes.length]);
  for(const button of modeButtons)button.onclick=()=>setControlMode(button.dataset.controlMode);
- const pressure=$('game-pressure'),releasePressure=e=>{pressurePointers.delete(e.pointerId);pressure.setAttribute('aria-pressed',String(pressurePointers.size>0));};
- pressure.addEventListener('pointerdown',e=>{if(!active||pending||failed||simulation.state.paused)return;e.preventDefault();pressurePointers.add(e.pointerId);pressure.setPointerCapture?.(e.pointerId);pressure.setAttribute('aria-pressed','true');});
+ const pressure=$('game-pressure'),releasePressure=e=>{if(!pressurePointers.delete(e.pointerId))return;pressure.setAttribute('aria-pressed',String(pressurePointers.size>0));flushInput();};
+ pressure.addEventListener('pointerdown',e=>{if(!active||pending||failed||simulation.state.paused)return;e.preventDefault();pressurePointers.add(e.pointerId);pressure.setPointerCapture?.(e.pointerId);pressure.setAttribute('aria-pressed','true');flushInput();});
  for(const event of['pointerup','pointercancel','lostpointercapture'])pressure.addEventListener(event,releasePressure);
  const shoot=$('game-shoot');let shootPointer=null;
  shoot.addEventListener('pointerdown',e=>{if(shootPointer!==null)return;e.preventDefault();if(beginCharge()){shootPointer=e.pointerId;shoot.setPointerCapture?.(e.pointerId);}});
@@ -166,7 +184,7 @@ export function buildPlayableMatch({scene,stadium,players,audio,onCamera,onView,
   start(options={},session=null){more=false;$('game-ui').dataset.more='false';writeHudAttribute($('game-more'),'aria-expanded','false');writeHudAttribute($('game-more'),'aria-label','展开比赛设置');network=session;trainingCameraChoice='close';lastNetworkPacket=null;pausedVisualKey='';networkStatusKey='';uiTime=0;replay=null;recorder.reset();document.body.classList.remove('game-replay');stadium.resetMatchEffects?.();config=matchOptions({...config,...options});saveMatchOptions(storage,config);simulation=network?createOnlineSimulation(network,{...settings,...config}):options.training?createFootballTraining({...settings,...config,drill:options.training,shotKind:simulation.state.shotKind}):createFootballSimulation({...settings,...config,duration:config.rules.duration,selections:{home:config.selection},shotKind:simulation.state.shotKind});active=true;pending=true;failed=false;lastEvent=0;worldTime=0;cameraTime=0;clearInput();view.setEnabled(true);document.body.classList.add('game-active');write('game-ui','hidden',false);setView('third');render();},
   ready(){pending=false;failed=false;simulation.ready?.();visualDirty=true;render();},fail(){pending=false;failed=true;render();},
   exit(keepNetwork=false){simulation.dispose?.({keepSession:keepNetwork});network=null;replay=null;writeHudData(document.body,'gameReplay','false');recorder.reset();document.body.classList.remove('game-replay');write('game-replay-panel','hidden',true);active=false;pending=false;if(squadEditing)getSquadEditor().close();clearInput();view.setEnabled(false);trainingView.setEnabled(false);writeHudData(document.body,'gameTraining','');write('game-ui','hidden',true);$('game-help-dialog').close();document.body.classList.remove('game-active');delete document.body.dataset.gamePhase;},
-  showTeam,clearInput,setPaused(value){simulation.setPaused(value);if(value)clearInput();render();},setControlMode,cycleShotKind,setView,setCamera,cycleCamera,showHelp,action,beginCharge,releaseCharge,cancelCharge,
+  showTeam,clearInput,flushInput,setPaused(value){simulation.setPaused(value);if(value)clearInput();render();},setControlMode,cycleShotKind,setView,setCamera,cycleCamera,showHelp,action,beginCharge,releaseCharge,cancelCharge,
   update(dt,input,viewer,visualFrame=true){
    if(!active)return;
    cameraTime=Math.min(.25,cameraTime+dt);
@@ -181,9 +199,9 @@ export function buildPlayableMatch({scene,stadium,players,audio,onCamera,onView,
     }
     return;
    }
-   aimYaw=input.yaw??0;lastInput={x:input.x||0,z:input.z||0};
+   aimYaw=input.yaw??0;lastInput=input;
    if(!pending&&!failed){
-    if(charge&&!simulation.state.paused){charge.elapsed+=Math.min(dt,.25);simulation.state.chargePower=.25+Math.min(1,charge.elapsed/.85)*.75;}
+    if(charge&&!simulation.state.paused){charge.elapsed+=Math.min(dt,.25);simulation.state.chargePower=shotPower();}
     simulation.update(dt,{...input,defend:input.defend||pressurePointers.size>0,charging:!!charge});
     if(charge){const state=simulation.state,player=state.players.find(p=>p.id===charge.playerId);const awaiting=charge.receiving&&state.receiveTarget?.playerId===charge.playerId&&!state.ball.ownerId;if(!awaiting&&(state.controlledId!==charge.playerId||state.ball.ownerId&&state.ball.ownerId!==charge.playerId||!state.ball.ownerId&&(!player||Math.hypot(player.x-state.ball.x,player.z-state.ball.z)>5))||!['playing','penalties'].includes(state.phase))cancelCharge();}
     if(!simulation.state.paused)worldTime+=Math.min(dt,.25);

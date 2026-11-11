@@ -44,8 +44,34 @@ function makeGeometry(binary,part){
  g.setIndex(new THREE.BufferAttribute(new Uint16Array(binary,part.indexOffset,part.indexCount),1));g.computeBoundingSphere();return g;
 }
 
-function athlete(data,geometries,textures,definition,motion,atlasSize){
- const group=new THREE.Group();group.name=definition.team+' · '+definition.role+' · '+definition.player.name;group.userData.role=definition.role;group.userData.team=definition.team;group.userData.playerNumber=definition.player.number??null;
+// Three traverses a live scene again after the animation step. A mobile
+// athlete with a current world pose can skip that second bone traversal.
+class MatchActorGroup extends THREE.Group{
+ constructor(){
+  super();
+  this.posePosition=new THREE.Vector3();
+  this.poseRotation=new THREE.Quaternion();
+  this.poseScale=new THREE.Vector3();
+  this.poseParentWorld=new THREE.Matrix4();
+  this.invalidatePose();
+ }
+ invalidatePose(){this.poseDirty=true;}
+ updateMatrixWorld(force){
+  const parentChanged=this.parent!==this.poseParent||this.parent&&!this.poseParentWorld.equals(this.parent.matrixWorld);
+  if(!this.poseDirty&&!parentChanged&&!this.matrixWorldNeedsUpdate&&
+     this.position.equals(this.posePosition)&&this.quaternion.equals(this.poseRotation)&&this.scale.equals(this.poseScale))return;
+  super.updateMatrixWorld(force);
+  this.poseParent=this.parent;
+  if(this.parent)this.poseParentWorld.copy(this.parent.matrixWorld);
+  this.posePosition.copy(this.position);
+  this.poseRotation.copy(this.quaternion);
+  this.poseScale.copy(this.scale);
+  this.poseDirty=false;
+ }
+}
+
+function athlete(data,geometries,textures,definition,motion,atlasSize,cacheWorld=false){
+ const group=cacheWorld?new MatchActorGroup():new THREE.Group();group.name=definition.team+' · '+definition.role+' · '+definition.player.name;group.userData.role=definition.role;group.userData.team=definition.team;group.userData.playerNumber=definition.player.number??null;
  const bones=data.bones.map(b=>{const bone=new THREE.Bone();bone.name=b.name;return bone;});
  data.bones.forEach((b,i)=>{const parent=b.parent>=0?bones[b.parent]:group;parent.add(bones[i]);bones[i].position.fromArray(b.head);if(b.parent>=0)bones[i].position.sub(new THREE.Vector3().fromArray(data.bones[b.parent].head));});
  group.updateMatrixWorld(true);const skeleton=new THREE.Skeleton(bones);skeleton.calculateInverses();
@@ -54,10 +80,24 @@ function athlete(data,geometries,textures,definition,motion,atlasSize){
  const motionPlayer=createFootballMotion(data,motion,bones,group,definition);
  let accessory;if(definition.flag){accessory=new THREE.Group();group.add(accessory);const handle=new THREE.Mesh(new THREE.CylinderGeometry(.012,.012,.44,6),mat(0x263339));handle.position.y=-.19;accessory.add(handle);const flag=new THREE.Mesh(new THREE.PlaneGeometry(.36,.30),new THREE.MeshBasicMaterial({map:textures.flag,side:THREE.DoubleSide}));flag.position.set(-.18,-.29,0);accessory.add(flag);}
  const booking=definition.role==='referee'?new THREE.Mesh(new THREE.BoxGeometry(.12,.18,.015),new THREE.MeshBasicMaterial({color:0xf1d14c})):null;if(booking){booking.visible=false;group.add(booking);}
- const hand=new THREE.Vector3(),updateHand=()=>{if(accessory||booking){bones[14].getWorldPosition(hand);group.worldToLocal(hand);if(accessory)accessory.position.copy(hand);if(booking)booking.position.copy(hand);}};return{group,body,definition,reset:motionPlayer.reset,showBooking(type){if(booking){booking.visible=!!type;booking.material.color.set(type==='yellow'?0xf1d14c:0xe82d42);}},pose(x,z,heading,time,moving,seatY=0,action=null,options=noActionOptions){
+ const hand=new THREE.Vector3();
+ function updateHand(){
+  const prop=accessory||booking;
+  if(!prop)return;
+  bones[14].getWorldPosition(hand);
+  group.worldToLocal(hand);
+  prop.position.copy(hand);
+  if(cacheWorld)prop.updateMatrixWorld(true);
+ }
+ return{group,body,definition,reset:motionPlayer.reset,showBooking(type){if(booking){booking.visible=!!type;booking.material.color.set(type==='yellow'?0xf1d14c:0xe82d42);}},pose(x,z,heading,time,moving,seatY=0,action=null,options=noActionOptions){
   // Apply locomotion and the football stroke before propagating the skeleton
   // once. Stairs keep their intermediate matrices for foot placement.
-  motionPlayer.pose(x,z,heading,time,moving,seatY,true,options);if(action||options.defending||options.speed>5.5)applyFootballAction(bones,action,options,group);group.updateMatrixWorld(true);updateHand();
+  group.invalidatePose?.();
+  motionPlayer.pose(x,z,heading,time,moving,seatY,true,options);
+  if(action||options.defending||options.speed>5.5)applyFootballAction(bones,action,options,group);
+  group.invalidatePose?.();
+  group.updateMatrixWorld(true);
+  updateHand();
  },poseBudget:createFramePacer()};
 }
 
@@ -112,7 +152,7 @@ export function buildEntrancePlayers(scene,{mobile=false}={}){
    geometry.userData.low??=simplifySkinnedGeometry(geometry,.105,likenessLowParts);
   }
   const starterSlots={home:0,away:0},benchSlots={home:0,away:0};
-  players=matchdayPeople.map(definition=>{const d={...definition,player:{...definition.player},slot:definition.role==='player'?starterSlots[definition.team]++:definition.role==='substitute'?benchSlots[definition.team]++:null},p=athlete(data,geometries,textures,d,motion,mobile?512:d.role==='player'?1024:512);p.originalDefinition={...definition,player:{...definition.player}};p.geometry=p.body.geometry;root.add(p.group);return p;});
+  players=matchdayPeople.map(definition=>{const d={...definition,player:{...definition.player},slot:definition.role==='player'?starterSlots[definition.team]++:definition.role==='substitute'?benchSlots[definition.team]++:null},p=athlete(data,geometries,textures,d,motion,mobile?512:d.role==='player'?1024:512,mobile);p.originalDefinition={...definition,player:{...definition.player}};p.geometry=p.body.geometry;root.add(p.group);return p;});
   root.userData.shadows=createActorContactShadows(root,players.length,textures.shadow);
   ready=true;return true;
  })().catch(error=>{loading=null;throw error;});return loading;}

@@ -76,3 +76,27 @@ test('combined football strokes and locomotion leave officials accessories on th
  for(const official of actors.root.children.filter(o=>o.userData.role==='assistantReferee')){const flag=official.children.find(o=>o.isGroup&&!o.isBone),wrist=official.getObjectByName('athlete').skeleton.bones[14].getWorldPosition(new THREE.Vector3());assert.ok(flag.getWorldPosition(new THREE.Vector3()).distanceTo(wrist)<1e-9);}
  for(const actor of actors.root.children.filter(o=>o.isGroup))for(const bone of actor.getObjectByName('athlete').skeleton.bones){assert.ok(bone.matrixWorld.elements.every(Number.isFinite));assert.ok(Math.abs(bone.quaternion.length()-1)<.00001);}
 });
+
+test('phone render traversal reuses a fresh pose and still follows later actor and parent transforms',()=>{
+ const state=createFootballSimulation().state,viewer=new THREE.Vector3(0,14,0);
+ state.phase='playing';actors.reset();actors.updateMatch(state,0,viewer);scene.updateMatrixWorld(true);
+ const group=actors.root.children.find(o=>o.userData.role==='player'&&o.visible);
+ const body=group.getObjectByName('athlete'),pelvis=body.skeleton.bones[0],original=pelvis.updateMatrixWorld;
+ const initial=new THREE.Vector3().setFromMatrixPosition(pelvis.matrixWorld),reference=new THREE.Vector3();
+ let traversals=0;
+ pelvis.updateMatrixWorld=function(...args){traversals++;return original.apply(this,args);};
+ try{
+  scene.updateMatrixWorld(true);
+  assert.equal(traversals,0,'the scene does not visit bones with a current world pose');
+  group.position.z+=.25;scene.updateMatrixWorld(true);
+  assert.equal(traversals,1,'between-pose movement still propagates to the whole rig');
+  reference.copy(initial);reference.z+=.25;
+  assert.ok(reference.distanceTo(new THREE.Vector3().setFromMatrixPosition(pelvis.matrixWorld))<1e-8);
+  actors.root.position.x+=.5;scene.updateMatrixWorld(true);
+  assert.equal(traversals,2,'an ancestor change invalidates even a stationary actor');
+  reference.x+=.5;
+  assert.ok(reference.distanceTo(new THREE.Vector3().setFromMatrixPosition(pelvis.matrixWorld))<1e-8);
+ }finally{
+  pelvis.updateMatrixWorld=original;actors.root.position.x-=.5;actors.reset();scene.updateMatrixWorld(true);
+ }
+});

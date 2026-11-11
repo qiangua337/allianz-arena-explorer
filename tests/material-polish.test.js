@@ -17,6 +17,29 @@ test('body and planted-foot contacts use one draw, stay on the floor and fade wh
  group.visible=false;updateActorContactShadows(shadows,0,actor);flushActorContactShadows(shadows);for(let i=0;i<3;i++){assert.equal(a.getX(i),0);shadows.getMatrixAt(i,matrix);assert.equal(matrix.elements[0],0);}assert.ok(a.version>0&&shadows.instanceMatrix.version>0);
 });
 
+test('stationary contacts skip buffer uploads and a lifted foot changes only its slot',()=>{
+ const root=new THREE.Group(),shadows=createActorContactShadows(root,3,new THREE.Texture()),group=new THREE.Group();
+ const bones=Array.from({length:18},()=>new THREE.Bone()),actor={group,body:{skeleton:{bones}},definition:{}};
+ for(const bone of bones)group.add(bone);
+ bones[11].position.set(.18,.08,0);bones[17].position.set(-.18,.08,0);
+ const matrices=shadows.instanceMatrix,opacity=shadows.geometry.attributes.contactOpacity;
+ group.updateMatrixWorld(true);updateActorContactShadows(shadows,1,actor,true);flushActorContactShadows(shadows);
+ assert.deepEqual(matrices.updateRanges,[{start:48,count:48}]);
+ matrices.clearUpdateRanges();opacity.clearUpdateRanges();
+ const version=matrices.version;
+ updateActorContactShadows(shadows,1,actor,true);flushActorContactShadows(shadows);
+ assert.equal(matrices.version,version);assert.equal(matrices.updateRanges.length,0);
+ bones[11].position.y=.33;
+ group.updateMatrixWorld(true);updateActorContactShadows(shadows,1,actor,true);flushActorContactShadows(shadows);
+ assert.deepEqual(matrices.updateRanges,[{start:64,count:16}]);
+ assert.deepEqual(opacity.updateRanges,[{start:4,count:1}]);
+ assert.ok(opacity.getX(4)<opacity.getX(5));
+ group.visible=false;
+ updateActorContactShadows(shadows,1,actor);flushActorContactShadows(shadows);
+ assert.deepEqual(matrices.updateRanges,[{start:48,count:48}],'upload retains the previously queued slot');
+ assert.deepEqual([opacity.getX(3),opacity.getX(4),opacity.getX(5)],[0,0,0]);
+});
+
 test('pitchside polish preserves the clear player entrance and the whole playable pitch',()=>{
  const previous=globalThis.document,context=new Proxy({createRadialGradient:()=>({addColorStop(){}})},{get:(o,k)=>k in o?o[k]:()=>{}});globalThis.document={createElement:()=>({getContext:()=>context})};
  try{

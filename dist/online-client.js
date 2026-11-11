@@ -31,37 +31,65 @@ export function createOnlineSession(seat,{origin=globalThis.location?.origin,Web
  }
  return session;
 }
-export function createOnlineSimulation(session,settings={}){
+export function createOnlineSimulation(session,settings={}, {now=()=>performance.now()}={}){
  const roomRules=session.room?.rules||session.rules||settings.rules,simulation=createFootballSimulation({...settings,opponent:session.opponent,rules:roomRules,duration:roomRules?.duration||180,selections:session.room?.lineups||settings.selections,humanTeams:['home','away']}),state=simulation.state,team=session.team,prediction=createOnlinePrediction(team),interpolation=createOnlineInterpolation();state.controlledId=state.controlledIds[team];state.localTeam=team;state.paused=true;state.online=true;
  const idleInput=safeOnlineInput();
- let sendClock=0,lastInput=null,closed=false,lastPacket=null,lastSequence=0,rawInput=null,normalizedInput=null;
- function receive(){const p=session.packet;if(p&&p!==lastPacket){lastPacket=p;if(applyOnlineState(state,p,team)){prediction.receive(state,p.ack?.[team]||0);interpolation.receive(state);}}if(session.connection!=='connected'||!session.room?.started||session.room?.ended){state.paused=true;prediction.clear();interpolation.clear();state.predictionSeconds=0;}state.onlineStatus=session.connection;}
+ let frameClock=now(),lastInputAt=-Infinity,lastInput=null,closed=false,lastPacket=null,lastSequence=0,rawInput=null,normalizedInput=null;
+ let pendingInput=null,inputTimer=null;
+ const changedInputInterval=1000/60;
+ function canSendIntent(){return !closed&&!state.paused&&session.connection==='connected'&&session.room?.started&&!session.room.ended&&['playing','penalties'].includes(state.phase);}
+ function discardPendingInput(){clearTimeout(inputTimer);inputTimer=null;pendingInput=null;}
+ function receive(){const p=session.packet;if(p&&p!==lastPacket){lastPacket=p;if(applyOnlineState(state,p,team)){prediction.receive(state,p.ack?.[team]||0);interpolation.receive(state);}}if(session.connection!=='connected'||!session.room?.started||session.room?.ended){state.paused=true;prediction.clear();interpolation.clear();state.predictionSeconds=0;}if(!canSendIntent())discardPendingInput();state.onlineStatus=session.connection;}
  const unsubscribe=session.subscribe(receive);receive();
  function sameInput(a,b){return a===b||!!a&&!!b&&a.x===b.x&&a.z===b.z&&a.sprint===b.sprint&&a.defend===b.defend&&a.charging===b.charging&&a.power===b.power;}
+ function normalize(input){
+  if(state.paused)return idleInput;
+  const {x,z,sprint,defend,charging}=input??idleInput,power=state.chargePower;
+  // Prediction retains prior input objects, so only replace a snapshot on change.
+  if(!rawInput||x!==rawInput.x||z!==rawInput.z||sprint!==rawInput.sprint||defend!==rawInput.defend||charging!==rawInput.charging||power!==rawInput.power){
+   rawInput={x,z,sprint,defend,charging,power};
+   normalizedInput=safeOnlineInput(rawInput);
+  }
+  return normalizedInput;
+ }
+ function sendControl(safe,at){
+  discardPendingInput();
+  lastSequence=session.sendInput(safe)||0;
+  lastInputAt=at;
+  lastInput=safe;
+ }
+ function submitPendingInput(){
+  inputTimer=null;
+  if(!pendingInput||!canSendIntent()||sameInput(pendingInput,lastInput)){discardPendingInput();return;}
+  const at=Math.max(frameClock,now()),remaining=changedInputInterval-(at-lastInputAt);
+  if(remaining<=.001)sendControl(pendingInput,at);
+  else inputTimer=setTimeout(submitPendingInput,Math.ceil(remaining));
+ }
+ function flushInput(input){
+  if(!canSendIntent())return;
+  pendingInput=normalize(input);
+  if(sameInput(pendingInput,lastInput)){discardPendingInput();return;}
+  // Coalesce touch events when the render loop or another input has just sent.
+  if(inputTimer===null)submitPendingInput();
+ }
+ function clearInput(){
+  discardPendingInput();
+  if(!closed&&session.connection==='connected'&&!sameInput(lastInput,idleInput))sendControl(idleInput,Math.max(frameClock,now()));
+ }
  function update(dt,input={}){
   if(closed)return state;
-  sendClock+=Math.min(dt,.1);
-  let safe=idleInput;
-  if(!state.paused){
-   const {x,z,sprint,defend,charging}=input??idleInput,power=state.chargePower;
-   // The prediction history retains past input objects. Reuse a normalized
-   // input while the controls are steady and replace it on each actual change.
-   if(!rawInput||x!==rawInput.x||z!==rawInput.z||sprint!==rawInput.sprint||defend!==rawInput.defend||charging!==rawInput.charging||power!==rawInput.power){
-    rawInput={x,z,sprint,defend,charging,power};
-    normalizedInput=safeOnlineInput(rawInput);
-   }
-   safe=normalizedInput;
-  }
-  const interval=state.paused?.2:.05;
-  if(sendClock>=interval-1e-6||!sameInput(safe,lastInput)&&(!lastInput||sendClock>=1/60-1e-6)){
-   lastSequence=session.sendInput(safe)||0;
-   sendClock=0;
-   lastInput=safe;
+  frameClock=Math.max(frameClock+Math.min(dt,.1)*1000,now());
+  const safe=normalize(input),sinceSent=frameClock-lastInputAt,interval=state.paused?200:50;
+  const changed=!sameInput(safe,lastInput);
+  if(sinceSent>=interval-.001||changed&&sinceSent>=changedInputInterval-.001)sendControl(safe,frameClock);
+  else if(pendingInput){
+   if(!changed)discardPendingInput();
+   else pendingInput=safe;
   }
   interpolation.update(state,dt,session.jitter||0);
   prediction.update(state,dt,safe,lastSequence);
   state.predictionSeconds=prediction.pendingSeconds;
   return state;
  }
- return{state,network:session,continuePeriod(){return session.request({type:'continue'});},setFormation(team,formation){return session.request({type:'formation',formation});},substitute(team,outId,inNumber){return session.request({type:'substitute',outId,inNumber});},ready(){session.send({type:'mode',mode:settings.controlMode||'semi'});session.send({type:'shot-kind',kind:settings.shotKind||'drive'});session.setReady(true);},dispose({keepSession=false}={}){if(closed)return;closed=true;unsubscribe();prediction.clear();interpolation.clear();if(!keepSession)session.leave();},update,action(type,options={}){if(state.paused||!['playing','penalties'].includes(state.phase))return false;const sent=session.send({type:'action',action:type,direction:safeOnlineInput(options.direction),power:options.power});if(sent)prediction.animate(type,session.latency,options,state.shotKind);return sent;},setPaused(value){session.sendInput({});session.send({type:'pause',paused:!!value});if(value){state.paused=true;prediction.clear();interpolation.clear();}},setControlMode(mode){state.controlMode=mode;session.send({type:'mode',mode});return mode;},setShotKind(kind){state.shotKind=kind;session.send({type:'shot-kind',kind});return kind;}};
+ return{state,network:session,continuePeriod(){return session.request({type:'continue'});},setFormation(team,formation){return session.request({type:'formation',formation});},substitute(team,outId,inNumber){return session.request({type:'substitute',outId,inNumber});},ready(){session.send({type:'mode',mode:settings.controlMode||'semi'});session.send({type:'shot-kind',kind:settings.shotKind||'drive'});session.setReady(true);},dispose({keepSession=false}={}){if(closed)return;closed=true;discardPendingInput();unsubscribe();prediction.clear();interpolation.clear();if(!keepSession)session.leave();},update,flushInput,clearInput,action(type,options={}){if(!canSendIntent())return false;const sent=session.send({type:'action',action:type,direction:safeOnlineInput(options.direction),power:options.power});if(sent)prediction.animate(type,session.latency,options,state.shotKind);return sent;},setPaused(value){discardPendingInput();sendControl(idleInput,Math.max(frameClock,now()));session.send({type:'pause',paused:!!value});if(value){state.paused=true;prediction.clear();interpolation.clear();}},setControlMode(mode){state.controlMode=mode;session.send({type:'mode',mode});return mode;},setShotKind(kind){state.shotKind=kind;session.send({type:'shot-kind',kind});return kind;}};
 }

@@ -23,9 +23,12 @@ export function createActorContactShadows(parent,count,texture){
  const material=new THREE.MeshBasicMaterial({map:texture,transparent:true,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-1});
  material.onBeforeCompile=shader=>{shader.vertexShader='attribute float contactOpacity;varying float vContactOpacity;\n'+shader.vertexShader;shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nvContactOpacity=contactOpacity;');shader.fragmentShader='varying float vContactOpacity;\n'+shader.fragmentShader;shader.fragmentShader=shader.fragmentShader.replace('#include <color_fragment>','#include <color_fragment>\ndiffuseColor.a*=vContactOpacity;');};
  material.customProgramCacheKey=()=> 'athlete-contact-shadows-v1';
- const mesh=new THREE.InstancedMesh(geometry,material,count*3);mesh.name='Contact shadows';mesh.frustumCulled=false;mesh.renderOrder=1;mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);parent.add(mesh);return mesh;
+ const mesh=new THREE.InstancedMesh(geometry,material,count*3);mesh.name='Contact shadows';mesh.frustumCulled=false;mesh.renderOrder=1;mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+ shadowStates.set(mesh,{actors:new Array(count),first:Infinity,last:0});
+ parent.add(mesh);
+ return mesh;
 }
-const inverse=new THREE.Matrix4(),pose=new THREE.Object3D();
+const shadowStates=new WeakMap(),inverse=new THREE.Matrix4(),pose=new THREE.Object3D(),localFoot=new THREE.Vector3();
 function writeShadow(mesh,alpha,index,x,z,width,depth,opacity,floor){
  pose.position.set(x,floor+.013,z);
  pose.scale.set(width,1,depth);
@@ -33,19 +36,64 @@ function writeShadow(mesh,alpha,index,x,z,width,depth,opacity,floor){
  mesh.setMatrixAt(index,pose.matrix);
  alpha.setX(index,opacity);
 }
+function markShadowRange(shadows,first,last){
+ shadows.first=Math.min(shadows.first,first);
+ shadows.last=Math.max(shadows.last,last);
+}
 export function updateActorContactShadows(mesh,index,actor,refresh=false){
  const {group,body}=actor,base=index*3,alpha=mesh.geometry.attributes.contactOpacity;
- if(!group.visible){pose.scale.setScalar(0);pose.updateMatrix();for(let j=0;j<3;j++){mesh.setMatrixAt(base+j,pose.matrix);alpha.setX(base+j,0);}return;}
+ const shadows=shadowStates.get(mesh),previous=shadows.actors[index]??(shadows.actors[index]={});
+ if(!group.visible){
+  if(previous.visible===false)return;
+  previous.visible=false;
+  pose.scale.setScalar(0);pose.updateMatrix();
+  for(let j=0;j<3;j++){mesh.setMatrixAt(base+j,pose.matrix);alpha.setX(base+j,0);}
+  markShadowRange(shadows,base,base+3);
+  return;
+ }
+ const {x,y,z}=group.position,yaw=group.rotation.y,scale=group.scale.x,seated=!!actor.definition.seated;
+ const moved=!previous.visible||previous.x!==x||previous.y!==y||previous.z!==z||previous.yaw!==yaw||previous.scale!==scale||previous.seated!==seated;
+ if(!moved&&!refresh)return;
  const feet=actor.contactFeet??(actor.contactFeet=[new THREE.Vector3(.18,.08,0),new THREE.Vector3(-.18,.08,0)]);
- if(refresh){inverse.copy(group.matrixWorld).invert();for(let j=0;j<2;j++)feet[j].setFromMatrixPosition(body.skeleton.bones[j?17:11].matrixWorld).applyMatrix4(inverse);}
- const yaw=group.rotation.y,c=Math.cos(yaw),s=Math.sin(yaw),scale=group.scale.x,floor=entranceFloor(group.position.x);
+ let feetMoved=0;
+ if(refresh){
+  inverse.copy(group.matrixWorld).invert();
+  for(let j=0;j<2;j++){
+   localFoot.setFromMatrixPosition(body.skeleton.bones[j?17:11].matrixWorld).applyMatrix4(inverse);
+   if(localFoot.distanceToSquared(feet[j])>1e-10){feet[j].copy(localFoot);feetMoved|=1<<j;}
+  }
+ }
+ if(!moved&&!feetMoved)return;
  pose.rotation.set(0,yaw,0);
- writeShadow(mesh,alpha,base,group.position.x+.055*scale,group.position.z-.045*scale,.96*scale,1.06*scale,actor.definition.seated?.16:.30,floor);
+ if(moved){
+  previous.visible=true;previous.x=x;previous.y=y;previous.z=z;previous.yaw=yaw;previous.scale=scale;previous.seated=seated;
+  writeShadow(mesh,alpha,base,x+.055*scale,z-.045*scale,.96*scale,1.06*scale,seated?.16:.30,entranceFloor(x));
+  markShadowRange(shadows,base,base+1);
+ }
+ const c=Math.cos(yaw),s=Math.sin(yaw);
  for(let j=0;j<2;j++){
-  const f=feet[j],x=f.x*scale,z=(f.z+.045)*scale;
-  const wx=group.position.x+x*c+z*s,wz=group.position.z+z*c-x*s,ground=entranceFloor(wx);
-  const lift=Math.max(0,group.position.y+f.y*scale-ground-.075*scale),spread=1+Math.min(lift,.4)*.7;
+  if(!moved&&!(feetMoved&(1<<j)))continue;
+  const f=feet[j],footX=f.x*scale,footZ=(f.z+.045)*scale;
+  const wx=x+footX*c+footZ*s,wz=z+footZ*c-footX*s,ground=entranceFloor(wx);
+  const lift=Math.max(0,y+f.y*scale-ground-.075*scale),spread=1+Math.min(lift,.4)*.7;
   writeShadow(mesh,alpha,base+j+1,wx,wz,.24*scale*spread,.38*scale*spread,.55*Math.exp(-lift*11),ground);
+  markShadowRange(shadows,base+j+1,base+j+2);
  }
 }
-export function flushActorContactShadows(mesh){mesh.instanceMatrix.needsUpdate=true;mesh.geometry.attributes.contactOpacity.needsUpdate=true;}
+function flushShadowRange(attribute,start,end){
+ // If a frame was never drawn, retain its pending range for the next draw.
+ const pending=attribute.updateRanges[0];
+ if(pending){
+  end=Math.max(end,pending.start+pending.count);
+  pending.start=Math.min(start,pending.start);
+  pending.count=end-pending.start;
+ }else attribute.addUpdateRange(start,end-start);
+ attribute.needsUpdate=true;
+}
+export function flushActorContactShadows(mesh){
+ const shadows=shadowStates.get(mesh),{first,last}=shadows;
+ if(first>=last)return;
+ flushShadowRange(mesh.instanceMatrix,first*16,last*16);
+ flushShadowRange(mesh.geometry.attributes.contactOpacity,first,last);
+ shadows.first=Infinity;shadows.last=0;
+}

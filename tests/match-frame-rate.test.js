@@ -72,6 +72,25 @@ test('rate recovery waits longer after a repeated failed probe', () => {
  assert.equal(sample(pace, 120, 90, 4).rate, 120);
 });
 
+test('a phone reuses its stable resolution after a higher one causes a recurring hitch',()=>{
+ const pace=createMatchFrameRate({cap:120,mobile:true});
+ assert.equal(sample(pace,120,86,9).scale,.77);
+ assert.equal(sample(pace,120,120,4,5).scale,.82);
+ assert.equal(sample(pace,120,105,7,2).scale,.77);
+ assert.equal(sample(pace,120,120,4,15).scale,.77);
+ assert.equal(sample(pace,120,120,4).scale,.82);
+});
+
+test('halftime keeps the existing budget and ignores stale evidence and the first resume sample',()=>{
+ const pace=createMatchFrameRate({cap:120,mobile:true});
+ const spiky={rafFps:120,renderFps:104,gap95:17,frameMs:7};
+ pace.update(spiky);
+ pace.interrupt();
+ assert.equal(sample(pace,120,60,18).scale,.9);
+ assert.equal(pace.update(spiky).scale,.9);
+ assert.equal(pace.update(spiky).scale,.82);
+});
+
 test('real draw deadlines sustain the selected ceiling on 60 and 120 Hz callback streams', () => {
  for (const [refresh, cap, expected] of [[60,120,60], [120,120,120], [120,60,60]]) {
   const pace = createMatchFrameRate({cap});
