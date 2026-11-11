@@ -26,7 +26,19 @@ export function buildMatchdayExperience({scene,stadium,onBegin,onPose,onFinish,o
  function renderUI(){const stopped=pausedNow(),sample=entranceSample(time,{reducedMotion}),state=!active?'off':pending?'loading':stopped?'paused':game.active?game.state.phase:cinematic?sample.phase:'free';document.body.dataset.matchday=state;document.body.dataset.matchProgress=(time/ENTRANCE_DURATION).toFixed(3);document.body.dataset.matchCrowd=active?String(crowd.count):'0';document.body.dataset.matchCrowdNear=active?String(crowd.nearCount):'0';document.body.dataset.matchCrowdVisitors=active?String(crowd.visitorCount):'0';document.body.dataset.matchCrowdAsset=crowd.assetState;document.body.dataset.matchAudioSeconds=audio.duration.toFixed(2);document.body.dataset.matchPlayers=active?players.positions:'';document.body.classList.toggle('match-cinematic',active&&cinematic);document.body.classList.toggle('match-free',active&&!cinematic);document.body.classList.toggle('match-paused',stopped);
   $('match-status').textContent=pending?'正在准备入场体验':stopped?'体验已暂停':cinematic?sample.label:'比赛日 · 自由漫游';$('match-pause').textContent=stopped?'继续':'暂停';$('match-pause').setAttribute('aria-label',stopped?'继续入场体验':'暂停入场体验');$('match-pause').hidden=!cinematic&&!stopped;$('match-skip').textContent=cinematic?'结束跟随':'跟队入场';$('match-skip').setAttribute('aria-label',cinematic?'结束跟随，留在当前位置':'选择跟队入场');$('match-cheer').hidden=cinematic;$('match-progress-fill').style.width=(time/ENTRANCE_DURATION*100)+'%';$('match-countdown').hidden=!active||!cinematic||pending||stopped||!sample.countdown;$('match-countdown').textContent=String(sample.countdown||'');$('match-level').value=audio.level;
  }
- function setPanel(panel){dialog.dataset.panel=panel;const labels={play:['这一场，迎战谁？','选择对手、赛制与阵容，控制拜仁亲自上场。'],online:['和朋友，同场竞技。','创建房间，或输入朋友的房间码，分别控制两支球队。'],training:['练好这一脚。','从控球到最后一脚，用真实比赛系统慢慢练习。'],tour:['走出通道，就是主场。','选择跟随球队入场，或在比赛日氛围中自由参观。']};$('match-dialog-title').textContent=labels[panel][0];$('match-intro-copy').textContent=labels[panel][1];for(const button of document.querySelectorAll('[data-match-tab]'))button.setAttribute('aria-selected',String(button.dataset.matchTab===panel));}
+ function setPanel(panel){
+  dialog.dataset.panel=panel;
+  const labels={
+   play:['赛前设置','选择对手、赛制与首发阵容。'],
+   online:['好友联机','创建房间或输入房间码，开赛前各自确认首发。'],
+   training:['球场训练','选择带球、传球或射门练习。'],
+   tour:['球员入场','选择跟随球队入场，或在比赛日氛围中自由参观。']
+  };
+  $('match-dialog-title').textContent=labels[panel][0];
+  $('match-intro-copy').textContent=labels[panel][1];
+  for(const button of document.querySelectorAll('[data-match-tab]'))button.setAttribute('aria-selected',String(button.dataset.matchTab===panel));
+  dialog.scrollTop=0;
+ }
  for(const button of document.querySelectorAll('[data-match-tab]'))button.onclick=()=>{if(button.dataset.matchTab==='online')onlineLobby.open();else setPanel(button.dataset.matchTab);};
  $('online-configure').onclick=()=>setPanel('play');
  function launch(panel){const explicit=['training','play','online','tour'].includes(panel),room=new URLSearchParams(location.search).has('room');const selected=explicit?panel:room?'online':'play';setPanel(selected);setup.refresh();dialog.showModal();if(selected==='online')onlineLobby.open();}

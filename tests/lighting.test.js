@@ -51,7 +51,28 @@ test('night lighting separates the exterior from the pitch and intensity transit
 });
 
 test('the bowl light fill preserves authored shaders and switches day/night without new material programs',()=>{
- const root=new THREE.Group(),m=new THREE.MeshStandardMaterial();let called=0;m.onBeforeCompile=shader=>{called++;shader.vertexShader+=' custom motion';};root.add(new THREE.Mesh(new THREE.BoxGeometry(),m));const fill=buildBowlLighting(root),key=m.customProgramCacheKey(),shader={uniforms:{},vertexShader:'',fragmentShader:'#include <aomap_fragment>'};m.onBeforeCompile(shader);assert.equal(called,1);fill.night(true);assert.equal(shader.uniforms.arenaFloodFill.value,.12);fill.night(false);assert.equal(shader.uniforms.arenaFloodFill.value,0);assert.equal(key,m.customProgramCacheKey());assert.ok(shader.vertexShader.includes('custom motion'));assert.ok(shader.fragmentShader.includes('inverseTransformDirection(normal,viewMatrix)'),'upward pitch and vertical equipment keep distinct lighting');
+ const root=new THREE.Group(),stand=new THREE.MeshStandardMaterial(),pitch=new THREE.MeshStandardMaterial();
+ pitch.userData.arenaPitch=true;
+ let called=0;
+ stand.onBeforeCompile=shader=>{called++;shader.vertexShader+=' custom motion';};
+ root.add(new THREE.InstancedMesh(new THREE.BoxGeometry(),stand,2),new THREE.Mesh(new THREE.PlaneGeometry(),pitch));
+ const fill=buildBowlLighting(root),keys=[stand.customProgramCacheKey(),pitch.customProgramCacheKey()];
+ function compile(material){
+  const shader={uniforms:{},vertexShader:THREE.ShaderLib.standard.vertexShader,fragmentShader:THREE.ShaderLib.standard.fragmentShader};
+  material.onBeforeCompile(shader);return shader;
+ }
+ const seats=compile(stand),field=compile(pitch);
+ assert.equal(called,1);
+ assert.ok(seats.vertexShader.includes('custom motion'));
+ assert.ok(seats.vertexShader.indexOf('dot(mvPosition.xyz')>seats.vertexShader.indexOf('#include <project_vertex>'),'tier lighting follows instance-transformed height');
+ assert.ok(seats.fragmentShader.includes('vec3(vArenaSpill)'));
+ assert.ok(!field.vertexShader.includes('vArenaSpill'),'the field retains even illumination');
+ assert.ok(field.fragmentShader.includes('arenaFacing * vec3(2.06, 2.13, 2.25)'));
+ assert.notEqual(keys[0],keys[1],'field and stand shader programs cannot collide');
+ assert.equal(seats.uniforms.arenaFloodFill,field.uniforms.arenaFloodFill);
+ fill.night(true);assert.equal(field.uniforms.arenaFloodFill.value,.12);
+ fill.night(false);assert.equal(field.uniforms.arenaFloodFill.value,0);
+ assert.deepEqual([stand.customProgramCacheKey(),pitch.customProgramCacheKey()],keys);
 });
 
 test('night ground spill retains its controller after static batching and costs two meshes',()=>{

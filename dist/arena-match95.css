@@ -1,0 +1,627 @@
+/* Match setup and friend rooms. */
+#match-dialog {
+  --panel: #1b1b1e;
+  --subtle: #252529;
+  --rule: #48464b;
+  --ink: #f5f0e8;
+  --muted: #c1bcb7;
+  --accent: #f08e9e;
+  --match-action: #b62641;
+  --match-selection: #37282e;
+  --match-gap: 14px;
+  width: min(760px, calc(100vw - 24px));
+  max-height: calc(100dvh - 24px);
+  padding: clamp(14px, 3vw, 28px);
+  border: 1px solid var(--rule);
+  border-radius: 14px;
+  background: var(--panel);
+  color: var(--ink);
+  color-scheme: dark;
+  box-shadow: 0 20px 72px #0009;
+  scrollbar-color: #6a656c var(--panel);
+  scrollbar-gutter: stable;
+  scroll-padding-block-start: 60px;
+}
+
+#match-dialog::backdrop {
+  background: #09090bd4;
+  backdrop-filter: none;
+}
+
+#match-dialog .close-dialog {
+  top: 12px;
+  right: 12px;
+  width: 44px;
+  height: 44px;
+  border-color: var(--rule);
+  border-radius: 8px;
+  background: var(--subtle);
+  color: var(--ink);
+}
+
+#match-dialog h2 {
+  max-width: none;
+  margin: 0;
+  padding-inline-end: 48px;
+  font-size: clamp(23px, 4vw, 34px);
+  line-height: 1.28;
+  letter-spacing: -.02em;
+}
+
+#match-dialog #match-intro-copy {
+  margin: 6px 0 16px;
+  padding-inline-end: 44px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+#match-dialog .match-page-tabs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4px;
+  top: 0;
+  z-index: 3;
+  margin: 0 0 var(--match-gap);
+  padding: 4px;
+  border-color: var(--rule);
+  border-radius: 8px;
+  background: var(--panel);
+  backdrop-filter: none;
+}
+
+#match-dialog .match-page-tabs button {
+  min-width: 0;
+  min-height: 44px;
+  padding: 5px 3px;
+  border-radius: 5px;
+  color: var(--muted);
+  font-size: clamp(12px, 2vw, 14px);
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+#match-dialog .match-page-tabs button[aria-selected=true] {
+  color: var(--ink);
+  background: var(--subtle);
+  box-shadow: inset 0 -2px var(--accent);
+}
+
+#match-dialog button:focus-visible,
+#match-dialog input:focus-visible,
+#match-dialog a:focus-visible,
+#match-dialog summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+#match-dialog .match-setup,
+#match-dialog .match-rules-section,
+#match-dialog .online-lobby {
+  min-width: 0;
+  margin: 0 0 var(--match-gap);
+  padding: clamp(12px, 2vw, 20px);
+  border: 1px solid var(--rule);
+  border-radius: 9px;
+  background: var(--subtle);
+}
+
+#match-dialog .match-setup h3,
+#match-dialog .match-rules-section h3 {
+  margin: 0 0 9px;
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.45;
+  letter-spacing: 0;
+}
+
+#match-dialog .opponent-options,
+#match-dialog .setup-row,
+#match-dialog .rules-modes,
+#match-dialog .rules-durations {
+  gap: 8px;
+}
+
+#match-dialog .opponent-card,
+#match-dialog .setup-options button,
+#match-dialog .rules-modes button,
+#match-dialog .rules-durations button,
+#match-dialog .team-edit-entry {
+  min-width: 0;
+  border: 1px solid var(--rule);
+  border-radius: 7px;
+  background: var(--panel);
+  color: var(--ink);
+}
+
+#match-dialog .opponent-card {
+  min-height: 66px;
+  gap: 8px;
+  padding: 9px 13px 9px 8px;
+}
+
+#match-dialog .opponent-card .club-swatch {
+  width: 32px;
+  height: 38px;
+  color: #fff;
+  text-shadow: 0 0 2px #000, 0 1px 3px #000;
+}
+
+#match-dialog .opponent-card b {
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+#match-dialog .opponent-card small,
+#match-dialog .rules-modes small,
+#match-dialog .rules-durations small {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+#match-dialog .opponent-card i {
+  top: 3px;
+  right: 5px;
+  color: var(--accent);
+}
+
+#match-dialog .opponent-card[aria-pressed=true],
+#match-dialog .setup-options button[aria-pressed=true],
+#match-dialog .rules-modes button[aria-pressed=true],
+#match-dialog .rules-durations button[aria-pressed=true] {
+  border-color: var(--accent);
+  background: var(--match-selection);
+  color: var(--ink);
+  box-shadow: none;
+}
+
+#match-dialog .setup-row {
+  grid-template-columns: minmax(0, .86fr) minmax(0, 1.14fr);
+  margin-top: 14px;
+}
+
+#match-dialog .setup-row h3 {
+  margin-bottom: 7px;
+  font-size: 13px;
+}
+
+#match-dialog .setup-options {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px;
+}
+
+#match-dialog .setup-options button,
+#match-dialog .rules-durations button {
+  min-height: 44px;
+  padding: 6px 3px;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+#match-dialog .setup-options button {
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+}
+
+#match-dialog .rules-modes button {
+  min-height: 58px;
+  justify-content: center;
+  gap: 3px;
+  padding: 8px 9px;
+}
+
+#match-dialog .rules-modes button b {
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+#match-dialog .rules-durations {
+  margin-top: 9px;
+}
+
+#match-dialog .rules-durations small {
+  margin-top: 2px;
+}
+
+#match-dialog .team-edit-entry {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  min-height: 46px;
+  gap: 8px;
+  margin-top: 11px;
+  padding: 8px 10px;
+}
+
+#match-dialog .team-edit-entry span,
+#match-dialog .team-edit-entry b {
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+#match-dialog .team-edit-entry span {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+#match-dialog .team-edit-entry b {
+  color: var(--muted);
+}
+
+#match-dialog .team-edit-entry i {
+  color: var(--accent);
+}
+
+#match-dialog .setup-summary {
+  margin: 13px 0 0;
+  padding: 10px 0 0;
+  border-top: 1px solid var(--rule);
+  color: var(--ink);
+  font-weight: 650;
+  line-height: 1.55;
+}
+
+#match-dialog .setup-lineup {
+  margin: 0;
+  color: var(--muted);
+}
+
+#match-dialog .setup-lineup summary {
+  min-height: 44px;
+  padding: 12px 0;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+#match-dialog .setup-lineup p,
+#match-dialog .match-rules-section > p,
+#match-dialog .match-play-note {
+  margin: 8px 0 0;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+#match-dialog .match-start,
+#match-dialog .match-manual {
+  min-height: 46px;
+  align-items: center;
+  border-radius: 7px;
+  font-weight: 700;
+}
+
+#match-dialog #match-play,
+#match-dialog .online-lobby #online-create,
+#match-dialog .online-lobby #online-ready {
+  padding: 10px 13px;
+  border: 1px solid transparent;
+  background: var(--match-action);
+  color: #fff;
+  font-size: 14px;
+}
+
+#match-dialog[data-panel=play] #match-play {
+  position: static;
+  box-shadow: none;
+}
+
+#match-dialog[data-panel=play] #match-online {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px 8px;
+  margin-bottom: 8px;
+  padding: 7px 12px;
+  border: 1px solid var(--rule);
+  background: var(--subtle);
+  color: var(--ink);
+  text-align: left;
+}
+
+#match-dialog[data-panel=play] #match-online small {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+#match-dialog .online-lobby {
+  margin: 0;
+}
+
+#match-dialog .online-lobby p {
+  margin: 0 0 12px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+#match-dialog.online-room-open .online-lobby > p:not(#online-message) {
+  display: none;
+}
+
+#match-dialog .online-fixture-preview {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin: 0 0 10px;
+  padding: 6px 10px;
+  border-color: var(--rule);
+  border-radius: 7px;
+  background: var(--panel);
+}
+
+#match-dialog .online-fixture-preview #online-fixture-summary {
+  margin: 0 !important;
+  color: var(--ink) !important;
+  font-size: 13px !important;
+  font-weight: 650;
+}
+
+#match-dialog .online-fixture-preview button {
+  min-height: 44px;
+  padding: 6px 0;
+  color: var(--accent);
+  font-size: 12px;
+}
+
+#match-dialog .online-lobby #online-create,
+#match-dialog .online-lobby #online-ready {
+  justify-content: center;
+  margin: 0;
+}
+
+#match-dialog .online-join-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 7px;
+  margin: 8px 0 0;
+}
+
+#match-dialog .online-join-form input {
+  width: 100%;
+  min-height: 46px;
+  border-color: var(--rule);
+  border-radius: 7px;
+  background: var(--panel);
+  color: var(--ink);
+  font-size: 16px;
+  letter-spacing: 1px;
+}
+
+#match-dialog .online-join-form input::placeholder {
+  color: var(--muted);
+  opacity: 1;
+}
+
+#match-dialog .online-join-form button,
+#match-dialog .online-room-actions button,
+#match-dialog .online-room-actions #online-copy {
+  min-height: 46px;
+  padding: 7px 10px;
+  border: 1px solid var(--rule);
+  border-radius: 7px;
+  background: var(--panel);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+#match-dialog #online-side,
+#match-dialog #online-rules-summary {
+  display: block;
+  margin: 0 0 6px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+#match-dialog .online-code {
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--rule);
+  border-radius: 7px;
+  background: var(--panel);
+  color: var(--ink);
+  font: 650 clamp(24px, 5vw, 38px)/1.3 var(--sport-font, monospace);
+  letter-spacing: .09em;
+  text-align: center;
+  user-select: all;
+}
+
+#match-dialog .online-seats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+#match-dialog .online-seats > div {
+  padding: 9px 10px;
+  border-color: var(--rule);
+  border-radius: 7px;
+  background: var(--panel);
+  overflow-wrap: anywhere;
+}
+
+#match-dialog .online-seats b {
+  font-size: 13px;
+}
+
+#match-dialog .online-seats span {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+#match-dialog .online-setup {
+  margin: 12px 0;
+  padding: 12px 0 0;
+  border-color: var(--rule);
+}
+
+#match-dialog .online-room-actions {
+  gap: 8px;
+  margin: 0 0 8px;
+}
+
+#match-dialog .online-lobby #online-message {
+  min-height: auto;
+  margin: 12px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+#match-dialog button:disabled {
+  opacity: .52;
+  cursor: default;
+}
+
+@media (hover: hover) {
+  #match-dialog .close-dialog:hover,
+  #match-dialog .match-page-tabs button:not(:disabled):hover,
+  #match-dialog .opponent-card:hover,
+  #match-dialog .setup-options button:hover,
+  #match-dialog .rules-modes button:not(:disabled):hover,
+  #match-dialog .rules-durations button:not(:disabled):hover,
+  #match-dialog .team-edit-entry:not(:disabled):hover,
+  #match-dialog .online-join-form button:not(:disabled):hover,
+  #match-dialog .online-room-actions button:not(:disabled):hover {
+    background: #343137;
+  }
+
+  #match-dialog #match-play:hover,
+  #match-dialog .online-lobby #online-create:not(:disabled):hover,
+  #match-dialog .online-lobby #online-ready:not(:disabled):hover {
+    background: #c6324d;
+  }
+}
+
+@media (min-width: 780px), (orientation: landscape) and (min-width: 650px) {
+  #match-dialog[open][data-panel=play]:not(.online-room-open) {
+    display: grid;
+    width: min(1000px, calc(100vw - 28px));
+    grid-template-columns: minmax(0, 1.12fr) minmax(0, 1fr);
+    grid-template-areas:
+      "title title"
+      "intro intro"
+      "tabs tabs"
+      "teams rules"
+      "online start"
+      "note note";
+    column-gap: var(--match-gap);
+    align-content: start;
+  }
+
+  #match-dialog #match-dialog-title { grid-area: title; }
+  #match-dialog #match-intro-copy { grid-area: intro; }
+  #match-dialog .match-page-tabs { grid-area: tabs; }
+  #match-dialog .match-setup { grid-area: teams; }
+  #match-dialog .match-rules-section { grid-area: rules; }
+  #match-dialog #match-online { grid-area: online; }
+  #match-dialog #match-play { grid-area: start; }
+  #match-dialog .match-play-note { grid-area: note; }
+
+  #match-dialog[data-panel=play] #match-online {
+    margin-bottom: 0;
+  }
+
+  #match-dialog #online-lobby-idle {
+    display: grid;
+    grid-template-columns: minmax(0, .85fr) minmax(0, 1.15fr);
+    gap: 9px;
+  }
+
+  #match-dialog .online-fixture-preview {
+    grid-column: 1 / -1;
+  }
+
+  #match-dialog .online-fixture-preview,
+  #match-dialog .online-join-form {
+    margin: 0;
+  }
+
+  #match-dialog #online-lobby-room {
+    display: grid;
+    grid-template-columns: minmax(0, .86fr) minmax(0, 1.14fr);
+    grid-template-areas:
+      "side options"
+      "code options"
+      "seats options"
+      "actions options"
+      "ready ready";
+    grid-template-rows: auto auto auto 1fr auto;
+    column-gap: 14px;
+    align-items: start;
+  }
+
+  #match-dialog #online-side { grid-area: side; }
+  #match-dialog .online-code { grid-area: code; }
+  #match-dialog .online-seats { grid-area: seats; }
+  #match-dialog .online-room-actions { grid-area: actions; }
+  #match-dialog .online-setup { grid-area: options; }
+  #match-dialog #online-ready { grid-area: ready; }
+
+  #match-dialog .online-setup {
+    margin: 0 0 10px;
+    padding: 0 0 0 14px;
+    border: 0;
+    border-inline-start: 1px solid var(--rule);
+  }
+
+  #match-dialog .online-room-actions {
+    margin-top: 9px;
+  }
+}
+
+@media (max-width: 440px) {
+  #match-dialog {
+    --match-gap: 10px;
+    width: calc(100vw - 14px);
+    max-height: calc(100dvh - 14px);
+  }
+
+  #match-dialog .setup-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  #match-dialog .online-fixture-preview {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0;
+    padding-top: 10px;
+  }
+}
+
+@media (max-height: 500px) and (orientation: landscape) {
+  #match-dialog {
+    --match-gap: 9px;
+    max-height: calc(100dvh - 12px);
+    padding: 12px 16px;
+  }
+
+  #match-dialog h2 {
+    font-size: 24px;
+  }
+
+  #match-dialog #match-intro-copy {
+    margin-bottom: 8px;
+    font-size: 12px;
+  }
+
+  #match-dialog .match-setup,
+  #match-dialog .match-rules-section,
+  #match-dialog .online-lobby {
+    padding: 10px 12px;
+  }
+
+  #match-dialog .opponent-card {
+    min-height: 56px;
+  }
+}
