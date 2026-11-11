@@ -82,6 +82,9 @@
 .studio-controls { justify-content: space-between; flex-wrap: wrap; margin-top: 10px }
 .studio-controls label { display: flex; align-items: center; gap: 8px; font-size: 13px }
 .studio-controls input { width: clamp(95px, 24vw, 165px); min-height: 44px; accent-color: #ed7186 }
+@media (max-width: 390px) {
+  .studio-controls button { padding-inline: 9px }
+}
 #player-studio :focus-visible, #player-studio-open:focus-visible { outline: 2px solid #f2b8c2; outline-offset: 2px }
 @media (max-height: 540px) and (min-width: 560px) {
   .studio-stage { height: clamp(145px, 48dvh, 260px) }

@@ -2,6 +2,12 @@
 
 人物参考真实人体比例与足球游戏的入场呈现方式，使用 MakeHuman 通用人体拓扑、皮肤和骨骼权重。
 
+## 9.7.1 正面与侧面
+
+依据 [凯恩正面肖像](https://www.bundesliga.com/pt/jogador/harry-kane)、[拜仁凯恩采访](https://fcbayern.com/fcbayerntv/de/video/2024/08/video-interview-mit-harry-kane-vor-dem-testspiel-bei-tottenham-hotspur)、[穆西亚拉官方肖像](https://fcbayern.com/en/teams/first-team/jamal-musiala)和[拜仁训练图集](https://fcbayern.com/de/bilder/2026/05/galerie-in-neuer-teamline-start-der-psg-vorbereitung)校正脸部比例。另参考 [eFootball 官方展示](https://www.konami.com/games/ca/en/topics/2259/) 的面部呈现。照片和商业游戏画面只作为造型参考，发布的蒙皮和贴图以现有 MakeHuman CC0 资源为底。
+
+凯恩和穆西亚拉分别调整鼻梁与鼻尖、眼睑、唇线及下颌，重做发际线和头发过渡。特写可直接切换正面与侧面；比赛和入场的中远景网格保留两人的头形与发型。手机继续用单个 512 像素图集，不增加每名球员的绘制次数；中远景从鞋、衣物和非关键顶点减少面数，把原有预算更多留给面部。两张脸部贴图合计约 20 KB，可用 `python scripts/build-player-likeness.py` 再生成。
+
 ## 9.7.0 球员特写
 
 凯恩与穆西亚拉的近中景几何在现有基模上手工调整面部、发际线、肩背和腰身。脸部贴图基于 CC0 皮肤底图重新绘制。拜仁官方公布的身高体重分别为 188 厘米、86 公斤与 186 厘米、75 公斤，用于设置身高和区分身材。[凯恩资料](https://fcbayern.com/en/teams/first-team/harry-kane) · [穆西亚拉资料](https://fcbayern.com/en/teams/first-team/jamal-musiala)

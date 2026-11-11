@@ -6,8 +6,51 @@ registerHooks({resolve(s,c,next){return s==='three'?{url:new URL('../dist/vendor
 const context=new Proxy({createRadialGradient:()=>({addColorStop(){}}),createLinearGradient:()=>({addColorStop(){}})},{get:(o,k)=>k in o?o[k]:()=>{}});
 globalThis.document={createElement:()=>({getContext:()=>context}),createElementNS:()=>{const listeners={};return{addEventListener:(k,f)=>listeners[k]=f,removeEventListener(){},set src(value){queueMicrotask(()=>listeners.load?.call(this));}};}};
 const {THREE}=await import('../dist/kit.js'),{buildEntrancePlayers}=await import('../dist/entrance-players.js'),{createFootballSimulation}=await import('../dist/football-simulation.js');
+const {footballCamera}=await import('../dist/football-controls.js');
 const fetchOriginal=globalThis.fetch;globalThis.fetch=async url=>{const data=await fs.readFile(new URL(url));return{ok:true,json:async()=>JSON.parse(data),arrayBuffer:async()=>data.buffer.slice(data.byteOffset,data.byteOffset+data.byteLength)};};
 const scene=new THREE.Scene(),actors=buildEntrancePlayers(scene,{mobile:true});await actors.prepare();globalThis.fetch=fetchOriginal;
+
+test('phone match cameras preserve both featured profiles within the previous triangle and material budgets',()=>{
+ const state=createFootballSimulation().state;
+ state.phase='playing';
+ const budgets={
+  9:{triangles:[24372,5705,1539],vertices:[13505,3301,981]},
+  10:{triangles:[24748,5640,1477],vertices:[13934,3278,936]}
+ };
+ const styles=['follow','close','broadcast'];
+ const countPart=(geometry,name)=>{
+  const {start,count}=geometry.userData.parts[name];
+  let triangles=0;
+  for(let i=0;i<geometry.index.count;i+=3){
+   const vertex=geometry.index.getX(i);
+   if(vertex>=start&&vertex<start+count)triangles++;
+  }
+  return triangles;
+ };
+ const featured=state.players.filter(p=>p.team==='home'&&budgets[p.number]);
+ assert.equal(featured.length,2);
+ for(const p of featured){
+  const actor=actors.root.children.find(a=>a.userData.team==='home'&&a.userData.role==='player'&&a.userData.playerNumber===p.number);
+  const body=actor.getObjectByName('athlete'),material=body.material,budget=budgets[p.number];
+  const geometryByCamera=styles.map((style,i)=>{
+   const {position}=footballCamera(p,{style,ball:p,aspect:390/844});
+   actors.updateMatch(state,i/30,new THREE.Vector3(...position));
+   assert.ok(actor.visible,style+' renders the featured actor');
+   assert.equal(body.material,material);
+   assert.equal(body.geometry.groups.length,0);
+   assert.ok(body.geometry.index.count/3<=budget.triangles[i],p.number+' '+style+' triangle budget');
+   assert.ok(body.geometry.attributes.position.count<=budget.vertices[i],p.number+' '+style+' vertex budget');
+   assert.ok(countPart(body.geometry,'eyebrows')>0);
+   return body.geometry;
+  });
+  const [high,medium,low]=geometryByCamera;
+  assert.equal(high.userData.medium,medium);
+  assert.equal(high.userData.low,low);
+  assert.ok(countPart(medium,'face')>760,'close camera resolves the actual face');
+  assert.ok(countPart(low,'crop')>110,'broadcast retains the custom hair silhouette');
+  assert.ok(countPart(low,'face')>220,'broadcast retains more facial profile than the generic model');
+ }
+});
 
 test('a moving phone match retains all 52 people while avoiding duplicate skeleton traversals and unused clip sampling',()=>{
  const state=createFootballSimulation().state,positions=state.players.map(p=>[p.x,p.z]),viewer=new THREE.Vector3(18,14,4.5);state.phase='playing';actors.reset();const update=THREE.Object3D.prototype.updateMatrixWorld,slerp=THREE.Quaternion.prototype.slerpQuaternions;let traversals=0,samples=0;

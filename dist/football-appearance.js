@@ -1,12 +1,14 @@
 import {THREE,canvasTexture} from './kit.js';
 import {playerLikeness} from './football-likeness.js';
+import {paintKaneHair,paintKaneEyes} from './football-likeness-kane.js';
+import {paintMusialaHair} from './football-likeness-musiala.js';
 export const faceTextureWindow=[.60,.15,1,.87];
 export const athleteAtlasCells={face:[0,0,.34,.5],skin:[.34,0,.16,.5],hands:[.34,0,.16,.5],wrists:[.34,0,.16,.5],keeperWrists:[.34,0,.16,.5],shirt:[.5,0,.5,.5],shorts:[0,.5,.25,.25],socks:[.25,.5,.25,.25],bootL:[.5,.5,.25,.25],bootR:[.5,.5,.25,.25],eyes:[.75,.5,.25,.25],eyebrows:[0,.75,.25,.25],short02:[.25,.75,.5,.25],crop:[.25,.75,.5,.25],gloves:[.75,.75,.25,.25],gloveCuffs:[.75,.75,.25,.25]};
 const cells=athleteAtlasCells;
 export function atlasGeometry(geometries,hair,{keeper=false}={}){
  const parts=Object.entries(geometries).filter(([name])=>(!['short02','crop'].includes(name)||name===hair)&&(!['gloves','gloveCuffs','keeperWrists'].includes(name)||keeper)&&(!['hands','wrists'].includes(name)||!keeper)),total=parts.reduce((sum,[,g])=>sum+g.attributes.position.count,0),result=new THREE.BufferGeometry(),ranges={};
  for(const[name,size]of Object.entries({position:3,normal:3,uv:2,skinIndex:4,skinWeight:4})){const out=name==='skinIndex'?new Uint16Array(total*size):new Float32Array(total*size);let offset=0;for(const[part,g]of parts){const source=g.attributes[name];for(let i=0;i<source.count;i++)for(let j=0;j<size;j++){let value=source.array[i*size+j];if(name==='uv'){if(part==='socks'||part==='shorts')value=((value%1)+1)%1;if(part==='face')value=(value-faceTextureWindow[j])/(faceTextureWindow[j+2]-faceTextureWindow[j]);const cell=cells[part];value=j===0?cell[0]+.002+value*(cell[2]-.004):1-cell[1]-cell[3]+.002+value*(cell[3]-.004);}out[(offset+i)*size+j]=value;}offset+=source.count;}result.setAttribute(name,new THREE.BufferAttribute(out,size));}
- const indices=[];let offset=0;for(const[part,g]of parts){ranges[part]={start:offset,count:g.attributes.position.count};for(const i of g.index.array)indices.push(i+offset);offset+=g.attributes.position.count;}result.setIndex(indices);result.computeBoundingSphere();result.userData.parts=ranges;return result;
+ const indices=[];let offset=0;for(const[part,g]of parts){ranges[part]={start:offset,count:g.attributes.position.count,indexStart:indices.length,indexCount:g.index.count};for(const i of g.index.array)indices.push(i+offset);offset+=g.attributes.position.count;}result.setIndex(indices);result.computeBoundingSphere();result.userData.parts=ranges;return result;
 }
 function kitColors(d){const official=d.team==='official',staff=['coach','assistant','doctor','physio'].includes(d.role),away=d.team==='away';return{shirt:official?'#77cbd1':staff?'#27343c':d.keeper?(away?'#9584b2':'#176f62'):away?d.kit?.shirt||'#ebcc3d':'#bb1d32',shorts:official||staff?'#222c31':d.keeper?(away?'#6b5f85':'#176f62'):away?d.kit?.shorts||'#222c31':'#ab182c',ink:away&&!d.keeper?d.kit?.ink||'#222c31':'#f4f1e8',socks:official||staff?'#27343c':away&&!d.keeper?d.kit?.socks||'#dfdfd6':'#dfdfd6'};}
 export function drawBootTexture(c,w,h){
@@ -47,38 +49,13 @@ export function drawGloveTexture(c,w,h){
 }
 function drawLikenessHair(c,cell,id){
  c.translate(cell[0],cell[1]);c.scale(cell[2],cell[3]);
- const kane=id==='kane',root=c.createLinearGradient(0,0,0,1);
- root.addColorStop(0,kane?'#a28964':'#25211e');
- root.addColorStop(.62,kane?'#756047':'#1a1817');
- root.addColorStop(.92,kane?'#594533':'rgba(36,28,23,.82)');
- root.addColorStop(1,kane?'rgba(76,59,44,.15)':'rgba(44,33,28,.17)');
- c.fillStyle=root;c.fillRect(0,0,1,1);c.globalCompositeOperation='source-atop';
- if(kane){
-  c.lineWidth=.0045;
-  for(let i=0;i<96;i++){
-   const x=i/92-.06,shift=Math.sin(i*2.63)*.021;
-   c.strokeStyle=i%4===0?'rgba(225,197,149,.4)':'rgba(45,31,22,.29)';
-   c.beginPath();c.moveTo(x,.97);
-   c.bezierCurveTo(x+shift,.67,x+.12+shift,.39,x+.19,.02);c.stroke();
-  }
- }else{
-  c.lineWidth=.006;
-  for(let row=0;row<15;row++)for(let column=0;column<28;column++){
-   const seed=column*53+row*29,x=(column+.5+Math.sin(seed)*.42)/28,y=(row+.38+Math.cos(seed*2)*.35)/16;
-   c.strokeStyle=seed%4===0?'rgba(119,97,83,.43)':'rgba(87,70,63,.34)';
-   c.beginPath();c.arc(x,y,.008+((seed%5)*.0014),.3+seed%6,4.1+seed%6);c.stroke();
-  }
- }
+ if(id==='kane')paintKaneHair(c);
+ else paintMusialaHair(c);
 }
 
 function paintSkin(c,cell,base,face){
  if(face){const[u0,v0,u1,v1]=faceTextureWindow;c.drawImage(base,u0*base.width,(1-v1)*base.height,(u1-u0)*base.width,(v1-v0)*base.height,...cell);}
  else c.drawImage(base,...cell);
-}
-
-function paintIris(c,[x,y,w,h]){
- c.globalCompositeOperation='color';c.strokeStyle='#7b9298';c.lineWidth=w*.073;
- for(const [u,v] of [[.706,.299],[.289,.713]]){c.beginPath();c.arc(x+w*u,y+h*v,w*.076,0,Math.PI*2);c.stroke();}
 }
 
 export function characterAtlas(d,textures,jerseyTexture,size=1024){
@@ -94,7 +71,7 @@ export function characterAtlas(d,textures,jerseyTexture,size=1024){
     const image=name==='shirt'?jersey.image:name==='eyes'?textures.eyes.image:name==='eyebrows'?textures.brows.image:name==='bootL'?textures.boot.image:null;
     if(image)c.drawImage(image,...cell);
    }
-   if(name==='eyes'&&id==='kane')paintIris(c,cell);
+   if(name==='eyes'&&id==='kane')paintKaneEyes(c,cell);
    if(name==='eyebrows'&&id){c.globalCompositeOperation='source-atop';c.fillStyle=id==='kane'?'#77614a':'#3c2e29';c.fillRect(...cell);}
    if(name==='bootL'){c.globalCompositeOperation='multiply';c.fillStyle=new THREE.Color(d.boot||0xcac6bd).getStyle();c.fillRect(...cell);}if(name==='gloves'){c.translate(cell[0],cell[1]);drawGloveTexture(c,cell[2],cell[3]);}c.restore();}
   const cell=cells.short02;c.save();c.beginPath();c.rect(...cell);c.clip();c.clearRect(...cell);if(id)drawLikenessHair(c,cell,id);else if(d.hair==='crop'){c.fillStyle='#27231e';c.fillRect(...cell);}else{c.drawImage(textures.short02.image,...cell);c.globalCompositeOperation='multiply';c.fillStyle=new THREE.Color(d.hairColor||0x9a8476).getStyle();c.fillRect(...cell);c.globalCompositeOperation='destination-in';c.drawImage(textures.short02.image,...cell);}c.restore();

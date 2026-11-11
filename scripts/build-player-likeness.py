@@ -1,9 +1,12 @@
 """Paint original facial details onto the shared CC0 skin in its existing UV layout."""
+import argparse
 import json
+import runpy
 from pathlib import Path
 
 import numpy as np
 from PIL import Image
+from likeness_musiala import paint_musiala
 
 
 ASSETS = Path(__file__).resolve().parents[1] / 'dist/assets/players'
@@ -46,30 +49,6 @@ def face_space(manifest, binary):
     return coordinates.transpose(2,0,1), covered
 
 
-def original_stubble(coordinates, covered, identity):
-    x,y,z = coordinates
-    width = np.abs(x)
-    front = smoothstep(.084,.135,z)
-    rng = np.random.default_rng(2026)
-    density = .56+.44*rng.random(y.shape)
-    if identity == 'kane':
-        cheek_y = 1.674+.061*smoothstep(.017,.073,width)
-        lower_jaw = smoothstep(1.623,1.651,y)*smoothstep(.066,.113,z)
-        beard = lower_jaw*(1-smoothstep(cheek_y-.010,cheek_y+.014,y))
-        beard *= .84+.10*np.sin(x*327+y*251)+.06*np.cos(z*389-y*557)
-        lip_clearance = smoothstep(1.661,1.674,y)*(1-smoothstep(1.679,1.686,y))*(1-smoothstep(.019,.036,width))*front
-        beard *= 1-.91*lip_clearance
-        mustache_y = 1.687+.004*(1-smoothstep(0,.030,width))
-        mustache = np.exp(-((y-mustache_y)/.006)**2)*(1-smoothstep(.023,.038,width))*front
-        sideburn = smoothstep(1.720,1.743,y)*(1-smoothstep(1.763,1.780,y))*smoothstep(.062,.079,width)*smoothstep(.060,.088,z)*(1-smoothstep(.103,.132,z))
-        return np.maximum.reduce([beard*.66,mustache*.56,sideburn*.51])*density*covered, [72,56,44]
-
-    mustache_y = 1.688+.002*(1-smoothstep(0,.027,width))
-    mustache = np.exp(-((y-mustache_y)/.004)**2)*(1-smoothstep(.022,.035,width))*smoothstep(.001,.006,width)*front
-    chin = np.exp(-((y-1.643)/.008)**2)*(1-smoothstep(.013,.025,width))*front
-    return np.maximum(mustache*.34,chin*.42)*density*covered, [59,44,37]
-
-
 def source_skin(name, window):
     image = Image.open(ASSETS / name).convert('RGB')
     u0,v0,u1,v1 = window
@@ -78,17 +57,24 @@ def source_skin(name, window):
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--player', choices=['kane', 'musiala'])
+    player = parser.parse_args().player
+    if player != 'musiala':
+        kane_path = Path(__file__).with_name('build-kane-complexion.py')
+        runpy.run_path(kane_path)['main']()
+    if player == 'kane':
+        return
+
     manifest = json.loads((ASSETS/'footballer-960.json').read_text())
     coordinates,covered = face_space(manifest,(ASSETS/'footballer-960.bin').read_bytes())
     light = source_skin('skin-light.webp',manifest['faceUV'])
     dark = source_skin('skin-dark.webp',manifest['faceUV'])
-    for identity,skin in [('kane',light),('musiala',light*(1-MUSIALA_SKIN_BLEND)+dark*MUSIALA_SKIN_BLEND)]:
-        opacity,color = original_stubble(coordinates,covered,identity)
-        opacity = opacity[...,None]
-        painted = skin*(1-opacity)+np.asarray(color)*opacity
-        path = ASSETS/f'face-{identity}.webp'
-        Image.fromarray(np.clip(painted,0,255).astype('uint8'),'RGB').save(path,quality=86,method=6)
-        print(path.name,path.stat().st_size,'bytes')
+    skin = light*(1-MUSIALA_SKIN_BLEND)+dark*MUSIALA_SKIN_BLEND
+    painted = paint_musiala(skin, coordinates, covered, smoothstep)
+    path = ASSETS/'face-musiala.webp'
+    Image.fromarray(np.clip(painted,0,255).astype('uint8'),'RGB').save(path,quality=83,method=6)
+    print(path.name,path.stat().st_size,'bytes')
 
 
 if __name__ == '__main__':

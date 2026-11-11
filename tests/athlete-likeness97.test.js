@@ -56,8 +56,24 @@ test('face and skin rest seams stay welded while the nose, brows and eye shape c
   }
  }
  assert.ok(variants.kane.face.boundingSphere.radius>0);
- const tip=geometry=>{const p=geometry.attributes.position;let z=0;for(let i=0;i<p.count;i++)if(Math.abs(p.getX(i))<.025&&p.getY(i)>1.695&&p.getY(i)<1.725)z=Math.max(z,p.getZ(i));return z;};
- assert.ok(tip(variants.kane.face)-tip(variants.musiala.face)>.006);
+});
+
+test('sculpted profile landmarks change shape rather than relying on hair and paint',()=>{
+ const base=raw.face.attributes.position;
+ function displacement(at,axis,id){
+  let closest=0,dist=Infinity;
+  for(let i=0;i<base.count;i++){
+   const distance=Math.hypot(base.getX(i)-at[0],base.getY(i)-at[1],base.getZ(i)-at[2]);
+   if(distance<dist){dist=distance;closest=i;}
+  }
+  assert.ok(dist<.004,'the landmark sits on the production head topology');
+  const component=['getX','getY','getZ'][axis];
+  return variants[id].face.attributes.position[component](closest)-base[component](closest);
+ }
+ const bridge=[0,1.732,.167],tip=[0,1.704,.189],noseWing=[.015,1.698,.169],lowerLip=[0,1.666,.167],outerLid=[.053,1.744,.142];
+ assert.ok(displacement(bridge,2,'kane')>.003&&displacement(tip,2,'kane')<-.002);
+ assert.ok(displacement(noseWing,0,'musiala')>.001&&displacement(lowerLip,2,'musiala')>.003);
+ assert.ok(displacement(outerLid,1,'musiala')<-.001);
 });
 
 test('two likenesses keep valid skinned hair UVs and use one 512-capable material within the phone geometry budget',t=>{
@@ -73,7 +89,7 @@ test('two likenesses keep valid skinned hair UVs and use one 512-capable materia
   assert.ok([full,medium,low].every(g=>g.groups.length===0&&g.userData.parts.crop.count>0));
   const texture=readFileSync(asset(`face-${id}.webp`));
   assert.equal(texture.subarray(8,12).toString(),'WEBP');
-  assert.ok(texture.length<24000);
+  assert.ok(texture.length<=(id==='kane'?18728:9274),'a replacement portrait must fit the previous transfer budget');
   t.diagnostic(`${id}: ${hair.index.count/3} hair triangles, ${[full,medium,low].map(g=>g.index.count/3).join('/')} player triangles, ${texture.length} texture bytes`);
  }
 });

@@ -15,6 +15,16 @@ import {shapeFootballBody} from './football-body-profile.js';
 const asset=name=>new URL('./assets/players/'+name,import.meta.url).href;
 const noActionOptions={};
 const geometryKey=d=>playerLikeness(d)||d.hair+(d.keeper?'Keeper':'');
+// Keep the head silhouette and facial texture seams in match cameras.
+// Coarser hands and clothing leave room for face detail within the same budget.
+const likenessMediumParts={
+ face:{cell:.026,uvGrid:24},eyes:{cell:.026},eyebrows:{cell:.026},crop:{cell:.032,uvGrid:22},
+ hands:{cell:.051},wrists:{cell:.043},socks:{cell:.043},shorts:{cell:.04}
+};
+const likenessLowParts={
+ face:{cell:.053,uvGrid:14},eyes:{cell:.048,uvGrid:13},eyebrows:{cell:.057,uvGrid:13},crop:{cell:.061,uvGrid:14},
+ skin:{cell:.092},shirt:{cell:.098},socks:{cell:.112},bootL:{cell:.085},bootR:{cell:.085}
+};
 function makeGeometry(binary,part){
  const a=new Float32Array(binary,part.offset,part.vertices*16),g=new THREE.BufferGeometry(),attributes={position:3,normal:3,uv:2,skinIndex:4,skinWeight:4};let offset=0;
  for(const[name,size]of Object.entries(attributes)){const out=name==='skinIndex'?new Uint16Array(part.vertices*size):new Float32Array(part.vertices*size);for(let i=0;i<part.vertices;i++)for(let j=0;j<size;j++)out[i*size+j]=a[i*16+offset+j];g.setAttribute(name,new THREE.BufferAttribute(out,size));offset+=size;}
@@ -80,8 +90,8 @@ export function buildEntrancePlayers(scene,{mobile=false}={}){
   }
   for(const key of ['kane','musiala']){
    const geometry=geometries[key];
-   geometry.userData.medium??=simplifySkinnedGeometry(geometry,.035);
-   geometry.userData.low=geometries[key==='kane'?'short02':'crop'].userData.low;
+   geometry.userData.medium??=simplifySkinnedGeometry(geometry,.035,likenessMediumParts);
+   geometry.userData.low??=simplifySkinnedGeometry(geometry,.105,likenessLowParts);
   }
   const starterSlots={home:0,away:0},benchSlots={home:0,away:0};
   players=matchdayPeople.map(definition=>{const d={...definition,player:{...definition.player},slot:definition.role==='player'?starterSlots[definition.team]++:definition.role==='substitute'?benchSlots[definition.team]++:null},p=athlete(data,geometries,textures,d,motion,mobile?512:d.role==='player'?1024:512);p.originalDefinition={...definition,player:{...definition.player}};p.geometry=geometries[geometryKey(d)];root.add(p.group);return p;});

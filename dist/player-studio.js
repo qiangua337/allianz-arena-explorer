@@ -8,11 +8,11 @@ export function buildPlayerStudio(loadActor){
  const angle=document.getElementById('player-studio-angle');
  const names=[...dialog.querySelectorAll('[data-studio-player]')],views=[...dialog.querySelectorAll('[data-studio-view]')];
  const scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera(34,1,.015,12);
- const key=new THREE.DirectionalLight(0xffedd9,1.75),fill=new THREE.DirectionalLight(0xd5e4ff,.8);
- key.position.set(-2,2.6,4);fill.position.set(2,2,2.5);
+ const key=new THREE.DirectionalLight(0xfff5ea,1.55),fill=new THREE.DirectionalLight(0xebf2ff,1.05),rim=new THREE.DirectionalLight(0xe4ebff,.7);
+ key.position.set(-3,3.2,4.5);fill.position.set(3,.85,4);rim.position.set(1,2.8,-3);
  scene.background=new THREE.Color(0x1d2127);
- scene.add(new THREE.HemisphereLight(0xffffff,0x626a7d,1.15),key,fill);
- let identity='kane',view='face',renderer=null,actor=null,frame=0,request=0,width=0,height=0,drag=null,observer=null;
+ scene.add(new THREE.HemisphereLight(0xffffff,0x8c8795,1.2),key,fill,rim);
+ let identity='kane',view='front',renderer=null,actor=null,frame=0,request=0,width=0,height=0,drag=null,observer=null;
 
  function draw(){
   frame=0;
@@ -23,13 +23,20 @@ export function buildPlayerStudio(loadActor){
    width=w;height=h;renderer.setSize(w,h,false);
    camera.aspect=w/h;camera.updateProjectionMatrix();
   }
-  const face=view==='face',scale=actor.group.scale.y,center=(face?1.726:.96)*scale;
-  const distance=(face?.78:3.82)*Math.max(1,.63/camera.aspect),radians=Number(angle.value)*Math.PI/180;
-  camera.position.set(Math.sin(radians)*distance,center+(face?.027:.16),Math.cos(radians)*distance);
-  camera.lookAt(0,center,0);
+  const face=view!=='body',scale=actor.group.scale.y,center=(face?1.738:.96)*scale,z=face?.078:0;
+  const distance=(face?.66:3.82)*Math.max(1,.63/camera.aspect),radians=Number(angle.value)*Math.PI/180;
+  camera.position.set(Math.sin(radians)*distance,center+(face?.009:.16),z+Math.cos(radians)*distance);
+  camera.lookAt(0,center,z);
   renderer.render(scene,camera);
  }
  function queueDraw(){if(!frame)frame=requestAnimationFrame(draw);}
+ function syncView(){
+  const degrees=Number(angle.value);
+  angle.setAttribute('aria-valuetext',degrees+'°');
+  const preset=view==='body'?'body':degrees===0?'front':Math.abs(degrees)===90?'side':'';
+  for(const button of views)button.setAttribute('aria-pressed',String(button.dataset.studioView===preset));
+  queueDraw();
+ }
  function disposeActor(value){
   if(!value)return;
   scene.remove(value.group);
@@ -80,10 +87,10 @@ export function buildPlayerStudio(loadActor){
  });
  for(const button of views)button.addEventListener('click',()=>{
   view=button.dataset.studioView;
-  for(const item of views)item.setAttribute('aria-pressed',String(item===button));
-  queueDraw();
+  if(view!=='body')angle.value=view==='front'?'0':'90';
+  syncView();
  });
- angle.addEventListener('input',queueDraw);
+ angle.addEventListener('input',syncView);
  stage.addEventListener('pointerdown',event=>{
   if(!actor||event.button!==0)return;
   drag={id:event.pointerId,x:event.clientX,angle:Number(angle.value)};
@@ -93,7 +100,7 @@ export function buildPlayerStudio(loadActor){
   if(drag?.id!==event.pointerId)return;
   const rotation=drag.angle+(event.clientX-drag.x)*.55;
   angle.value=String(((rotation+180)%360+360)%360-180);
-  queueDraw();
+  syncView();
  });
  for(const type of ['pointerup','pointercancel','lostpointercapture'])stage.addEventListener(type,()=>{drag=null;});
 }
