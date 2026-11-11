@@ -4,12 +4,12 @@ const turn=(a,b)=>Math.atan2(Math.sin(b-a),Math.cos(b-a));
 export function createFootballFootPlant(bones){
  const feet=[0,1].map(side=>({side,active:false,weight:0,x:0,z:0,heading:0,release:0,ankle:new THREE.Vector3(),goal:new THREE.Vector3()}));
  function reset(){for(const foot of feet){foot.active=false;foot.weight=0;foot.release=0;}}
- return{reset,update(x,z,heading,scale,phase,fast,dt,enabled,hardReset=false,walk=0,adaptive=false){
+ return{reset,update(x,z,heading,scale,phase,fast,dt,enabled,hardReset=false,walk=0,adaptive=false,yieldSide=-1){
   // The walking clip has a longer real stance (.98 -> .60) than the run.
   // Reusing the jogging window released a side-step while its sole was down.
   if(hardReset){reset();return;}const cos=Math.cos(heading),sin=Math.sin(heading),landing=(.13+.07*fast)*(1-walk)+.02*walk,end=(.45-.01*fast)*(1-walk)+.62*walk;
   for(const foot of feet){
-   const cycle=((phase+foot.side*.5+landing)%1+1)%1,contact=enabled&&cycle<end;
+   const cycle=((phase+foot.side*.5+landing)%1+1)%1,contact=enabled&&foot.side!==yieldSide&&cycle<end;
    if(!contact&&foot.weight<=.01){foot.active=false;foot.weight=0;continue;}
    if(!readFootballAnkle(bones,foot.side,foot.ankle))continue;
    if(contact&&!foot.active&&(foot.weight<=.01||foot.release>.10)){foot.x=x+(foot.ankle.x*cos+foot.ankle.z*sin)*scale;foot.z=z+(-foot.ankle.x*sin+foot.ankle.z*cos)*scale;foot.weight=1;foot.release=0;foot.heading=heading;}

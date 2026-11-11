@@ -119,7 +119,7 @@ export function createOnlinePrediction(team){
   const reachable=!ball.ownerId&&!ball.targetId&&ball.y<.4&&Math.hypot(player.x-ball.x,player.z-ball.z)<.9;
   if(ball.ownerId!==player.id&&!reachable)return;
   const stroke=type==='shoot'?shotKind:type==='through'?'through':'short';
-  motion={id:-1,type:type==='through'?'pass':type,elapsed:0,duration,predicted:true,stroke,power:options.power};
+  motion={id:-1,type:type==='through'?'pass':type,elapsed:0,duration,predicted:true,stroke,power:options.power,approachSpeed:Math.hypot(player.vx,player.vz)};
  }
  return{receive,update,clear,animate,get pendingSeconds(){return pending;}};
 }

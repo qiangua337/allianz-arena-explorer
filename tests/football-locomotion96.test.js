@@ -11,6 +11,8 @@ registerHooks({resolve(specifier, context, next) {
 
 const {THREE} = await import('../dist/kit.js');
 const {createFootballMotion} = await import('../dist/football-motion.js');
+const {applyFootballAction} = await import('../dist/football-action-pose.js');
+const {createFootballSimulation} = await import('../dist/football-simulation.js');
 const assets = new URL('../dist/assets/players/', import.meta.url);
 const manifest = JSON.parse(readFileSync(new URL('footballer-960.json', assets)));
 const clips = JSON.parse(readFileSync(new URL('walk-cycle.json', assets)));
@@ -163,4 +165,108 @@ test('running on the ball changes the trunk and arm carriage while keeping the s
     }
   }
   assert.ok(carrying.bones[7].quaternion.angleTo(running.bones[7].quaternion) < .01);
+});
+
+test('running into a low pass preserves left support and blends into the carry through the actual trap pose', () => {
+  let plantedSamples = 0;
+  for (const hz of [60, 30, 12]) for (const phase of [0, .7, 1.9, 3.7]) for (const heading of [0, Math.PI]) {
+    const actor = fixture(phase);
+    const running = fixture(phase);
+    const contactTime = 1.5;
+    const duration = .26;
+    const travel = Math.cos(heading);
+    let z = 0;
+    let previous = null;
+    let lowered = 0;
+    for (let frame = 0; frame < hz * 3; frame++) {
+      const time = frame / hz;
+      const speed = time < 1.25 ? 5.1 : time < contactTime ? 5.1 - (time - 1.25) * 9.2 : Math.min(4.5, 2.8 + (time - contactTime) * 4);
+      z += speed / hz * travel;
+      const onBall = time >= contactTime;
+      const incomingBall = !onBall ? {x: 0, y: .11, z: z + (.64 + (contactTime - time) * 9) * travel, vx: 0, vz: -4.8 * travel} : null;
+      const action = onBall && time < contactTime + duration ? {type: 'trap', elapsed: time - contactTime, duration} : null;
+      const options = {...field, incomingBall, action, onBall};
+      actor.pose(0, z, heading, time, true, 0, true, options);
+      if (action) applyFootballAction(actor.bones, action, options, actor.group);
+      actor.group.updateMatrixWorld(true);
+      running.pose(0, z, heading, time, true, 0, false, {...field, onBall});
+      assert.deepEqual(actor.group.position.toArray(), [0, 0, z]);
+      const heights = actor.bootHeights();
+      assert.ok(Math.min(...heights) > -.001, JSON.stringify({hz, phase, heading, time, heights}));
+      const feet = [actor.position(11), actor.position(17)];
+      if (!onBall) lowered = Math.max(lowered, running.bones[0].position.y - actor.bones[0].position.y);
+      if (previous && time >= contactTime && time < contactTime + duration) {
+        const delta = feet.map((foot, i) => foot.distanceTo(previous[i]));
+        assert.ok(Math.max(...delta) < (hz === 12 ? 1.1 : hz === 30 ? .64 : .37), JSON.stringify({hz, phase, heading, time, delta}));
+        const normal = running.position(11);
+        if (heights[0] < .045 && running.bootHeights()[0] < .045) {
+          assert.ok(Math.hypot(feet[0].x - normal.x, feet[0].z - normal.z) < .085, JSON.stringify({hz, phase, heading, time}));
+          plantedSamples++;
+        }
+      }
+      previous = feet;
+    }
+    assert.ok(lowered > .01, 'an arriving pass produces a visible loaded posture before possession');
+    assert.ok(actor.bones[7].quaternion.angleTo(running.bones[7].quaternion) < .01, 'same carried posture after the receive has recovered');
+  }
+  assert.ok(plantedSamples >= 40, 'retains the left support phase where a running stride was already planted');
+});
+
+test('a pass moving away or above boot reach does not preload the running pose', () => {
+  const normal = fixture();
+  const passing = fixture();
+  for (let frame = 0; frame < 90; frame++) {
+    const time = frame / 30;
+    const z = time * 4;
+    const incomingBall = {x: 0, y: frame < 45 ? 1.3 : .11, z: z + 1.1, vx: 0, vz: frame < 45 ? -6 : 7};
+    normal.pose(0, z, 0, time, true, 0, false, field);
+    passing.pose(0, z, 0, time, true, 0, false, {...field, incomingBall});
+    assert.deepEqual(passing.bones[0].position.toArray(), normal.bones[0].position.toArray());
+    assert.deepEqual(passing.bones[6].quaternion.toArray(), normal.bones[6].quaternion.toArray());
+  }
+});
+
+test('a simulated pass reaches its moving receiver and leaves their next running step available', () => {
+  for (const type of ['pass', 'through']) {
+    const game = createFootballSimulation();
+    for (let i = 0; i < 185; i++) game.update(1 / 60);
+    const state = game.state;
+    const passer = state.players.find(player => player.id === state.controlledId);
+    const receiver = state.players.find(player => player.id === 'home-8');
+    for (const player of state.players) {
+      if (player !== passer && player !== receiver) Object.assign(player, {x: 29, z: 44, vx: 0, vz: 0, decisionAt: 1e9, tackleAt: 1e9});
+    }
+    Object.assign(receiver, {x: 1, z: -12, vx: 0, vz: -2.8, yaw: Math.PI});
+    assert.equal(game.action(type, {direction: {x: 0, z: -1}}), true);
+    assert.equal(state.ball.targetId, receiver.id);
+    const actor = fixture(1.2);
+    const natural = fixture(1.2);
+    let receivedAt = null;
+    let approachLowering = 0;
+    let carriedDistance = 0;
+    for (let i = 0; i < 210; i++) {
+      game.update(1 / 60, receivedAt ? {x: 0, z: -1, sprint: true} : {});
+      const onBall = state.ball.ownerId === receiver.id;
+      if (onBall && receivedAt === null) {
+        receivedAt = {time: state.time, z: receiver.z};
+        assert.equal(receiver.motion?.type, 'trap');
+        assert.equal(state.controlledId, receiver.id);
+      }
+      const moving = Math.hypot(receiver.vx, receiver.vz) > .16;
+      const options = {...field, incomingBall: state.ball.targetId === receiver.id ? state.ball : null, action: receiver.motion, onBall};
+      actor.pose(receiver.x, receiver.z, receiver.yaw, state.time, moving, 0, true, options);
+      if (receiver.motion) applyFootballAction(actor.bones, receiver.motion, options, actor.group);
+      actor.group.updateMatrixWorld(true);
+      natural.pose(receiver.x, receiver.z, receiver.yaw, state.time, moving, 0, false, field);
+      assert.deepEqual(actor.group.position.toArray(), [receiver.x, 0, receiver.z]);
+      assert.ok(Math.min(...actor.bootHeights()) > -.001, JSON.stringify({type, time: state.time}));
+      if (!onBall && !receivedAt) approachLowering = Math.max(approachLowering, natural.bones[0].position.y - actor.bones[0].position.y);
+      if (receivedAt && state.time - receivedAt.time > .55) {
+        assert.ok(onBall, 'the carried ball remains attached to the runner');
+        carriedDistance = receivedAt.z - receiver.z;
+        break;
+      }
+    }
+    assert.ok(receivedAt && approachLowering > .004 && carriedDistance > 1.1, JSON.stringify({type, receivedAt, approachLowering, carriedDistance}));
+  }
 });

@@ -63,7 +63,7 @@ export function createFootballSimulation({duration=180,seed=73417,controlMode='s
  function carryBall(dt=STEP){const b=state.ball,p=byId(b.ownerId);if(!p){b.ownerId=null;return;}carryFootball(p,b,dt,worldTime);}
  function release(player,vx,vz,vy=0){controllers[player.team].autoReceive=false;controllers[player.team].receiveIntent=null;const b=state.ball;b.shot=null;b.curve=0;b.targetId=null;b.receivePoint=null;b.ownerId=null;b.vx=vx;b.vz=vz;b.vy=vy;b.y=Math.max(BALL_RADIUS,b.y);lastTouch=player.team;claimBlockId=player.id;claimBlockUntil=worldTime+.48;player.decisionAt=worldTime+1.2;}
  function strikeDetails(player,stroke,power){
-  const ball=state.ball,details={stroke,power,contactX:ball.x,contactY:Math.max(BALL_RADIUS,ball.y),contactZ:ball.z};
+  const ball=state.ball,details={stroke,power,contactX:ball.x,contactY:Math.max(BALL_RADIUS,ball.y),contactZ:ball.z,approachSpeed:Math.hypot(player.vx,player.vz)};
   if(player.motion?.type==='trap'&&player.motion.elapsed<=.17)details.firstTime=true;
   return details;
  }

@@ -4,6 +4,7 @@ import {buildPlayableMatch} from './playable-match.js';
 import {buildMatchdayCrowd} from './matchday-crowd.js';
 import {createLazyCrowd} from './lazy-crowd.js';
 import {buildEntrancePlayers} from './entrance-players.js';
+import {buildPlayerStudio} from './player-studio.js';
 import {createMatchdayAudio} from './matchday-audio.js';
 import {entranceSample,ENTRANCE_DURATION} from './matchday-route.js';
 import {buildMatchdaySet} from './matchday-set.js';
@@ -15,6 +16,7 @@ export function buildMatchdayExperience({scene,stadium,onBegin,onPose,onFinish,o
  const $=id=>document.getElementById(id),dialog=$('match-dialog'),panel=$('match-controls'),crowd=createLazyCrowd(()=>buildMatchdayCrowd(stadium.bowl,stadium.seatPositions,{mobile,reducedMotion})),players=buildEntrancePlayers(scene,{mobile});
  let active=false,cinematic=false,paused=false,pending=false,time=0,playerSeconds=0,worldTime=0,uiClock=0,visualClock=0,redraw=false,token=0,lastCountdown=-1,roared=false,steps=0,stepDistance=0,lastPosition=null,lastGamePaused=null;
  const setting=buildMatchdaySet(stadium.bowl,stadium.matchBall);
+ if(players.preview)buildPlayerStudio(players.preview);
  let storage;try{storage=globalThis.localStorage;}catch{}const setup=buildMatchSetup(storage);
  let lastYaw=0,rosterWasPaused=false,lastCheer=-10;
  for(const[team,title,xi]of [['home','FC BAYERN',homeXI],['away','DORTMUND',awayXI]]){const section=document.createElement('section'),heading=document.createElement('h3');heading.textContent=title;section.append(heading);for(const player of [...xi,...substitutes.filter(p=>p.team===team)]){const row=document.createElement('div'),number=document.createElement('b'),name=document.createElement('span');row.className='roster-player';number.textContent=player.player.number;name.textContent=player.player.name+(player.keeper?' · GK':'')+(player.role==='substitute'?' · 替补':'');row.append(number,name);section.append(row);}$('match-roster-content').append(section);}

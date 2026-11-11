@@ -9,10 +9,12 @@ import {simplifySkinnedGeometry} from './player-lod.js';
 import {sampleQueuePlayer} from './entrance-choreography.js';
 import {installAthleteSurface,createActorContactShadows,updateActorContactShadows,flushActorContactShadows} from './football-materials.js';
 import {createFramePacer} from './frame-pacing.js';
+import {likenessParts,playerLikeness} from './football-likeness.js';
+import {shapeFootballBody} from './football-body-profile.js';
 
 const asset=name=>new URL('./assets/players/'+name,import.meta.url).href;
 const noActionOptions={};
-const geometryKey=d=>d.hair+(d.keeper?'Keeper':'');
+const geometryKey=d=>playerLikeness(d)||d.hair+(d.keeper?'Keeper':'');
 function makeGeometry(binary,part){
  const a=new Float32Array(binary,part.offset,part.vertices*16),g=new THREE.BufferGeometry(),attributes={position:3,normal:3,uv:2,skinIndex:4,skinWeight:4};let offset=0;
  for(const[name,size]of Object.entries(attributes)){const out=name==='skinIndex'?new Uint16Array(part.vertices*size):new Float32Array(part.vertices*size);for(let i=0;i<part.vertices;i++)for(let j=0;j<size;j++)out[i*size+j]=a[i*16+offset+j];g.setAttribute(name,new THREE.BufferAttribute(out,size));offset+=size;}
@@ -37,20 +39,66 @@ function athlete(data,geometries,textures,definition,motion,atlasSize){
 }
 
 export function buildEntrancePlayers(scene,{mobile=false}={}){
- const root=new THREE.Group();root.name='Skinned football entrance queue';root.visible=false;scene.add(root);let loading,players=[],ready=false,lastMatchTime=null,playerAssets=null,opponent='dortmund';const officials=new Map();
- async function prepare(){if(loading)return loading;loading=(async()=>{
-  const loader=new THREE.TextureLoader(),loadTexture=name=>loader.loadAsync(asset(name)),[data,binary,light,dark,short02,eyes,brows,crest,motion,awayCrest]=await Promise.all([
-   fetch(asset('footballer-960.json')).then(r=>{if(!r.ok)throw Error('Player manifest '+r.status);return r.json();}),fetch(asset('footballer-960.bin')).then(r=>{if(!r.ok)throw Error('Player mesh '+r.status);return r.arrayBuffer();}),loadTexture('skin-light.webp'),loadTexture('skin-dark.webp'),loadTexture('hair-short02.webp'),loadTexture('eyes.webp'),loadTexture('brows.webp'),new THREE.ImageLoader().loadAsync(new URL('./assets/fc-bayern.svg',import.meta.url).href),fetch(asset('walk-cycle.json')).then(r=>{if(!r.ok)throw Error('Motion '+r.status);return r.json();}),new THREE.ImageLoader().loadAsync(new URL('./assets/borussia-dortmund.svg',import.meta.url).href)
-  ]);for(const t of[light,dark,short02,eyes,brows]){t.colorSpace=THREE.SRGBColorSpace;t.anisotropy=4;}
+ const root=new THREE.Group();root.name='Skinned football entrance queue';root.visible=false;scene.add(root);
+ let loading,loadingAssets,players=[],ready=false,lastMatchTime=null,playerAssets=null,opponent='dortmund';
+ const officials=new Map(),fieldSlots={home:new Array(11),away:new Array(11)};
+ const studioPlayers=matchdayPeople.filter(d=>playerLikeness(d));
+ function loadPlayerAssets(){
+  if(loadingAssets)return loadingAssets;
+  loadingAssets=(async()=>{
+  const loader=new THREE.TextureLoader(),loadTexture=name=>loader.loadAsync(asset(name));
+  const [data,binary,light,dark,short02,eyes,brows,crest,motion,awayCrest,faceKane,faceMusiala]=await Promise.all([
+   fetch(asset('footballer-960.json')).then(r=>{if(!r.ok)throw Error('Player manifest '+r.status);return r.json();}),fetch(asset('footballer-960.bin')).then(r=>{if(!r.ok)throw Error('Player mesh '+r.status);return r.arrayBuffer();}),loadTexture('skin-light.webp'),loadTexture('skin-dark.webp'),loadTexture('hair-short02.webp'),loadTexture('eyes.webp'),loadTexture('brows.webp'),new THREE.ImageLoader().loadAsync(new URL('./assets/fc-bayern.svg',import.meta.url).href),fetch(asset('walk-cycle.json')).then(r=>{if(!r.ok)throw Error('Motion '+r.status);return r.json();}),new THREE.ImageLoader().loadAsync(new URL('./assets/borussia-dortmund.svg',import.meta.url).href),
+   loadTexture('face-kane.webp').catch(()=>null),loadTexture('face-musiala.webp').catch(()=>null)
+  ]);
+  for(const t of[light,dark,short02,eyes,brows,faceKane,faceMusiala])if(t){t.colorSpace=THREE.SRGBColorSpace;t.anisotropy=4;}
   const shadow=canvasTexture(64,64,c=>{const g=c.createRadialGradient(32,32,1,32,32,31);g.addColorStop(0,'rgba(0,0,0,.8)');g.addColorStop(.4,'rgba(0,0,0,.4)');g.addColorStop(1,'rgba(0,0,0,0)');c.fillStyle=g;c.fillRect(0,0,64,64);});
   const boot=canvasTexture(256,256,drawBootTexture);
-  const raw=Object.fromEntries(data.parts.map(p=>[p.name,makeGeometry(binary,p)])),geometries={short02:atlasGeometry(raw,'short02'),crop:atlasGeometry(raw,'crop'),short02Keeper:atlasGeometry(raw,'short02',{keeper:true}),cropKeeper:atlasGeometry(raw,'crop',{keeper:true})};for(const g of Object.values(raw))g.dispose();for(const g of Object.values(geometries)){g.userData.medium=simplifySkinnedGeometry(g,.035);g.userData.low=simplifySkinnedGeometry(g,.085);}
+  const raw=Object.fromEntries(data.parts.map(p=>[p.name,makeGeometry(binary,p)]));
+  const geometries={short02:atlasGeometry(raw,'short02'),crop:atlasGeometry(raw,'crop'),short02Keeper:atlasGeometry(raw,'short02',{keeper:true}),cropKeeper:atlasGeometry(raw,'crop',{keeper:true})};
+  for(const identity of ['kane','musiala']){
+   const face=likenessParts(raw,identity),body=shapeFootballBody(face,identity);
+   geometries[identity]=atlasGeometry(body,'crop');
+   const temporary=new Set([...Object.values(face),...Object.values(body)]);
+   for(const g of Object.values(raw))temporary.delete(g);
+   for(const g of temporary)g.dispose();
+  }
+  for(const g of Object.values(raw))g.dispose();
   const flag=canvasTexture(64,64,c=>{c.fillStyle='#f3c431';c.fillRect(0,0,64,64);c.fillStyle='#eb622e';c.fillRect(0,0,32,32);c.fillRect(32,32,32,32);});
-  const textures={light,dark,short02,eyes,brows,crest,awayCrest,shadow,boot,flag};
-  playerAssets={geometries,textures};const fieldSlots={home:0,away:0},benchSlots={home:0,away:0};players=matchdayPeople.map((definition,i)=>{const d={...definition,player:{...definition.player},slot:definition.role==='player'?fieldSlots[definition.team]++:definition.role==='substitute'?benchSlots[definition.team]++:null},p=athlete(data,geometries,textures,d,motion,mobile?512:d.role==='player'?1024:512);p.originalDefinition={...definition,player:{...definition.player}};p.geometry=geometries[geometryKey(d)];root.add(p.group);return p;});
-  root.userData.shadows=createActorContactShadows(root,players.length,shadow);
+  const textures={light,dark,short02,eyes,brows,crest,awayCrest,shadow,boot,flag,likenessFaces:{kane:faceKane,musiala:faceMusiala}};
+  return{data,motion,geometries,textures};
+  })().catch(error=>{loadingAssets=null;throw error;});
+  return loadingAssets;
+ }
+ async function prepare(){if(loading)return loading;loading=(async()=>{
+  playerAssets=await loadPlayerAssets();
+  const {data,motion,geometries,textures}=playerAssets;
+  for(const key of ['short02','crop','short02Keeper','cropKeeper']){
+   const geometry=geometries[key];
+   geometry.userData.medium??=simplifySkinnedGeometry(geometry,.035);
+   geometry.userData.low??=simplifySkinnedGeometry(geometry,.085);
+  }
+  for(const key of ['kane','musiala']){
+   const geometry=geometries[key];
+   geometry.userData.medium??=simplifySkinnedGeometry(geometry,.035);
+   geometry.userData.low=geometries[key==='kane'?'short02':'crop'].userData.low;
+  }
+  const starterSlots={home:0,away:0},benchSlots={home:0,away:0};
+  players=matchdayPeople.map(definition=>{const d={...definition,player:{...definition.player},slot:definition.role==='player'?starterSlots[definition.team]++:definition.role==='substitute'?benchSlots[definition.team]++:null},p=athlete(data,geometries,textures,d,motion,mobile?512:d.role==='player'?1024:512);p.originalDefinition={...definition,player:{...definition.player}};p.geometry=geometries[geometryKey(d)];root.add(p.group);return p;});
+  root.userData.shadows=createActorContactShadows(root,players.length,textures.shadow);
   ready=true;return true;
  })().catch(error=>{loading=null;throw error;});return loading;}
+ async function preview(identity){
+  const d=studioPlayers.find(definition=>playerLikeness(definition)===identity);
+  if(!d)throw Error('Unknown player portrait');
+  const {data,motion,geometries,textures}=await loadPlayerAssets();
+  const actor=athlete(data,geometries,textures,d,motion,mobile?512:1024);
+  actor.pose(0,0,0,0,false);
+  const head=actor.body.skeleton.bones[5];
+  head.quaternion.copy(head.parent.getWorldQuaternion(new THREE.Quaternion()).invert());
+  actor.group.updateMatrixWorld(true);
+  return actor;
+ }
  function setOpponent(id){if(!ready)return;const squad=opponentSquad(id),clubChanged=opponent!==squad.club.id;opponent=squad.club.id;
   for(const actor of players){const d=actor.definition;if(d.team==='home'){if(d.role==='player'||d.role==='substitute')updateIdentity(actor,actor.originalDefinition.player.number,id);continue;}if(d.team!=='away')continue;const next=d.role==='player'?squad.xi[d.slot]:d.role==='substitute'?squad.bench[d.slot]:null;d.club=squad.club;d.kit=squad.club.kit;if(next){updateIdentity(actor,next.player.number,id,clubChanged);continue;}if(!clubChanged)continue;const previous=actor.body.material.map;actor.body.material.map=characterAtlas(d,playerAssets.textures,drawJersey,512);previous.dispose();actor.lastPoseTime=null;
   }
@@ -58,13 +106,15 @@ export function buildEntrancePlayers(scene,{mobile=false}={}){
  function updateIdentity(actor,number,clubId,force=false){const d=actor.definition;if(number===d.player.number&&!force)return;const member=squadDefinition(d.team,clubId,number);if(!member)return;Object.assign(d,{player:{...member.player},keeper:member.keeper,dark:member.dark,hair:member.hair,height:member.height,hairColor:member.hairColor??d.hairColor});actor.geometry=playerAssets.geometries[geometryKey(d)];actor.body.geometry=actor.geometry;const previous=actor.body.material.map;actor.body.material.map=characterAtlas(d,playerAssets.textures,drawJersey,mobile?512:d.role==='player'?1024:512);previous.dispose();actor.group.userData.playerNumber=number;actor.group.name=d.team+' · '+d.role+' · '+d.player.name;actor.lastPoseTime=null;actor.reset();}
  function updateMatch(state,time,viewer,{firstPerson=false}={}){
   if(!ready||!state?.players)return;const dt=lastMatchTime===null?0:Math.max(0,Math.min(.15,time-lastMatchTime));lastMatchTime=time;
-  const onField=new Map(state.players.map(p=>[p.team+'-'+p.index,p])),decision=state.discipline?.lastDecision,card=decision?.card&&state.time-decision.at<3?decision.card:null,goal=state.phase==='goal'?state.events?.findLast(e=>e.type==='goal'):null;
+  fieldSlots.home.fill(null);fieldSlots.away.fill(null);
+  for(const player of state.players)if(fieldSlots[player.team])fieldSlots[player.team][player.index]=player;
+  const decision=state.discipline?.lastDecision,card=decision?.card&&state.time-decision.at<3?decision.card:null,goal=state.phase==='goal'?state.events?.findLast(e=>e.type==='goal'):null;
   for(let i=0;i<players.length;i++){
    const actor=players[i],d=actor.definition;let p=d;
    // Lessons render their real participants only. Match officials and benches
    // return automatically when this same actor pool is reused for a match.
    if(state.training&&d.role!=='player'){actor.showBooking(null);actor.group.visible=false;updateActorContactShadows(root.userData.shadows,i,actor);continue;}
-   if(d.role==='player'){p=onField.get(d.team+'-'+d.slot);if(p)updateIdentity(actor,p.number,state.fixture?.id);if(p?.dismissed||p?.trainingInactive)p=null;}
+   if(d.role==='player'){p=fieldSlots[d.team][d.slot];if(p)updateIdentity(actor,p.number,state.fixture?.id);if(p?.dismissed||p?.trainingInactive)p=null;}
    else if(d.role==='substitute'){const number=state.teamSheets?.[d.team]?.bench[d.slot];if(number!=null)updateIdentity(actor,number,state.fixture?.id);else if(state.teamSheets)p=null;}
    else if(d.role==='referee'||d.role==='assistantReferee'||d.role==='fourth'){
     const previous=officials.get(i),pose=matchOfficialPose(d,state.ball,previous,dt);officials.set(i,pose);p=pose;
@@ -75,7 +125,7 @@ export function buildEntrancePlayers(scene,{mobile=false}={}){
    // their low-detail skins and renderer frustum culling handle distant views.
    actor.group.visible=distance<(d.role==='player'?160:mobile?92:130)&&!(controlled&&firstPerson);
    actor.body.geometry=distance>(mobile?22:32)?actor.geometry.userData.low:distance>(mobile?10:16)?actor.geometry.userData.medium:actor.geometry;
-   const moving=d.role==='player'?Math.hypot(p.vx||0,p.vz||0)>.16:!!p.moving;
+   const speed=d.role==='player'?Math.hypot(p.vx||0,p.vz||0):0,moving=d.role==='player'?speed>.16:!!p.moving;
    const heading=p.yaw??(moving?Math.atan2(p.vx,p.vz):0);
    // Pose even a hidden first-person avatar, so its world position and future
    // third-person animation never fall back to the old entrance queue.
@@ -87,13 +137,16 @@ export function buildEntrancePlayers(scene,{mobile=false}={}){
    if((actor.group.visible||controlled)&&animate){let action=null,options=noActionOptions;if(d.role==='player'){
     const celebrating=goal?.team===d.team&&!p.keeper&&(p.id===state.lastShot?.playerId||Math.hypot(p.x-state.ball.x,p.z-state.ball.z)<24),charging=controlled&&state.chargePower>0;
     action=celebrating?{type:'celebrate',elapsed:state.phaseTime,duration:3.6}:charging?{type:'prepareShot',elapsed:state.chargePower,duration:1,stroke:state.shotKind}:p.motion;
-    options={defending:p.defending,speed:Math.hypot(p.vx||0,p.vz||0),fieldLocomotion:controlled||distance<(mobile?18:28),onBall:state.ball.ownerId===p.id,action};
+    options=actor.fieldOptions??(actor.fieldOptions={});
+    options.defending=p.defending;options.speed=speed;options.fieldLocomotion=controlled||distance<(mobile?18:28);
+    options.onBall=state.ball.ownerId===p.id;options.incomingBall=!state.ball.ownerId&&state.ball.targetId===p.id?state.ball:null;
+    options.action=action;
    }else if(d.role==='referee'&&card)action={type:'booking',elapsed:state.time-decision.at,duration:3};actor.pose(p.x,p.z,heading,time,moving,d.seated&&d.role==='assistant'?.45:0,action,options);actor.lastPoseTime=time;}else if(d.role==='player'||!actor.group.visible&&!controlled){actor.group.position.set(p.x,0,p.z);actor.group.rotation.y=heading;}
    updateActorContactShadows(root.userData.shadows,i,actor,animate);
   }
   flushActorContactShadows(root.userData.shadows);
  }
- return{root,prepare,updateMatch,setOpponent,get ready(){return ready;},get positions(){return players.map(p=>[p.group.position.x,p.group.position.z].map(v=>v.toFixed(2)).join(',')).join(';');},reset(){lastMatchTime=null;officials.clear();for(const p of players){p.reset();p.lastPoseTime=null;}},update(seconds,time,viewer){
+ return{root,prepare,preview,updateMatch,setOpponent,get ready(){return ready;},get positions(){return players.map(p=>[p.group.position.x,p.group.position.z].map(v=>v.toFixed(2)).join(',')).join(';');},reset(){lastMatchTime=null;officials.clear();for(const p of players){p.reset();p.lastPoseTime=null;}},update(seconds,time,viewer){
   lastMatchTime=null;officials.clear();
   for(let i=0;i<players.length;i++){
    const actor=players[i],d=actor.definition,p=i<26?sampleQueuePlayer(seconds,i):d,distance=viewer?Math.hypot(viewer.x-p.x,viewer.z-p.z):0;

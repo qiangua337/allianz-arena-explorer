@@ -16,6 +16,14 @@ function rigFor(bones){
  if(legs.some(l=>l.length1<.1||l.length2<.1))return null;
  rig={legs,bounds:bootBounds.get(bones)||defaultBounds,goals:[new THREE.Vector3(),new THREE.Vector3()],stroke:{},v:Array.from({length:12},()=>new THREE.Vector3()),q:Array.from({length:8},()=>new THREE.Quaternion())};rigs.set(bones,rig);return rig;
 }
+
+// Minimum rotated Y over the boot box, using only the Y row of the rotation
+// matrix. This also bounds the studs without rotating eight corners per foot.
+function bootFloorOffset({min,max},rotation){
+ const {x,y,z,w}=rotation;
+ const side=2*(x*y+w*z),up=1-2*(x*x+z*z),depth=2*(y*z-w*x);
+ return side*(side<0?max[0]:min[0])+up*(up<0?max[1]:min[1])+depth*(depth<0?max[2]:min[2]);
+}
 // Solve in the actor's local coordinates before its one skeleton propagation.
 // Keeping the old segment twist avoids a knee snap as the stroke recovers.
 function placeFoot(bones,leg,rig,goal,footAngle,weight,bendWeight=weight,footYaw=0){
@@ -25,7 +33,7 @@ function placeFoot(bones,leg,rig,goal,footAngle,weight,bendWeight=weight,footYaw
  if(footAngle!==null){delta.setFromAxisAngle(up.set(1,0,0),footAngle);yaw.setFromAxisAngle(up.set(0,1,0),footYaw);foot.slerp(delta.premultiply(yaw),weight);}target.copy(ankle).lerp(goal,weight);
  // Bounds of the actual shared boot relative to its ankle. A flat target alone
  // lets the authored toe-down rotation cut through the pitch during recovery.
- const {min,max}=rig.bounds;let sole=Infinity;for(let x=0;x<2;x++)for(let y=0;y<2;y++)for(let z=0;z<2;z++)sole=Math.min(sole,up.set(x?max[0]:min[0],y?max[1]:min[1],z?max[2]:min[2]).applyQuaternion(foot).y);target.y=Math.max(target.y,.012-sole);
+ target.y=Math.max(target.y,.012-bootFloorOffset(rig.bounds,foot));
  axis.copy(target).sub(hip);const distance=clamp(axis.length(),Math.abs(leg.length1-leg.length2)+.001,leg.length1+leg.length2-.002);axis.normalize();
  const along=(leg.length1*leg.length1-leg.length2*leg.length2+distance*distance)/(2*distance),radius=Math.sqrt(Math.max(0,leg.length1*leg.length1-along*along));
  a.copy(ankle).sub(hip).normalize();currentBend.copy(knee).sub(hip).addScaledVector(a,-b.copy(knee).sub(hip).dot(a));currentBend.addScaledVector(axis,-currentBend.dot(axis)).normalize();forward.set(0,0,1);bend.copy(forward).addScaledVector(axis,-forward.dot(axis)).normalize().lerp(currentBend,1-Math.max(.03,bendWeight)).normalize();desiredKnee.copy(hip).addScaledVector(axis,along).addScaledVector(bend,radius);target.copy(hip).addScaledVector(axis,distance);
@@ -37,16 +45,26 @@ function placeFoot(bones,leg,rig,goal,footAngle,weight,bendWeight=weight,footYaw
 export function readFootballAnkle(bones,side,out){
  const rig=rigFor(bones);if(!rig)return false;const leg=rig.legs[side],[hip,knee]=rig.v,[root,thigh,shin]=rig.q;root.copy(bones[0].quaternion);thigh.copy(root).multiply(bones[leg.thigh].quaternion);shin.copy(thigh).multiply(bones[leg.shin].quaternion);hip.copy(bones[leg.thigh].position).applyQuaternion(root).add(bones[0].position);knee.copy(bones[leg.shin].position).applyQuaternion(thigh).add(hip);out.copy(bones[leg.foot].position).applyQuaternion(shin).add(knee);return true;
 }
+
+function readFootballBootFloor(bones,rig,side,ankle){
+ readFootballAnkle(bones,side,ankle);
+ const foot=rig.q[3].copy(rig.q[2]).multiply(bones[rig.legs[side].foot].quaternion);
+ return ankle.y+bootFloorOffset(rig.bounds,foot);
+}
+
 export function placeFootballSupportFoot(bones,side,target,weight){const rig=rigFor(bones);if(!rig)return;placeFoot(bones,rig.legs[side],rig,target,null,weight,0);}
 export function keepFootballBootsAboveFloor(bones){
- const rig=rigFor(bones);if(!rig)return;const {min,max}=rig.bounds,point=rig.v[10],foot=rig.q[3];
- for(let side=0;side<2;side++){const ankle=rig.goals[side];readFootballAnkle(bones,side,ankle);foot.copy(rig.q[2]).multiply(bones[rig.legs[side].foot].quaternion);let lowest=Infinity;for(let x=0;x<2;x++)for(let y=0;y<2;y++)for(let z=0;z<2;z++)lowest=Math.min(lowest,ankle.y+point.set(x?max[0]:min[0],y?max[1]:min[1],z?max[2]:min[2]).applyQuaternion(foot).y);if(lowest<.001)placeFoot(bones,rig.legs[side],rig,ankle,null,1,0);}
+ const rig=rigFor(bones);if(!rig)return;
+ for(let side=0;side<2;side++){
+  const ankle=rig.goals[side];
+  if(readFootballBootFloor(bones,rig,side,ankle)<.001)placeFoot(bones,rig.legs[side],rig,ankle,null,1,0);
+ }
 }
 // A diving goalkeeper has no planted leg to solve against. Keep the shared
 // boots clear by moving only the local pose root, never the simulated player.
 export function liftFootballBootsAboveFloor(bones){
- const rig=rigFor(bones);if(!rig)return;const {min,max}=rig.bounds,point=rig.v[10],foot=rig.q[3];let lowest=Infinity;
- for(let side=0;side<2;side++){const ankle=rig.goals[side];readFootballAnkle(bones,side,ankle);foot.copy(rig.q[2]).multiply(bones[rig.legs[side].foot].quaternion);for(let x=0;x<2;x++)for(let y=0;y<2;y++)for(let z=0;z<2;z++)lowest=Math.min(lowest,ankle.y+point.set(x?max[0]:min[0],y?max[1]:min[1],z?max[2]:min[2]).applyQuaternion(foot).y);}
+ const rig=rigFor(bones);if(!rig)return;
+ const lowest=Math.min(readFootballBootFloor(bones,rig,0,rig.goals[0]),readFootballBootFloor(bones,rig,1,rig.goals[1]));
  if(lowest<.008)bones[0].position.y+=.008-lowest;
 }
 function profileFor(motion){
@@ -55,36 +73,70 @@ function profileFor(motion){
  return motion.lofted?strokes.lofted:strokes.short;
 }
 
-export function applyFootballShotPreparation(bones,amount,motion={}){
+export function applyFootballShotPreparation(bones,amount,motion={},speed=0){
  const rig=rigFor(bones);if(!rig)return false;
  const weight=clamp(amount,0,1);if(weight<=0)return true;
  const profile=profileFor(motion),[plant,kick]=rig.goals;
- bones[0].position.y-=profile.drop*weight;
- bones[0].position.x+=.035*weight;bones[0].rotateY(-profile.turn*.35*weight);
+ const stance=weight*(1-ramp(speed,.7,3.5));
+ // A running charge gathers the arms and shoulders. Preserve the stride
+ // until the ball actually leaves, so the actor can still carry it at speed.
  bones[2].rotateY(-profile.turn*.22*weight);bones[2].rotateX(.09*weight);
  bones[6].rotateX(-profile.arm*.45*weight);bones[6].rotateZ(-.18*weight);
  bones[12].rotateX(profile.arm*.6*weight);bones[12].rotateZ(.22*weight);
- placeFoot(bones,rig.legs[0],rig,plant.set(.16,.083,.13),0,weight);
- placeFoot(bones,rig.legs[1],rig,kick.set(-.17,.13+profile.lift*.35*weight,-.05-profile.load*weight),-.14,weight,weight,-profile.open*.22);
+ if(stance<=.001)return true;
+ bones[0].position.y-=profile.drop*stance;
+ bones[0].position.x+=.035*stance;bones[0].rotateY(-profile.turn*.35*stance);
+ placeFoot(bones,rig.legs[0],rig,plant.set(.16,.083,.13),0,stance);
+ placeFoot(bones,rig.legs[1],rig,kick.set(-.17,.13+profile.lift*.35*stance,-.05-profile.load*stance),-.14,stance,stance,-profile.open*.22);
  return true;
+}
+
+function setStrokeSupport(bones,rig,stroke,speed){
+ const run=stroke.run=ramp(speed,1,4.5),[left,right]=rig.goals;
+ let leftFloor=Infinity,rightFloor=Infinity;
+ if(run>.001){
+  leftFloor=readFootballBootFloor(bones,rig,0,left);
+  rightFloor=readFootballBootFloor(bones,rig,1,right);
+  // For a central ball, use the free leg when the other shoe is clearly
+  // supporting the runner. A ball to one side still dictates the stroke.
+  if(run>.3&&Math.abs(stroke.localX)<.17&&rightFloor<.045&&leftFloor-rightFloor>.065)stroke.side=0;
+ }
+ const side=stroke.side===0?1:-1;
+ const x=-side*.155+stroke.localX*.22,z=clamp(stroke.localZ-.44,-.15,.22);
+ const supporting=stroke.side===0?right:left,sole=stroke.side===0?rightFloor:leftFloor;
+ const plant=run*(1-ramp(sole,.022,.09));
+ stroke.plantX=x+(clamp(supporting.x,x-.13,x+.13)-x)*plant;
+ stroke.plantZ=z+(clamp(supporting.z,-.43,clamp(stroke.localZ-.30,-.43,.34))-z)*plant;
+ stroke.plantY=.083+(clamp(supporting.y,.073,.20)-.083)*plant*.62;
+ stroke.plantPitch=stroke.plantYaw=0;
+ if(plant>.001){
+  // The pose may be starting at heel strike or a toe-off. Keep that angle
+  // through contact, then let the supporting boot settle as weight transfers.
+  if(stroke.side!==0)readFootballBootFloor(bones,rig,0,left);
+  const {x:qX,y:qY,z:qZ,w}=rig.q[3];
+  stroke.plantPitch=-Math.asin(clamp(2*(qY*qZ-w*qX),-.48,.48))*plant;
+  stroke.plantYaw=clamp(Math.atan2(2*(qX*qZ+w*qY),1-2*(qX*qX+qY*qY)),-.6,.6)*plant;
+ }
 }
 
 // The render pose can sample an online stroke after contact. Keep its first
 // visible origin stable through interpolation, and invalidate it on replay seeks.
-function strokeOrigin(rig,motion,group){
+function strokeOrigin(bones,rig,motion,group,speed){
  const stroke=rig.stroke,heading=group?.rotation.y||0,scale=group?.scale.x||1;
  const x=group?.position.x||0,z=group?.position.z||0;
- const ballX=motion.contactX,ballZ=motion.contactZ;
+ const ballX=motion.contactX,ballZ=motion.contactZ,recordedSpeed=motion.approachSpeed;
  if(!group||!Number.isFinite(motion.id)||stroke.id!==motion.id||stroke.style!==motion.stroke||
-    stroke.ballX!==ballX||stroke.ballZ!==ballZ||motion.elapsed+1e-5<stroke.elapsed||Math.hypot(x-stroke.x,z-stroke.z)>2){
+    stroke.ballX!==ballX||stroke.ballZ!==ballZ||stroke.recordedSpeed!==recordedSpeed||
+    motion.elapsed+1e-5<stroke.elapsed||Math.hypot(x-stroke.x,z-stroke.z)>2){
   const dx=ballX-x,dz=ballZ-z,sin=Math.sin(heading),cos=Math.cos(heading);
   const hasContact=!!group&&Number.isFinite(ballX)&&Number.isFinite(ballZ)&&Math.hypot(dx,dz)<1.4*scale;
   stroke.id=motion.id;stroke.style=motion.stroke;stroke.ballX=ballX;stroke.ballZ=ballZ;
-  stroke.x=x;stroke.z=z;stroke.heading=heading;
+  stroke.x=x;stroke.z=z;stroke.heading=heading;stroke.recordedSpeed=recordedSpeed;
   stroke.side=hasContact&&(dx*cos-dz*sin)/scale>.20?0:1;
   stroke.localX=hasContact?clamp((dx*cos-dz*sin)/scale,-.57,.57):0;
   stroke.localY=hasContact&&Number.isFinite(motion.contactY)?clamp((motion.contactY-group.position.y)/scale,.085,.47):.11;
   stroke.localZ=hasContact?clamp((dx*sin+dz*cos)/scale,-.38,.85):.65;
+  setStrokeSupport(bones,rig,stroke,Number.isFinite(recordedSpeed)?recordedSpeed:speed);
  }
  stroke.elapsed=motion.elapsed;
  return stroke;
@@ -103,20 +155,21 @@ function lockedGoal(goal,x,y,z,stroke,group,lock,limit){
  return goal;
 }
 
-export function applyFootballKick(bones,motion,progress,group){
+export function applyFootballKick(bones,motion,progress,group,speed=0){
  const rig=rigFor(bones);if(!rig)return false;
  const profile=profileFor(motion),t=clamp(progress,0,1),compact=motion.firstTime?.83:1;
  const weight=1-ramp(t,profile.release*compact,1);
  if(weight<=0)return true;
  // Contact is the first authoritative frame. Only the follow-through runs
  // after the ball has left, with no animation event gating the input.
- const stroke=strokeOrigin(rig,motion,group),side=stroke.side,sign=side===0?1:-1,plantSide=1-side;
+ const stroke=strokeOrigin(bones,rig,motion,group,speed),side=stroke.side,sign=side===0?1:-1,plantSide=1-side;
  const peak=profile.peak*compact,follow=ramp(t,0,peak)*(1-.42*ramp(t,peak,1));
  const power=Number.isFinite(motion.power)?clamp(motion.power,0,1):.55,effort=(.77+power*.42)*compact;
  const reach=Math.max(0,stroke.localZ-.67),bodyTurn=profile.turn*effort*(.24+.76*follow)*weight;
- bones[0].position.y-=(profile.drop+reach*.25)*weight;
- bones[0].position.x+=(-sign*.035+stroke.localX*.17)*weight;
- bones[0].position.z+=(.026+reach*.54)*weight;
+ const settle=ramp(t,0,peak*.84),transfer=1-stroke.run*.62*(1-settle);
+ bones[0].position.y-=(profile.drop*transfer+reach*.25)*weight;
+ bones[0].position.x+=(-sign*.035+stroke.localX*.17)*weight*transfer;
+ bones[0].position.z+=(.026+reach*.54+.033*stroke.run*follow)*weight;
  bones[0].rotateY(-sign*bodyTurn*.60);bones[0].rotateZ(sign*.07*weight);
  bones[2].rotateY(-sign*bodyTurn*.40);bones[2].rotateX(profile.lean*(.58+follow*.42)*weight);
  bones[3].rotateZ(sign*.06*weight);
@@ -124,10 +177,13 @@ export function applyFootballKick(bones,motion,progress,group){
  bones[leadArm].rotateX(-arm);bones[leadArm].rotateZ(sign*(.11+profile.arm*.27)*weight);
  bones[leadArm+1].rotateX(-arm*.40);bones[trailArm].rotateX(arm*.82);
  bones[trailArm].rotateZ(-sign*(.15+profile.arm*.34)*weight);bones[trailArm+1].rotateX(-arm*.24);
- const [plant,kick]=rig.goals,plantLock=1-ramp(t,profile.release*.65,profile.release+.21);
- const plantX=-sign*.155+stroke.localX*.22,plantZ=clamp(stroke.localZ-.44,-.15,.22);
+ const [plant,kick]=rig.goals;
+ const plantLock=1-ramp(t,profile.release*(.65-.16*stroke.run),profile.release+.21-.12*stroke.run);
+ const plantWeight=weight*(1-stroke.run*.66*ramp(t,profile.release+.05,.83));
+ const bootSettle=1-settle,plantY=.083+(stroke.plantY-.083)*bootSettle;
  const turn=group?clamp(Math.atan2(Math.sin(stroke.heading-group.rotation.y),Math.cos(stroke.heading-group.rotation.y)),-.8,.8):0;
- placeFoot(bones,rig.legs[plantSide],rig,lockedGoal(plant,plantX,.083,plantZ,stroke,group,plantLock,.43),0,weight,.68,turn*plantLock);
+ placeFoot(bones,rig.legs[plantSide],rig,lockedGoal(plant,stroke.plantX,plantY,stroke.plantZ,stroke,group,plantLock,.43),
+  stroke.plantPitch*bootSettle,plantWeight,.68,turn*plantLock+stroke.plantYaw*bootSettle);
  const ankleX=stroke.localX+sign*(.060+.077*profile.open-profile.across*effort*follow);
  const ankleY=stroke.localY-.005+profile.lift*effort*follow;
  // The lace and toe strokes contact further from the ankle than the inside

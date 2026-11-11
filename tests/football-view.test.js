@@ -76,6 +76,34 @@ test('distant match athletes use substantially fewer triangles while preserving 
  actors.reset();actors.updateMatch(makeState(),0,new THREE.Vector3(70,20,70));const body=actors.root.children.find(o=>o.userData.role==='player'&&o.userData.playerNumber===9).getObjectByName('athlete'),g=body.geometry;assert.ok(g.index.count/3<9000);const a=g.attributes;for(let i=0;i<a.position.count;i++){assert.ok([a.position.getX(i),a.position.getY(i),a.position.getZ(i)].every(Number.isFinite));let weight=0;for(let j=0;j<4;j++)weight+=a.skinWeight.array[i*4+j];assert.ok(Math.abs(weight-1)<.00001);}
 });
 
+test('both featured players share their studio model with the live match and preserve the rig and shoes',async()=>{
+ const kane=await actors.preview('kane'),musiala=await actors.preview('musiala');
+ const profiles=[kane,musiala];
+ for(const actor of profiles){
+  const starter=actors.root.children.find(o=>o.userData.role==='player'&&o.userData.team==='home'&&o.userData.playerNumber===actor.definition.player.number);
+  const data=makeState(),p=data.players.find(p=>p.team==='home'&&p.number===actor.definition.player.number);
+  actors.updateMatch(data,1,new THREE.Vector3(p.x,1.7,p.z));
+  assert.equal(starter.getObjectByName('athlete').geometry,actor.body.geometry);
+  assert.equal(actor.body.skeleton.bones.length,18);
+  assert.equal(actor.body.geometry.groups.length,0);
+ }
+ function dimensions(actor,part){
+  const geometry=actor.body.geometry,{start,count}=geometry.userData.parts[part],positions=geometry.attributes.position;
+  let left=Infinity,right=-Infinity,front=-Infinity,back=Infinity;
+  for(let i=start;i<start+count;i++){
+   const x=positions.getX(i),y=positions.getY(i),z=positions.getZ(i);
+   if(part==='shirt'&&(y<1.28||y>1.49))continue;
+   left=Math.min(left,x);right=Math.max(right,x);front=Math.max(front,z);back=Math.min(back,z);
+  }
+  return [right-left,front-back];
+ }
+ const [wide,slim]=profiles.map(actor=>dimensions(actor,'shirt'));
+ assert.ok(wide[0]>slim[0]+.02&&wide[1]>slim[1]+.02);
+ assert.deepEqual(dimensions(kane,'bootL'),dimensions(musiala,'bootL'));
+ assert.equal(kane.definition.height,1.88);assert.equal(musiala.definition.height,1.86);
+ for(const actor of profiles){actor.body.material.map.dispose();actor.body.material.dispose();actor.body.skeleton.dispose();}
+});
+
 test('live substitutions replace the same field actor and sent-off players disappear from the rendered eleven',()=>{
  const sim=createFootballSimulation({rules:{mode:'league',duration:180}}),s=sim.state;actors.setOpponent('dortmund');actors.reset();actors.updateMatch(s,0,new THREE.Vector3(0,20,0));const actor=actors.root.children.find(o=>o.userData.role==='player'&&o.userData.team==='home'&&o.userData.playerNumber===9),oldMap=actor.getObjectByName('athlete').material.map;
  assert.equal(sim.substitute('home','home-1',7).ok,true);actors.updateMatch(s,.1,new THREE.Vector3(0,20,0));assert.equal(actor.userData.playerNumber,7);assert.ok(actor.name.endsWith('GNABRY'));assert.notEqual(actor.getObjectByName('athlete').material.map,oldMap);assert.ok(actor.visible);

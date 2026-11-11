@@ -36,12 +36,12 @@ function fixture(){
  const head=legs.map(index=>vector(...data.bones[index].head)),point=vector();
  return{
   group,bones,
-  pose(motion,{clip='Walk_Loop',phase=0,x=8,z=15,heading=0,scale=1}={}){
+  pose(motion,{clip='Walk_Loop',phase=0,x=8,z=15,heading=0,scale=1,speed=0}={}){
    const frame=clips[clip].frames[Math.round(phase*60)];
    group.position.set(x,0,z);group.rotation.y=heading;group.scale.setScalar(scale);
    bones[0].position.fromArray(data.bones[0].head).add(vector(...frame.slice(0,3)));
    for(let i=0;i<bones.length;i++)bones[i].quaternion.fromArray(frame,3+i*4);
-   if(motion)applyFootballAction(bones,motion,{},group);
+   if(motion)applyFootballAction(bones,motion,{speed},group);
    group.updateMatrixWorld(true);
    return{
     feet:legs.map(i=>bones[i].getWorldPosition(vector())),
@@ -121,4 +121,67 @@ test('passes, finesse, driven shots and lobs have distinct contact and follow-th
   assert.ok(pending.feet[1].z<.25,'an unconfirmed action stays behind the contact point');
   assert.ok(f.boots().every(boot=>boot.lowest>=-.001));
  }
+});
+
+test('high-speed charge and online anticipation keep both running boots on their base gait',()=>{
+ const f=fixture();
+ const prepare={type:'prepareShot',stroke:'drive',elapsed:.9,duration:1};
+ const pending=action('drive',{elapsed:.22,predicted:true});
+ for(const [clip,speed] of [['Jog_Fwd_Loop',4.5],['Sprint_Loop',7]]){
+  for(let phase=0;phase<1;phase+=.125){
+   const frame={clip,phase,speed},baseline=f.pose(null,frame);
+   for(const motion of [prepare,pending]){
+    const loaded=f.pose(motion,frame);
+    assert.deepEqual(loaded.feet,baseline.feet);
+    assert.deepEqual(loaded.root,baseline.root);
+    assert.ok(loaded.arms[0].angleTo(baseline.arms[0])>.05,'the upper body shows the shot preparation');
+   }
+  }
+ }
+ const idle={clip:'Idle_Loop',phase:.25};
+ assert.ok(f.pose(prepare,idle).feet[1].distanceTo(f.pose(null,idle).feet[1])>.15,'stationary charging still loads its back leg');
+});
+
+test('a run-up carries the true planted foot into immediate contact and takes weight over the next frames',()=>{
+ const f=fixture();
+ let samples=0,totalFixed=0,totalRunning=0,worstContact=0;
+ for(const stroke of ['short','drive'])for(const [clip,speed] of [['Jog_Fwd_Loop',4.5],['Sprint_Loop',7]]){
+  for(const localX of [-.28,.28])for(let n=0;n<20;n++){
+   const frame={clip,phase:n/20},strikeSide=localX>0?0:1,supportSide=1-strikeSide;
+   const before=f.pose(null,frame);
+   if(f.boots()[supportSide].lowest>.035)continue;
+   const ball=f.worldBall(localX,.11,.63);
+   const metadata={id:++samples*2,contactX:ball.x,contactY:ball.y,contactZ:ball.z};
+   const fixed=f.pose(action(stroke,metadata),frame);
+   const motion=action(stroke,{...metadata,id:metadata.id+1,approachSpeed:speed});
+   const running=f.pose(motion,frame),boot=f.boots(ball)[strikeSide];
+   totalFixed+=fixed.feet[supportSide].distanceTo(before.feet[supportSide]);
+   totalRunning+=running.feet[supportSide].distanceTo(before.feet[supportSide]);
+   worstContact=Math.max(worstContact,Math.abs(boot.contact-.11));
+   assert.ok(running.root.y>fixed.root.y+.04,'the hips absorb weight progressively');
+   const overPlant=f.pose({...motion,elapsed:motion.duration*.24},frame);
+   assert.ok(overPlant.root.y<running.root.y-.028,'the runner settles over the support after contact');
+  }
+ }
+ assert.ok(samples>24);
+ assert.ok(totalRunning<totalFixed*.52,JSON.stringify({samples,totalFixed,totalRunning}));
+ assert.ok(worstContact<.045,'run-up does not push the foot away from the real ball: '+worstContact);
+});
+
+test('a central running pass chooses the free boot when the right shoe is already on the grass',()=>{
+ const f=fixture();
+ let cases=0;
+ for(let n=0;n<20;n++){
+  const frame={clip:'Sprint_Loop',phase:n/20,speed:6.5};
+  f.pose(null,frame);
+  const [left,right]=f.boots();
+  if(right.lowest>.02||left.lowest-right.lowest<.11)continue;
+  const ball=f.worldBall(0,.11,.61);
+  f.pose(action('short',{id:n,contactX:ball.x,contactY:ball.y,contactZ:ball.z}),frame);
+  const [strike,support]=f.boots(ball);
+  assert.ok(Math.abs(strike.contact-.11)<.04);
+  assert.ok(support.lowest<.045&&support.contact>.114,JSON.stringify({n,left,right,strike,support}));
+  cases++;
+ }
+ assert.ok(cases>=2);
 });

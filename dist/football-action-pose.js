@@ -7,7 +7,7 @@ export function applyFootballAction(bones,motion,{defending=false,speed=0}={},gr
  if(motion?.type==='prepareShot'){
   const load=.28+Math.min(1,motion.elapsed)*.30;
   const preload=.12*Math.min(1,motion.elapsed/.25)+.88*(1-Math.exp(-Math.max(0,motion.elapsed-.25)*20.4));
-  if(!applyFootballShotPreparation(bones,preload,motion)){bones[15].rotateX(load);bones[16].rotateX(-load*.32);}
+  if(!applyFootballShotPreparation(bones,preload,motion,speed)){bones[15].rotateX(load);bones[16].rotateX(-load*.32);}
   return;
  }
  if(motion?.type==='trap'){bones[15].rotateX(-.17*pulse);bones[16].rotateX(.20*pulse);bones[17].rotateX(.13*pulse);bones[6].rotateZ(-.10*pulse);bones[12].rotateZ(.10*pulse);}
@@ -15,10 +15,10 @@ export function applyFootballAction(bones,motion,{defending=false,speed=0}={},gr
  if(motion?.type==='shoot'||motion?.type==='pass'){
   if(motion.predicted){
    const load=(motion.type==='shoot'?.65:.39)*(.30+.70*Math.sin(Math.min(1,t/.6)*Math.PI/2));
-   applyFootballShotPreparation(bones,load,motion);
+   applyFootballShotPreparation(bones,load,motion,speed);
    return;
   }
-  if(applyFootballKick(bones,motion,t,group))return;
+  if(applyFootballKick(bones,motion,t,group,speed))return;
  }
  const kick=motion?.type==='shoot'?.82:motion?.type==='pass'?.55:motion?.type==='tackle'?.48:0;
  const strike=motion?.type==='tackle'?pulse:t<.18?Math.sin(t/.18*Math.PI/2):Math.cos((t-.18)/.82*Math.PI/2);
