@@ -1250,7 +1250,7 @@
       },
       {
         "file": "arena-floor-map.js",
-        "sha256": "b955f5bab485f679c8b1729ff98fd9e5a536a5d049d9235ee186e0cd82b6ad8d"
+        "sha256": "229445ecce11410f305ede468f43a1e82e2340eac009700e968d927f1a90efcf"
       },
       {
         "file": "arena-screens.js",
@@ -1462,7 +1462,7 @@
       },
       {
         "file": "index.html",
-        "sha256": "b8f5322dc2f6365e3f394d90ea60b137a4e7eaeb9dd741718243873363902027"
+        "sha256": "7d7e289bc008812988c2a01d08bc0f05b4b9f66ec13895bb73d27dd2cf0a3aac"
       },
       {
         "file": "instant-action.js",

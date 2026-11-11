@@ -19,7 +19,7 @@
   gap: 8px;
   margin: 0;
 }
-#arena-map-panel .map-header strong { font-size: 15px; font-weight: 800 }
+#arena-map-panel .map-header strong { color: #f5f0e9; font-size: 15px; font-weight: 800 }
 #arena-map-panel .map-header small {
   display: block;
   margin-top: 3px;
@@ -53,6 +53,10 @@
     max-height: calc(100dvh - var(--visit-bottom, 8px) - var(--visit-guide-clearance, 68px) - 90px);
   }
   #map-floor, #map-close, #map-places button { min-height: 44px }
+  body:has(#arena-map-panel:not([hidden])) :is(#movement, #interact, #walk-prompt, #tour-arrival) {
+    visibility: hidden;
+    pointer-events: none;
+  }
 }
 @media (orientation: landscape) and (max-height: 500px) {
   #arena-map-panel, body[data-mode=walk] #arena-map-panel {
