@@ -116,8 +116,8 @@ function scalpHair(sculpted,id,style=null){
  geometry.setIndex(indices);geometry.computeVertexNormals();geometry.computeBoundingSphere();
  if(style){
   geometry.userData.parts={crop:{start:0,count:positions.length/3,indexStart:0,indexCount:indices.length}};
-  const maxTriangles=sculpted.crop.index.count/3;
-  for(const cell of [.015,.020,.024,.029,.036]){
+  const maxTriangles=sculpted.crop.index.count/3+72;
+  for(const cell of [.015,.020,.024,.029,.036,.042,.050,.058]){
    const cap=simplifySkinnedGeometry(geometry,cell,{crop:{uvGrid:11}});
    if(cap.index.count/3<=maxTriangles){geometry.dispose();return cap;}
    cap.dispose();
