@@ -17,7 +17,7 @@ test('same-tick action broadcasts and a paused interval do not manufacture netwo
  }finally{session.close();}
 });
 
-for(const scenario of [{fps:30},{fps:30,jitter:.065},{fps:30,jitter:.065,loss:.1},{fps:60,jitter:.065}])test(`300ms RTT keeps remote motion continuous with ${scenario.fps}fps, ${scenario.jitter||0}s jitter and ${scenario.loss||0} missing snapshots`,()=>{
+for(const scenario of [{fps:30},{fps:30,jitter:.065},{fps:30,jitter:.065,loss:.1},{fps:60,jitter:.065},{fps:120,jitter:.065,loss:.1}])test(`300ms RTT keeps remote motion continuous with ${scenario.fps}fps, ${scenario.jitter||0}s jitter and ${scenario.loss||0} missing snapshots`,()=>{
  const result=runOnlineLink(createOnlineSimulation,scenario);assert.equal(result.remote.zeroOrBackward,0);assert.ok(result.remote.stdStep<.025);assert.ok(result.remote.maxStep<.22);assert.ok(result.predictionPeak<=.6);assert.ok(result.meanSnapshotBytes<5000);assert.equal(result.updates,scenario.fps*6);
 });
 function renderState(){const state=createFootballSimulation({humanTeams:['home','away']}).state;state.phase='playing';state.paused=false;state.time=1;state.controlledId='home-1';state.ball.ownerId='away-1';return state;}
@@ -81,6 +81,35 @@ test('a remote shot uses the same delayed contact time for the ball and striking
   }
  }
  assert.ok(before&&after);
+});
+
+test('remote yaws take the shortest turn across the angle boundary and after several rotations',()=>{
+ for(const [from,to,delta] of [[.25,.75,.5],[Math.PI-.1,-Math.PI+.1,.2],[Math.PI*4-.1,.1,.2]]){
+  const state=renderState(),buffer=createOnlineInterpolation(),remote=state.players[12];
+  pose(state,1);remote.yaw=from;buffer.receive(state);
+  pose(state,1.1);remote.yaw=to;buffer.receive(state);
+  buffer.update(state,.1);
+  const fraction=(buffer.playhead-1)/.1;
+  assert.ok(fraction>0&&fraction<1);
+  assert.ok(Math.abs(remote.yaw-(from+delta*fraction))<1e-9);
+ }
+});
+
+test('120 Hz input retains the 20 Hz send cadence and detects changes to reused controller state',()=>{
+ const state=renderState(),sent=[];
+ const session={team:'home',opponent:'dortmund',connection:'connected',room:{started:true,ended:false},packet:packOnlineState(state,1),subscribe(){return()=>{};},sendInput(input){sent.push(input);return sent.length;},send(){return true;},leave(){}};
+ const client=createOnlineSimulation(session),input={x:1,z:0};
+ try{
+  for(let i=0;i<=120;i++)client.update(1/120,input);
+  assert.equal(sent.length,21);
+  input.x=-1;input.charging=true;
+  client.update(1/120,input);
+  assert.equal(sent.length,21);
+  client.update(1/120,input);
+  assert.equal(sent.length,22);
+  assert.deepEqual([sent[20].x,sent[20].charging],[1,false]);
+  assert.deepEqual([sent[21].x,sent[21].charging],[-1,true]);
+ }finally{client.dispose();}
 });
 
 test('receiving snapshots no longer allocates two per-player pose arrays, while new preparation previews remain intact',()=>{

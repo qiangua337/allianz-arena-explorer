@@ -10,21 +10,24 @@ function fallbackAtlas(){return canvasTexture(1254,1254,c=>{
 export function buildMatchdayCrowd(parent,seats,{mobile=false,reducedMotion=false}={}){
  const root=new THREE.Group();root.name='Matchday audience: photo sprites and seated near spectators';root.visible=false;parent.add(root);
  const layout=createCrowdLayout(seats),time={value:0},excitement={value:0},awayColor={value:new THREE.Color(0xebcc3d)},fallback=fallbackAtlas(),frames=supporterAtlas.frames.map(([x,y,w,h])=>new THREE.Vector4(x/1254,1-(y+h)/1254,w/1254,h/1254));
- let detailLimit=crowdDetailBudget(mobile),assetState='fallback',loading,lastNear=null,lastNearAt=-Infinity,detail=[],reaction={time:-100,intensity:0};
+ const fanWave={value:new THREE.Vector4(.010,0,0,0)};
+ let detailLimit=crowdDetailBudget(mobile),assetState='fallback',loading,lastNear=null,lastNearAt=-Infinity,detail=[],recolorDetail=false,reaction={time:-100,intensity:0};
  const material=new THREE.MeshBasicMaterial({map:fallback,alphaTest:.52,side:THREE.DoubleSide,toneMapped:false});
  material.onBeforeCompile=shader=>{
-  shader.uniforms.fanTime=time;shader.uniforms.fanExcitement=excitement;shader.uniforms.fanFrames={value:frames};shader.uniforms.awayShirt=awayColor;
-  shader.vertexShader='attribute float fanTile; attribute float fanDetail; attribute float fanPhase; attribute float fanVisitor; uniform float fanTime; uniform float fanExcitement; uniform vec4 fanFrames[8]; varying float vFanVisitor;\n'+shader.vertexShader;
+  shader.uniforms.fanWave=fanWave;shader.uniforms.fanFrames={value:frames};shader.uniforms.awayShirt=awayColor;
+  shader.vertexShader='attribute float fanTile; attribute float fanDetail; attribute vec2 fanPhaseTrig; attribute float fanVisitor; uniform vec4 fanWave; uniform vec4 fanFrames[8]; varying float vFanVisitor;\n'+shader.vertexShader;
   shader.vertexShader=shader.vertexShader.replace('#include <uv_vertex>','#include <uv_vertex>\nvec4 fanFrame=fanFrames[int(fanTile+.5)];vMapUv=fanFrame.xy+vMapUv*fanFrame.zw;vFanVisitor=fanVisitor;');
-  shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\ntransformed.x+=max(position.y-.2,0.)*.010*sin(fanTime*1.7+fanPhase);transformed.y+=max(position.y-.4,0.)*.018*fanExcitement*sin(fanTime*2.5+fanPhase);transformed*=1.-step(.5,fanDetail);');
+  shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\ntransformed.x+=max(position.y-.2,0.)*dot(fanPhaseTrig,fanWave.xy);transformed.y+=max(position.y-.4,0.)*dot(fanPhaseTrig,fanWave.zw);transformed*=1.-step(.5,fanDetail);');
   shader.fragmentShader='uniform vec3 awayShirt; varying float vFanVisitor;\n'+shader.fragmentShader;
   shader.fragmentShader=shader.fragmentShader.replace('#include <map_fragment>','#include <map_fragment>\nif(vFanVisitor>.5&&diffuseColor.r>diffuseColor.g*2.1&&diffuseColor.r>diffuseColor.b*1.8){float shade=clamp(diffuseColor.r*1.3,.18,1.);diffuseColor.rgb=awayShirt*shade;}');
  };
- material.customProgramCacheKey=()=> 'crowd-photo-atlas-v310';
+ material.customProgramCacheKey=()=> 'crowd-photo-atlas-v311';
  const dummy=new THREE.Object3D(),shade=new THREE.Color();
- for(let sector=0;sector<24;sector++){
-  const records=layout.records.filter(r=>(r.seat.sector??0)===sector);if(!records.length)continue;
-  const g=new THREE.PlaneGeometry(1,1).translate(0,.5,0),tiles=new Float32Array(records.length),detailFlags=new Float32Array(records.length),phases=new Float32Array(records.length),visitors=new Float32Array(records.length),fans=new THREE.InstancedMesh(g,material,records.length);
+ const sectors=Array.from({length:24},()=>[]);
+ for(const record of layout.records)sectors[record.seat.sector??0]?.push(record);
+ for(const [sector,records] of sectors.entries()){
+  if(!records.length)continue;
+  const g=new THREE.PlaneGeometry(1,1).translate(0,.5,0),tiles=new Float32Array(records.length),detailFlags=new Float32Array(records.length),phaseTrig=new Float32Array(records.length*2),visitors=new Float32Array(records.length),fans=new THREE.InstancedMesh(g,material,records.length);
   fans.name='Audience sprites · sector '+sector;fans.receiveShadow=false;
   records.forEach((r,i)=>{
    const s=r.seat,frame=supporterAtlas.frames[r.frame];
@@ -34,21 +37,44 @@ export function buildMatchdayCrowd(parent,seats,{mobile=false,reducedMotion=fals
    const spill=Math.max(.67,.985-Math.max(0,s.y-9)*.0085);
    const brightness=spill*(.85+r.phase/(Math.PI*2)*.15);
    fans.setColorAt(i,shade.setRGB(brightness*.986,brightness,brightness*1.012));
-   tiles[i]=r.frame;phases[i]=r.phase;visitors[i]=r.visitor?1:0;r.mesh=fans;r.slot=i;
+   tiles[i]=r.frame;phaseTrig[2*i]=Math.sin(r.phase);phaseTrig[2*i+1]=Math.cos(r.phase);visitors[i]=r.visitor?1:0;r.mesh=fans;r.slot=i;
   });
-  g.setAttribute('fanTile',new THREE.InstancedBufferAttribute(tiles,1));g.setAttribute('fanDetail',new THREE.InstancedBufferAttribute(detailFlags,1).setUsage(THREE.DynamicDrawUsage));g.setAttribute('fanPhase',new THREE.InstancedBufferAttribute(phases,1));g.setAttribute('fanVisitor',new THREE.InstancedBufferAttribute(visitors,1));fans.computeBoundingSphere();root.add(fans);
+  g.setAttribute('fanTile',new THREE.InstancedBufferAttribute(tiles,1));g.setAttribute('fanDetail',new THREE.InstancedBufferAttribute(detailFlags,1).setUsage(THREE.DynamicDrawUsage));g.setAttribute('fanPhaseTrig',new THREE.InstancedBufferAttribute(phaseTrig,2));g.setAttribute('fanVisitor',new THREE.InstancedBufferAttribute(visitors,1));fans.computeBoundingSphere();root.add(fans);
  }
  const budget=crowdDetailBudget(mobile),geometry=supporterGeometry(),nearMaterial=new THREE.MeshLambertMaterial({vertexColors:true,emissive:0x111015});animateSupporterMaterial(nearMaterial,time,excitement);
  const attributes={fanShirt:3,fanSkin:3,fanPhase:1,fanGesture:1,fanScarf:1};for(const[name,size]of Object.entries(attributes))geometry.setAttribute(name,new THREE.InstancedBufferAttribute(new Float32Array(budget*size),size).setUsage(THREE.DynamicDrawUsage));
  const near=new THREE.InstancedMesh(geometry,nearMaterial,budget);near.name='Seated 3D spectators · bounded near detail';near.count=0;near.frustumCulled=false;near.instanceMatrix.setUsage(THREE.DynamicDrawUsage);root.add(near);
  const shirts=[0xb72c43,0x742639,0x29323c,0xcac4b6,0xa92c41,0x28364b,0xb42b40,0x868b88],skins=[0xcba17e,0xb9896a,0x855d45,0x6f4e3b,0xdab493,0xa47455],skin=new THREE.Color();
  function selectDetail(selected){
-  const touched=new Set();for(const r of detail){r.detail=false;r.mesh.geometry.attributes.fanDetail.setX(r.slot,0);touched.add(r.mesh);}
+  if(!recolorDetail&&selected.length===detail.length&&selected.every(record=>record.detail))return;
+  recolorDetail=false;
+  const wanted=new Set(selected),touched=new Map();
+  function setDetail(record,on){
+   record.detail=on;
+   const attribute=record.mesh.geometry.attributes.fanDetail;
+   attribute.setX(record.slot,Number(on));
+   const range=touched.get(attribute);
+   if(range){
+    range[0]=Math.min(range[0],record.slot);
+    range[1]=Math.max(range[1],record.slot+1);
+   }else touched.set(attribute,[record.slot,record.slot+1]);
+  }
+  for(const record of detail)if(!wanted.has(record))setDetail(record,false);
   detail=selected;near.count=selected.length;
-  selected.forEach((r,i)=>{const s=r.seat;r.detail=true;r.mesh.geometry.attributes.fanDetail.setX(r.slot,1);touched.add(r.mesh);dummy.position.set(s.x,s.y-.19,s.z);dummy.rotation.set(0,s.yaw+Math.PI,0);dummy.scale.setScalar(r.scale);dummy.updateMatrix();near.setMatrixAt(i,dummy.matrix);
-   shade.copy(r.visitor?awayColor.value:new THREE.Color(shirts[r.frame]));skin.set(skins[r.frame===4?2+r.skin%2:r.frame===6?1+r.skin%2:r.skin%2===0?0:4]);geometry.attributes.fanShirt.setXYZ(i,shade.r,shade.g,shade.b);geometry.attributes.fanSkin.setXYZ(i,skin.r,skin.g,skin.b);geometry.attributes.fanPhase.setX(i,r.phase);geometry.attributes.fanGesture.setX(i,r.gesture);geometry.attributes.fanScarf.setX(i,[0,3].includes(r.frame)?1:0);
+  selected.forEach((r,i)=>{const s=r.seat;if(!r.detail)setDetail(r,true);dummy.position.set(s.x,s.y-.19,s.z);dummy.rotation.set(0,s.yaw+Math.PI,0);dummy.scale.setScalar(r.scale);dummy.updateMatrix();near.setMatrixAt(i,dummy.matrix);
+   if(r.visitor)shade.copy(awayColor.value);else shade.set(shirts[r.frame]);skin.set(skins[r.frame===4?2+r.skin%2:r.frame===6?1+r.skin%2:r.skin%2===0?0:4]);geometry.attributes.fanShirt.setXYZ(i,shade.r,shade.g,shade.b);geometry.attributes.fanSkin.setXYZ(i,skin.r,skin.g,skin.b);geometry.attributes.fanPhase.setX(i,r.phase);geometry.attributes.fanGesture.setX(i,r.gesture);geometry.attributes.fanScarf.setX(i,[0,3].includes(r.frame)?1:0);
   });
-  for(const mesh of touched)mesh.geometry.attributes.fanDetail.needsUpdate=true;near.instanceMatrix.needsUpdate=true;for(const name of Object.keys(attributes))geometry.attributes[name].needsUpdate=true;
+  // Keep one pending range per sector, including flags still waiting to
+  // upload because the sector was outside the camera frustum.
+  for(const [attribute,[first,end]] of touched){
+   const pending=attribute.updateRanges[0];
+   const start=Math.min(first,pending?.start??first);
+   const limit=Math.max(end,pending?pending.start+pending.count:end);
+   attribute.clearUpdateRanges();
+   attribute.addUpdateRange(start,limit-start);
+   attribute.needsUpdate=true;
+  }
+  if(selected.length){near.instanceMatrix.needsUpdate=true;for(const name of Object.keys(attributes))geometry.attributes[name].needsUpdate=true;}
  }
  const flagMap=canvasTexture(384,192,c=>{c.fillStyle='#a6263c';c.fillRect(0,0,384,192);c.fillStyle='#e3ded0';c.fillRect(0,72,384,48);c.font='bold 38px Arial';c.textAlign='center';c.fillText('MIA SAN MIA',192,50);c.font='bold 31px Arial';c.fillText('FC BAYERN',192,163);}),flagMaterial=new THREE.MeshBasicMaterial({map:flagMap,side:THREE.DoubleSide});
  flagMaterial.onBeforeCompile=shader=>{shader.uniforms.fanTime=time;shader.uniforms.fanExcitement=excitement;shader.vertexShader='uniform float fanTime; uniform float fanExcitement;\n'+shader.vertexShader;shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\ntransformed.z+=sin(position.x*3.5-fanTime*(2.+fanExcitement)+modelMatrix[3].x*.17+modelMatrix[3].z*.11)*.10*(position.x+.9);');};flagMaterial.customProgramCacheKey=()=> 'audience-flags-v310';
@@ -62,9 +88,18 @@ export function buildMatchdayCrowd(parent,seats,{mobile=false,reducedMotion=fals
   setQuality(mode='standard',scale=1){const next=mode==='low'?0:Math.round(budget*(mode==='high'?1:Math.max(.35,Math.min(1,scale))));if(next!==detailLimit){detailLimit=next;lastNear=null;}},
   night(on){material.color.set(on?0xd4d6dc:0xf4f3ef);flagMaterial.color.set(on?0xd9d6d2:0xffffff);},
   setEnabled(on){root.visible=!!on;if(!on){selectDetail([]);lastNear=null;reaction={time:-100,intensity:0};}},
-  setOpponent(club){awayColor.value.set(club?.kit?.shirt||'#ebcc3d');lastNear=null;},
+  setOpponent(club){awayColor.value.set(club?.kit?.shirt||'#ebcc3d');recolorDetail=true;lastNear=null;},
   react(seconds,intensity=1){const remaining=reaction.intensity*Math.max(0,1-(seconds-reaction.time)/6);if(intensity>=remaining)reaction={time:seconds,intensity:Math.max(0,Math.min(1,intensity))};},
-  update(seconds,viewer){time.value=reducedMotion?0:seconds;excitement.value=reducedMotion?0:reaction.intensity*Math.max(0,1-(seconds-reaction.time)/6);if(!root.visible||!viewer)return;
+  update(seconds,viewer){if(!root.visible||!viewer)return;
+   time.value=reducedMotion?0:seconds;
+   excitement.value=reducedMotion?0:reaction.intensity*Math.max(0,1-(seconds-reaction.time)/6);
+   // sin(time + phase) = sin(phase) * cos(time) + cos(phase) * sin(time).
+   // Share the time terms across all spectators instead of evaluating both
+   // waves at each vertex of every far spectator.
+   if(!reducedMotion){
+    const sway=seconds*1.7,cheer=seconds*2.5,height=.018*excitement.value;
+    fanWave.value.set(.010*Math.cos(sway),.010*Math.sin(sway),height*Math.cos(cheer),height*Math.sin(cheer));
+   }
    const moved=lastNear?(viewer.x-lastNear.x)**2+(viewer.y-lastNear.y)**2+(viewer.z-lastNear.z)**2:Infinity;if(!lastNear||moved>100||seconds-lastNearAt>.35&&moved>1.44){selectDetail(layout.nearby(viewer,{mobile,budget:detailLimit}));lastNear={x:viewer.x,y:viewer.y,z:viewer.z};lastNearAt=seconds;}
   }
  };

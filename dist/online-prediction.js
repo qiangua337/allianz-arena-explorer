@@ -1,5 +1,6 @@
 import {moveControlledFootballer,moveFootballer,carryFootball} from './football-movement.js';
 import {goalkeeperProfile} from './goalkeeper.js';
+const collisionRadius=.70,collisionRadiusSquared=collisionRadius*collisionRadius;
 // A small render-only history, never a second simulation: scores, ownership,
 // phase, discipline and the match clock are applied immediately from the wire.
 // Advancing one server-time playhead avoids restarting a short tween on every
@@ -32,12 +33,16 @@ export function createOnlineInterpolation(){
   const time=Math.max(oldest.time,playhead);let a=oldest,b=oldest;
   for(let i=1;i<length;i++){b=frames[(head+i)%capacity];if(b.time>=time)break;a=b;}
   const t=b.time>a.time?Math.max(0,Math.min(1,(time-a.time)/(b.time-a.time))):1;
+  const from=a.pose,to=b.pose;
   for(let i=0;i<22;i++){
    const p=state.players[i];if(p.id===state.controlledId)continue;
-   const at=i*5,yaw=a.pose[at+2],turn=b.pose[at+2]-yaw;
-   p.x=a.pose[at]+(b.pose[at]-a.pose[at])*t;p.z=a.pose[at+1]+(b.pose[at+1]-a.pose[at+1])*t;
-   p.yaw=yaw+Math.atan2(Math.sin(turn),Math.cos(turn))*t;
-   p.vx=a.pose[at+3]+(b.pose[at+3]-a.pose[at+3])*t;p.vz=a.pose[at+4]+(b.pose[at+4]-a.pose[at+4])*t;
+   const at=i*5,yaw=from[at+2],turn=to[at+2]-yaw;
+   // Ordinary turns already represent the shortest path. Wrap only across
+   // the angle boundary, including yaws that have accumulated past one lap.
+   const shortestTurn=Math.abs(turn)<=Math.PI?turn:Math.atan2(Math.sin(turn),Math.cos(turn));
+   p.x=from[at]+(to[at]-from[at])*t;p.z=from[at+1]+(to[at+1]-from[at+1])*t;
+   p.yaw=yaw+shortestTurn*t;
+   p.vx=from[at+3]+(to[at+3]-from[at+3])*t;p.vz=from[at+4]+(to[at+4]-from[at+4])*t;
    const later=b.motions[i],laterStarted=later&&time+1e-6>=b.time-later.elapsed;
    const stroke=laterStarted?later:a.motions[i];
    const elapsed=stroke?Math.max(0,time-(laterStarted?b.time:a.time)+stroke.elapsed):0;
@@ -49,11 +54,11 @@ export function createOnlineInterpolation(){
   }
   // Keep the ball with the remote strike through possession changes. Local
   // touches still use their immediate prediction/authoritative position.
-  const local=state.controlledId;
-  if(state.ball.ownerId!==local&&latest.owner!==local&&a.owner!==local&&b.owner!==local&&Math.hypot(a.pose[110]-b.pose[110],a.pose[112]-b.pose[112])<6){
+  const local=state.controlledId,dx=from[110]-to[110],dz=from[112]-to[112];
+  if(state.ball.ownerId!==local&&latest.owner!==local&&a.owner!==local&&b.owner!==local&&dx*dx+dz*dz<36){
    const kick=a.owner&&!b.owner?b.motions[state.players.findIndex(p=>p.id===a.owner)]:null;
    const strikeAt=kick?b.time-kick.elapsed:0;
-   let x0=a.pose[110],y0=a.pose[111],z0=a.pose[112],x1=b.pose[110],y1=b.pose[111],z1=b.pose[112],blend=t;
+   let x0=from[110],y0=from[111],z0=from[112],x1=to[110],y1=to[111],z1=to[112],blend=t;
    if(kick&&strikeAt>a.time&&strikeAt<b.time&&Number.isFinite(kick.contactX)&&Number.isFinite(kick.contactY)&&Number.isFinite(kick.contactZ)){
     if(time<strikeAt){x1=kick.contactX;y1=kick.contactY;z1=kick.contactZ;blend=(time-a.time)/(strikeAt-a.time);}
     else{x0=kick.contactX;y0=kick.contactY;z0=kick.contactZ;blend=(time-strikeAt)/(b.time-strikeAt);}
@@ -66,16 +71,22 @@ export function createOnlineInterpolation(){
 // Predict only the local avatar and its carried ball. Possession, tackles,
 // free-ball physics, goals, events and the match clock stay server-owned.
 export function createOnlinePrediction(team){
- const history=Array.from({length:90},()=>({seq:0,dt:0,input:null})),actors=Array.from({length:22},()=>({dismissed:true}));let head=0,length=0,pending=0,player=null,ball=null,owner=null,time=0,age=0,phase='',errorX=0,errorZ=0,motion=null,receiveOverride=null,setPiece=null;
+ const history=Array.from({length:90},()=>({seq:0,dt:0,input:null})),actors=Array.from({length:22},()=>({dismissed:true}));let head=0,length=0,pending=0,player=null,playerIndex=-1,ball=null,owner=null,time=0,age=0,phase='',errorX=0,errorZ=0,motion=null,receiveOverride=null,setPiece=null;
  const penaltyKey=k=>k?[k.type,k.stage,k.taker,k.keeper].join(':'):'';
  function step(input,dt,players){for(let left=dt;left>1e-8;){const h=Math.min(1/60,left);time+=h;
    if(setPiece){if(player.id===setPiece.keeper&&setPiece.stage!=='setup'){const g=player.keeperState||(player.keeperState={phase:'ready'});if(g.phase==='dive'&&time>=g.diveUntil)g.phase='recover';if(g.phase==='recover'&&time>=g.recoverUntil)g.phase='ready';const dive=g.phase==='dive',recover=g.phase==='recover';moveFootballer(player,dive?g.direction:recover?0:input.x||0,0,dive?5.6:3.6,h);player.x=Math.max(-3.65,Math.min(3.65,player.x));player.z=setPiece.goalZ-setPiece.attackSign*.12;player.vz=0;player.yaw=setPiece.attackSign<0?0:Math.PI;}left-=h;continue;}
    const receiving=player.receiveControl;moveControlledFootballer(player,ball,ball.ownerId===player.id?player:owner,input,h,time);if(receiving&&!player.receiveControl&&ball.targetId===player.id&&!ball.ownerId)receiveOverride=receiving.passId;
-   for(const other of players){if(other.id===player.id||other.dismissed)continue;const dx=player.x-other.x,dz=player.z-other.z,d=Math.hypot(dx,dz);if(d<.70){const push=(.70-d)*.26;player.x+=(d>.001?dx/d:1)*push;player.z+=(d>.001?dz/d:0)*push;}}
+   for(const other of players){
+    if(other.id===player.id||other.dismissed)continue;
+    const dx=player.x-other.x,dz=player.z-other.z,distanceSquared=dx*dx+dz*dz;
+    if(!(distanceSquared<collisionRadiusSquared))continue;
+    const d=Math.sqrt(distanceSquared),push=(collisionRadius-d)*.26;
+    player.x+=(d>.001?dx/d:1)*push;player.z+=(d>.001?dz/d:0)*push;
+   }
    player.x=Math.max(-35.2,Math.min(35.2,player.x));player.z=Math.max(-53.6,Math.min(53.6,player.z));if(ball.ownerId===player.id)carryFootball(player,ball,h,time);left-=h;}}
  function drop(){const record=history[head];pending=Math.max(0,pending-record.dt);record.input=null;head=(head+1)%history.length;length--;}
- function clear(){player=null;ball=null;while(length)drop();pending=0;motion=null;receiveOverride=null;setPiece=null;errorX=errorZ=0;age=0;}
- function receive(state,ack=0){const p=state.players.find(p=>p.id===state.controlledId),reset=!player||player.id!==p?.id||state.paused||state.phase!=='playing'||phase!==state.phase||ball?.ownerId!==state.ball.ownerId||penaltyKey(setPiece)!==penaltyKey(state.setPiece);
+ function clear(){player=null;playerIndex=-1;ball=null;while(length)drop();pending=0;motion=null;receiveOverride=null;setPiece=null;errorX=errorZ=0;age=0;}
+ function receive(state,ack=0){playerIndex=state.players.findIndex(p=>p.id===state.controlledId);const p=state.players[playerIndex],reset=!player||player.id!==p?.id||state.paused||state.phase!=='playing'||phase!==state.phase||ball?.ownerId!==state.ball.ownerId||penaltyKey(setPiece)!==penaltyKey(state.setPiece);
   const oldX=player?.x+errorX,oldZ=player?.z+errorZ;if(reset){while(length)drop();}else while(length&&history[head].seq<=ack)drop();player={...p,keeperState:p?.keeperState?{...p.keeperState}:null};ball={...state.ball};
   // Interpolated render poses must never become collision or pressure inputs.
   // Keep these tiny authority records separate from the displayed players.
@@ -84,18 +95,25 @@ export function createOnlinePrediction(team){
   if(reset){motion=null;receiveOverride=null;}else if(player.motion?.type===motion?.type)motion=null;
   if(player.receiveControl?.passId===receiveOverride)player.receiveControl=null;
   for(let i=0;i<length;i++){const record=history[(head+i)%history.length];step(record.input,record.dt,actors);}
-  const dx=oldX-player.x,dz=oldZ-player.z;errorX=!reset&&Math.hypot(dx,dz)<2.5?dx:0;errorZ=!reset&&Math.hypot(dx,dz)<2.5?dz:0;
+  const dx=oldX-player.x,dz=oldZ-player.z,blend=!reset&&dx*dx+dz*dz<6.25;
+  errorX=blend?dx:0;errorZ=blend?dz:0;
  }
  function update(state,dt,input,sequence){
   if(state.paused||state.phase!=='playing'){clear();return;}
   if(!player)return;
-  const p=state.players.find(p=>p.id===player.id);
-  if(!p)return;
+  const p=state.players[playerIndex];
+  if(!p||p.id!==player.id)return;
   age+=dt;if(age>.6){if(p.motion?.id===-1)p.motion=null;motion=null;return;}
   dt=Math.min(.1,Math.max(0,dt));
   if(sequence>0){if(length===history.length)drop();const record=history[(head+length)%history.length];record.seq=sequence;record.dt=dt;record.input=input;length++;pending+=dt;while(pending>.6)drop();step(input,dt,actors);}
-  errorX*=Math.exp(-dt*16);errorZ*=Math.exp(-dt*16);Object.assign(p,{x:player.x+errorX,z:player.z+errorZ,vx:player.vx,vz:player.vz,yaw:player.yaw,stamina:player.stamina,defending:player.defending,receiveControl:player.receiveControl,pivotUntil:player.pivotUntil});
-  if(ball.ownerId===p.id&&state.ball.ownerId===p.id)Object.assign(state.ball,{x:ball.x+errorX,z:ball.z+errorZ,y:ball.y,vx:ball.vx,vz:ball.vz});
+  const decay=Math.exp(-dt*16);errorX*=decay;errorZ*=decay;
+  p.x=player.x+errorX;p.z=player.z+errorZ;p.vx=player.vx;p.vz=player.vz;p.yaw=player.yaw;p.stamina=player.stamina;
+  p.defending=player.defending;p.receiveControl=player.receiveControl;p.pivotUntil=player.pivotUntil;
+  const displayBall=state.ball;
+  if(ball.ownerId===p.id&&displayBall.ownerId===p.id){
+   displayBall.x=ball.x+errorX;displayBall.z=ball.z+errorZ;displayBall.y=ball.y;
+   displayBall.vx=ball.vx;displayBall.vz=ball.vz;
+  }
   if(motion){
    motion.elapsed+=dt;
    if(motion.elapsed<motion.duration)p.motion={...motion};

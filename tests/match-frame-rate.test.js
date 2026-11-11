@@ -9,14 +9,36 @@ function sample(controller, rafFps, renderFps, frameMs, windows = 1) {
 }
 
 test('a 120 FPS preference runs at the available 60 or 90 Hz without blurring a cheap scene', () => {
- for (const refresh of [59, 60, 89, 90]) {
+ for (const refresh of [59, 60, 75, 89, 90]) {
   const pace = createMatchFrameRate({cap:120});
   assert.deepEqual(pace.state, {rate:120, scale:1});
   assert.equal(sample(pace, refresh, refresh, 3).rate, 120, 'one sample is not enough');
-  const expected = {rate:refresh < 70 ? 60 : 90, scale:1};
+  const expected = {rate:refresh < 70 ? 60 : refresh < 80 ? 75 : 90, scale:1};
   assert.deepEqual(sample(pace, refresh, refresh, 3), expected);
   assert.deepEqual(sample(pace, refresh, refresh, 3, 12), expected);
  }
+});
+
+test('a mobile high refresh session starts with headroom and ignores a single missed-frame burst',()=>{
+ const pace=createMatchFrameRate({cap:120,mobile:true});
+ assert.equal(pace.state.scale,.9);
+ const good={rafFps:120,renderFps:120,frameMs:4,gap95:9,rafGap95:9};
+ const spike={...good,renderFps:104,gap95:17};
+ assert.deepEqual(pace.update(spike),{rate:120,scale:.9});
+ assert.deepEqual(pace.update(good),{rate:120,scale:.9});
+ assert.deepEqual(pace.update(spike),{rate:120,scale:.9});
+ assert.equal(pace.update(spike).scale,.82);
+});
+
+test('confirmed 120 Hz falls back to a uniform 60 cadence instead of alternating short and long frames',()=>{
+ const pace=createMatchFrameRate({cap:120,quality:'high',mobile:true});
+ const sample={rafFps:120,renderFps:103,frameMs:8,gap95:17,rafGap95:9};
+ assert.equal(pace.update(sample).rate,120);
+ assert.equal(pace.update(sample).rate,60);
+ const draw=createFramePacer(),times=[];
+ for(let i=0;i<120;i++)if(draw.ready(i/120,pace.state.rate,.0007))times.push(i);
+ assert.equal(times.length,60);
+ assert.ok(times.slice(1).every((frame,i)=>frame-times[i]===2));
 });
 
 test('slow rendering sheds pixels before stepping down, then regains speed before sharpness', () => {

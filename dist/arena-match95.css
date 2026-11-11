@@ -647,7 +647,7 @@
 #match-dialog > .match-fps-row {
   padding-block: 10px;
 }
-#match-dialog:not([data-panel=play]) > .match-fps-row {
+#match-dialog:not([data-panel=play]):not([data-panel=online]) > .match-fps-row {
   display: none;
 }
 .game-frame-rate {

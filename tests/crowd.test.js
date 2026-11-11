@@ -28,7 +28,24 @@ test('actual near spectators replace their far counterpart and remain within the
  const audience=buildMatchdayCrowd(new THREE.Group(),seats,{mobile:true});assert.equal(audience.root.visible,false);audience.setEnabled(true);audience.update(1,{x:45,y:6,z:0});const near=audience.root.getObjectByName('Seated 3D spectators · bounded near detail'),far=audience.root.children.filter(o=>o.isInstancedMesh&&o.geometry.attributes.fanDetail);
  assert.equal(near.count,128);assert.equal(audience.nearCount,128);assert.ok(!near.isSkinnedMesh);assert.ok(near.geometry.index===null);assert.ok(near.geometry.attributes.position.count/3<700);assert.equal(far.reduce((sum,o)=>sum+o.geometry.attributes.fanDetail.array.reduce((a,b)=>a+b,0),0),near.count);
  const matrix=new THREE.Matrix4();near.getMatrixAt(0,matrix);assert.ok(matrix.elements.every(Number.isFinite));const version=near.instanceMatrix.version;for(let i=0;i<200;i++)audience.update(1+i/60,{x:45,y:6,z:0});assert.equal(near.instanceMatrix.version,version,'stationary viewers do not rebuild all audience matrices');
+ const flagAttributes=far.map(mesh=>mesh.geometry.attributes.fanDetail);
+ for(const attribute of flagAttributes)attribute.clearUpdateRanges();
+ audience.update(4.5,{x:45,y:6,z:1.5});
+ assert.ok(near.instanceMatrix.version>version,'a different group of seats does update the near instances');
+ const changed=flagAttributes.filter(attribute=>attribute.updateRanges.length);
+ assert.ok(changed.length);
+ assert.ok(changed.every(attribute=>attribute.updateRanges.length===1&&attribute.updateRanges[0].count<attribute.count),'a move uploads only the affected part of each sector');
  audience.update(5,{x:999,y:6,z:999});assert.equal(near.count,0);assert.equal(far.reduce((sum,o)=>sum+o.geometry.attributes.fanDetail.array.reduce((a,b)=>a+b,0),0),0);audience.setEnabled(false);assert.equal(audience.root.visible,false);
+});
+test('a moving camera does not re-upload detail when the same seats stay selected',()=>{
+ const audience=buildMatchdayCrowd(new THREE.Group(),seats.slice(0,100),{mobile:true});
+ audience.setEnabled(true);
+ audience.update(1,{x:52,y:6,z:-39});
+ const near=audience.root.getObjectByName('Seated 3D spectators · bounded near detail');
+ assert.equal(near.count,audience.count);
+ const version=near.instanceMatrix.version;
+ audience.update(2,{x:54,y:6,z:-39});
+ assert.equal(near.instanceMatrix.version,version);
 });
 test('missing photo downloads keep a visible fallback crowd and can be retried',async()=>{
  const audience=buildMatchdayCrowd(new THREE.Group(),seats.slice(0,800),{mobile:true});audience.setEnabled(true);imageFails=true;assert.equal(await audience.prepare(),false);assert.equal(audience.assetState,'unavailable');assert.ok(audience.count>700);assert.ok(audience.root.visible);imageFails=false;assert.equal(await audience.prepare(),true);assert.equal(audience.assetState,'ready');const sprites=audience.root.children.find(o=>o.geometry?.attributes.fanTile);assert.equal(sprites.material.map.name,'Generated supporters photo atlas 3.1');
@@ -41,5 +58,20 @@ test('supporters have grounded seated geometry, independent gestures and an expl
  const g=supporterGeometry();g.computeBoundingBox();assert.ok(g.boundingBox.min.y>=.01&&g.boundingBox.max.y<1.5);assert.ok(g.attributes.fanArm.array.some(x=>x<0)&&g.attributes.fanArm.array.some(x=>x>0));assert.equal(g.attributes.color.count,g.attributes.position.count);
  const normal=buildMatchdayCrowd(new THREE.Group(),seats.slice(0,100)),reduced=buildMatchdayCrowd(new THREE.Group(),seats.slice(0,100),{reducedMotion:true});
  for(const audience of[normal,reduced]){audience.setEnabled(true);audience.react(10,1);audience.update(11,{x:45,y:6,z:0});}
- const shader=()=>({uniforms:{},vertexShader:'#include <uv_vertex>\n#include <begin_vertex>',fragmentShader:'#include <map_fragment>'});const a=shader(),b=shader();normal.root.children.find(o=>o.geometry?.attributes.fanTile).material.onBeforeCompile(a);reduced.root.children.find(o=>o.geometry?.attributes.fanTile).material.onBeforeCompile(b);assert.ok(a.uniforms.fanExcitement.value>0);assert.equal(b.uniforms.fanTime.value,0);assert.equal(b.uniforms.fanExcitement.value,0);assert.equal(a.uniforms.fanFrames.value.length,8);normal.update(18,{x:45,y:6,z:0});assert.equal(a.uniforms.fanExcitement.value,0);
+ const shader=()=>({uniforms:{},vertexShader:'#include <uv_vertex>\n#include <begin_vertex>',fragmentShader:'#include <map_fragment>'});
+ const a=shader(),b=shader(),sprites=normal.root.children.find(o=>o.geometry?.attributes.fanTile);
+ sprites.material.onBeforeCompile(a);reduced.root.children.find(o=>o.geometry?.attributes.fanTile).material.onBeforeCompile(b);
+ assert.doesNotMatch(a.vertexShader,/\bsin\s*\(/,'sprite vertices use the shared wave instead of calculating their own trig');
+ assert.deepEqual(b.uniforms.fanWave.value.toArray(),[.010,0,0,0]);
+ assert.equal(a.uniforms.fanFrames.value.length,8);
+ const records=createCrowdLayout(seats.slice(0,100)).records,phaseTrig=sprites.geometry.attributes.fanPhaseTrig;
+ for(const seconds of [11,12.3,18]){
+  normal.update(seconds,{x:45,y:6,z:0});
+  const {x,y,z,w}=a.uniforms.fanWave.value,height=.018*Math.max(0,1-(seconds-10)/6);
+  for(let i=0;i<phaseTrig.count;i++){
+   const sin=phaseTrig.getX(i),cos=phaseTrig.getY(i),phase=records[i].phase;
+   assert.ok(Math.abs(sin*x+cos*y-.010*Math.sin(seconds*1.7+phase))<1e-9);
+   assert.ok(Math.abs(sin*z+cos*w-height*Math.sin(seconds*2.5+phase))<1e-9);
+  }
+ }
 });

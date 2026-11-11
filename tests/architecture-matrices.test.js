@@ -27,3 +27,19 @@ test('live room doors, near-seat instances and player cues remain dynamic beside
  camera.position.set(82.55,25.3,-30.1);stadium.update(camera,'walk',false,true,false);const near=scene.getObjectByName('Nearby moulded seating shells');assert.ok(near.count>0);const version=near.instanceMatrix.version;camera.position.z-=3;stadium.update(camera,'walk',false,true,false);assert.ok(near.instanceMatrix.version>version);assert.equal(near.matrixWorldAutoUpdate,false);
  const actors={root:new THREE.Group(),ready:true,updateMatch(){}},view=buildFootballView(scene,stadium.matchBall,actors),state={players:[{id:'p',team:'home',x:5,z:-8,yaw:1}],controlledId:'p',ball:{x:5,y:.11,z:-8,ownerId:'p'},phase:'playing'};scene.add(actors.root);view.setEnabled(true);view.update(state,1,camera.position);scene.updateMatrixWorld(true);const cue=view.root.getObjectByName('Controlled footballer');assert.deepEqual(cue.getWorldPosition(new THREE.Vector3()).toArray(),[5,.019,-8]);state.players[0].x=12;state.ball.x=12;view.update(state,1.1,camera.position);scene.updateMatrixWorld(true);assert.equal(cue.getWorldPosition(new THREE.Vector3()).x,12);assert.equal(actors.root.matrixWorldAutoUpdate,true);
 });
+
+test('a live match bypasses hidden exploration transforms without removing any rooms or suspending the ball',async()=>{
+ const {suspendExplorationDuringMatch}=await import('../dist/scene-budget.js');
+ const roots=[world.group,interiors.root,building.root,service.root,stadium.circulation.root];
+ const setMatch=suspendExplorationDuringMatch(roots),oldPositions=roots.map(o=>o.parent),probes=[];
+ for(const root of roots){const probe=new THREE.Object3D();root.add(probe);probes.push(probe);}
+ const old=world.group.visible;world.group.visible=false;
+ setMatch(true);for(const probe of probes)probe.position.x=5;
+ stadium.matchBall.position.x=42;scene.updateMatrixWorld(true);
+ assert.ok(probes.every(o=>o.matrixWorld.elements[12]===0));
+ assert.ok(roots.every((o,i)=>!o.visible&&o.parent===oldPositions[i]));
+ assert.equal(stadium.matchBall.matrixWorld.elements[12],42);
+ setMatch(false);scene.updateMatrixWorld(true);
+ assert.ok(probes.every(o=>o.matrixWorld.elements[12]===5));
+ assert.equal(world.group.visible,false);world.group.visible=old;
+});

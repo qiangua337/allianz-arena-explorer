@@ -14,6 +14,22 @@ export function freezeArchitecture(group,exclude=[]){
  // multiply every world matrix on every rendered frame.
  group.updateWorldMatrix(true,true);for(const o of fixed){o.matrixAutoUpdate=false;o.matrixWorldAutoUpdate=false;}
 }
+// Three skips invisible groups when drawing, but still walks their transforms.
+// Suspend only the exploration roots for matches; they stay in the scene so
+// material settings, queries, and the existing room state still find them.
+export function suspendExplorationDuringMatch(roots){
+ let suspended=false;
+ const previous=roots.map(root=>root.visible);
+ for(const root of roots){
+  const update=root.updateMatrixWorld;
+  root.updateMatrixWorld=function(force){if(!suspended)update.call(this,force);};
+ }
+ return function setMatchActive(active){
+  if(active===suspended)return;
+  suspended=active;
+  roots.forEach((root,i)=>{if(active){previous[i]=root.visible;root.visible=false;}else root.visible=previous[i];});
+ };
+}
 export function bowlIsVisible(position,mode){
  if(enclosedPlayerPosition(position))return false;
  const inner=(Math.abs(position.x)/83)**2.8+(Math.abs(position.z)/101)**2.8,passage=position.y<8&&Math.abs(position.x-22)<3.6&&position.z>60&&position.z<105;

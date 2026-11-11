@@ -15,9 +15,10 @@ import {applyArchitecturalUV} from './surface-finishes.js';
 import {spatializeArchitecture,updateArchitectureSectors} from './spatial-batches.js';
 import {buildDestinationMenu} from './destinations.js';
 import {buildMatchdayExperience} from './matchday.js';
-import {buildFrameBudget,freezeArchitecture} from './scene-budget.js';
+import {buildFrameBudget,freezeArchitecture,suspendExplorationDuringMatch} from './scene-budget.js';
 import {createFramePacer} from './frame-pacing.js';
 import {createMatchFrameRate} from './match-frame-rate.js';
+import {writeHudProperty} from './hud-write.js';
 import {buildWalkBuilding} from './walk-building.js';
 import {buildLightBudget} from './performance.js';
 import {buildInteractions} from './interactions.js';
@@ -40,6 +41,7 @@ import {buildServiceRooms} from './service-rooms.js';
 import {serviceRoomAt} from './service-layout.js';
 
 const $=id=>document.getElementById(id),canvas=$('scene');
+const ballCue=$('game-ball-cue'),ballCueArrow=$('game-ball-cue-arrow'),ballCueDistance=$('game-ball-cue-distance');
 buildEditorialCover();
 let experienceHub;
 let visitorStorage;try{visitorStorage=window.localStorage;}catch{}const visitorSettings=loadVisitorSettings(visitorStorage),walkingTour=createWalkingTour(),smoothInput={x:0,z:0};let qualityMode=visitorSettings.quality,matchFps=visitorSettings.matchFps,tourUIState='';
@@ -62,7 +64,8 @@ const places={
 };
 const frameBudget=buildFrameBudget(),gameDrawBudget=createFramePacer(),visitDrawBudget=createFramePacer(),telemetryBudget=createFramePacer();let drawnFrames=0,sceneTime=0,gameCameraInstant=true;let gameCameraLook=null,gameCameraPeriod=null,gameCameraPlayer=null,gameCameraStoppage=null,gameCameraPhase=null;
 const matchFrameRate=createMatchFrameRate({cap:matchFps,quality:qualityMode});let matchBudgetActive=false,matchSampleTime=0,matchSampleFrames=0,matchSampleDraws=0,matchSampleWork=0;
-let building,lightBudget,interactions,serviceRooms,matchday,matchSnapshot=null,matchStarting=false,qualityScale=1,pixelBudget=1,recoveryFrames=0;
+const matchRafGaps=new Uint16Array(101),matchDrawGaps=new Uint16Array(101);let previousRaf=0,previousDraw=0;
+let building,lightBudget,interactions,serviceRooms,matchday,setExplorationMatchMode,matchSnapshot=null,matchStarting=false,qualityScale=1,recoveryFrames=0;
 let visualAssets,renderer,scene,camera,controls,stadium,world,interiors,walkGuide,sky,stars,dayLight,arenaFill,hemi,ambient;
 let active='exterior',mode='orbit',night=false,transition=null,tourOn=false,tourElapsed=0,tourIndex=0,toastTimer;
 let yaw=0,pitch=0,dragging=false,lastPointer=null,walkReady=false,clock={time:performance.now(),getDelta(){const now=performance.now(),d=(now-this.time)/1000;this.time=now;return d;}},elapsed=0,frames=0,lastPerf=0,frameMs=0;
@@ -78,7 +81,7 @@ const toast=text=>{clearTimeout(toastTimer);$('toast').textContent=text;$('toast
 async function init(){
  $('quality').value=qualityMode;syncMatchFpsOptions();
  try{renderer=new THREE.WebGLRenderer({canvas,antialias:qualityMode==='high'||!(innerWidth<=760||window.matchMedia('(pointer:coarse)').matches),alpha:false,preserveDrawingBuffer:false,powerPreference:'high-performance'});}catch(error){$('load-status').innerHTML='当前浏览器未能启用 WebGL。请使用支持硬件加速的 Chrome / Edge 打开。';document.querySelector('.load-track').hidden=true;console.error(error);return;}
- setQuality();renderer.setSize(innerWidth,innerHeight);renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.17;renderer.shadowMap.enabled=qualityMode==='high';renderer.shadowMap.type=THREE.PCFShadowMap;renderer.shadowMap.autoUpdate=false;renderer.shadowMap.needsUpdate=true;
+ setQuality();renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.17;renderer.shadowMap.type=THREE.PCFShadowMap;renderer.shadowMap.autoUpdate=false;renderer.shadowMap.needsUpdate=true;
  scene=new THREE.Scene();scene.fog=new THREE.FogExp2(0xb8cbd6,.00082);
  camera=new THREE.PerspectiveCamera(48,innerWidth/innerHeight,.06,4500);camera.position.fromArray(places.exterior.pos);
  controls=new OrbitControls(camera,canvas);controls.target.fromArray(places.exterior.target);controls.enableDamping=true;controls.dampingFactor=.065;controls.minDistance=1.1;controls.maxDistance=1000;controls.maxPolarAngle=Math.PI*.49;controls.autoRotateSpeed=.5;controls.enablePan=true;controls.update();
@@ -90,7 +93,8 @@ async function init(){
  building=buildWalkBuilding(scene);serviceRooms=buildServiceRooms(scene);walkGuide=buildWalkGuide(scene,walkGeometry(),{obstacles:{world:world.colliders,building:building.colliders,interiors:interiors.colliders,circulation:stadium.circulation.colliders,service:serviceRooms.walls},onChoose:()=>setNavOpen(true),onSelect:id=>{stopTour();goPlace(id,false);},onWalk:followDestination,onTeleport:teleportToDestination,onContinue:()=>{if(!walkingTour.state())return false;$('tour-advance').click();return true;},nextDestination:()=>walkingTour.state()?.nextGoal});interactions=buildInteractions(scene,interiors,{toast,serviceRooms,navigate:id=>goPlace(id),setEye:y=>desiredEye=y,seats:stadium.seatPositions,onSit:seatIntoView,onStand:standFromSeat,onFocusSeat:focusArenaSeat,showInfo:showInteractiveInfo});lightBudget=buildLightBudget(scene);matchday=buildMatchdayExperience({scene,stadium,reducedMotion:mediaReduced,mobile:innerWidth<=1024,toast,onBegin:beginMatchday,onPose:applyEntrancePose,onFinish:finishMatchdayEntrance,onVisitBench:visitMatchdayBench,onGameCamera:applyGameCamera,onGameView:updateGameView,onExit:restoreFromMatchday,onPrepare:root=>{applySurfaceQuality(root,qualityMode);return renderer.compileAsync(root,camera,scene);},onPause:value=>{clearWalkInput();setWalkReady(!value);}});
  matchday.setQuality(qualityMode,qualityScale);visualAssets.registerOutdoor(world.group,stadium.root);applyArchitecturalUV(stadium.root);applyArchitecturalUV(stadium.circulation.root);applyArchitecturalUV(interiors.root);applyArchitecturalUV(building.root);applyArchitecturalUV(world.group);installInteriorShading(interiors.root);
  spatializeArchitecture(stadium.circulation.root);spatializeArchitecture(interiors.rooms.concourse);
- freezeArchitecture(world.group,[world.rotor]);freezeArchitecture(stadium.root,[stadium.matchBall]);freezeArchitecture(stadium.circulation.root);freezeArchitecture(interiors.root);freezeArchitecture(building.root);buildDestinationMenu();buildHotspots();bindUI();experienceHub=buildExperienceHub({getSettings:()=>({night,quality:qualityMode}),onOpen:()=>{const state={ready:walkReady,matchPaused:matchday.paused};stopTour();clearWalkInput();document.exitPointerLock?.();if(matchday.active)matchday.setPaused(true);setWalkReady(false);setNavOpen(false);return state;},onClose:state=>{if(matchday.active)matchday.setPaused(state.matchPaused);setWalkReady(state.ready);frameBudget.invalidate();},onExplore:()=>{if(matchday.active)matchday.exit();setMode('walk',{place:'entrance'});teleportToDestination('entrance');beginWalk();},onTraining:()=>{if(matchday.active)matchday.exit();matchday.launch('training');},onMatch:()=>{if(matchday.active)matchday.exit();matchday.launch('play');},onOnline:()=>{if(matchday.active)matchday.exit();matchday.launch('online');},onEntrance:()=>{if(matchday.active)matchday.exit();matchday.launch('tour');},onEnvironment:value=>{setDayNight(value);updateLocationURL();},onQuality:value=>{$('quality').value=value;setQuality();persistDisplaySettings();}});setNavOpen(false);document.body.dataset.mode=mode;setDayNight(false);applySurfaceQuality(scene,qualityMode);clock.time=performance.now();document.body.dataset.version='9.7.5';document.body.dataset.seats=stadium.seatCount;document.body.dataset.panels=stadium.panelCount;
+ setExplorationMatchMode=suspendExplorationDuringMatch([world.group,building.root,interiors.root,serviceRooms.root,stadium.circulation.root]);
+ freezeArchitecture(world.group,[world.rotor]);freezeArchitecture(stadium.root,[stadium.matchBall]);freezeArchitecture(stadium.circulation.root);freezeArchitecture(interiors.root);freezeArchitecture(building.root);buildDestinationMenu();buildHotspots();bindUI();experienceHub=buildExperienceHub({getSettings:()=>({night,quality:qualityMode}),onOpen:()=>{const state={ready:walkReady,matchPaused:matchday.paused};stopTour();clearWalkInput();document.exitPointerLock?.();if(matchday.active)matchday.setPaused(true);setWalkReady(false);setNavOpen(false);return state;},onClose:state=>{if(matchday.active)matchday.setPaused(state.matchPaused);setWalkReady(state.ready);frameBudget.invalidate();},onExplore:()=>{if(matchday.active)matchday.exit();setMode('walk',{place:'entrance'});teleportToDestination('entrance');beginWalk();},onTraining:()=>{if(matchday.active)matchday.exit();matchday.launch('training');},onMatch:()=>{if(matchday.active)matchday.exit();matchday.launch('play');},onOnline:()=>{if(matchday.active)matchday.exit();matchday.launch('online');},onEntrance:()=>{if(matchday.active)matchday.exit();matchday.launch('tour');},onEnvironment:value=>{setDayNight(value);updateLocationURL();},onQuality:value=>{$('quality').value=value;setQuality();persistDisplaySettings();}});setNavOpen(false);document.body.dataset.mode=mode;setDayNight(false);applySurfaceQuality(scene,qualityMode);clock.time=performance.now();document.body.dataset.version='9.7.6';document.body.dataset.seats=stadium.seatCount;document.body.dataset.panels=stadium.panelCount;
  const initial=new URLSearchParams(location.search);if(initial.get('night')==='1')setDayNight(true);const place=initial.get('place');if(initial.get('view')==='walk')setMode('walk',{place:place&&(places[place]||tourGoals[place])?place:'arcade'});else if(place&&(places[place]||tourGoals[place]))goPlace(place,false);
  $('load-status').textContent='正在准备室内与室外画面…';await renderer.compileAsync(scene,camera);document.body.dataset.ready='true';clock.time=performance.now();renderer.setAnimationLoop(render);requestAnimationFrame(()=>{$('loading').classList.add('finished');$('load-status').textContent='场景已就绪';if(initial.get('experience')==='football'||initial.has('room'))matchday.launch();else if(initial.get('experience')==='training')matchday.launch('training');else if(shouldOpenExperienceHub(initial))experienceHub.open();});
  window.addEventListener('resize',resize);canvas.addEventListener('webglcontextlost',e=>{e.preventDefault();toast('图形上下文已暂停，请重新加载页面恢复。');});
@@ -122,7 +126,16 @@ function applyGameCamera(state,view,dt){
  const period=state.phase==='penalties'?'penalty-'+(state.competition.shootout.home.length+state.competition.shootout.away.length):state.competition?.period;if(gameCameraPeriod!==period){gameCameraInstant=true;gameCameraPeriod=period;if(view==='first')yaw=player.yaw-Math.PI;}if(gameCameraInstant&&view==='first')yaw=player.yaw-Math.PI;
  const desired=state.replay?replayCamera(state,innerWidth/innerHeight):footballCamera(player,{view,yaw,pitch,style:state.cameraMode,ball:state.ball,aspect:innerWidth/innerHeight,penalty,training:state.training,playerFocus:footballPlayerFocus(state)}),pose=advanceFootballCamera({position:camera.position.toArray(),target:gameCameraLook?.toArray(),fov:camera.fov},desired,{player,aspect:innerWidth/innerHeight,dt,rate:['broadcast','close'].includes(state.cameraMode)?7:9,changed,instant:gameCameraInstant||view==='first'});camera.position.fromArray(pose.position);
  if(pose.target){if(!gameCameraLook)gameCameraLook=v();gameCameraLook.fromArray(pose.target);camera.lookAt(gameCameraLook);}else camera.rotation.set(pose.pitch,pose.yaw,0,'YXZ');gameCameraInstant=false;
- if(camera.fov!==pose.fov){camera.fov=pose.fov;camera.updateProjectionMatrix();}camera.updateMatrixWorld();temp.set(state.ball.x,Math.max(.11,state.ball.y),state.ball.z).project(camera);const cue=!state.paused&&state.phase==='playing'&&!state.replay?offscreenBallCue(temp,innerWidth,innerHeight):null;$('game-ball-cue').hidden=!cue;if(cue){$('game-ball-cue').style.transform=`translate(${Math.round(cue.x)}px,${Math.round(cue.y)}px) translate(-50%,-50%)`;$('game-ball-cue-arrow').style.transform=`rotate(${Math.round(cue.angle)}deg)`;$('game-ball-cue-distance').textContent=Math.round(Math.hypot(player.x-state.ball.x,player.z-state.ball.z))+' m';}walkFeet=0;
+ if(camera.fov!==pose.fov){camera.fov=pose.fov;camera.updateProjectionMatrix();}
+ camera.updateMatrixWorld();
+ const cue=!state.paused&&state.phase==='playing'&&!state.replay?offscreenBallCue(temp.set(state.ball.x,Math.max(.11,state.ball.y),state.ball.z).project(camera),innerWidth,innerHeight):null;
+ writeHudProperty(ballCue,'hidden',!cue);
+ if(cue){
+  writeHudProperty(ballCue.style,'transform',`translate(${Math.round(cue.x)}px,${Math.round(cue.y)}px) translate(-50%,-50%)`);
+  writeHudProperty(ballCueArrow.style,'transform',`rotate(${Math.round(cue.angle)}deg)`);
+  writeHudProperty(ballCueDistance,'textContent',Math.round(Math.hypot(player.x-state.ball.x,player.z-state.ball.z))+' m');
+ }
+ walkFeet=0;
 }
 function gameInput(dt){
  if(matchday.paused)return footballInput();
@@ -231,7 +244,11 @@ function constrainRoomOrbit(){const spec=roomSpecs[active];if(!spec)return;const
 function render(timestamp){
  const playing=!!matchday?.playing;
  const raw=Math.min(clock.getDelta(),1);
- if(playing!==matchBudgetActive){matchBudgetActive=playing;resetMatchBudget();if(qualityScale!==1){qualityScale=1;setQuality(false);}}
+ if(playing!==matchBudgetActive){
+  matchBudgetActive=playing;setExplorationMatchMode(playing);
+  if(playing)$('interact').hidden=true;
+  resetMatchBudget();applyAdaptiveScale(playing?matchFrameRate.state.scale:1);
+ }
  elapsed+=raw;sceneTime+=raw;frames++;
  if(transition){
   transition.time+=raw;
@@ -258,17 +275,15 @@ function render(timestamp){
   if(modalWasOpen!==modalOpen)frameBudget.invalidate();
   modalWasOpen=modalOpen;
   const renderDelta=sceneTime;sceneTime=0;
-  world.rotor.rotation.z=elapsed*.13;
-  building.root.visible=interiors.root.visible=serviceRooms.root.visible=stadium.circulation.root.visible=!playing;
   if(!playing){
+   world.rotor.rotation.z=elapsed*.13;
    building.update(camera.position,mode);interactions.update(camera.position,renderDelta,mode,camera);
    interiors.update(camera.position,active);serviceRooms.update(camera.position,renderDelta);
    walkGuide.update(navigationPosition(),mode==='walk'?yaw:walker.yaw,renderDelta,mode,mode==='walk'?desiredEye:EYE_HEIGHT);refreshWalkingTour();
-  }else $('interact').hidden=true;
+  }
   const privateEnclosed=!playing&&(Object.entries(roomSpecs).some(([key,s])=>key!=='lounge'&&inside(camera.position.x,camera.position.z,s)&&Math.abs(camera.position.y-s.y)<6)||(camera.position.x>-80&&camera.position.x<-66&&camera.position.z>-43&&camera.position.z<50&&camera.position.y<3)||!!serviceRoomAt({x:camera.position.x,y:camera.position.y-desiredEye,z:camera.position.z}));
-  const outer=(Math.abs(camera.position.x)/105)**2.8+(Math.abs(camera.position.z)/122)**2.8,inner=(Math.abs(camera.position.x)/85)**2.8+(Math.abs(camera.position.z)/103)**2.8;
-  const inPublicConcourse=!playing&&((outer<1&&inner>1&&camera.position.y>12.9&&camera.position.y<17.8)||(camera.position.y>-2&&camera.position.y<44&&inCoreShaft(camera.position.x,camera.position.z)));
-  stadium.root.visible=true;world.group.visible=!playing;
+  const inPublicConcourse=!playing&&(((Math.abs(camera.position.x)/105)**2.8+(Math.abs(camera.position.z)/122)**2.8<1&&(Math.abs(camera.position.x)/85)**2.8+(Math.abs(camera.position.z)/103)**2.8>1&&camera.position.y>12.9&&camera.position.y<17.8)||(camera.position.y>-2&&camera.position.y<44&&inCoreShaft(camera.position.x,camera.position.z)));
+  stadium.root.visible=true;
   if(!playing){world.update(camera.position);updateArchitectureSectors(stadium.circulation.root,camera.position);stadium.circulation.update(camera.position,privateEnclosed);}
   stadium.update(camera,mode,qualityMode==='high',qualityMode==='low',playing,playing&&!matchday.training);
   const enclosed=privateEnclosed||inPublicConcourse||(camera.position.x>-70&&camera.position.x<-41&&Math.abs(camera.position.z)<2.5&&camera.position.y<3.5);
@@ -279,13 +294,20 @@ function render(timestamp){
  }
  if(sample){
   matchSampleTime+=raw;matchSampleFrames++;
-  if(rendered){matchSampleDraws++;matchSampleWork+=performance.now()-measureStart;}
+  if(previousRaf)recordFrameGap(matchRafGaps,timestamp-previousRaf);previousRaf=timestamp;
+  if(rendered){
+   if(previousDraw)recordFrameGap(matchDrawGaps,timestamp-previousDraw);previousDraw=timestamp;
+   matchSampleDraws++;matchSampleWork+=performance.now()-measureStart;
+  }
   if(matchSampleTime>=1.5){
    const renderFps=Math.round(matchSampleDraws/matchSampleTime);
-   const {rate,scale}=matchFrameRate.update({rafFps:matchSampleFrames/matchSampleTime,renderFps,frameMs:matchSampleWork/Math.max(1,matchSampleDraws)});
+   const gap95=frameGap95(matchDrawGaps,matchSampleDraws-1),rafGap95=frameGap95(matchRafGaps,matchSampleFrames-1);
+   const {rate,scale}=matchFrameRate.update({rafFps:matchSampleFrames/matchSampleTime,renderFps,frameMs:matchSampleWork/Math.max(1,matchSampleDraws),gap95,rafGap95});
    document.body.dataset.targetFps=rate;
-   $('game-frame-rate-status').textContent='最近实测 '+renderFps+' FPS';
-   if(qualityScale!==scale){qualityScale=scale;setQuality(false);}
+   document.body.dataset.frameGap95=String(gap95??'');
+   document.body.dataset.matchRenderedFps=String(renderFps);
+   const readout='最近实测 '+renderFps+' FPS';if($('game-frame-rate-status').textContent!==readout)$('game-frame-rate-status').textContent=readout;
+   applyAdaptiveScale(scale);
    clearMatchSample();
   }
  }else if(matchSampleTime)clearMatchSample();
@@ -294,20 +316,37 @@ function render(timestamp){
   document.body.dataset.camera=camera.position.toArray().map(x=>x.toFixed(3)).join(',');
   document.body.dataset.heading=[yaw,pitch].map(x=>x.toFixed(4)).join(',');
  }
- if(elapsed-lastPerf>1.5){const fps=Math.round(frames/(elapsed-lastPerf)),renderRate=Math.round(drawnFrames/(elapsed-lastPerf));$('performance').textContent=`THREE.JS r${THREE.REVISION}  /  ${stadium.seatCount.toLocaleString()} 个座位模型  /  ${stadium.panelCount.toLocaleString()} 个气枕  /  ${renderRate} FPS`;document.body.dataset.fps=fps;document.body.dataset.renderfps=renderRate;drawnFrames=0;if(!playing&&qualityMode==='standard'){if(elapsed>6&&fps<28&&qualityScale>.82&&(keys.size>0||dragging||joystickPointer!==null||transition||tourOn||matchday?.cinematic)){qualityScale=Math.max(.82,qualityScale*.92);recoveryFrames=0;setQuality(false);}else if(fps>48&&qualityScale<1){if(++recoveryFrames>=4){qualityScale=Math.min(1,qualityScale+.08);recoveryFrames=0;setQuality(false);}}else recoveryFrames=0;}document.body.dataset.camera=camera.position.toArray().map(x=>x.toFixed(2)).join(',');document.body.dataset.nearSeats=stadium.detailSeatCount;document.body.dataset.drawcalls=renderer.info.render.calls;document.body.dataset.triangles=renderer.info.render.triangles;frames=0;lastPerf=elapsed;}
+ if(elapsed-lastPerf>1.5){const fps=Math.round(frames/(elapsed-lastPerf)),renderRate=Math.round(drawnFrames/(elapsed-lastPerf));$('performance').textContent=`THREE.JS r${THREE.REVISION}  /  ${stadium.seatCount.toLocaleString()} 个座位模型  /  ${stadium.panelCount.toLocaleString()} 个气枕  /  ${renderRate} FPS`;document.body.dataset.fps=fps;document.body.dataset.renderfps=renderRate;drawnFrames=0;if(!playing&&qualityMode==='standard'){if(elapsed>6&&fps<28&&qualityScale>.82&&(keys.size>0||dragging||joystickPointer!==null||transition||tourOn||matchday?.cinematic)){applyAdaptiveScale(Math.max(.82,qualityScale*.92));recoveryFrames=0;}else if(fps>48&&qualityScale<1){if(++recoveryFrames>=4){applyAdaptiveScale(Math.min(1,qualityScale+.08));recoveryFrames=0;}}else recoveryFrames=0;}document.body.dataset.camera=camera.position.toArray().map(x=>x.toFixed(2)).join(',');document.body.dataset.nearSeats=stadium.detailSeatCount;document.body.dataset.drawcalls=renderer.info.render.calls;document.body.dataset.triangles=renderer.info.render.triangles;frames=0;lastPerf=elapsed;}
 }
-function clearMatchSample(){matchSampleTime=matchSampleFrames=matchSampleDraws=matchSampleWork=0;}
+function recordFrameGap(histogram,ms){if(ms>0)histogram[Math.min(histogram.length-1,Math.ceil(ms))]++;}
+function frameGap95(histogram,count){if(count<2)return undefined;const limit=Math.ceil(count*.95);let sum=0;for(let ms=1;ms<histogram.length;ms++){sum+=histogram[ms];if(sum>=limit)return ms;}}
+function clearMatchSample(){matchSampleTime=matchSampleFrames=matchSampleDraws=matchSampleWork=previousRaf=previousDraw=0;matchRafGaps.fill(0);matchDrawGaps.fill(0);}
 function resetMatchBudget(){
- const {rate}=matchFrameRate.reset({cap:matchFps,quality:qualityMode});gameDrawBudget.reset();clearMatchSample();recoveryFrames=0;
+ const {rate}=matchFrameRate.reset({cap:matchFps,quality:qualityMode,mobile:innerWidth<=1024});gameDrawBudget.reset();clearMatchSample();recoveryFrames=0;
  document.body.dataset.targetFps=rate;document.body.dataset.matchFpsCap=matchFps;
+ delete document.body.dataset.frameGap95;delete document.body.dataset.matchRenderedFps;
  $('game-frame-rate-status').textContent='开球后测量实际帧率';
 }
 function syncMatchFpsOptions(){for(const option of document.querySelectorAll('[data-match-fps]'))option.value=String(matchFps);}
 function persistDisplaySettings(){saveVisitorSettings(visitorStorage,{quality:qualityMode,matchFps});}
 function setMatchFps(value){matchFps=matchFpsCap(value);syncMatchFpsOptions();setQuality();persistDisplaySettings();}
-function setQuality(reset=true){frameBudget.invalidate();qualityMode=$('quality').value;if(reset){qualityScale=1;resetMatchBudget();}const profile=qualityProfile(qualityMode,innerWidth,innerHeight,devicePixelRatio,qualityScale);pixelBudget=profile.pixelRatio;renderer.setPixelRatio(pixelBudget);renderer.shadowMap.enabled=profile.shadows;renderer.shadowMap.needsUpdate=true;document.body.dataset.resolution=pixelBudget.toFixed(2);document.body.dataset.quality=qualityMode;if(scene)applySurfaceQuality(scene,qualityMode);matchday?.setQuality(qualityMode,qualityScale);}
+let bufferWidth=0,bufferHeight=0,physicalWidth=0,physicalHeight=0;
+function syncDrawingBuffer(){
+ const width=innerWidth,height=innerHeight,{pixelRatio}=qualityProfile(qualityMode,width,height,devicePixelRatio,qualityScale);
+ const pixelsX=Math.floor(width*pixelRatio),pixelsY=Math.floor(height*pixelRatio);
+ if(width===bufferWidth&&height===bufferHeight&&pixelsX===physicalWidth&&pixelsY===physicalHeight)return;
+ bufferWidth=width;bufferHeight=height;physicalWidth=pixelsX;physicalHeight=pixelsY;
+ renderer.setDrawingBufferSize(width,height,pixelRatio);document.body.dataset.resolution=pixelRatio.toFixed(2);frameBudget.invalidate();
+}
+function applyAdaptiveScale(scale){if(qualityScale===scale)return;qualityScale=scale;syncDrawingBuffer();matchday?.setQuality(qualityMode,scale);}
+function setQuality(){
+ frameBudget.invalidate();const next=$('quality').value,modeChanged=next!==qualityMode;qualityMode=next;
+ resetMatchBudget();qualityScale=matchday?.playing?matchFrameRate.state.scale:1;syncDrawingBuffer();
+ const shadow=qualityMode==='high';if(renderer.shadowMap.enabled!==shadow){renderer.shadowMap.enabled=shadow;renderer.shadowMap.needsUpdate=shadow;}
+ document.body.dataset.quality=qualityMode;if(scene&&modeChanged)applySurfaceQuality(scene,qualityMode);matchday?.setQuality(qualityMode,qualityScale);
+}
 
-function resize(){document.body.dataset.touch=String(innerWidth<=1024);setQuality(false);camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);frameBudget.invalidate();}
+function resize(){document.body.dataset.touch=String(innerWidth<=1024);syncDrawingBuffer();camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();frameBudget.invalidate();}
 function updateLocationURL(){const q=new URLSearchParams(),room=matchday?.onlineRoom||new URLSearchParams(location.search).get('room');if(room)q.set('room',room);if(active!=='exterior')q.set('place',active);if(night)q.set('night','1');if(mode==='walk')q.set('view','walk');if(matchday?.active){q.set('experience',matchday.training?'training':matchday.playing?'football':'matchday');if(matchday.training)q.set('drill',matchday.training);}history.replaceState(null,'',location.pathname+(q.size?'?'+q:''));}
 function refreshWalkingTour(){const state=walkingTour.update(walkGuide.getGoal(),walkGuide.isArrived()),show=state?.arrived&&mode==='walk'&&walkReady&&$('explore').hidden&&!document.querySelector('dialog[open]'),key=JSON.stringify([state?.id,state?.index,state?.arrived,!!show]);if(key===tourUIState)return;tourUIState=key;document.body.dataset.walkingTour=state?.id||'none';$('tour-arrival').hidden=!show;if(state){$('tour-arrival-progress').textContent=`${state.index+1} / ${state.total} · ${state.title}`;$('tour-arrival-title').textContent='已到达 · '+tourGoals[state.goal];$('tour-advance').textContent=state.last?'完成导览':'下一站 →';}}
 function stopTour(){if(!tourOn)return;tourOn=false;$('tour').innerHTML='<span>▷</span> 自动巡游 <small>15 个视角</small>';}
