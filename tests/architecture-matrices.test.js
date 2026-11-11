@@ -43,3 +43,22 @@ test('a live match bypasses hidden exploration transforms without removing any r
  assert.ok(probes.every(o=>o.matrixWorld.elements[12]===5));
  assert.equal(world.group.visible,false);world.group.visible=old;
 });
+
+test('the real entrance and concourse frusta reject most exterior tree geometry while keeping every tree',()=>{
+ const belt=world.group.getObjectByName('Fröttmaning trees');
+ const crowns=belt.children.filter(mesh=>mesh.castShadow);
+ const trunks=belt.children.filter(mesh=>!mesh.castShadow);
+ assert.equal(crowns.reduce((count,mesh)=>count+mesh.count,0),1070);
+ assert.equal(trunks.reduce((count,mesh)=>count+mesh.count,0),1070);
+ assert.ok(crowns.every(mesh=>mesh.instanceColor&&mesh.boundingSphere));
+ assert.equal(new Set(crowns.map(mesh=>mesh.geometry)).size,1,'clusters share the same foliage geometry');
+ const triangles=meshes=>meshes.reduce((total,mesh)=>total+mesh.count*(mesh.geometry.index?.count??mesh.geometry.attributes.position.count)/3,0);
+ const allTriangles=triangles(belt.children);
+ for(const [position,target] of [[[0,-2.4,214],[0,0,174]],[[94,13.9,-47],[96,14,-12]]]){
+  const camera=new THREE.PerspectiveCamera(66,390/844,.06,4500);
+  camera.position.fromArray(position);camera.lookAt(...target);camera.updateMatrixWorld(true);
+  const frustum=new THREE.Frustum().setFromProjectionMatrix(new THREE.Matrix4().multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse));
+  const visible=belt.children.filter(mesh=>frustum.intersectsObject(mesh));
+  assert.ok(visible.length<=10&&triangles(visible)>0&&triangles(visible)<allTriangles*.30,'phone view keeps a tight draw and triangle budget');
+ }
+});

@@ -18,14 +18,72 @@ export const destinations=[
  {id:'guestRoom',name:'客队更衣室',group:'team',floor:'球员层',detail:'更衣区域 · 淋浴区'},
  {id:'press',name:'新闻发布厅',group:'team',floor:'球员层',detail:'发布台 · 媒体座席'}
 ];
+const aliases={
+ entrance:'南门 正门',
+ arcade:'入口大厅 咨询大厅 接待台 服务台',
+ concourse:'环形大厅 环廊',
+ store:'拜仁商店 纪念品',
+ museum:'博物馆 荣誉室 荣誉展示 奖杯',
+ lounge:'贵宾室 包间',
+ visitorEntry:'草坪入口 球场入口',
+ pitch:'草地',
+ tunnel:'球员通道 入场走廊',
+ homeRoom:'拜仁更衣室',
+ guestRoom:'客队衣柜',
+ press:'发布会 媒体厅'
+};
 export const destinationName=id=>destinations.find(p=>p.id===id)?.name||'选择地点';
-export function matchesDestination(place,query,group='all'){
- return(group==='all'||place.group===group)&&(!query||`${place.name} ${place.detail} ${place.floor}`.toLowerCase().includes(query.trim().toLowerCase()));
+export function matchesDestination(place,query='',group='all'){
+ if(group!=='all'&&place.group!==group)return false;
+ const searchable=`${place.name} ${place.detail} ${place.floor} ${aliases[place.id]||''}`.toLowerCase();
+ const terms=String(query??'').normalize('NFKC').trim().toLowerCase().split(/\s+/).filter(Boolean);
+ return terms.every(term=>searchable.includes(term));
 }
 export function buildDestinationMenu(){
- const nav=document.getElementById('locations'),search=document.getElementById('destination-search'),tabs=document.querySelectorAll('[data-destination-group]');let group='all';
+ const panel=document.getElementById('explore');
+ const nav=document.getElementById('locations'),search=document.getElementById('destination-search');
+ const tabs=[...document.querySelectorAll('[data-destination-group]')],empty=document.getElementById('destination-empty');
+ let group='all';
+ // Keep the location list ahead of secondary actions in visual and tab order.
+ document.getElementById('walking-tour').before(panel.querySelector('.explore-entrypoints'));
  nav.innerHTML=destinations.map((p,i)=>`<button class="location" data-place="${p.id}" aria-current="false"><span class="location-icon" aria-hidden="true">${String(i+1).padStart(2,'0')}</span><span><b>${p.name}</b><small>${p.detail}</small></span><span class="location-floor">${p.floor}</span></button>`).join('');
- const filter=()=>{let count=0;for(const button of nav.querySelectorAll('.location')){const place=destinations.find(p=>p.id===button.dataset.place);button.hidden=!matchesDestination(place,search.value,group);if(!button.hidden)count++;}document.getElementById('destination-empty').hidden=count>0;};
- search.oninput=filter;for(const tab of tabs)tab.onclick=()=>{group=tab.dataset.destinationGroup;for(const t of tabs)t.setAttribute('aria-selected',String(t===tab));filter();};
+ const buttons=[...nav.querySelectorAll('.location')];
+ function filter(){
+  let count=0;
+  for(const [index,button] of buttons.entries()){
+   button.hidden=!matchesDestination(destinations[index],search.value,group);
+   if(!button.hidden)count++;
+  }
+  empty.hidden=count>0;
+  panel.scrollTop=0;
+ }
+ function selectGroup(tab){
+  group=tab.dataset.destinationGroup;
+  for(const item of tabs){
+   item.setAttribute('aria-selected',String(item===tab));
+   item.tabIndex=item===tab?0:-1;
+  }
+  filter();
+ }
+ search.oninput=()=>selectGroup(tabs[0]);
+ search.onkeydown=e=>{
+  if(e.key!=='Enter'||e.isComposing)return;
+  const first=buttons.find(button=>!button.hidden);
+  if(first&&search.value.trim()){e.preventDefault();first.click();}
+ };
+ for(const [index,tab] of tabs.entries()){
+  tab.onclick=()=>selectGroup(tab);
+  tab.onkeydown=e=>{
+   let next;
+   if(e.key==='ArrowRight')next=(index+1)%tabs.length;
+   else if(e.key==='ArrowLeft')next=(index+tabs.length-1)%tabs.length;
+   else if(e.key==='Home')next=0;
+   else if(e.key==='End')next=tabs.length-1;
+   else return;
+   e.preventDefault();e.stopPropagation();
+   selectGroup(tabs[next]);tabs[next].focus({preventScroll:true});
+  };
+ }
+ selectGroup(tabs[0]);
  return{filter};
 }

@@ -107,14 +107,22 @@ seatingTiers.forEach((tier,ti)=>{
 // Indoor starts use room aisles and their actual door, not the ring behind a wall.
 for(const key of ['homeRoom','guestRoom']){const room=roomSpecs[key],west=room.x-room.w/2+3,east=room.x+room.w/2-2;for(const[name,x,z]of[['NW',west,room.z-3.2],['NE',east,room.z-3.2],['SW',west,room.z+3.2],['SE',east,room.z+3.2]])node(key+'Walk'+name,x,room.y,z,'更衣室通行过道','绕过备战台，从东侧房门离开','room');for(const[a,b]of[['NW','NE'],['NE','SE'],['SE','SW'],['SW','NW']])join(key+'Walk'+a,key+'Walk'+b);join(key+'WalkNE',key);join(key+'WalkSE',key);const door=key==='homeRoom'?'homeDoor':key+'Door';join(key+'WalkNE',door);join(key+'WalkSE',door);}
 const oldPress=links.findIndex(([a,b])=>a==='press'&&b==='pressDoor');links.splice(oldPress,1);nodes.press.x=-82;nodes.press.z=-33.4;node('pressEntry',-72.8,-2.7,-31,'发布厅入口过道','沿侧边过道前往发布台','room');join('pressDoor','pressEntry');for(const[name,x,z,y]of[['EF',-72.8,-33.4,-2.7],['EB',-72.8,-22.6,-1.94],['CF',-82,-33.4,-2.7],['CB',-82,-22.6,-1.94],['WF',-91,-33.4,-2.7],['WB',-91,-22.6,-1.94]])node('pressWalk'+name,x,y,z,'发布厅通行过道','沿座席之间或两侧的过道通行','room');for(const[a,b]of[['EF','EB'],['CF','CB'],['WF','WB'],['EF','CF'],['CF','WF'],['EB','CB'],['CB','WB']])join('pressWalk'+a,'pressWalk'+b);join('pressEntry','pressWalkEF');join('pressWalkCF','press');
+// The strip between the press desk and sponsor wall is walkable. The
+// side aisles reach it without sending the visitor across the long desk.
+for(const [side,offset,aisle]of [['West',-7.95,'WF'],['East',7.95,'EF']]){
+ const {x,y,z}=roomSpecs.press,id='pressWalkStage'+side;
+ node(id,x+offset,y,z-6.75,'发布台后侧通道','绕过发布台，从侧边过道前往房门','room');
+ join(id,'pressWalk'+aisle);
+}
+join('pressWalkStageWest','pressWalkStageEast');
 for(const[key,xs,zs]of[['store',[-10.1,0,10.4],[112.5,116.55,119.65]],['museum',[-101.7,-96,-89.5],[47.5,52.7,58,63.3,68.6]]]){const room=roomSpecs[key];for(let row=0;row<zs.length;row++)for(let col=0;col<xs.length;col++){const id=key+'Walk'+row+'-'+col;node(id,xs[col],room.y,zs[row],key==='store'?'商店通行过道':'展厅通行过道','沿展品和货架之间的通道前往房门','upper');if(col)join(id,key+'Walk'+row+'-'+(col-1));if(row)join(id,key+'Walk'+(row-1)+'-'+col);}if(key==='store'){join('store','storeWalk1-2');join('store','storeWalk2-2');for(const[col,x]of[[0,xs[0]],[2,xs[2]]]){node('storeWalkBack'+col,x,room.y,122.8,'商店后侧通道','沿侧边通道走向前方交叉过道','upper');join('storeWalkBack'+col,'storeWalk2-'+col);}}else{join('museum','museumWalk2-1');join('museum','museumWalk2-2');}}
 export const tourNodes=nodes;
 export const tourLinks=links;
 const neighbours=new Map(Object.keys(nodes).map(id=>[id,[]]));for(const[a,b]of links){neighbours.get(a).push(b);neighbours.get(b).push(a);}
 export const tourGoals={arcade:'接待大厅',concourse:'公共大厅',access:'室内公共楼梯',store:'球迷商店',museum:'荣誉展厅',lowerStands:'下层看台',stands:'中层看台',upperStands:'上层看台',lounge:'贵宾包厢',visitorEntry:'草坪参观入口',pitch:'草坪',tunnel:'球员入场通道',homeRoom:'主队更衣室',guestRoom:'客队更衣室',press:'新闻发布厅',esplanade:'南侧广场',entrance:'返回南侧正门',exterior:'南侧正门'};
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z,(a.y-b.y)*2);
-export function planTour(position,goal='pitch'){
- if(!nodes[goal])goal='pitch';
+const privateStarts=new Set(Object.values(nodes).filter(n=>roomAt(n)&&!n.id.endsWith('Door')).map(n=>n.id));
+export function tourStarts(position){
  let candidates=Object.values(nodes);const inner=(Math.abs(position.x)/86)**2.8+(Math.abs(position.z)/104)**2.8,outer=(Math.abs(position.x)/105)**2.8+(Math.abs(position.z)/120)**2.8,stair=accessAt(position.x,position.z);
  const room=roomAt(position);
  if(room){candidates=candidates.filter(n=>n.id===room||n.id===room+'Door'||n.id.startsWith(room+'Walk')||room==='homeRoom'&&n.id==='homeDoor'||room==='press'&&n.id==='pressEntry');const clear=candidates.filter(n=>!furnitureBlocksSegment(position,n,room));if(clear.length)candidates=clear;}
@@ -135,7 +143,16 @@ export function planTour(position,goal='pitch'){
  else if(inVisitorPassage(position.x,position.z))candidates=candidates.filter(n=>['visitorGate','passage','ramp','pitchExit','pitchEdge'].includes(n.id));
  else if(position.y<2&&inner>1&&outer<1.02)candidates=candidates.filter(n=>n.id.startsWith('lower')||['reception','turn','door'].includes(n.id));
  else if(position.y<2&&outer>=1.02)candidates=candidates.filter(n=>n.id.startsWith('outside')||n.id.endsWith('Bottom')||['entrance','security','forecourt','door'].includes(n.id));
- const start=candidates.reduce((best,n)=>distance(position,n)<distance(position,best)?n:best,candidates[0]).id;
+ // Room routes still use their own doors, even when an interior waypoint
+ // happens to be the closest point to a visitor outside the wall.
+ if(!room)candidates=candidates.filter(n=>!privateStarts.has(n.id));
+ return candidates;
+}
+export function planTour(position,goal='pitch',startId){
+ if(!nodes[goal])goal='pitch';
+ const stair=accessAt(position.x,position.z);
+ const start=startId??tourStarts(position).reduce((best,n)=>!best||distance(position,n)<distance(position,best)?n:best,null)?.id;
+ if(!start||!nodes[start])return[];
  const costs=new Map([[start,0]]),previous=new Map(),open=[{id:start,cost:0,score:distance(nodes[start],nodes[goal])}];
  function enqueue(item){let lo=0,hi=open.length;while(lo<hi){const mid=(lo+hi)>>1;if(open[mid].score<item.score)lo=mid+1;else hi=mid;}open.splice(lo,0,item);}
  while(open.length){const current=open.shift(),at=current.id,best=current.cost;if(best!==costs.get(at))continue;if(at===goal)break;

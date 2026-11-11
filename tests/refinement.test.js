@@ -48,6 +48,20 @@ test('the floor map keeps the visitor in view and ignores non-destination routin
  const goal={...point,...mapUnproject(view,{x:2,y:marker.y})};
  assert.equal(mapDestinationAt(view,{x:12,y:marker.y},{arcade:goal}),null);
 });
+test('the floor picker previews another level without drawing the visitor on that level',()=>{
+ const visitor=tourNodes.entrance;
+ const overview=arenaMapView(visitor,visitor.y,'walk','overview');
+ assert.equal(overview.showPosition,true);
+ assert.equal(mapDestinationAt(overview,mapProject(overview,tourNodes.esplanade)),'esplanade');
+ const publicFloor=arenaMapView(visitor,visitor.y,'walk','public');
+ assert.equal(publicFloor.current,'entry');
+ assert.equal(publicFloor.showPosition,false);
+ assert.equal(mapDestinationAt(publicFloor,mapProject(publicFloor,tourNodes.museum)),'museum');
+ assert.equal(mapDestinationAt(publicFloor,mapProject(publicFloor,tourNodes.homeRoom)),null);
+ const upperFloor=arenaMapView(visitor,visitor.y,'walk','upper');
+ assert.deepEqual(upperFloor.destinations,['upperStands']);
+ assert.equal(mapDestinationAt(upperFloor,mapProject(upperFloor,tourNodes.upperStands)),'upperStands');
+});
 test('analog touch control has a radial dead zone, never exceeds unit speed and preserves diagonal direction',()=>{
  assert.equal(joystickAxes(1,1).x,0);const full=joystickAxes(100,-100);assert.ok(Math.abs(Math.hypot(full.x,full.y)-1)<1e-10);assert.ok(Math.abs(full.x-full.y)<1e-10);assert.ok(joystickAxes(12,0).x<joystickAxes(24,0).x);assert.deepEqual(joystickAxes(NaN,1),{x:0,y:0,thumbX:0,thumbY:0});assert.equal(joystickAxes(25,0).y,0);
 });

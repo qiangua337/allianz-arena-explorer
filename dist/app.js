@@ -92,7 +92,7 @@ export async function startArena({hub, initial, nightAtStart}){
  matchday.setQuality(qualityMode,qualityScale);visualAssets.registerOutdoor(world.group,stadium.root);applyArchitecturalUV(stadium.root);applyArchitecturalUV(stadium.circulation.root);applyArchitecturalUV(interiors.root);applyArchitecturalUV(building.root);applyArchitecturalUV(world.group);installInteriorShading(interiors.root);
  spatializeArchitecture(stadium.circulation.root);spatializeArchitecture(interiors.rooms.concourse);
  setExplorationMatchMode=suspendExplorationDuringMatch([world.group,building.root,interiors.root,serviceRooms.root,stadium.circulation.root]);
- freezeArchitecture(world.group,[world.rotor]);freezeArchitecture(stadium.root,[stadium.matchBall]);freezeArchitecture(stadium.circulation.root);freezeArchitecture(interiors.root);freezeArchitecture(building.root);buildDestinationMenu();buildHotspots();bindUI();setNavOpen(false);document.body.dataset.mode=mode;setDayNight(nightAtStart);applySurfaceQuality(scene,qualityMode);clock.time=performance.now();document.body.dataset.version='9.7.8';document.body.dataset.seats=stadium.seatCount;document.body.dataset.panels=stadium.panelCount;
+ freezeArchitecture(world.group,[world.rotor]);freezeArchitecture(stadium.root,[stadium.matchBall]);freezeArchitecture(stadium.circulation.root);freezeArchitecture(interiors.root);freezeArchitecture(building.root);buildDestinationMenu();buildHotspots();bindUI();setNavOpen(false);document.body.dataset.mode=mode;setDayNight(nightAtStart);applySurfaceQuality(scene,qualityMode);clock.time=performance.now();document.body.dataset.version='9.7.9';document.body.dataset.seats=stadium.seatCount;document.body.dataset.panels=stadium.panelCount;
  const place=initial.get('place');if(initial.get('view')==='walk')setMode('walk',{place:place&&(places[place]||tourGoals[place])?place:'arcade'});else if(place&&(places[place]||tourGoals[place]))goPlace(place,false);
  $('load-status').textContent='正在准备室内与室外画面…';await renderer.compileAsync(scene,camera);document.body.dataset.ready='true';clock.time=performance.now();renderer.setAnimationLoop(render);
  window.addEventListener('resize',resize);canvas.addEventListener('webglcontextlost',e=>{e.preventDefault();toast('图形上下文已暂停，请重新加载页面恢复。');});
@@ -199,8 +199,19 @@ function standFromSeat(session){
  camera.position.copy(session.standingPosition);walkFeet=seatStanding?.feet??floorAt(camera.position.x,camera.position.z);desiredEye=seatStanding?.eye??EYE_HEIGHT;camera.position.y=walkFeet+desiredEye;seatStanding=null;walkGuide.setSuppressed(false);document.body.dataset.seated='false';frameBudget.invalidate();
 }
 function clearWalkInput(){smoothInput.x=smoothInput.z=0;keys.clear();moveFlags.clear();movementPointers.clear();touchAxes.x=touchAxes.y=0;joystickPointer=null;if($('joystick-thumb'))$('joystick-thumb').style.transform='none';dragging=false;lastPointer=null;document.body.classList.remove('looking');}
-function setNavOpen(open){if(open&&matchday?.playing)return;$('explore').hidden=!open;$('nav-trigger').setAttribute('aria-expanded',String(open));$('guide-goal').setAttribute('aria-expanded',String(open));document.body.classList.toggle('nav-open',open);if(open){clearWalkInput();if(document.pointerLockElement===canvas)document.exitPointerLock?.();}}
-function toggleMap(){if(matchday?.playing)return;const panel=document.querySelector('.minimap');panel.hidden=!panel.hidden;$('map-toggle').setAttribute('aria-expanded',String(!panel.hidden));if(!panel.hidden)drawMap();}
+function setNavOpen(open){if(open&&matchday?.playing)return;$('explore').hidden=!open;$('nav-trigger').setAttribute('aria-expanded',String(open));$('guide-goal').setAttribute('aria-expanded',String(open));document.body.classList.toggle('nav-open',open);if(open){setMapOpen(false);clearWalkInput();if(document.pointerLockElement===canvas)document.exitPointerLock?.();}}
+function setMapOpen(open){
+ if(open&&matchday?.playing)return;
+ const panel=$('arena-map-panel');
+ panel.hidden=!open;
+ $('map-toggle').setAttribute('aria-expanded',String(open));
+ if(open){
+  setNavOpen(false);clearWalkInput();
+  if(document.pointerLockElement===canvas)document.exitPointerLock?.();
+  drawMap(true);
+ }
+}
+function toggleMap(){setMapOpen($('arena-map-panel').hidden);}
 function toggleHUD(){if(matchday?.playing)return;setNavOpen(false);const hidden=document.body.classList.toggle('hud-hidden');$('toggle-hud').setAttribute('aria-pressed',String(hidden));$('toggle-hud').setAttribute('aria-label',hidden?'显示界面':'隐藏界面');}
 function setWalkReady(ready){walkReady=mode==='walk'&&ready;document.body.dataset.walking=String(walkReady);$('walk-prompt').hidden=mode!=='walk'||walkReady;if(!walkReady)clearWalkInput();}
 function updateLookHint(){const locked=document.pointerLockElement===canvas;document.body.dataset.look=locked?'locked':'drag';const label=$('look-hint'),button=$('lock-pointer');if(label)label.textContent=locked?'移动鼠标转头':'按住画面转头 · Q/E 转向 · PgUp/PgDn 抬头低头';if(button){button.textContent=locked?'释放鼠标':'锁定鼠标';button.disabled=pointerLockPending;}}
@@ -259,8 +270,41 @@ const hotspotDefs=[{name:'探索球场内部',id:'stands',p:[0,52,0],outside:tru
 function buildHotspots(){for(const h of hotspotDefs){const b=document.createElement('button');b.className='hotspot';b.innerHTML=`<span class="dot">+</span>${h.name}`;b.setAttribute('aria-label','前往'+h.name);b.addEventListener('click',()=>{stopTour();goPlace(h.id);});$('hotspots').appendChild(b);h.el=b;}}
 function updateHotspots(){const on=$('markers').checked&&mode==='orbit';const outdoors=active==='exterior'||active==='esplanade';for(const h of hotspotDefs){const show=on&&!roomSpecs[active]&&active!=='tunnel'&&((h.outside&&outdoors)||(h.inside&&!outdoors));if(!show){h.el.hidden=true;continue;}temp.fromArray(h.p).project(camera);const px=(temp.x*.5+.5)*innerWidth,py=(-temp.y*.5+.5)*innerHeight;h.el.hidden=temp.z<0||temp.z>1||px<260||px>innerWidth-240||py<175||py>innerHeight-180;if(!h.el.hidden){h.el.style.left=px+'px';h.el.style.top=py+'px';}}}
 
-const map=$('map'),ctx=map.getContext('2d');let lastMapView=null;
-function drawMap(){const direction=v();camera.getWorldDirection(direction);lastMapView=drawArenaFloorMap(ctx,{position:camera.position,feetY:camera.position.y-desiredEye,mode,night,route:walkGuide?.getRoute()||[],goal:walkGuide?.getGoal(),yaw:-Math.atan2(direction.x,-direction.z)});$('elevation').textContent=lastMapView.label;}
+const map=$('map'),ctx=map.getContext('2d'),mapDirection=v();
+let lastMapView=null,lastMapPaint,listedFloor,listedGoal;
+function chooseMapPlace(id){
+ setMapOpen(false);goPlace(id,false);
+ if(mode==='orbit')canvas.focus({preventScroll:true});
+}
+function updateMapPlaces(view,goal){
+ if(listedFloor===view.floor&&listedGoal===goal)return;
+ listedFloor=view.floor;listedGoal=goal;
+ const list=$('map-places');
+ list.hidden=view.floor==='overview';
+ if(list.hidden){list.replaceChildren();return;}
+ const buttons=view.destinations.map(id=>{
+  const button=document.createElement('button');
+  button.type='button';button.textContent=id==='entrance'?'南侧正门':tourGoals[id];
+  button.setAttribute('aria-current',String(id===goal));
+  button.onclick=()=>chooseMapPlace(id);
+  return button;
+ });
+ list.replaceChildren(...buttons);
+}
+function drawMap(force=false){
+ const {x,y,z}=camera.position,route=walkGuide.getRoute(),goal=walkGuide.getGoal(),selection=$('map-floor').value;
+ camera.getWorldDirection(mapDirection);
+ const heading=-Math.atan2(mapDirection.x,-mapDirection.z);
+ const previous=lastMapPaint;
+ if(!force&&previous&&previous.mode===mode&&previous.night===night&&previous.goal===goal&&previous.route===route&&previous.selection===selection
+    &&Math.abs(previous.x-x)+Math.abs(previous.z-z)<.30&&Math.abs(previous.y-y)<.13&&Math.abs(previous.heading-heading)<.025)return;
+ lastMapPaint={x,y,z,heading,mode,night,goal,route,selection};
+ lastMapView=drawArenaFloorMap(ctx,{position:camera.position,feetY:camera.position.y-desiredEye,mode,night,route,goal,yaw:heading,selection});
+ const label=lastMapView.floor===lastMapView.current||lastMapView.floor==='overview'?lastMapView.label:'你在 '+lastMapView.currentLabel;
+ writeHudProperty($('elevation'),'textContent',label);
+ writeHudProperty($('map-position-key'),'textContent',lastMapView.showPosition?'红点为当前位置 · 金线为路线':'点选地点查看路线');
+ updateMapPlaces(lastMapView,goal);
+}
 
 let modalWasOpen=false;
 function constrainRoomOrbit(){const spec=roomSpecs[active];if(!spec)return;const clipped=constrainInteriorOrbit(camera.position,controls.target,spec);camera.position.copy(clipped.position);controls.target.copy(clipped.target);camera.lookAt(controls.target);}
@@ -394,6 +438,8 @@ function bindUI(){
  document.body.dataset.touch=String(innerWidth<=1024);
  $('nav-visit-start').onclick=()=>teleportToDestination('entrance');$('nav-match-start').onclick=()=>{setNavOpen(false);matchday.launch();};$('nav-museum-start').onclick=()=>{setNavOpen(false);$('museum-catalog').click();};
  $('map-toggle').onclick=toggleMap;$('toggle-hud').onclick=toggleHUD;
+ $('map-close').onclick=()=>{setMapOpen(false);$('map-toggle').focus({preventScroll:true});};
+ $('map-floor').onchange=()=>drawMap(true);
  const joystick=$('joystick'),thumb=$('joystick-thumb');
  let joystickBounds;
  const steer=e=>{
@@ -476,7 +522,7 @@ function bindUI(){
    if(matchday.gameReplaying){if(code==='Escape'||code==='KeyR')matchday.endReplay();return;}if(code==='KeyR'){if(!e.repeat)matchday.startReplay();return;}if(code==='Escape'){if(!e.repeat)matchday.setPaused(!matchday.paused);return;}if(code==='KeyH'){if(!e.repeat)matchday.showGameHelp();return;}if(matchday.paused)return;
    if(movement)keys.add(code);if(e.repeat)return;if(code==='KeyK'||code==='KeyF')matchday.beginGameCharge();const action={KeyJ:'pass',KeyL:'through',Space:'tackle',KeyQ:'switch'}[code];if(action)matchday.gameAction(action,{direction:gameInput(0)});if(code==='KeyZ')matchday.cycleShotKind();if(code==='KeyC')matchday.cycleGameCamera();if(code==='KeyG')matchday.cheer();if(code==='KeyV'||code==='KeyP')matchday.setGameView(matchday.gameView==='first'?'third':'first');if(code==='KeyN'){setDayNight(!night);updateLocationURL();}return;
   }
-  if(matchday?.cinematic){if(code==='Escape'||code==='Space')matchday.setPaused(!matchday.paused);if(movement||code==='Space'||code==='Escape')e.preventDefault();return;}if(code==='Escape'){if(!$('explore').hidden){setNavOpen(false);canvas.focus({preventScroll:true});}else if(mode==='walk'){document.exitPointerLock?.();setWalkReady(false);}return;}
+  if(matchday?.cinematic){if(code==='Escape'||code==='Space')matchday.setPaused(!matchday.paused);if(movement||code==='Space'||code==='Escape')e.preventDefault();return;}if(code==='Escape'){if(!$('arena-map-panel').hidden){setMapOpen(false);$('map-toggle').focus({preventScroll:true});return;}if(!$('explore').hidden){setNavOpen(false);canvas.focus({preventScroll:true});}else if(mode==='walk'){document.exitPointerLock?.();setWalkReady(false);}return;}
   if(mode==='walk'&&['PageUp','PageDown'].includes(code)){e.preventDefault();if(!walkReady)beginWalk();pitch=THREE.MathUtils.clamp(pitch+(code==='PageUp'?.12:-.12),-1.44,1.44);camera.rotation.set(pitch,yaw,0,'YXZ');frameBudget.invalidate();return;}
   if(movement&&mode==='walk'){e.preventDefault();if(!walkReady)beginWalk();keys.add(code);}else if(code==='ShiftLeft'||code==='ShiftRight')keys.add(code);
   if(e.repeat)return;
@@ -484,7 +530,7 @@ function bindUI(){
  });
  window.addEventListener('keyup',e=>{const code=keyCode(e);keys.delete(code);if(matchday?.playing&&(code==='KeyK'||code==='KeyF'))matchday.releaseGameCharge();});
  $('info-dialog').addEventListener('close',()=>{if(mode==='walk')beginWalk();});
- map.addEventListener('click',e=>{if(!lastMapView)return;const r=map.getBoundingClientRect(),point={x:(e.clientX-r.left)/r.width*map.width,y:(e.clientY-r.top)/r.height*map.height},id=mapDestinationAt(lastMapView,point);if(id)goPlace(id,false);else toast('点击地图上的地点圆点，选择步行目的地。');});
+ map.addEventListener('click',e=>{if(!lastMapView)return;const r=map.getBoundingClientRect(),point={x:(e.clientX-r.left)/r.width*map.width,y:(e.clientY-r.top)/r.height*map.height},id=mapDestinationAt(lastMapView,point);if(id)chooseMapPlace(id);else toast('点击地图上的地点圆点，选择步行目的地。');});
 }
 
 function showInteractiveInfo(title,text,goals=[],exhibit=null){$('info-dialog').classList.remove('museum-dialog');clearWalkInput();document.exitPointerLock?.();$('dialog-content').replaceChildren();const h=document.createElement('h2');h.textContent=title;const p=document.createElement('p');p.textContent=text;$('dialog-content').append(h,p);if(exhibit){const meta=document.createElement('div');meta.className='exhibit-meta';for(const value of [exhibit.city,exhibit.score]){const span=document.createElement('span');span.textContent=value;meta.append(span);}const source=document.createElement('a');source.href=exhibit.source;source.target='_blank';source.rel='noopener';source.className='exhibit-source';source.textContent='查看历史资料 ↗';$('dialog-content').append(meta,source);}for(const id of goals){const b=document.createElement('button');b.className='destination-button';b.textContent='步行前往 '+tourGoals[id];b.onclick=()=>{goPlace(id,false);$('info-dialog').close();};$('dialog-content').append(b);}$('info-dialog').showModal();}

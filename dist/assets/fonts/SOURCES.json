@@ -1238,7 +1238,7 @@
       },
       {
         "file": "app.js",
-        "sha256": "6d059ad6d818a7f20b34c785711937cbd48cca8c8fcc2abaddcffb36a68f7a90"
+        "sha256": "5116f4d991a7176f4d5341c63d13a2d4a30d393a72e39904d90e841ac0c75f8d"
       },
       {
         "file": "architecture-clip.js",
@@ -1246,11 +1246,11 @@
       },
       {
         "file": "arena-entry.js",
-        "sha256": "2fc2c53df4d625b8d83587dcc0b4037e54484508af76a2f8c3d9e2777fdbd7e1"
+        "sha256": "f788df2d3fb4643969abf9d1ab1a621d4cec305e79f52af0ac493b8f6bb4d9ca"
       },
       {
         "file": "arena-floor-map.js",
-        "sha256": "58e6275b0f43c24685261e52c7c01680f6276e24c81a46a373ce77b933b6a622"
+        "sha256": "b955f5bab485f679c8b1729ff98fd9e5a536a5d049d9235ee186e0cd82b6ad8d"
       },
       {
         "file": "arena-screens.js",
@@ -1282,7 +1282,7 @@
       },
       {
         "file": "destinations.js",
-        "sha256": "14a3edcc5b35f78eeb7f18c1451bd8a2002742706a5227a9f9aacf426d0e5458"
+        "sha256": "645e7fc30f8b4c70eebcb84f895c476721c9454808b99354971f688e01182f87"
       },
       {
         "file": "editorial-cover.js",
@@ -1294,7 +1294,7 @@
       },
       {
         "file": "entrance-players.js",
-        "sha256": "553a049aa23f04348760a0b6e9115339fa566761e3371ce7ebc61861b772f3ab"
+        "sha256": "99f19848a01a1e58b62ab7a20d46047160a64dbb11d65b8c12c39589493e66b0"
       },
       {
         "file": "experience-hub.js",
@@ -1358,7 +1358,7 @@
       },
       {
         "file": "football-materials.js",
-        "sha256": "c2eff543e8d6018c5517ca1307088622421706e196cc5140117f718d1ac31cc1"
+        "sha256": "a00d8f692e60669f896b61b976c3af455aeeacf175e3ae63d8ca0f90254bd00e"
       },
       {
         "file": "football-motion.js",
@@ -1462,7 +1462,7 @@
       },
       {
         "file": "index.html",
-        "sha256": "c67a11055e5740fa1da173b4bb8a9e05b5b96131bf78360b39b5daa638f85d08"
+        "sha256": "b8f5322dc2f6365e3f394d90ea60b137a4e7eaeb9dd741718243873363902027"
       },
       {
         "file": "instant-action.js",
@@ -1510,7 +1510,7 @@
       },
       {
         "file": "match-frame-rate.js",
-        "sha256": "235f93c64680693cc90a8f6cfb3dd2c65a7b300901d5ab05a4c462bae1015f41"
+        "sha256": "b0decf261920fc037059ddc312e5a1b5c0d78781b47def6d5b3cdb4aa6774f29"
       },
       {
         "file": "matchday-audio.js",
@@ -1534,7 +1534,7 @@
       },
       {
         "file": "matchday.js",
-        "sha256": "c025779b31afe7bf1b7381a7305f34705d7ea15b46d1482c2371c3125e55aaf1"
+        "sha256": "41ffe167c5ce00948475a62d086ecc4c3369d9319fa1dc12a96fd72ef8edf88b"
       },
       {
         "file": "museum-catalog.js",
@@ -1558,7 +1558,7 @@
       },
       {
         "file": "online-client.js",
-        "sha256": "edf15c08246f7962abbf0563ba7b111d136b4996183a1dcd1e29c9ea9ab3f348"
+        "sha256": "ff1f14b3b8a6c8f771f7cd7c6ea8bfe1aa7d9435f497a281849994df674fb9f8"
       },
       {
         "file": "online-lobby.js",
@@ -1598,7 +1598,7 @@
       },
       {
         "file": "playable-match.js",
-        "sha256": "88cf7ac9daf18f6d375c40b011577e40673e1ffea555cc3d4e10d1f8b9ac9fe8"
+        "sha256": "36dfbc66a6d7ecf4fc3e338c66dab305f869095c974a11a9c993057665032e47"
       },
       {
         "file": "player-area-layout.js",
@@ -1710,7 +1710,7 @@
       },
       {
         "file": "tour-route.js",
-        "sha256": "4fd9db06b9dee6af1690bc7836e2f86dcdd8f3e4c174791e5700570b1ae9df5b"
+        "sha256": "1c50ecd8be264edc4705d64072e8d64bae11a9534654e69ffb5eab0e670d0f6b"
       },
       {
         "file": "training-view.js",
@@ -1758,7 +1758,7 @@
       },
       {
         "file": "walk-path.js",
-        "sha256": "e1f567782fefb65f6221c5179cc5f551a6106b9c1145ef64678e9e156b108736"
+        "sha256": "ade751c30470f496a68be0a2a21da6992f25f5030f3b320f2136c49aa23c9677"
       },
       {
         "file": "walk-smoothing.js",
@@ -1778,7 +1778,7 @@
       },
       {
         "file": "world.js",
-        "sha256": "81f5f30b63f486acda2ea8ad05a7d6e1736e7359fa61fb68a6669d6e1734303c"
+        "sha256": "3dcceea9eb3d3648c7274b7b6c2033d66b0a317f17128254d37d0e4bbf867914"
       }
     ]
   },

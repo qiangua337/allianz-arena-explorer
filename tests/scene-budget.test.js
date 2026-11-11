@@ -24,3 +24,9 @@ test('idle scenes reduce rendering but movement, door animations and setting cha
 test('the custom destination browser filters categories and Chinese place names without a native select',()=>{
  assert.equal(new Set(destinations.map(p=>p.id)).size,destinations.length);assert.ok(destinations.some(p=>p.id==='upperStands'));assert.deepEqual(destinations.filter(p=>matchesDestination(p,'荣誉','public')).map(p=>p.id),['museum']);assert.equal(destinations.filter(p=>matchesDestination(p,'更衣','outside')).length,0);assert.equal(destinations.filter(p=>matchesDestination(p,'更衣','team')).length,2);
 });
+test('the destination search accepts common names and full-width floor filters',()=>{
+ const ids=query=>destinations.filter(place=>matchesDestination(place,query)).map(place=>place.id);
+ assert.deepEqual(ids('荣誉室'),['museum']);
+ assert.deepEqual(ids('球员通道'),['tunnel']);
+ assert.deepEqual(ids('看台 ４ｆ'),['upperStands']);
+});

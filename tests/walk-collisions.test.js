@@ -236,6 +236,26 @@ test('museum guidance joins a walkable route from either side of the reception k
  }
 });
 
+test('free positions by the shop wall, on an upper aisle and behind the press desk retain a walkable way out',()=>{
+ const samples=[
+  {p:{x:-17.89,y:12.2,z:110.62},goal:'stands',shortcut:route=>!route.some(n=>n.id.startsWith('store'))},
+  {p:{x:100.871,y:37.44,z:-23.358},goal:'arcade',shortcut:route=>route[0].id!=='seat2-47-rear'&&route.some(n=>n.id==='upperStands')},
+  {p:{x:-82,y:-2.7,z:-38.5},goal:'homeRoom',shortcut:route=>route[0].id.startsWith('pressWalkStage')&&route.some(n=>n.id==='pressDoor')}
+ ];
+ for(const {p,goal,shortcut}of samples){
+  const walls=navigationObstacles(p,obstacleGroups),result=planWalkPath(p,goal,geometry,obstacleGroups);
+  assert.equal(hitsWall(p.x,p.z,p.y+1.7,walls),false);
+  assert.equal(result.blocked,false,JSON.stringify(p));
+  assert.equal(result.path.at(-1).id,goal);
+  assert.ok(shortcut(result.path),result.path.map(n=>n.id).join(' → '));
+  let previous=p;
+  for(const next of result.path){
+   assert.equal(walkSegmentClear(previous,next,geometry,walls),true,(previous.id||'visitor')+' → '+next.id);
+   previous=next;
+  }
+ }
+});
+
 test('all teleport arrivals stand on the correct floor and outside walls and furniture',()=>{
  for(const id of Object.keys(tourGoals)){
   const at=destinationArrival(id,geometry),[x,y,z]=at.position,p={x,y:at.feet,z},walls=navigationObstacles(p,obstacleGroups);

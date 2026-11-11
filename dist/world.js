@@ -3,6 +3,49 @@ import {compactStaticMeshes} from './scene-budget.js';
 import {THREE,TAU,v,mat,mesh,box,beam,sign,cylinder,superpoint,ringGeometry,curveLine,Batches,seeded,floorTexture,repeatTex,wallCollider} from './kit.js';
 
 export function esplanadeY(z){return -3-THREE.MathUtils.clamp((z-140)/543,0,1)*8.5;}
+
+function addTreeBelt(parent,positions,leaf,random){
+ const belt=new THREE.Group();belt.name='Fröttmaning trees';parent.add(belt);
+ const trunkMaterial=mat(0x706650),trunkGeometry=new THREE.CylinderGeometry(.18,.28,4,5);
+ const crownGeometry=new THREE.IcosahedronGeometry(1,1),foliage=crownGeometry.attributes.position;
+ for(let i=0;i<foliage.count;i++){
+  const x=foliage.getX(i),y=foliage.getY(i),z=foliage.getZ(i);
+  const scale=.87+.1*Math.sin(x*9+y*5)+.08*Math.cos(z*8-y*6);
+  foliage.setXYZ(i,x*scale,y*scale,z*scale);
+ }
+ crownGeometry.computeVertexNormals();
+ crownGeometry.computeBoundingSphere();
+ // A single bound for the 1.8 km belt submits every tree as soon as any
+ // corner meets the view. Local bounds let Three cull entire groups.
+ const tileSize=480,tiles=new Map();
+ for(const tree of positions){
+  const key=Math.floor(tree.x/tileSize)+','+Math.floor(tree.z/tileSize);
+  if(!tiles.has(key))tiles.set(key,[]);
+  const heading=random()*TAU,hue=.27+random()*.1,light=.22+random()*.13;
+  tiles.get(key).push({tree,heading,hue,light});
+ }
+ const transform=new THREE.Object3D(),color=new THREE.Color();
+ for(const trees of tiles.values()){
+  const trunks=new THREE.InstancedMesh(trunkGeometry,trunkMaterial,trees.length);
+  const crowns=new THREE.InstancedMesh(crownGeometry,leaf,trees.length);
+  trees.forEach(({tree:{x,y,z,s},heading,hue,light},i)=>{
+   transform.position.set(x,y+s*.35,z);
+   transform.scale.set(1,s/4,1);
+   transform.rotation.set(0,heading,0);
+   transform.updateMatrix();trunks.setMatrixAt(i,transform.matrix);
+   transform.position.y=y+s;
+   transform.scale.set(s*.65,s*.85,s*.65);
+   transform.updateMatrix();crowns.setMatrixAt(i,transform.matrix);
+   crowns.setColorAt(i,color.setHSL(hue,.22,light));
+  });
+  trunks.computeBoundingSphere();
+  crowns.computeBoundingSphere();
+  crowns.instanceColor.needsUpdate=true;
+  crowns.castShadow=true;
+  belt.add(trunks,crowns);
+ }
+}
+
 export function buildWorld(scene){
  const group=new THREE.Group();group.name='Fröttmaning context | approximate surroundings';scene.add(group);const b=new Batches(group),colliders=[];
  const surfaces=landscapeMaterials(),concrete=surfaces.concrete,edge=mat(0x8b9294),grass=surfaces.grass,road=surfaces.road,pale=mat(0xd4d4c9),dark=mat(0x17252b),metal=mat(0x87959b,{metalness:.5,roughness:.55}),leaf=mat(0x40532c,{roughness:1,envMapIntensity:.02}),stripe=mat(0xc7ccbf),red=mat(0xc61935),blue=mat(0x173f75);
@@ -76,7 +119,7 @@ export function buildWorld(scene){
  const church=new THREE.Group();church.position.set(354,5,183);group.add(church);box(church,10,8,19,0,4,0,pale);const roofMesh=mesh(new THREE.ConeGeometry(9.5,5.5,4),mat(0x5c4a3c),church,0,10.5,0);roofMesh.rotation.y=Math.PI/4;roofMesh.scale.z=1.6;box(church,4.5,15,4.5,0,7.5,11,pale);mesh(new THREE.ConeGeometry(3.7,6,4),mat(0x5c4a3c),church,0,18,11);beam(church,v(0,20.5,11),v(0,23,11),.08,metal);beam(church,v(-.7,22,11),v(.7,22,11),.07,metal);
  // A belt of instanced trees keeps the surrounding open landscape visible at useful frame rates.
  const treePositions=[];for(let i=0;i<1350;i++){const x=(random()-.5)*1800,z=(random()-.5)*1900;if(Math.abs(x)<165&&z>-190&&z<710)continue;if(Math.abs(x-197)<35||Math.abs(z+261)<28||Math.abs(x+245)<48)continue;if(x<-175&&x>-385&&z>160&&z<600)continue;treePositions.push({x,z,s:2.5+random()*4,y:-12});}
- const trunks=new THREE.InstancedMesh(new THREE.CylinderGeometry(.18,.28,4,5),mat(0x706650),treePositions.length),crowns=new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1,1),leaf,treePositions.length);treePositions.forEach((p,i)=>{d.position.set(p.x,p.y+p.s*.35,p.z);d.scale.set(1,p.s/4,1);d.rotation.set(0,random()*TAU,0);d.updateMatrix();trunks.setMatrixAt(i,d.matrix);d.position.y=p.y+p.s;d.scale.set(p.s*.65,p.s*.85,p.s*.65);d.updateMatrix();crowns.setMatrixAt(i,d.matrix);crowns.setColorAt(i,new THREE.Color().setHSL(.27+random()*.1,.22,.22+random()*.13));});const foliage=crowns.geometry.attributes.position;for(let i=0;i<foliage.count;i++){const x=foliage.getX(i),y=foliage.getY(i),z=foliage.getZ(i),scale=.87+.1*Math.sin(x*9+y*5)+.08*Math.cos(z*8-y*6);foliage.setXYZ(i,x*scale,y*scale,z*scale);}crowns.geometry.computeVertexNormals();crowns.instanceColor.needsUpdate=true;crowns.castShadow=true;group.add(trunks,crowns);
+ addTreeBelt(group,treePositions,leaf,random);
  b.flush();
  const nightLights=[];for(const p of lampPositions.filter((_,i)=>i%5===0)){const l=new THREE.PointLight(0xffdda3,0,20,1.8);l.position.copy(p).add(v(0,6,0));group.add(l);nightLights.push(l);}
  const groundSpill=buildNightGroundSpill(group,lampPositions);groundSpill.setNight(false);let isNight=false;

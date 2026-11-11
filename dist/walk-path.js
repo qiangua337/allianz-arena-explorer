@@ -1,4 +1,4 @@
-import {planTour,tourNodes} from './tour-route.js';
+import {planTour,tourNodes,tourStarts} from './tour-route.js';
 import {roomAt} from './building-layout.js';
 import {furnitureBlocksSegment} from './furniture-layout.js';
 import {serviceRoomAt,serviceWorld} from './service-layout.js';
@@ -57,7 +57,25 @@ export function planWalkPath(position,goal,geometry,groups={}){
   if(walkSegmentClear(position,target,geometry,obstacles)){const cost=distance(position,target)+remaining[i];if(!best||cost<best.cost)best={cost,index:i};}
   if(target.level==='core'||/^landing/.test(target.id))break;
  }
- if(best)return validatePath(position,route.slice(best.index),geometry,groups,obstacles);
- const prefix=detour(position,route[0],geometry,obstacles);return prefix?validatePath(position,[...prefix,...route],geometry,groups,obstacles):{path:[],blocked:true};
+ const prefix=best?null:detour(position,route[0],geometry,obstacles);
+ if(best||prefix){
+  const result=validatePath(position,best?route.slice(best.index):[...prefix,...route],geometry,groups,obstacles);
+  if(!result.blocked)return result;
+ }
+ // A railing or corner can hide the nearest graph point while a nearby
+ // aisle still reaches the graph. Try same-area points that the visitor
+ // can reach directly, validating all subsequent segments as usual.
+ const alternates=tourStarts(position)
+  .filter(n=>n!==route[0]&&distance(position,n)<45)
+  .sort((a,b)=>distance(position,a)-distance(position,b))
+  .slice(0,12);
+ for(const start of alternates){
+  if(!walkSegmentClear(position,start,geometry,obstacles))continue;
+  const alternate=planTour(position,goal,start.id);
+  if(!alternate.length)continue;
+  const result=validatePath(position,alternate,geometry,groups,obstacles);
+  if(!result.blocked)return result;
+ }
+ return{path:[],blocked:true};
 }
 export function routeOnCurrentLevel(route,feetY){const out=[];for(const n of route){if(Math.abs(n.y-feetY)>1.1)break;out.push(n);}return out;}

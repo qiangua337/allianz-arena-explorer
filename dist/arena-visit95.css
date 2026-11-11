@@ -31,14 +31,24 @@ body:not(.game-active) :is(#explore, #walk-guide, #walk-prompt) {
 }
 #nav-trigger { min-height: 42px; padding-inline: 11px }
 #explore {
-  width: min(338px, calc(100vw - 26px));
-  max-height: min(592px, calc(100dvh - 130px));
-  gap: 8px;
-  padding: 9px 13px 10px;
+  width: min(300px, calc(100vw - 26px));
+  max-height: min(560px, calc(100dvh - 130px));
+  gap: 6px;
+  padding: 6px 12px 10px;
   overflow-y: auto;
   overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--rule) transparent;
 }
-#explore .section-heading { min-height: 46px; padding: 0 0 4px 3px; border-color: var(--rule) }
+#explore .section-heading {
+  position: sticky;
+  z-index: 1;
+  top: -6px;
+  min-height: 46px;
+  padding: 0 0 3px 3px;
+  background: #1c1a20;
+  border-color: var(--rule);
+}
 #explore .section-heading h2 { margin: 0; color: var(--ink); font-size: 16px; line-height: 1.35 }
 #explore .section-heading button { flex: none; width: 44px; height: 44px; border-radius: 5px }
 #explore .explore-entrypoints { gap: 5px }
@@ -48,12 +58,12 @@ body:not(.game-active) :is(#explore, #walk-guide, #walk-prompt) {
 #explore .destination-search input { min-height: 40px; font-size: 14px }
 #explore .destination-search input::placeholder { color: var(--muted) }
 #explore .destination-tabs { gap: 3px; padding: 0 0 3px; border-bottom: 1px solid var(--rule) }
-#explore .destination-tabs button { min-height: 41px; padding: 5px 4px; border-bottom: 2px solid transparent; font-size: 12px }
+#explore .destination-tabs button { min-height: 44px; padding: 5px 4px; border-bottom: 2px solid transparent; font-size: 12px }
 #explore .destination-tabs button[aria-selected=true] {
   border-bottom-color: var(--accent);
   color: var(--ink);
 }
-#explore #locations { min-height: 112px; max-height: min(300px, 43dvh); flex-shrink: 1 }
+#explore #locations { min-height: 0; max-height: none; flex: none; overflow: visible }
 #explore #locations .location {
   min-height: 54px;
   gap: 8px;
@@ -80,17 +90,154 @@ body:not(.game-active) :is(#explore, #walk-guide, #walk-prompt) {
 #guide-collapse { border-radius: 4px }
 #guide-collapse:hover { background: var(--subtle) }
 .toast { background: #232023; border-color: #f6f1e936; color: #f6f1e9 }
-@media (max-width: 760px) {
-  #explore { top: max(109px, calc(env(safe-area-inset-top) + 99px)); bottom: auto; width: min(315px, calc(100vw - 26px)); max-height: min(530px, calc(100dvh - 128px)) }
-  #explore #locations { max-height: min(270px, 39dvh) }
+@media (max-width: 760px), (max-width: 1024px) and (orientation: portrait) {
+  body:not(.game-active) {
+    --visit-bottom: max(8px, calc(env(safe-area-inset-bottom, 0px) + 6px));
+    --visit-left: max(10px, calc(env(safe-area-inset-left, 0px) + 6px));
+    --visit-right: max(10px, calc(env(safe-area-inset-right, 0px) + 6px));
+    --visit-guide-clearance: 68px;
+  }
+  #explore {
+    top: auto;
+    bottom: var(--visit-bottom);
+    left: calc(var(--visit-left) + (100vw - var(--visit-left) - var(--visit-right)) / 2);
+    right: auto;
+    width: min(460px, calc(100vw - var(--visit-left) - var(--visit-right)));
+    transform: translateX(-50%);
+    max-height: min(430px, calc(50dvh - var(--visit-bottom) - 4px));
+  }
+  body.nav-open:not(.game-active) :is(#walk-guide, #movement, #interact, #walk-prompt, #tour-arrival) {
+    visibility: hidden;
+    pointer-events: none;
+  }
   #explore .destination-search input { font-size: 16px }
-  #guide-collapse { min-height: 44px }
+  #walk-guide {
+    left: calc(var(--visit-left) + (100vw - var(--visit-left) - var(--visit-right)) / 2);
+    right: auto;
+    bottom: var(--visit-bottom);
+    width: min(560px, calc(100vw - var(--visit-left) - var(--visit-right)));
+    transform: translateX(-50%);
+    grid-template-columns: minmax(63px, .8fr) minmax(40px, 1.2fr) auto auto;
+  }
+  #walk-guide .guide-actions button { min-height: 44px }
+  #guide-collapse { min-width: 44px; min-height: 44px }
+  #walk-guide:not(.collapsed) {
+    grid-template-areas: 'goal actions fold' 'instruction instruction instruction';
+    grid-template-columns: minmax(0, 1fr) auto auto;
+  }
+  #walk-guide:not(.collapsed) .guide-instruction { grid-area: instruction; margin-top: 0; padding-top: 6px }
+  #walk-guide:not(.collapsed) #guide-detail { max-height: 3.5em; overflow: auto }
+  #walk-guide.arrived #guide-next { max-width: clamp(72px, 28vw, 130px); text-overflow: ellipsis; overflow: hidden }
   #guide-title { font-size: 11px }
   #guide-distance { font-size: 10px }
+  body[data-mode=walk]:not(.game-active):has(#walk-guide:not(.collapsed, [hidden])) {
+    --visit-guide-clearance: 154px;
+  }
+  body[data-mode=walk]:not(.game-active) #movement {
+    left: var(--visit-left);
+    bottom: calc(var(--visit-bottom) + var(--visit-guide-clearance));
+  }
+  body[data-mode=walk]:not(.game-active) #interact {
+    right: var(--visit-right);
+    bottom: calc(var(--visit-bottom) + var(--visit-guide-clearance));
+    max-width: min(155px, calc(50vw - 14px));
+  }
+  body[data-mode=walk]:not(.game-active) #walk-prompt {
+    bottom: calc(var(--visit-bottom) + var(--visit-guide-clearance));
+  }
+  body[data-mode=walk]:not(.game-active) #tour-arrival {
+    bottom: var(--visit-bottom);
+    width: min(560px, calc(100vw - var(--visit-left) - var(--visit-right)));
+  }
+  body[data-mode=walk][data-walking=false]:not(.game-active) :is(#movement, #interact) {
+    visibility: hidden;
+    pointer-events: none;
+  }
+  body[data-mode=walk]:not(.game-active):has(#tour-arrival:not([hidden])) #walk-guide.arrived {
+    visibility: hidden;
+    pointer-events: none;
+  }
+}
+@media (max-width: 1024px) and (orientation: portrait) {
+  #explore:has(#destination-search:focus) {
+    top: max(58px, calc(env(safe-area-inset-top, 0px) + 48px));
+    bottom: auto;
+    max-height: min(430px, calc(100dvh - 80px));
+  }
 }
 @media (max-height: 500px) {
-  #explore { top: max(65px, env(safe-area-inset-top)); bottom: auto; max-height: calc(100dvh - 78px) }
-  #explore #locations { min-height: 110px; max-height: min(180px, 40dvh); flex-shrink: 0 }
+  #explore {
+    top: max(62px, calc(env(safe-area-inset-top, 0px) + 52px));
+    bottom: auto;
+    left: max(10px, calc(env(safe-area-inset-left, 0px) + 6px));
+    right: auto;
+    transform: none;
+    width: min(300px, 46vw);
+    max-height: calc(100dvh - max(74px, calc(env(safe-area-inset-top, 0px) + 62px)) - env(safe-area-inset-bottom, 0px));
+  }
+}
+@media (max-height: 500px) and (min-width: 540px) and (max-width: 1024px) {
+  body.nav-open[data-touch=true]:not(.game-active) :is(#walk-guide, #movement, #interact, #walk-prompt, #tour-arrival) {
+    visibility: hidden;
+    pointer-events: none;
+  }
+  body[data-mode=walk][data-touch=true]:not(.game-active) {
+    --visit-bottom: max(8px, calc(env(safe-area-inset-bottom, 0px) + 6px));
+    --visit-left: max(10px, calc(env(safe-area-inset-left, 0px) + 6px));
+    --visit-right: max(10px, calc(env(safe-area-inset-right, 0px) + 6px));
+    --visit-landscape-guide: min(448px, calc(100vw - var(--visit-left) - var(--visit-right) - 246px));
+  }
+  body[data-mode=walk][data-touch=true]:not(.game-active) #walk-guide {
+    left: calc(var(--visit-left) + (100vw - var(--visit-left) - var(--visit-right)) / 2);
+    right: auto;
+    bottom: var(--visit-bottom);
+    transform: translateX(-50%);
+    width: var(--visit-landscape-guide);
+    grid-template-areas: 'goal actions fold' 'instruction instruction instruction';
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    gap: 4px 6px;
+  }
+  body[data-mode=walk][data-touch=true]:not(.game-active) #walk-guide .guide-instruction {
+    grid-area: instruction;
+    margin-top: 0;
+    padding-top: 3px;
+  }
+  body[data-mode=walk][data-touch=true]:not(.game-active) #walk-guide :is(#guide-goal, #guide-collapse, .guide-actions button) {
+    min-height: 44px;
+  }
+  body[data-mode=walk][data-touch=true]:not(.game-active) #guide-collapse { min-width: 44px }
+  body[data-mode=walk][data-touch=true]:not(.game-active) #guide-detail { max-height: 3.5em; overflow: auto }
+  body[data-mode=walk][data-touch=true]:not(.game-active) #movement {
+    left: var(--visit-left);
+    bottom: var(--visit-bottom);
+  }
+  body[data-mode=walk][data-touch=true]:not(.game-active) #interact {
+    right: var(--visit-right);
+    bottom: var(--visit-bottom);
+    min-height: 44px;
+    max-width: 113px;
+  }
+  body[data-mode=walk][data-touch=true]:not(.game-active) #walk-prompt {
+    left: calc(var(--visit-left) + (100vw - var(--visit-left) - var(--visit-right)) / 2);
+    bottom: calc(var(--visit-bottom) + 104px);
+    max-width: var(--visit-landscape-guide);
+  }
+  body[data-mode=walk][data-touch=true]:not(.game-active):has(#walk-guide:not(.collapsed, [hidden])) #walk-prompt {
+    bottom: calc(var(--visit-bottom) + 154px);
+  }
+  body[data-mode=walk][data-touch=true]:not(.game-active) #tour-arrival {
+    left: calc(var(--visit-left) + (100vw - var(--visit-left) - var(--visit-right)) / 2);
+    bottom: var(--visit-bottom);
+    width: min(370px, var(--visit-landscape-guide));
+  }
+  body[data-mode=walk][data-touch=true]:not(.game-active):has(#tour-arrival:not([hidden])) #walk-guide.arrived {
+    visibility: hidden;
+    pointer-events: none;
+  }
+  body[data-mode=walk][data-walking=false][data-touch=true]:not(.game-active) :is(#movement, #interact) {
+    visibility: hidden;
+    pointer-events: none;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   .loading { transition: none }
