@@ -37,3 +37,11 @@ test('movement easing is independent of frame rate and releases without sliding'
 test('quality preferences tolerate unavailable storage and cap mobile rendering work',()=>{
  assert.equal(loadVisitorSettings({getItem(){throw Error();}}).quality,'standard');assert.equal(loadVisitorSettings({getItem:()=>'{bad'}).quality,'standard');let saved;saveVisitorSettings({setItem:(k,v)=>saved=v},{quality:'low'});assert.equal(loadVisitorSettings({getItem:()=>saved}).quality,'low');assert.equal(qualityProfile('low',390,844,3).shadows,false);assert.equal(qualityProfile('low',390,844,3).grass,0);assert.ok(qualityProfile('standard',390,844,3).pixelRatio<=1);assert.equal(qualityProfile('high',1280,720,2).shadows,true);
 });
+test('match frame preference keeps the previous quality and defaults older saves to 60 FPS',()=>{
+ let saved='{"quality":"high"}';
+ const storage={getItem:()=>saved,setItem:(_key,value)=>{saved=value;}};
+ assert.deepEqual(loadVisitorSettings(storage),{quality:'high',matchFps:60});
+ saveVisitorSettings(storage,{...loadVisitorSettings(storage),matchFps:120});
+ saveVisitorSettings(storage,{...loadVisitorSettings(storage),quality:'low'});
+ assert.deepEqual(loadVisitorSettings(storage),{quality:'low',matchFps:120});
+});

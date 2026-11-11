@@ -7,10 +7,11 @@ export const supporterAtlas={width:1254,height:1254,frames:[
 export const crowdDetailBudget=mobile=>mobile?128:384;
 export const crowdDetailRadius=mobile=>mobile?27:34;
 function random(i,salt){let x=Math.imul((i+1)^salt,0x45d9f3b);x=Math.imul(x^(x>>>16),0x45d9f3b);return((x^(x>>>16))>>>0)/4294967296;}
+export const seatHasSupporter=index=>random(index,381)>=.065;
 export function createCrowdLayout(seats){
  const records=[],cells=new Map();
  for(let i=0;i<seats.length;i++){
-  if(random(i,381)<.065)continue;const seat=seats[i],frame=Math.floor(random(i,173)*8),visitor=seat.x<-48&&seat.z<-72&&seat.y>25;
+  if(!seatHasSupporter(i))continue;const seat=seats[i],frame=Math.floor(random(i,173)*8),visitor=seat.x<-48&&seat.z<-72&&seat.y>25;
   const record={id:records.length,seat,frame,phase:random(i,912)*Math.PI*2,scale:.94+random(i,632)*.12,skin:Math.floor(random(i,497)*6),shirt:Math.floor(random(i,816)*8),visitor,gesture:[0,3].includes(frame)?1:[2,5,6].includes(frame)?.65:0,detail:false};
   records.push(record);const key=Math.floor(seat.x/8)+','+Math.floor(seat.z/8);if(!cells.has(key))cells.set(key,[]);cells.get(key).push(record);
  }

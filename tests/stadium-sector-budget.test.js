@@ -9,6 +9,7 @@ const {buildStadium}=await import('../dist/stadium.js');
 const {partitionStaticMesh}=await import('../dist/spatial-batches.js');
 const {freezeArchitecture}=await import('../dist/scene-budget.js');
 const {bowlOpening}=await import('../dist/tour-route.js');
+const {createCrowdLayout}=await import('../dist/crowd-layout.js');
 const scene=new THREE.Scene(),stadium=buildStadium(scene),triangles=o=>(o.geometry.index?.count??o.geometry.attributes.position.count)/3;
 function meshes(root){const result=[];root.traverse(o=>{if(o.isMesh)result.push(o);});return result;}
 const upper=meshes(stadium.roof).filter(o=>o.name.startsWith('ETFE upper roof section'));
@@ -51,4 +52,19 @@ test('static splitting preserves world area, transforms, UV channels and shadow 
  const before=area(parent),part=partitionStaticMesh(source);parent.updateMatrixWorld(true);assert.ok(Math.abs(area(parent)-before)<1e-4);assert.ok(meshes(part).every(o=>o.geometry.attributes.uv1.count===o.geometry.attributes.position.count&&o.castShadow&&o.receiveShadow&&o.customDepthMaterial===source.customDepthMaterial));
  const inst=new THREE.InstancedMesh(new THREE.BoxGeometry(),source.material,2);parent.add(inst);assert.equal(partitionStaticMesh(inst),null);
  freezeArchitecture(stadium.root,[stadium.matchBall]);const matrix=ringMeshes[0].matrixWorld.clone(),ball=stadium.matchBall.position.x;stadium.matchBall.position.x+=2;scene.updateMatrixWorld(true);assert.ok(ringMeshes.every(o=>o.matrixWorldAutoUpdate===false));assert.ok(ringMeshes[0].matrixWorld.equals(matrix));assert.equal(stadium.matchBall.matrixWorld.elements[12],ball+2,'the active ball still updates its world transform');
+});
+test('filled matches skip seat geometry hidden by spectators and restore all seats for training and exploration',()=>{
+ const camera=new THREE.PerspectiveCamera();camera.position.set(0,5.2,8.3);
+ const seats=stadium.bowl.children.filter(o=>o.isInstancedMesh&&o.instanceColor&&o.count>384);
+ const count=()=>seats.reduce((n,o)=>n+o.count,0);
+ const audience=createCrowdLayout(stadium.seatPositions).count;
+ stadium.update(camera,'walk',false,false,true,true);
+ assert.equal(count(),stadium.seatCount-audience);
+ stadium.update(camera,'walk',false,false,true,false);
+ assert.equal(count(),stadium.seatCount);
+ stadium.update(camera,'walk',true,false,true,true);
+ assert.equal(count(),stadium.seatCount);
+ stadium.update(camera,'walk',false,false,true,true);
+ stadium.update(camera,'walk',false,false,false);
+ assert.equal(count(),stadium.seatCount);
 });
