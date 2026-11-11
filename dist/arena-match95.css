@@ -635,9 +635,10 @@
   font-size: 13px;
 }
 .match-fps-row select {
-  color: var(--ink);
+  color: #f1f3f6;
+  color-scheme: dark;
   background: #242b33;
-  border: 1px solid var(--rule);
+  border: 1px solid #ffffff30;
   border-radius: 6px;
   min-height: 42px;
   padding: 7px 10px;
@@ -654,9 +655,9 @@
   gap: 3px;
   padding: 10px 12px;
   border-radius: 8px;
-  border: 1px solid var(--rule);
+  border: 1px solid #ffffff24;
 }
 .game-frame-rate small {
   font-size: 11px;
-  color: var(--muted);
+  color: #aab8c3;
 }
