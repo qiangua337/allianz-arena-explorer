@@ -4,6 +4,8 @@
 
 [在线探索](https://allianz-arena-explorer.pages.dev/) · [GitHub 源码](https://github.com/qiangua337/allianz-arena-explorer) · [Cloudflare 部署说明](docs/DEPLOYMENT.md) · [MIT 许可证](LICENSE)
 
+版本 **9.6.0 · 球员、步态与击球动作**。更新球衣裁片与球鞋，改善近景慢跑、侧移和收步的支撑脚。短传、直塞、挑传、劲射、搓射和挑射分别表现重心与随摆。手机端在同一绘制时点采样镜头、足球和球员，联机远端动作沿用缓冲时间轴。本版独立制作动作，参考实况足球的公开设计说明。[eFootball 移动](https://www.konami.com/efootball/en-us/page/v6/versioninfo_v6-00) · [eFootball 击球](https://www.konami.com/efootball/en-us/topic/news/5627)
+
 版本 **9.5.0 · 首页、比赛和场馆画面更新**。首页重排主视觉和四张实拍入口，赛前设置、联机房间、转播比分牌和参观导航采用同一套视觉样式。夜场调整草坪、屋檐灯具和看台补光，草纹延续到球场白线。
 
 版本 **9.4.0 · 首页体验入口配图**。球场训练、好友联机、自由参观与球员入场各有一张实拍照片。四张本地 WebP 共 249 KB，摄影署名及许可证见[影像与字体来源](https://allianz-arena-explorer.pages.dev/visual-credits.html)。

@@ -348,25 +348,35 @@ add_part('shorts',P,base_uv,tights,weights,select=lambda c,w:.69<c[1]<1.10,
 add_part('socks',P,base_uv,body_faces,weights,select=lambda c,w:.055<c[1]<.49,
          yclip=(.075,.48),expand=.002,projection=lambda p,c:[p[0]*10,p[1]*3])
 
-# A low boot last is independent of the anatomical toes, with a continuous sole.
+# Left and right uppers follow the foot's inward toe and lower outer forefoot.
+# Keep the continuous outsole and studs fixed to the motion rig's contact points.
 boot_bounds=None
 for side in ['L','R']:
     ankle=bone_positions['foot.'+side]
+    inward=-np.sign(ankle[0])
     pts,uv,faces=[],[],[]
     sections=[(-.105,.026,.062),(-.085,.046,.104),(-.025,.052,.115),(.045,.054,.099),(.115,.054,.075),(.18,.043,.051),(.205,.024,.035)]
+    toe_offset=[0,0,0,.003,.008,.012,.011]
+    outer_drop=[0,0,0,.004,.011,.013,.008]
     N=24
     for j,(z,r,h) in enumerate(sections):
         for k in range(N):
             t=k/N*np.pi*2
-            pts.append([ankle[0]+np.cos(t)*r,.027+max(0,np.sin(t))*h+min(0,np.sin(t))*.006,ankle[2]+z])
-            uv.append([k/N*.78,j/(len(sections)-1)])
+            lateral,vertical=np.cos(t),np.sin(t)
+            rise=max(0,vertical)
+            toe_shift=inward*toe_offset[j]*rise**2
+            outer=(1-inward*lateral)*.5
+            height=.027+rise*(h-outer_drop[j]*outer)+min(0,vertical)*.006
+            pts.append([ankle[0]+lateral*r+toe_shift,height,ankle[2]+z])
+            # Put the wrap on the underside so laces cannot smear across the instep.
+            uv.append([((k+N//4)%N)/N*.78,j/(len(sections)-1)])
     for j in range(len(sections)-1):
         for k in range(N):
             a=j*N+k;b=j*N+(k+1)%N
             faces.append(('boot',[(a,a),(b,b),(b+N,b+N),(a+N,a+N)]))
     # Close both ends: the open source of the earlier split-heel silhouette.
     for j, reverse in [(0,False),(len(sections)-1,True)]:
-        center=len(pts);pts.append([ankle[0],.045,ankle[2]+sections[j][0]]);uv.append([.5,j/(len(sections)-1)])
+        center=len(pts);pts.append([ankle[0],.045,ankle[2]+sections[j][0]]);uv.append([.39,j/(len(sections)-1)])
         for k in range(N):
             a=j*N+k;b=j*N+(k+1)%N
             ids=[center,a,b] if reverse else [center,b,a]
@@ -422,12 +432,12 @@ add_part('crop',hair_points,base_uv,body_faces,weights,
 add_part('eyes',*fitted('eyes/low-poly','low-poly'))
 add_part('eyebrows',*fitted('eyebrows/eyebrow002','eyebrow002'))
 
-(OUT/'footballer-910.bin').write_bytes(payload)
+(OUT/'footballer-960.bin').write_bytes(payload)
 manifest=dict(version=2,stride=16,height=1.86,bones=bones,parts=parts,faceUV=list(FACE_UV),bootBounds={k:v.round(7).tolist() for k,v in boot_bounds.items()},
               gloveFrames={side:{name:v.round(7).tolist() for name,v in zip(['wrist','forward','across','palm'],frame)} for side,frame in hand_axes.items()},
               keeperWristCut=WRIST_CUT,
               eyes={side:metres(body[rig['joints'][rig['bones']['eye.'+side]['head']]].mean(0)).tolist() for side in ['L','R']})
-(OUT/'footballer-910.json').write_text(json.dumps(manifest,separators=(',',':')),encoding='utf-8')
+(OUT/'footballer-960.json').write_text(json.dumps(manifest,separators=(',',':')),encoding='utf-8')
 textures={
     'skin-light.webp':('skins/young_caucasian_male/young_lightskinned_male_diffuse.png',1024),
     'skin-dark.webp':('skins/young_african_male/young_darkskinned_male_diffuse.png',1024),

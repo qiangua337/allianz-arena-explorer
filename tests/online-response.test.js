@@ -28,7 +28,15 @@ test('a server pause or lost connection cancels pending prediction, and recovery
  sim.setPaused(false);session.connection='reconnecting';deliver(4);assert.equal(client.state.paused,true);assert.equal(client.action('shoot'),false);session.connection='connected';deliver(4);client.update(1/60,{x:-1,z:0});assert.ok(client.state.players[1].x<x);client.dispose();
 });
 test('local kick animation gives feedback without inventing ball possession, shots or goals',()=>{
- const {client}=fixture();const stats=structuredClone(client.state.stats),owner=client.state.ball.ownerId,elapsed=client.state.elapsed;assert.equal(client.action('shoot',{power:.6}),true);client.update(1/60,{});assert.equal(client.state.players[1].motion.type,'shoot');assert.deepEqual(client.state.stats,stats);assert.equal(client.state.ball.ownerId,owner);assert.equal(client.state.elapsed,elapsed);assert.deepEqual(client.state.score,{home:0,away:0});client.dispose();
+ const {client,sim,deliver}=fixture();
+ const stats=structuredClone(client.state.stats),owner=client.state.ball.ownerId,elapsed=client.state.elapsed;
+ client.setShotKind('finesse');assert.equal(client.action('shoot',{power:.6}),true);client.update(1/60,{});
+ const pending=client.state.players[1].motion;
+ assert.equal(pending.type,'shoot');assert.equal(pending.predicted,true);assert.equal(pending.stroke,'finesse');
+ assert.deepEqual(client.state.stats,stats);assert.equal(client.state.ball.ownerId,owner);assert.equal(client.state.elapsed,elapsed);assert.deepEqual(client.state.score,{home:0,away:0});
+ assert.ok(sim.action('shoot',{power:.6,kind:'finesse'}));deliver(1);client.update(1/60,{});
+ assert.equal(client.state.players[1].motion.predicted,undefined);assert.equal(client.state.players[1].motion.stroke,'finesse');
+ assert.equal(client.state.ball.ownerId,null);client.dispose();
 });
 test('a stalled socket cannot keep predicting a player across the pitch indefinitely',()=>{
  const {client}=fixture('away');for(let i=0;i<60;i++)client.update(1/60,{x:1,z:0});const x=client.state.players[12].x;for(let i=0;i<120;i++)client.update(1/60,{x:1,z:0});assert.equal(client.state.players[12].x,x);assert.ok(client.state.predictionSeconds<=.6);client.dispose();

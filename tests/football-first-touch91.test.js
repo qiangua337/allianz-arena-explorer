@@ -46,6 +46,9 @@ test('buffered first-touch shots preserve the requested power, direction and rec
    assert.equal(f.s.stats[team].shots,0);assert.equal(f.s.previews[team].preparedAction.type,'shoot');
    for(let i=0;i<180&&f.s.stats[team].shots===0;i++)f.game.update(1/60);
    assert.equal(f.s.stats[team].shots,1);assert.equal(f.s.lastShot.playerId,f.receiver.id);assert.equal(f.s.lastShot.power,.73);
+   assert.equal(f.receiver.motion.firstTime,true);
+   assert.equal(f.receiver.motion.stroke,'drive');
+   assert.ok(Number.isFinite(f.receiver.motion.contactX)&&Number.isFinite(f.receiver.motion.contactZ));
    assert.equal(f.s.ball.ownerId,null);assert.equal(f.s.lastShot.outcome,'flight');
    assert.equal(Math.sign(f.s.ball.vz),team==='home'?-1:1);speeds.push(f.s.ball.vx);
   }

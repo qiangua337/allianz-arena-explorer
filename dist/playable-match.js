@@ -15,7 +15,6 @@ import {buildFootballView} from './football-view.js';
 import {buildFootballRadar} from './football-radar.js';
 import {difficulties,loadMatchOptions,matchOptions,saveMatchOptions} from './football-teams.js';
 import {matchTime,ballDirection,penaltyContext} from './football-controls.js';
-import {createFramePacer} from './frame-pacing.js';
 import {bindInstantAction} from './instant-action.js';
 
 function leavingPass(state,player){const target=state.players.find(p=>p.id===state.ball.targetId);return !state.ball.ownerId&&target&&target.id!==player.id&&target.team===player.team;}
@@ -27,9 +26,9 @@ export function buildPlayableMatch({scene,stadium,players,audio,onCamera,onView,
  const write=(id,key,value)=>writeHudProperty($(id),key,value);
  const trainingView=buildTrainingView(scene);view.root.add(trainingView.root);
  const report=buildMatchReport($('game-result'));let more=false,radarChoice=null;try{const display=JSON.parse(storage?.getItem('arena-match-display')||'{}');if(typeof display.radar==='boolean')radarChoice=display.radar;}catch{}
- const recorder=createReplayRecorder(),actorFrameBudget=createFramePacer();let replay=null;
+ const recorder=createReplayRecorder();let replay=null;
  let network=null;let config=loadMatchOptions(storage),simulation=createFootballSimulation({...settings,...config});
- let active=false,pending=false,failed=false,perspective='third',cameraMode=config.camera,trainingCameraChoice='close',uiTime=0,lastEvent=0,worldTime=0,aimYaw=0,helpWasPaused=false,visualTime=1,visualDirty=true,charge=null,lastInput={x:0,z:0},squadEditing=false,lastRenderedPhase='',lastRenderedPaused=null;
+ let active=false,pending=false,failed=false,perspective='third',cameraMode=config.camera,trainingCameraChoice='close',uiTime=0,lastEvent=0,worldTime=0,aimYaw=0,helpWasPaused=false,cameraTime=0,visualDirty=true,charge=null,lastInput={x:0,z:0},squadEditing=false,lastRenderedPhase='',lastRenderedPaused=null;
  let lastNetworkPacket=null,pausedVisualKey='',networkStatusKey='';
  const lastActions={player:null,owner:null,flags:-1,penaltyTeam:null,penaltyStage:null};
  function controlsChanged(s,remember=false){
@@ -139,12 +138,25 @@ export function buildPlayableMatch({scene,stadium,players,audio,onCamera,onView,
  $('game-replay-launch').onclick=startReplay;$('game-replay-exit').onclick=endReplay;$('game-replay-restart').onclick=()=>{if(replay){replay.elapsed=0;players.reset?.();}};
  $('game-replay-speed').onclick=()=>{if(replay){replay.speed=replay.speed===.5?1:.5;write('game-replay-speed','textContent',replay.speed===.5?'慢放 0.5×':'原速 1×');}};
  return{root:view.root,get training(){return simulation.state.training?.id||null;},get network(){return network;},get state(){return simulation.state;},get view(){return perspective;},get camera(){return cameraMode;},get active(){return active;},get replaying(){return !!replay;},startReplay,endReplay,
-  start(options={},session=null){more=false;$('game-ui').dataset.more='false';writeHudAttribute($('game-more'),'aria-expanded','false');writeHudAttribute($('game-more'),'aria-label','展开比赛设置');network=session;trainingCameraChoice='close';lastNetworkPacket=null;pausedVisualKey='';networkStatusKey='';uiTime=0;replay=null;recorder.reset();document.body.classList.remove('game-replay');stadium.resetMatchEffects?.();config=matchOptions({...config,...options});saveMatchOptions(storage,config);simulation=network?createOnlineSimulation(network,{...settings,...config}):options.training?createFootballTraining({...settings,...config,drill:options.training,shotKind:simulation.state.shotKind}):createFootballSimulation({...settings,...config,duration:config.rules.duration,selections:{home:config.selection},shotKind:simulation.state.shotKind});active=true;pending=true;failed=false;lastEvent=0;worldTime=0;clearInput();view.setEnabled(true);document.body.classList.add('game-active');write('game-ui','hidden',false);setView('third');render();},
+  start(options={},session=null){more=false;$('game-ui').dataset.more='false';writeHudAttribute($('game-more'),'aria-expanded','false');writeHudAttribute($('game-more'),'aria-label','展开比赛设置');network=session;trainingCameraChoice='close';lastNetworkPacket=null;pausedVisualKey='';networkStatusKey='';uiTime=0;replay=null;recorder.reset();document.body.classList.remove('game-replay');stadium.resetMatchEffects?.();config=matchOptions({...config,...options});saveMatchOptions(storage,config);simulation=network?createOnlineSimulation(network,{...settings,...config}):options.training?createFootballTraining({...settings,...config,drill:options.training,shotKind:simulation.state.shotKind}):createFootballSimulation({...settings,...config,duration:config.rules.duration,selections:{home:config.selection},shotKind:simulation.state.shotKind});active=true;pending=true;failed=false;lastEvent=0;worldTime=0;cameraTime=0;clearInput();view.setEnabled(true);document.body.classList.add('game-active');write('game-ui','hidden',false);setView('third');render();},
   ready(){pending=false;failed=false;simulation.ready?.();visualDirty=true;render();},fail(){pending=false;failed=true;render();},
   exit(keepNetwork=false){simulation.dispose?.({keepSession:keepNetwork});network=null;replay=null;writeHudData(document.body,'gameReplay','false');recorder.reset();document.body.classList.remove('game-replay');write('game-replay-panel','hidden',true);active=false;pending=false;if(squadEditing)getSquadEditor().close();clearInput();view.setEnabled(false);trainingView.setEnabled(false);writeHudData(document.body,'gameTraining','');write('game-ui','hidden',true);$('game-help-dialog').close();document.body.classList.remove('game-active');delete document.body.dataset.gamePhase;},
   showTeam,clearInput,setPaused(value){simulation.setPaused(value);if(value)clearInput();render();},setControlMode,cycleShotKind,setView,setCamera,cycleCamera,showHelp,action,beginCharge,releaseCharge,cancelCharge,
-  update(dt,input,viewer){
-   if(!active)return;if(replay){replay.elapsed=Math.min(replay.clip.duration,replay.elapsed+Math.min(dt,.25)*replay.speed);const frame=replaySample(replay.clip,replay.elapsed);onCamera?.(frame,'third',dt);view.update(frame,frame.time,viewer);stadium.updateMatchEffects?.(frame,frame.time);write('game-replay-progress','value',replay.elapsed/replay.clip.duration);writeHudData(document.body,'replayProgress',(replay.elapsed/replay.clip.duration).toFixed(3));if(replay.elapsed>=replay.clip.duration)endReplay();return;}aimYaw=input.yaw??0;lastInput={x:input.x||0,z:input.z||0};
+  update(dt,input,viewer,visualFrame=true){
+   if(!active)return;
+   cameraTime=Math.min(.25,cameraTime+dt);
+   if(replay){
+    replay.elapsed=Math.min(replay.clip.duration,replay.elapsed+Math.min(dt,.25)*replay.speed);
+    if(visualFrame){
+     const frame=replaySample(replay.clip,replay.elapsed);
+     onCamera?.(frame,'third',cameraTime);cameraTime=0;
+     view.update(frame,frame.time,viewer);stadium.updateMatchEffects?.(frame,frame.time);
+     write('game-replay-progress','value',replay.elapsed/replay.clip.duration);writeHudData(document.body,'replayProgress',(replay.elapsed/replay.clip.duration).toFixed(3));
+     if(replay.elapsed>=replay.clip.duration)endReplay();
+    }
+    return;
+   }
+   aimYaw=input.yaw??0;lastInput={x:input.x||0,z:input.z||0};
    if(!pending&&!failed){
     if(charge&&!simulation.state.paused){charge.elapsed+=Math.min(dt,.25);simulation.state.chargePower=.25+Math.min(1,charge.elapsed/.85)*.75;}
     simulation.update(dt,{...input,defend:input.defend||pressurePointers.size>0,charging:!!charge});
@@ -153,7 +165,14 @@ export function buildPlayableMatch({scene,stadium,players,audio,onCamera,onView,
    }
    const s=simulation.state,networkChanged=refreshPausedNetwork(s);if(s.phase!==lastRenderedPhase||s.paused!==lastRenderedPaused||networkChanged&&s.paused||controlsChanged(s))render();if(!network&&!s.training)recorder.record(s);if(network){if(worldTime>s.time+1)worldTime=s.time;else worldTime=Math.max(worldTime,s.time);}
    if(s.eventCount<lastEvent)lastEvent=0;if(s.eventCount!==lastEvent){for(const e of s.events.filter(e=>e.id>lastEvent)){if(e.type==='goal'&&!s.training){recorder.goal(s);audio.cheer();onCrowdReaction?.(1);}else if(['shot','pass','through','tackle','woodwork'].includes(e.type)){audio.kick?.(e.type==='shot'?1:.6);if(e.team==='home'&&['shot','tackle'].includes(e.type))onCrowdReaction?.(.3);}else if(['save','parry'].includes(e.type)&&e.team==='home')onCrowdReaction?.(.5);else if(e.type==='start'||e.type==='fulltime')audio.whistle?.();}lastEvent=s.eventCount;}
-   trainingView.update(s.training);s.cameraMode=cameraMode;onCamera?.(s,perspective,dt);visualTime+=dt;if((!s.paused||visualDirty)&&actorFrameBudget.ready(visualTime,mobile?30:60)){visualDirty=false;view.update(s,worldTime,viewer,{firstPerson:perspective==='first'});stadium.updateMatchEffects?.(s,worldTime);}uiTime+=dt;if(uiTime>(s.paused?1:.1)){uiTime=0;if(!s.paused||network)render();}
+   // Sample the camera, ball and bones from the same state just before a
+   // draw. Input and network prediction still run on every animation tick.
+   if(visualFrame){
+    trainingView.update(s.training);s.cameraMode=cameraMode;
+    onCamera?.(s,perspective,cameraTime);cameraTime=0;
+    if(!s.paused||visualDirty){visualDirty=false;view.update(s,worldTime,viewer,{firstPerson:perspective==='first'});stadium.updateMatchEffects?.(s,worldTime);}
+   }
+   uiTime+=dt;if(uiTime>(s.paused?1:.1)){uiTime=0;if(!s.paused||network)render();}
   }
  };
 }

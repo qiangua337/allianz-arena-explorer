@@ -5,8 +5,12 @@ import {goalkeeperProfile} from './goalkeeper.js';
 // Advancing one server-time playhead avoids restarting a short tween on every
 // packet, which otherwise turns 20 Hz snapshots into stop/start mobile motion.
 export function createOnlineInterpolation(){
- const capacity=8,stride=113,frames=Array.from({length:capacity},()=>({time:0,owner:null,pose:new Float64Array(stride)}));let head=0,length=0,playhead=0,phase='',controlledId=null;
- function clear(){head=length=0;phase='';controlledId=null;}
+ const capacity=8,stride=113,frames=Array.from({length:capacity},()=>({time:0,owner:null,pose:new Float64Array(stride),motions:new Array(22)}));
+ const displayedMotions=new Array(22);let head=0,length=0,playhead=0,phase='',controlledId=null;
+ function clear(){
+  for(let i=0;i<length;i++)frames[(head+i)%capacity].motions.fill(null);
+  displayedMotions.fill(null);head=length=0;phase='';controlledId=null;
+ }
  function receive(state){
   if(state.paused||state.phase!=='playing'||!Number.isFinite(state.time)){clear();return;}
   const latest=length?frames[(head+length-1)%capacity]:null;
@@ -15,7 +19,7 @@ export function createOnlineInterpolation(){
   if(length&&frames[(head+length-1)%capacity].time===state.time)frame=frames[(head+length-1)%capacity];
   else{if(length===capacity){head=(head+1)%capacity;length--;}frame=frames[(head+length)%capacity];length++;}
   frame.time=state.time;frame.owner=state.ball.ownerId;
-  for(let i=0;i<22;i++){const p=state.players[i],at=i*5;frame.pose[at]=p.x;frame.pose[at+1]=p.z;frame.pose[at+2]=p.yaw;frame.pose[at+3]=p.vx;frame.pose[at+4]=p.vz;}
+  for(let i=0;i<22;i++){const p=state.players[i],at=i*5;frame.pose[at]=p.x;frame.pose[at+1]=p.z;frame.pose[at+2]=p.yaw;frame.pose[at+3]=p.vx;frame.pose[at+4]=p.vz;frame.motions[i]=p.motion;}
   frame.pose[110]=state.ball.x;frame.pose[111]=state.ball.y;frame.pose[112]=state.ball.z;
   if(length===1)playhead=frame.time-.1;
  }
@@ -28,8 +32,34 @@ export function createOnlineInterpolation(){
   const time=Math.max(oldest.time,playhead);let a=oldest,b=oldest;
   for(let i=1;i<length;i++){b=frames[(head+i)%capacity];if(b.time>=time)break;a=b;}
   const t=b.time>a.time?Math.max(0,Math.min(1,(time-a.time)/(b.time-a.time))):1;
-  for(let i=0;i<22;i++){const p=state.players[i];if(p.id===state.controlledId)continue;const at=i*5;p.x=a.pose[at]+(b.pose[at]-a.pose[at])*t;p.z=a.pose[at+1]+(b.pose[at+1]-a.pose[at+1])*t;const yaw=a.pose[at+2],turn=b.pose[at+2]-yaw;p.yaw=yaw+Math.atan2(Math.sin(turn),Math.cos(turn))*t;p.vx=a.pose[at+3]+(b.pose[at+3]-a.pose[at+3])*t;p.vz=a.pose[at+4]+(b.pose[at+4]-a.pose[at+4])*t;}
-  if(state.ball.ownerId!==state.controlledId&&a.owner===state.ball.ownerId&&b.owner===state.ball.ownerId&&Math.hypot(a.pose[110]-b.pose[110],a.pose[112]-b.pose[112])<6){state.ball.x=a.pose[110]+(b.pose[110]-a.pose[110])*t;state.ball.y=a.pose[111]+(b.pose[111]-a.pose[111])*t;state.ball.z=a.pose[112]+(b.pose[112]-a.pose[112])*t;}
+  for(let i=0;i<22;i++){
+   const p=state.players[i];if(p.id===state.controlledId)continue;
+   const at=i*5,yaw=a.pose[at+2],turn=b.pose[at+2]-yaw;
+   p.x=a.pose[at]+(b.pose[at]-a.pose[at])*t;p.z=a.pose[at+1]+(b.pose[at+1]-a.pose[at+1])*t;
+   p.yaw=yaw+Math.atan2(Math.sin(turn),Math.cos(turn))*t;
+   p.vx=a.pose[at+3]+(b.pose[at+3]-a.pose[at+3])*t;p.vz=a.pose[at+4]+(b.pose[at+4]-a.pose[at+4])*t;
+   const later=b.motions[i],laterStarted=later&&time+1e-6>=b.time-later.elapsed;
+   const stroke=laterStarted?later:a.motions[i];
+   const elapsed=stroke?Math.max(0,time-(laterStarted?b.time:a.time)+stroke.elapsed):0;
+   if(stroke&&elapsed<stroke.duration){
+    let display=displayedMotions[i];
+    if(!display||display.id!==stroke.id||display.type!==stroke.type)display=displayedMotions[i]={...stroke};
+    display.elapsed=elapsed;p.motion=display;
+   }else{displayedMotions[i]=null;p.motion=null;}
+  }
+  // Keep the ball with the remote strike through possession changes. Local
+  // touches still use their immediate prediction/authoritative position.
+  const local=state.controlledId;
+  if(state.ball.ownerId!==local&&latest.owner!==local&&a.owner!==local&&b.owner!==local&&Math.hypot(a.pose[110]-b.pose[110],a.pose[112]-b.pose[112])<6){
+   const kick=a.owner&&!b.owner?b.motions[state.players.findIndex(p=>p.id===a.owner)]:null;
+   const strikeAt=kick?b.time-kick.elapsed:0;
+   let x0=a.pose[110],y0=a.pose[111],z0=a.pose[112],x1=b.pose[110],y1=b.pose[111],z1=b.pose[112],blend=t;
+   if(kick&&strikeAt>a.time&&strikeAt<b.time&&Number.isFinite(kick.contactX)&&Number.isFinite(kick.contactY)&&Number.isFinite(kick.contactZ)){
+    if(time<strikeAt){x1=kick.contactX;y1=kick.contactY;z1=kick.contactZ;blend=(time-a.time)/(strikeAt-a.time);}
+    else{x0=kick.contactX;y0=kick.contactY;z0=kick.contactZ;blend=(time-strikeAt)/(b.time-strikeAt);}
+   }
+   state.ball.x=x0+(x1-x0)*blend;state.ball.y=y0+(y1-y0)*blend;state.ball.z=z0+(z1-z0)*blend;
+  }
  }
  return{receive,update,clear,get bufferedFrames(){return length;},get playhead(){return playhead;},get capacity(){return capacity;},get bytes(){return capacity*stride*Float64Array.BYTES_PER_ELEMENT;}};
 }
@@ -56,11 +86,40 @@ export function createOnlinePrediction(team){
   for(let i=0;i<length;i++){const record=history[(head+i)%history.length];step(record.input,record.dt,actors);}
   const dx=oldX-player.x,dz=oldZ-player.z;errorX=!reset&&Math.hypot(dx,dz)<2.5?dx:0;errorZ=!reset&&Math.hypot(dx,dz)<2.5?dz:0;
  }
- function update(state,dt,input,sequence){if(state.paused||state.phase!=='playing'){clear();return;}if(!player)return;age+=dt;if(age>.6){motion=null;return;}dt=Math.min(.1,Math.max(0,dt));
+ function update(state,dt,input,sequence){
+  if(state.paused||state.phase!=='playing'){clear();return;}
+  if(!player)return;
+  const p=state.players.find(p=>p.id===player.id);
+  if(!p)return;
+  age+=dt;if(age>.6){if(p.motion?.id===-1)p.motion=null;motion=null;return;}
+  dt=Math.min(.1,Math.max(0,dt));
   if(sequence>0){if(length===history.length)drop();const record=history[(head+length)%history.length];record.seq=sequence;record.dt=dt;record.input=input;length++;pending+=dt;while(pending>.6)drop();step(input,dt,actors);}
-  errorX*=Math.exp(-dt*16);errorZ*=Math.exp(-dt*16);const p=state.players.find(p=>p.id===player.id);if(!p)return;Object.assign(p,{x:player.x+errorX,z:player.z+errorZ,vx:player.vx,vz:player.vz,yaw:player.yaw,stamina:player.stamina,defending:player.defending,receiveControl:player.receiveControl,pivotUntil:player.pivotUntil});
+  errorX*=Math.exp(-dt*16);errorZ*=Math.exp(-dt*16);Object.assign(p,{x:player.x+errorX,z:player.z+errorZ,vx:player.vx,vz:player.vz,yaw:player.yaw,stamina:player.stamina,defending:player.defending,receiveControl:player.receiveControl,pivotUntil:player.pivotUntil});
   if(ball.ownerId===p.id&&state.ball.ownerId===p.id)Object.assign(state.ball,{x:ball.x+errorX,z:ball.z+errorZ,y:ball.y,vx:ball.vx,vz:ball.vz});
-  if(motion){motion.elapsed+=dt;if(motion.elapsed<motion.duration)p.motion={...motion};else motion=null;}
+  if(motion){
+   motion.elapsed+=dt;
+   if(motion.elapsed<motion.duration)p.motion={...motion};
+   else{if(p.motion?.id===-1)p.motion=null;motion=null;}
+  }
  }
-  return{receive,update,clear,animate(type,latency=0,options={}){if(!player)return;if(setPiece&&type==='tackle'&&player.id===setPiece.keeper&&setPiece.stage!=='setup'){const g=player.keeperState,profile=goalkeeperProfile(),direction=Math.sign(options.direction?.x||player.vx||1);if(time<(g.recoverUntil||0))return;Object.assign(g,{phase:'dive',direction,diveAt:time,diveUntil:time+profile.window,recoverUntil:time+profile.window+profile.recovery});motion={id:-1,type:'dive',elapsed:0,duration:profile.window+profile.recovery,direction:direction*player.attackSign,height:1};return;}if(['pass','through','shoot','tackle'].includes(type))motion={id:-1,type:type==='through'?'pass':type,elapsed:0,duration:Math.min(.48,Math.max(.24,latency/1000+.08))};},get pendingSeconds(){return pending;}};
+ function animate(type,latency=0,options={},shotKind='drive'){
+  if(!player)return;
+  if(setPiece&&type==='tackle'&&player.id===setPiece.keeper&&setPiece.stage!=='setup'){
+   const g=player.keeperState,profile=goalkeeperProfile(),direction=Math.sign(options.direction?.x||player.vx||1);
+   if(time<(g.recoverUntil||0))return;
+   Object.assign(g,{phase:'dive',direction,diveAt:time,diveUntil:time+profile.window,recoverUntil:time+profile.window+profile.recovery});
+   motion={id:-1,type:'dive',elapsed:0,duration:profile.window+profile.recovery,direction:direction*player.attackSign,height:1};
+   return;
+  }
+  const duration=Math.min(.48,Math.max(.24,latency/1000+.08));
+  if(type==='tackle'){motion={id:-1,type,elapsed:0,duration};return;}
+  if(!['pass','through','shoot'].includes(type))return;
+  // A queued one-touch pass is still sent immediately. Its strike is
+  // presented only when the authoritative player reaches the ball.
+  const reachable=!ball.ownerId&&!ball.targetId&&ball.y<.4&&Math.hypot(player.x-ball.x,player.z-ball.z)<.9;
+  if(ball.ownerId!==player.id&&!reachable)return;
+  const stroke=type==='shoot'?shotKind:type==='through'?'through':'short';
+  motion={id:-1,type:type==='through'?'pass':type,elapsed:0,duration,predicted:true,stroke,power:options.power};
+ }
+ return{receive,update,clear,animate,get pendingSeconds(){return pending;}};
 }

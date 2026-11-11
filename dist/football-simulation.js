@@ -39,7 +39,7 @@ export function createFootballSimulation({duration=180,seed=73417,controlMode='s
   if(practice&&previous!==player.id)emit('training-receive',player.team,player.name+'触球',player.id);
   if(b.shot&&!player.keeper&&(player.team!==b.shot.team||state.lastShot?.outcome==='flight'))finishShot(player.team!==b.shot.team?'blocked':'short');for(const c of Object.values(controllers)){c.autoReceive=false;c.receiveIntent=null;}b.shot=null;b.curve=0;b.targetId=null;b.receivePoint=null;b.ownerId=player.id;b.vx=b.vy=b.vz=0;lastTouch=player.team;player.possessionSince=worldTime;
  }
- function motion(p,type,duration=.38){p.motion={id:++actionSerial,type,elapsed:0,duration};}
+ function motion(p,type,duration=.38,details){p.motion={id:++actionSerial,type,elapsed:0,duration,...details};}
  function stopBall(){Object.assign(state.ball,{vx:0,vy:0,vz:0});}
  function resetPositions(kickoffTeam){
   for(const c of Object.values(controllers)){c.queuedAction=null;c.receiveIntent=null;}
@@ -62,10 +62,34 @@ export function createFootballSimulation({duration=180,seed=73417,controlMode='s
  }
  function carryBall(dt=STEP){const b=state.ball,p=byId(b.ownerId);if(!p){b.ownerId=null;return;}carryFootball(p,b,dt,worldTime);}
  function release(player,vx,vz,vy=0){controllers[player.team].autoReceive=false;controllers[player.team].receiveIntent=null;const b=state.ball;b.shot=null;b.curve=0;b.targetId=null;b.receivePoint=null;b.ownerId=null;b.vx=vx;b.vz=vz;b.vy=vy;b.y=Math.max(BALL_RADIUS,b.y);lastTouch=player.team;claimBlockId=player.id;claimBlockUntil=worldTime+.48;player.decisionAt=worldTime+1.2;}
- function pass(player,{direction=null,type='pass',power=.45}={}){const b=state.ball,option=passOption(available(),player,b,{direction,type,power});if(!option){state.message='这个方向没有接应球员';return false;}const dx=option.x-b.x,dz=option.z-b.z,d=Math.hypot(dx,dz),flight=passFlight(b,option,{type,lane:option.lane}),human=isHuman(player);motion(player,'pass',.32);player.motion.lofted=flight.lofted;release(player,flight.vx,flight.vz,flight.vy);controllers[player.team].autoReceive=human;const intent=direction||controllers[player.team].lastInput;controllers[player.team].receiveIntent=human&&type==='pass'&&Math.hypot(intent.x,intent.z)>.18?{x:intent.x,z:intent.z,sprint:!!controllers[player.team].lastInput.sprint,passId:actionSerial}:null;player.runUntil=worldTime+passRunSeconds(footballFormations[state.teamSheets[player.team].formation].roles[player.index]);player.runX=dx/(d||1);b.targetId=option.player.id;b.receivePoint={x:option.x,z:option.z,until:worldTime+4};player.yaw=face(dx,dz);state.stats[player.team].passes++;emit(type,player.team,player.name+(flight.lofted?' 挑传直塞 → ':type==='through'?' 直塞 → ':' → ')+option.player.name,player.id,practice?{targetId:option.player.id}:null);return true;}
+ function strikeDetails(player,stroke,power){
+  const ball=state.ball,details={stroke,power,contactX:ball.x,contactY:Math.max(BALL_RADIUS,ball.y),contactZ:ball.z};
+  if(player.motion?.type==='trap'&&player.motion.elapsed<=.17)details.firstTime=true;
+  return details;
+ }
+ function pass(player,{direction=null,type='pass',power=.45}={}){
+  const b=state.ball,option=passOption(available(),player,b,{direction,type,power});
+  if(!option){state.message='这个方向没有接应球员';return false;}
+  const dx=option.x-b.x,dz=option.z-b.z,d=Math.hypot(dx,dz),flight=passFlight(b,option,{type,lane:option.lane}),human=isHuman(player);
+  const stroke=flight.lofted?'lofted':type==='through'?'through':'short';
+  motion(player,'pass',.32,{...strikeDetails(player,stroke,power),lofted:flight.lofted});
+  release(player,flight.vx,flight.vz,flight.vy);
+  controllers[player.team].autoReceive=human;
+  const intent=direction||controllers[player.team].lastInput;
+  controllers[player.team].receiveIntent=human&&type==='pass'&&Math.hypot(intent.x,intent.z)>.18?{x:intent.x,z:intent.z,sprint:!!controllers[player.team].lastInput.sprint,passId:actionSerial}:null;
+  player.runUntil=worldTime+passRunSeconds(footballFormations[state.teamSheets[player.team].formation].roles[player.index]);
+  player.runX=dx/(d||1);
+  b.targetId=option.player.id;b.receivePoint={x:option.x,z:option.z,until:worldTime+4};
+  player.yaw=face(dx,dz);state.stats[player.team].passes++;
+  emit(type,player.team,player.name+(flight.lofted?' 挑传直塞 → ':type==='through'?' 直塞 → ':' → ')+option.player.name,player.id,practice?{targetId:option.player.id}:null);
+  return true;
+ }
  function shoot(player,{direction=null,power=.55,kind}={}){
   const b=state.ball,human=isHuman(player),mode=kind||(human?state.shotKinds[player.team]:'drive'),keeper=onField().find(p=>p.keeper&&p.team!==player.team),pressure=pressureNear(player),preparation=shotPreparation(player,b,{power,pressure}),error=(random()*2-1)*(preparation.spread+(!human&&player.team==='away'?tuning.shotError*.5:0)),heightError=(random()*2-1)*preparation.heightSpread+preparation.heightBias,aim=shotOption(player,b,{direction,power,error,heightError,kind:mode,keeper,pressure});
-  if(aim.distance<.01)return false;motion(player,'shoot',.46);release(player,aim.vx,aim.vz,aim.vy);b.curve=aim.curve;b.shot={id:actionSerial,team:player.team,kind:aim.kind,at:worldTime};state.lastShot={...b.shot,updatedAt:worldTime,playerId:player.id,name:player.name,power,distance:aim.distance,quality:aim.quality,preparation:aim.preparation,spread:aim.spread,heightSpread:aim.heightSpread,limited:aim.limited,outcome:'flight',onTarget:false};player.yaw=face(aim.x-b.x,aim.z-b.z);state.stats[player.team].shots++;const reasons={backfoot:'背身调整起脚',rushed:'跑动起脚',pressured:'贴身受压',overpowered:'蓄力过满','long-range':'远距离起脚'};emit('shot',player.team,player.name+'射门！'+(reasons[aim.preparation]?' · '+reasons[aim.preparation]:''),player.id,practice?{shotId:state.lastShot.id}:null);return true;
+  if(aim.distance<.01)return false;
+  motion(player,'shoot',.46,strikeDetails(player,aim.kind,power));
+  release(player,aim.vx,aim.vz,aim.vy);
+  b.curve=aim.curve;b.shot={id:actionSerial,team:player.team,kind:aim.kind,at:worldTime};state.lastShot={...b.shot,updatedAt:worldTime,playerId:player.id,name:player.name,power,distance:aim.distance,quality:aim.quality,preparation:aim.preparation,spread:aim.spread,heightSpread:aim.heightSpread,limited:aim.limited,outcome:'flight',onTarget:false};player.yaw=face(aim.x-b.x,aim.z-b.z);state.stats[player.team].shots++;const reasons={backfoot:'背身调整起脚',rushed:'跑动起脚',pressured:'贴身受压',overpowered:'蓄力过满','long-range':'远距离起脚'};emit('shot',player.team,player.name+'射门！'+(reasons[aim.preparation]?' · '+reasons[aim.preparation]:''),player.id,practice?{shotId:state.lastShot.id}:null);return true;
  }
  function nearestOutfield(team,point,exclude=null){let nearest,best=Infinity;for(const p of state.players){if(p.dismissed||p.team!==team||p.keeper||p.id===exclude)continue;const gap=distance(p,point);if(gap<best){best=gap;nearest=p;}}return nearest;}
  function restart(type,team,x,z){

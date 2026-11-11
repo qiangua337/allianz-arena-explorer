@@ -9,11 +9,30 @@ export function atlasGeometry(geometries,hair,{keeper=false}={}){
 }
 function kitColors(d){const official=d.team==='official',staff=['coach','assistant','doctor','physio'].includes(d.role),away=d.team==='away';return{shirt:official?'#77cbd1':staff?'#27343c':d.keeper?(away?'#9584b2':'#176f62'):away?d.kit?.shirt||'#ebcc3d':'#bb1d32',shorts:official||staff?'#222c31':d.keeper?(away?'#6b5f85':'#176f62'):away?d.kit?.shorts||'#222c31':'#ab182c',ink:away&&!d.keeper?d.kit?.ink||'#222c31':'#f4f1e8',socks:official||staff?'#27343c':away&&!d.keeper?d.kit?.socks||'#dfdfd6':'#dfdfd6'};}
 export function drawBootTexture(c,w,h){
- c.save();c.scale(w/256,h/256);c.fillStyle='#e6e9e2';c.fillRect(0,0,256,256);
- c.fillStyle='#c4cec9';c.fillRect(0,218,200,38);c.fillStyle='#2b3439';c.fillRect(199,0,57,256);c.fillStyle='#747f80';c.fillRect(224,0,16,256);
- c.strokeStyle='#a8b3ae';c.lineWidth=1.4;for(const x of[7,92,188]){c.beginPath();c.moveTo(x,20);c.bezierCurveTo(x+8,80,x-6,156,x+2,224);c.stroke();}
- for(let y=30;y<92;y+=10)for(let x=23;x<78;x+=9){c.fillStyle='#bdc8c0';c.beginPath();c.arc(x,y,1,0,Math.PI*2);c.fill();}
- c.fillStyle='#bec9c2';c.fillRect(34,99,34,90);c.strokeStyle='#fbfcf6';c.lineWidth=3.5;for(let y=108;y<184;y+=12){c.beginPath();c.moveTo(36,y);c.lineTo(65,y+6);c.stroke();}c.restore();
+ c.save();c.scale(w/256,h/256);
+ const upper=c.createLinearGradient(0,0,0,256);
+ upper.addColorStop(0,'#d5ded9');upper.addColorStop(.45,'#eef1ea');upper.addColorStop(1,'#b1bfba');
+ c.fillStyle=upper;c.fillRect(0,0,256,256);
+ c.fillStyle='#303b3f';c.fillRect(0,0,20,256);c.fillRect(178,0,78,256);
+ c.fillStyle='#8b9691';c.fillRect(241,0,15,256);
+ // Both quarters rise at the heel. The tongue lies over the dorsal arch.
+ c.fillStyle='#9eafa7';
+ for(const direction of[-1,1]){
+  c.beginPath();c.moveTo(99+direction*77,70);
+  c.bezierCurveTo(99+direction*47,108,99+direction*37,162,99+direction*25,232);
+  c.lineTo(99+direction*77,256);c.fill();
+ }
+ c.fillStyle='#bac9c3';c.beginPath();c.moveTo(87,103);c.lineTo(111,103);
+ c.lineTo(124,204);c.lineTo(74,204);c.fill();
+ c.fillStyle='#71817e';c.fillRect(20,232,158,24);
+ c.strokeStyle='#fcfdf5';c.lineWidth=4.5;
+ for(let y=114;y<=192;y+=13){
+  const halfWidth=12+(y-114)*.11;
+  c.beginPath();c.moveTo(99-halfWidth,y);c.lineTo(99+halfWidth,y+5);c.stroke();
+ }
+ c.strokeStyle='#a6b3ac';c.lineWidth=2;
+ for(let y=34;y<=76;y+=14){c.beginPath();c.moveTo(56,y+8);c.bezierCurveTo(81,y,118,y,142,y+8);c.stroke();}
+ c.restore();
 }
 // Original generic keeper equipment: latex palm, contrasting padded backhand
 // panels and a broad wrist fastening. It occupies an unused atlas cell.
@@ -33,11 +52,30 @@ export function characterAtlas(d,textures,jerseyTexture,size=1024){
   const cell=cells.short02;c.save();c.beginPath();c.rect(...cell);c.clip();c.clearRect(...cell);if(d.hair==='crop'){c.fillStyle='#27231e';c.fillRect(...cell);}else{c.drawImage(textures.short02.image,...cell);c.globalCompositeOperation='multiply';c.fillStyle=new THREE.Color(d.hairColor||0x9a8476).getStyle();c.fillRect(...cell);c.globalCompositeOperation='destination-in';c.drawImage(textures.short02.image,...cell);}c.restore();
  });jersey.dispose();return texture;
 }
+function drawJerseyPanels(c){
+ for(const offset of[0,512]){
+  const sideShade=c.createLinearGradient(offset,0,offset+512,0);
+  sideShade.addColorStop(0,'rgba(19,8,12,.33)');sideShade.addColorStop(.18,'rgba(19,8,12,.10)');
+  sideShade.addColorStop(.5,'rgba(19,8,12,0)');sideShade.addColorStop(.82,'rgba(19,8,12,.10)');
+  sideShade.addColorStop(1,'rgba(19,8,12,.33)');
+  c.fillStyle=sideShade;c.fillRect(offset,0,512,1024);
+  const center=offset+256,neckDepth=offset===0?165:114;
+  c.beginPath();c.moveTo(center-64,86);
+  c.bezierCurveTo(center-55,neckDepth-11,center-26,neckDepth,center,neckDepth);
+  c.bezierCurveTo(center+26,neckDepth,center+55,neckDepth-11,center+64,86);
+  c.strokeStyle='rgba(25,13,18,.52)';c.lineWidth=24;c.stroke();
+  c.strokeStyle='rgba(250,241,237,.24)';c.lineWidth=5;c.stroke();
+  for(const edge of[offset,offset+478]){
+   c.fillStyle='rgba(19,8,12,.24)';c.fillRect(edge,170,34,390);
+   c.fillStyle='rgba(255,248,244,.26)';c.fillRect(edge+(edge===offset?24:7),170,4,390);
+  }
+ }
+}
 export function drawJersey(d,crest,colors){return canvasTexture(1024,1024,c=>{
  c.fillStyle=colors.shirt;c.fillRect(0,0,1024,1024);if(d.kit?.pattern==='stripes'&&!d.keeper&&['player','substitute'].includes(d.role)){c.fillStyle='#a62848';for(let x=0;x<1024;x+=128)c.fillRect(x,0,64,1024);}c.strokeStyle='rgba(20,0,0,.055)';c.lineWidth=2;for(let y=0;y<1024;y+=36){c.beginPath();c.moveTo(0,y);c.lineTo(1024,y);c.stroke();}c.fillStyle='rgba(255,255,255,.03)';for(let y=0;y<1024;y+=5)c.fillRect(0,y,1024,1);
+ drawJerseyPanels(c);
  const player=d.player,club=d.team==='away'?d.club?.english||'BORUSSIA DORTMUND':d.team==='official'?'MATCH OFFICIAL':d.role==='player'||d.role==='substitute'?'FC BAYERN MÜNCHEN':'FC BAYERN · STAFF';c.fillStyle=colors.ink;c.textAlign='center';c.font='bold 43px Arial';c.fillText(club,768,214,292);
  if(player.number){c.font='bold 475px Arial';c.fillText(String(player.number),768,640,player.number<10?120:190);}else{c.font='bold 96px Arial';c.fillText(player.name,768,510,285);}
  c.font='bold 52px Arial';c.fillText(player.name,768,755,290);if(crest&&d.team!=='official')c.drawImage(crest,327,240,53,102);else if(d.club){c.strokeStyle=colors.ink;c.lineWidth=5;c.strokeRect(327,263,53,67);c.font='bold 21px Arial';c.fillText(d.club.code,353,304,46);}
  if(d.team==='official'){c.fillStyle='#18292d';c.fillRect(192,350,128,24);c.fillRect(315,350,92,9);c.font='bold 30px Arial';c.fillText('REFEREE',256,530);}else if(['doctor','physio'].includes(d.role)){c.font='bold 57px Arial';c.fillText('MEDICAL',256,520);}else{c.font='bold 100px Arial';c.fillText(d.team==='away'?d.club?.code||'DORTMUND':'T',256,535,d.team==='away'?230:75);}
- c.strokeStyle='rgba(255,255,245,.5)';c.lineWidth=3;for(const offset of[0,512])for(const x of[49,463]){c.beginPath();c.moveTo(offset+x,190);c.lineTo(offset+x,315);c.stroke();}
  });}

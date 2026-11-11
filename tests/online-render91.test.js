@@ -62,6 +62,27 @@ test('remote stopping and reversing interpolate animation velocity on the same t
  }
 });
 
+test('a remote shot uses the same delayed contact time for the ball and striking pose',()=>{
+ const state=renderState(),buffer=createOnlineInterpolation(),actor=state.players[12];
+ pose(state,1);state.ball.x=1;actor.motion=null;buffer.receive(state);
+ pose(state,1.1);state.ball.x=2.6;state.ball.ownerId=null;
+ actor.motion={id:17,type:'shoot',stroke:'finesse',elapsed:.06,duration:.46,contactX:1,contactY:.11,contactZ:0};
+ buffer.receive(state);
+ let before=false,after=false;
+ for(let i=0;i<26;i++){
+  buffer.update(state,1/120);
+  const t=Math.max(1,buffer.playhead);
+  assert.equal(state.ball.ownerId,null,'possession is still applied on packet arrival');
+  if(t<1.04){before=true;assert.equal(actor.motion,null);assert.equal(state.ball.x,1);}
+  else{
+   after=true;assert.equal(actor.motion.stroke,'finesse');
+   assert.ok(Math.abs(actor.motion.elapsed-(t-1.04))<1e-6);
+   assert.ok(Math.abs(state.ball.x-(1+1.6*(t-1.04)/.06))<1e-6);
+  }
+ }
+ assert.ok(before&&after);
+});
+
 test('receiving snapshots no longer allocates two per-player pose arrays, while new preparation previews remain intact',()=>{
  const game=createFootballSimulation({humanTeams:['home','away']});for(let i=0;i<210;i++)game.update(1/60);const listeners=new Set(),session={team:'home',opponent:'dortmund',connection:'connected',room:{started:true,ended:false},packet:packOnlineState(game.state,1),subscribe(f){listeners.add(f);return()=>listeners.delete(f);},sendInput(){return 1;},send(){return true;},leave(){}};const client=createOnlineSimulation(session),original=Array.prototype.map;let poseMaps=0;
  try{Array.prototype.map=function(...args){if(this===client.state.players)poseMaps++;return original.apply(this,args);};for(let i=0;i<20;i++){game.update(.05,{home:{x:1,z:0}});session.packet=packOnlineState(game.state,i+2);session.packet.previews.home.preparedAction={type:'pass',remaining:.12};for(const f of listeners)f();assert.deepEqual(client.state.preparedAction,{type:'pass',remaining:.12});assert.deepEqual(client.state.score,session.packet.score);assert.equal(client.state.elapsed,session.packet.elapsed);}}finally{Array.prototype.map=original;client.dispose();}

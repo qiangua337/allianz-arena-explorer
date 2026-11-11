@@ -32,7 +32,7 @@ function athlete(data,geometries,textures,definition,motion,atlasSize){
  const hand=new THREE.Vector3(),updateHand=()=>{if(accessory||booking){bones[14].getWorldPosition(hand);group.worldToLocal(hand);if(accessory)accessory.position.copy(hand);if(booking)booking.position.copy(hand);}};return{group,body,definition,reset:motionPlayer.reset,showBooking(type){if(booking){booking.visible=!!type;booking.material.color.set(type==='yellow'?0xf1d14c:0xe82d42);}},pose(x,z,heading,time,moving,seatY=0,action=null,options=noActionOptions){
   // Apply locomotion and the football stroke before propagating the skeleton
   // once. Stairs keep their intermediate matrices for foot placement.
-  motionPlayer.pose(x,z,heading,time,moving,seatY,true);if(action||options.defending||options.speed>5.5)applyFootballAction(bones,action,options);group.updateMatrixWorld(true);updateHand();
+  motionPlayer.pose(x,z,heading,time,moving,seatY,true,options);if(action||options.defending||options.speed>5.5)applyFootballAction(bones,action,options,group);group.updateMatrixWorld(true);updateHand();
  },poseBudget:createFramePacer()};
 }
 
@@ -40,7 +40,7 @@ export function buildEntrancePlayers(scene,{mobile=false}={}){
  const root=new THREE.Group();root.name='Skinned football entrance queue';root.visible=false;scene.add(root);let loading,players=[],ready=false,lastMatchTime=null,playerAssets=null,opponent='dortmund';const officials=new Map();
  async function prepare(){if(loading)return loading;loading=(async()=>{
   const loader=new THREE.TextureLoader(),loadTexture=name=>loader.loadAsync(asset(name)),[data,binary,light,dark,short02,eyes,brows,crest,motion,awayCrest]=await Promise.all([
-   fetch(asset('footballer-910.json')).then(r=>{if(!r.ok)throw Error('Player manifest '+r.status);return r.json();}),fetch(asset('footballer-910.bin')).then(r=>{if(!r.ok)throw Error('Player mesh '+r.status);return r.arrayBuffer();}),loadTexture('skin-light.webp'),loadTexture('skin-dark.webp'),loadTexture('hair-short02.webp'),loadTexture('eyes.webp'),loadTexture('brows.webp'),new THREE.ImageLoader().loadAsync(new URL('./assets/fc-bayern.svg',import.meta.url).href),fetch(asset('walk-cycle.json')).then(r=>{if(!r.ok)throw Error('Motion '+r.status);return r.json();}),new THREE.ImageLoader().loadAsync(new URL('./assets/borussia-dortmund.svg',import.meta.url).href)
+   fetch(asset('footballer-960.json')).then(r=>{if(!r.ok)throw Error('Player manifest '+r.status);return r.json();}),fetch(asset('footballer-960.bin')).then(r=>{if(!r.ok)throw Error('Player mesh '+r.status);return r.arrayBuffer();}),loadTexture('skin-light.webp'),loadTexture('skin-dark.webp'),loadTexture('hair-short02.webp'),loadTexture('eyes.webp'),loadTexture('brows.webp'),new THREE.ImageLoader().loadAsync(new URL('./assets/fc-bayern.svg',import.meta.url).href),fetch(asset('walk-cycle.json')).then(r=>{if(!r.ok)throw Error('Motion '+r.status);return r.json();}),new THREE.ImageLoader().loadAsync(new URL('./assets/borussia-dortmund.svg',import.meta.url).href)
   ]);for(const t of[light,dark,short02,eyes,brows]){t.colorSpace=THREE.SRGBColorSpace;t.anisotropy=4;}
   const shadow=canvasTexture(64,64,c=>{const g=c.createRadialGradient(32,32,1,32,32,31);g.addColorStop(0,'rgba(0,0,0,.8)');g.addColorStop(.4,'rgba(0,0,0,.4)');g.addColorStop(1,'rgba(0,0,0,0)');c.fillStyle=g;c.fillRect(0,0,64,64);});
   const boot=canvasTexture(256,256,drawBootTexture);
@@ -85,7 +85,9 @@ export function buildEntrancePlayers(scene,{mobile=false}={}){
    // must average 20 poses/second, rather than resetting to an effective 15Hz.
    const animate=observable&&(cadence===0||actor.poseBudget.ready(time,1/cadence));
    if((actor.group.visible||controlled)&&animate){let action=null,options=noActionOptions;if(d.role==='player'){
-    const celebrating=goal?.team===d.team&&!p.keeper&&(p.id===state.lastShot?.playerId||Math.hypot(p.x-state.ball.x,p.z-state.ball.z)<24),charging=controlled&&state.chargePower>0;action=celebrating?{type:'celebrate',elapsed:state.phaseTime,duration:3.6}:charging?{type:'prepareShot',elapsed:state.chargePower,duration:1}:p.motion;options={defending:p.defending,speed:Math.hypot(p.vx||0,p.vz||0)};
+    const celebrating=goal?.team===d.team&&!p.keeper&&(p.id===state.lastShot?.playerId||Math.hypot(p.x-state.ball.x,p.z-state.ball.z)<24),charging=controlled&&state.chargePower>0;
+    action=celebrating?{type:'celebrate',elapsed:state.phaseTime,duration:3.6}:charging?{type:'prepareShot',elapsed:state.chargePower,duration:1,stroke:state.shotKind}:p.motion;
+    options={defending:p.defending,speed:Math.hypot(p.vx||0,p.vz||0),fieldLocomotion:controlled||distance<(mobile?18:28),onBall:state.ball.ownerId===p.id,action};
    }else if(d.role==='referee'&&card)action={type:'booking',elapsed:state.time-decision.at,duration:3};actor.pose(p.x,p.z,heading,time,moving,d.seated&&d.role==='assistant'?.45:0,action,options);actor.lastPoseTime=time;}else if(d.role==='player'||!actor.group.visible&&!controlled){actor.group.position.set(p.x,0,p.z);actor.group.rotation.y=heading;}
    updateActorContactShadows(root.userData.shadows,i,actor,animate);
   }
