@@ -8,4 +8,28 @@ test('two humans move independent controlled players while keeping 22 players an
 test('away player passes, switches and chooses assistance or shot type independently of home',()=>{const sim=fixture();advance(sim,3.1);const s=sim.state,p=s.players.find(p=>p.id==='away-1');Object.assign(s.ball,{x:p.x,y:.11,z:p.z,ownerId:p.id,vx:0,vz:0});assert.equal(sim.action('pass',{direction:{x:-1,z:1}},'away'),true);assert.equal(s.stats.away.passes,1);assert.equal(s.stats.home.passes,0);assert.match(s.ball.targetId,/^away-/);sim.setControlMode('manual','away');sim.setShotKind('lob','away');assert.equal(s.controlModes.home,'semi');assert.equal(s.controlModes.away,'manual');assert.equal(s.shotKinds.home,'drive');assert.equal(s.shotKinds.away,'lob');assert.equal(sim.action('switch',{},'away'),true);assert.match(s.controlledIds.away,/^away-/);assert.match(s.controlledId,/^home-/);});
 test('checkpoint restore preserves the next authoritative simulation including AI randomness and both controllers',()=>{const a=fixture();advance(a,8,{home:{x:.5,z:-.6},away:{x:-.3,z:.6}});a.action('pass',{},'home');const b=fixture();b.restore(a.checkpoint());const input={home:{x:-.2,z:-.6},away:{x:.1,z:.8,sprint:true}};advance(a,4,input);advance(b,4,input);assert.deepEqual(a.checkpoint(),b.checkpoint());});
 test('wire projection gives each device its own cursor while preserving shared positions, score and clock',()=>{const sim=fixture();advance(sim,4);const p=packOnlineState(sim.state,16),home=fixture().state,away=fixture().state;assert.ok(JSON.stringify(p).length<12000);assert.ok(applyOnlineState(home,p,'home'));assert.ok(applyOnlineState(away,p,'away'));assert.equal(home.controlledId,'home-1');assert.equal(away.controlledId,'away-1');assert.deepEqual(home.ball,away.ball);assert.deepEqual(home.score,away.score);assert.equal(home.elapsed,away.elapsed);assert.deepEqual(home.players.map(p=>[p.x,p.z]),away.players.map(p=>[p.x,p.z]));assert.equal(applyOnlineState(home,{...p,v:999},'home'),false);});
+test('decoding wire tuples leaves both devices and the original snapshot isolated from presentation changes',()=>{
+ const sim=fixture();
+ advance(sim,4);
+ const packet=packOnlineState(sim.state,17),home=fixture().state,away=fixture().state;
+ packet.ball.rebound={source:'parry',leaders:{home:'home-1'}};
+ packet.players[0][16]={phase:'dive',direction:1};
+ packet.players[1][8]={id:31,type:'pass',elapsed:.02,duration:.4};
+ packet.players[1][14]={x:1,z:0,passId:31,until:4.8};
+ packet.previews.home.passPreview={name:'Kane',delivery:'cutback',x:4,z:16};
+ const original=structuredClone(packet);
+ assert.ok(applyOnlineState(home,packet,'home'));
+ assert.ok(applyOnlineState(away,packet,'away'));
+ home.ball.rebound.leaders.home='home-2';
+ home.players[0].keeperState.direction=-1;
+ home.players[1].motion.elapsed=.27;
+ home.players[1].receiveControl.x=-1;
+ home.passPreview.x=23;
+ assert.deepEqual(packet,original);
+ assert.deepEqual(away.ball,packet.ball);
+ assert.deepEqual(away.players[0].keeperState,packet.players[0][16]);
+ assert.deepEqual(away.players[1].motion,packet.players[1][8]);
+ assert.deepEqual(away.players[1].receiveControl,packet.players[1][14]);
+ assert.deepEqual(away.previews.home.passPreview,packet.previews.home.passPreview);
+});
 test('room codes and input validation reject invalid data and bound diagonal speed',()=>{assert.equal(roomCode('abcd-2345'),'ABCD2345');assert.ok(validRoomCode('ABCD2345'));for(const bad of ['AAAA','OOOOOOOO','abcdefgh','<script>'])assert.equal(validRoomCode(bad),false);const i=safeOnlineInput({x:Infinity,z:NaN,sprint:'yes',power:100});assert.deepEqual(i,{x:0,z:0,sprint:false,defend:false,charging:false,power:1});assert.ok(Math.hypot(...['x','z'].map(k=>safeOnlineInput({x:99,z:99})[k]))<=1);});

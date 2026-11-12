@@ -32,11 +32,11 @@ function looseKickAvailable(state,player){
  return x*x+z*z<25&&!leavingPass(state,player);
 }
 
-export function buildPlayableMatch({scene,stadium,players,audio,onCamera,onView,onPause,onRestart,onExit,onChangeMatch,onCheer,onCrowdReaction,onReadGameInput,toast,mobile=false,now=()=>performance.now()}){
+export function buildPlayableMatch({scene,stadium,players,audio,onCamera,onView,onPause,onRestart,onExit,onChangeMatch,onCheer,onCrowdReaction,onReadGameInput,getRenderCamera,toast,mobile=false,now=()=>performance.now()}){
  let storage;try{storage=globalThis.localStorage;}catch{}
  const elements=Object.create(null),$=id=>elements[id]??=(document.getElementById(id));
  const penaltyControls=buildPenaltyControls($);
- const settings=loadFootballSettings(storage),pressurePointers=new Set(),view=buildFootballView(scene,stadium.matchBall,players),radar=buildFootballRadar($('game-radar'));
+ const settings=loadFootballSettings(storage),pressurePointers=new Set(),view=buildFootballView(scene,stadium.matchBall,players,{getRenderCamera}),radar=buildFootballRadar($('game-radar'));
  const actionButtons=[...document.querySelectorAll('[data-game-action]')];
  const modeButtons=[...document.querySelectorAll('[data-control-mode]')];
  const write=(id,key,value)=>writeHudProperty($(id),key,value);
@@ -238,7 +238,7 @@ export function buildPlayableMatch({scene,stadium,players,audio,onCamera,onView,
    if(visualFrame){
     trainingView.update(s.training);s.cameraMode=cameraMode;
     onCamera?.(s,perspective,cameraTime);cameraTime=0;
-    if(!s.paused||visualDirty){visualDirty=false;view.update(s,worldTime,viewer,{firstPerson:perspective==='first'&&!penaltyContext(s)});stadium.updateMatchEffects?.(s,worldTime);}
+    if(!s.paused||visualDirty||view.cameraChanged()){visualDirty=false;view.update(s,worldTime,viewer,{firstPerson:perspective==='first'&&!penaltyContext(s)});stadium.updateMatchEffects?.(s,worldTime);}
    }
    uiTime+=dt;if(uiTime>(s.paused?1:.1)){uiTime=0;if(!s.paused||network)render();}
   }

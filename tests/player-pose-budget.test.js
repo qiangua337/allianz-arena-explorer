@@ -72,6 +72,38 @@ test('a 30Hz phone loop actually delivers 20Hz middle-distance and 12Hz distant 
  finally{group.updateMatrixWorld=update;own.updateMatrixWorld=ownUpdate;}
 });
 
+test('an off-camera phone player skips rig traversal and returns in the current pose after a turn',()=>{
+ const state=createFootballSimulation().state;
+ const target=state.players.find(p=>p.team==='away'&&p.index===2);
+ const group=actors.root.children.find(o=>o.userData.team===target.team&&o.userData.role==='player'&&o.userData.playerNumber===target.number);
+ const pelvis=group.getObjectByName('athlete').skeleton.bones[0],update=pelvis.updateMatrixWorld;
+ const camera=new THREE.PerspectiveCamera(55,390/844,.1,200);
+ camera.position.set(0,2.2,0);
+ camera.lookAt(0,1,-25);
+ state.phase='playing';actors.reset();
+ let traversals=0;
+ pelvis.updateMatrixWorld=function(...args){traversals++;return update.apply(this,args);};
+ try{
+  for(let i=0;i<15;i++){
+   Object.assign(target,{x:14+i*.08,z:-8,vx:2.4,vz:0,yaw:Math.PI/2});
+   actors.updateMatch(state,i/30,camera.position,{camera});
+   scene.updateMatrixWorld(true);
+   assert.equal(group.visible,false);
+   assert.equal(group.position.x,target.x);
+  }
+  assert.equal(traversals,0);
+  camera.lookAt(target.x,1,target.z);
+  actors.updateMatch(state,.51,camera.position,{camera});
+  scene.updateMatrixWorld(true);
+  assert.equal(group.visible,true);
+  assert.ok(traversals>0);
+  assert.ok(Math.abs(pelvis.matrixWorld.elements[12]-target.x)<.25);
+  camera.lookAt(0,1,-25);
+  actors.updateMatch(state,.52,camera.position);
+  assert.equal(group.visible,true,'the full shadow path keeps off-camera actors available');
+ }finally{pelvis.updateMatrixWorld=update;actors.reset();}
+});
+
 test('combined football strokes and locomotion leave officials accessories on the animated hand',()=>{
  const state=createFootballSimulation().state;state.phase='playing';state.time=5;state.discipline.lastDecision={card:'yellow',at:4.5};actors.reset();const p=state.players[1];p.motion={type:'shoot',elapsed:.2,duration:.46};p.vz=-6;p.yaw=Math.PI;actors.updateMatch(state,5,new THREE.Vector3(0,12,0));scene.updateMatrixWorld(true);
  const referee=actors.root.children.find(o=>o.userData.role==='referee'),card=referee.children.find(o=>o.isMesh&&o.name!=='athlete'),hand=referee.getObjectByName('athlete').skeleton.bones[14].getWorldPosition(new THREE.Vector3());assert.equal(card.visible,true);assert.ok(card.getWorldPosition(new THREE.Vector3()).distanceTo(hand)<1e-9);

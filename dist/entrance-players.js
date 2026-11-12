@@ -9,6 +9,7 @@ import {simplifySkinnedGeometry} from './player-lod.js';
 import {sampleQueuePlayer} from './entrance-choreography.js';
 import {installAthleteSurface,createActorContactShadows,updateActorContactShadows,flushActorContactShadows} from './football-materials.js';
 import {createFramePacer} from './frame-pacing.js';
+import {entranceFloor} from './matchday-route.js';
 import {likenessParts,playerLikeness,makeRosterCrop,rosterCropStyles} from './football-likeness.js';
 import {shapeFootballBody} from './football-body-profile.js';
 import {rosterHeadProfile,shapeRosterHead} from './football-roster-heads.js';
@@ -57,6 +58,7 @@ class MatchActorGroup extends THREE.Group{
  }
  invalidatePose(){this.poseDirty=true;}
  updateMatrixWorld(force){
+  if(this.offCamera)return;
   const parentChanged=this.parent!==this.poseParent||this.parent&&!this.poseParentWorld.equals(this.parent.matrixWorld);
   if(!this.solvingPose&&!this.poseDirty&&!parentChanged&&!this.matrixWorldNeedsUpdate&&
      this.position.equals(this.posePosition)&&this.quaternion.equals(this.poseRotation)&&this.scale.equals(this.poseScale))return;
@@ -108,6 +110,9 @@ export function buildEntrancePlayers(scene,{mobile=false}={}){
  const root=new THREE.Group();root.name='Skinned football entrance queue';root.visible=false;scene.add(root);
  let loading,loadingAssets,players=[],ready=false,lastMatchTime=null,playerAssets=null,opponent='dortmund';
  const officials=new Map(),fieldSlots={home:new Array(11),away:new Array(11)};
+ const cameraBounds=new THREE.Frustum(),cameraProjection=new THREE.Matrix4();
+ // Include outstretched limbs, assistant flags, and the contact shadow.
+ const actorBounds=new THREE.Sphere(new THREE.Vector3(),2.5);
  const studioPlayers=matchdayPeople.filter(d=>playerLikeness(d));
  function loadPlayerAssets(){
   if(loadingAssets)return loadingAssets;
@@ -177,13 +182,20 @@ export function buildEntrancePlayers(scene,{mobile=false}={}){
   }
  }
  function updateIdentity(actor,number,clubId,force=false){const d=actor.definition;if(number===d.player.number&&!force)return;const member=squadDefinition(d.team,clubId,number);if(!member)return;Object.assign(d,{player:{...member.player},keeper:member.keeper,dark:member.dark,hair:member.hair,height:member.height,hairColor:member.hairColor??d.hairColor});actor.geometry=actorGeometry(playerAssets.geometries,d);actor.body.geometry=actor.geometry;const previous=actor.body.material.map;actor.body.material.map=characterAtlas(d,playerAssets.textures,drawJersey,mobile?512:d.role==='player'?1024:512);previous.dispose();actor.group.userData.playerNumber=number;actor.group.name=d.team+' · '+d.role+' · '+d.player.name;actor.lastPoseTime=null;actor.reset();}
- function updateMatch(state,time,viewer,{firstPerson=false}={}){
+ function updateMatch(state,time,viewer,{firstPerson=false,camera}={}){
   if(!ready||!state?.players)return;const dt=lastMatchTime===null?0:Math.max(0,Math.min(.15,time-lastMatchTime));lastMatchTime=time;
+  if(camera){
+   camera.updateWorldMatrix(true,false);
+   root.updateWorldMatrix(true,false);
+   cameraProjection.multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse).multiply(root.matrixWorld);
+   cameraBounds.setFromProjectionMatrix(cameraProjection,camera.coordinateSystem,camera.reversedDepth);
+  }
   fieldSlots.home.fill(null);fieldSlots.away.fill(null);
   for(const player of state.players)if(fieldSlots[player.team])fieldSlots[player.team][player.index]=player;
   const decision=state.discipline?.lastDecision,card=decision?.card&&state.time-decision.at<3?decision.card:null,goal=state.phase==='goal'?state.events?.findLast(e=>e.type==='goal'):null;
   for(let i=0;i<players.length;i++){
-   const actor=players[i],d=actor.definition;let p=d;
+   const actor=players[i],d=actor.definition,group=actor.group,wasOffCamera=group.offCamera;let p=d;
+   group.offCamera=false;
    // Lessons render their real participants only. Match officials and benches
    // return automatically when this same actor pool is reused for a match.
    if(state.training&&d.role!=='player'){actor.showBooking(null);actor.group.visible=false;updateActorContactShadows(root.userData.shadows,i,actor);continue;}
@@ -194,9 +206,12 @@ export function buildEntrancePlayers(scene,{mobile=false}={}){
    }
    actor.showBooking(d.role==='referee'?card:null);if(!p){actor.group.visible=false;updateActorContactShadows(root.userData.shadows,i,actor);continue;}
    const distance=viewer?Math.hypot(viewer.x-p.x,viewer.z-p.z):0,controlled=d.role==='player'&&p.id===state.controlledId;
-   // Every starter remains available across the full diagonal of the pitch;
-   // their low-detail skins and renderer frustum culling handle distant views.
-   actor.group.visible=distance<(d.role==='player'?160:mobile?92:130)&&!(controlled&&firstPerson);
+   if(camera&&!controlled){
+    actorBounds.center.set(p.x,entranceFloor(p.x)+1.05+(d.seated&&d.role==='assistant'?.45:0),p.z);
+    group.offCamera=!cameraBounds.intersectsSphere(actorBounds);
+   }
+   if(wasOffCamera&&!group.offCamera)actor.lastPoseTime=null;
+   group.visible=distance<(d.role==='player'?160:mobile?92:130)&&!(controlled&&firstPerson)&&!group.offCamera;
    actor.body.geometry=distance>(mobile?22:32)?actor.geometry.userData.low:distance>(mobile?10:16)?actor.geometry.userData.medium:actor.geometry;
    const speed=d.role==='player'?Math.hypot(p.vx||0,p.vz||0):0,moving=d.role==='player'?speed>.16:!!p.moving;
    const heading=p.yaw??(moving?Math.atan2(p.vx,p.vz):0);
@@ -223,6 +238,7 @@ export function buildEntrancePlayers(scene,{mobile=false}={}){
   lastMatchTime=null;officials.clear();
   for(let i=0;i<players.length;i++){
    const actor=players[i],d=actor.definition,p=i<26?sampleQueuePlayer(seconds,i):d,distance=viewer?Math.hypot(viewer.x-p.x,viewer.z-p.z):0;
+   actor.group.offCamera=false;
    actor.group.visible=distance<(mobile?86:120);
    if(actor.group.visible){actor.body.geometry=distance>(mobile?22:32)?actor.geometry.userData.low:distance>(mobile?10:16)?actor.geometry.userData.medium:actor.geometry;actor.pose(p.x,p.z,p.yaw,time,p.moving||false,d.seated&&d.role==='assistant'?.45:0);}
    updateActorContactShadows(root.userData.shadows,i,actor,true);

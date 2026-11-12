@@ -11,7 +11,13 @@ test('same-tick action broadcasts and a paused interval do not manufacture netwo
  class Socket{constructor(){socket=this;this.readyState=1;}send(){}close(){this.readyState=3;}message(p){this.onmessage({data:JSON.stringify(p)});}}
  const session=createOnlineSession({code:'ABCD2345',token:'test-only',team:'home'},{origin:'https://arena.example',WebSocketClass:Socket}),ready=session.connect(),room={started:true,ended:false};
  try{socket.message({type:'welcome',protocol:2,room});await ready;let time=1;const state=()=>({type:'state',state:{phase:'playing',paused:false,time}});socket.message(state());
-  for(let i=0;i<30;i++){t.mock.timers.tick(50);time+=.05;socket.message(state());socket.message(state());socket.message(state());}assert.ok(session.jitter<.001,'an action snapshot at the same server timestamp is not a late 20Hz tick');
+  for(let i=0;i<30;i++){
+   t.mock.timers.tick(12);socket.message({type:'state',state:{...state().state,message:'player switched'}});
+   assert.equal(session.packet.message,'player switched','same-tick match events still arrive immediately');
+   t.mock.timers.tick(27);socket.message(state());
+   t.mock.timers.tick(11);time+=.05;socket.message(state());
+  }
+  assert.ok(session.jitter<.001,'offset action broadcasts do not move the baseline for the next scheduled tick');
   socket.message({type:'state',state:{phase:'interval',paused:true,time}});t.mock.timers.tick(5000);socket.message(state());assert.ok(session.jitter<.001,'waiting at half time is not transport jitter');
   t.mock.timers.tick(110);time+=.05;socket.message(state());assert.ok(session.jitter>5,'actual 60ms delivery variation still contributes to the buffer estimate');
  }finally{session.close();}

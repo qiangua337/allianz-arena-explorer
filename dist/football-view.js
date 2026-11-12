@@ -4,10 +4,16 @@ import {shotGuideTiming,sampleShotGuide,shotReadout,shotGuideSpread} from './sho
 
 // Rendering follows simulation positions. It never moves the game ball,
 // advances a player, or uses the spectator camera as an actor's position.
-export function buildFootballView(scene,ball,players){
+export function buildFootballView(scene,ball,players,{getRenderCamera}={}){
  const root=new THREE.Group();root.name='Playable football cues';root.visible=false;scene.add(root);
  let enabled=false,hasBallSample=false,ballX=0,ballZ=0;
  const ballAxis=new THREE.Vector3();
+ const lastCameraWorld=new THREE.Matrix4(),lastCameraProjection=new THREE.Matrix4();
+ let lastCamera=null;
+ function cameraChanged(){
+  const camera=getRenderCamera?.()??null;
+  return camera!==lastCamera||!!camera&&(!lastCameraWorld.equals(camera.matrixWorld)||!lastCameraProjection.equals(camera.projectionMatrix));
+ }
  const gold=new THREE.MeshBasicMaterial({color:0xf0dcab,transparent:true,opacity:.82,depthWrite:false,side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-1});
  const controlled=new THREE.Group();controlled.name='Controlled footballer';root.add(controlled);
  const ring=mesh(new THREE.RingGeometry(.48,.524,48,1,Math.PI*1.5+.34,Math.PI*2-.68).rotateX(-Math.PI/2),gold,controlled);ring.renderOrder=2;
@@ -25,7 +31,7 @@ export function buildFootballView(scene,ball,players){
  const shadowMaterial=new THREE.MeshBasicMaterial({map:shadowMap,transparent:true,opacity:.4,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-1});
  const shadow=mesh(new THREE.PlaneGeometry(.55,.55).rotateX(-Math.PI/2),shadowMaterial,root,0,.012,0);shadow.name='Game ball contact shadow';shadow.renderOrder=1;
  const ballMarker=mesh(new THREE.RingGeometry(.16,.185,24).rotateX(-Math.PI/2),new THREE.MeshBasicMaterial({color:0xe9eee7,transparent:true,opacity:.45,depthWrite:false,side:THREE.DoubleSide}),root,0,.016,0);ballMarker.name='Game ball marker';
- return{root,setEnabled(value){enabled=!!value;root.visible=enabled;hasBallSample=false;if(enabled&&ball){ball.matrixAutoUpdate=true;ball.matrixWorldAutoUpdate=true;ball.updateMatrix();}if(!enabled)controlled.visible=false;},update(state,time,viewer,{firstPerson=false}={}){
+ return{root,cameraChanged,setEnabled(value){enabled=!!value;root.visible=enabled;hasBallSample=false;lastCamera=null;if(enabled&&ball){ball.matrixAutoUpdate=true;ball.matrixWorldAutoUpdate=true;ball.updateMatrix();}if(!enabled)controlled.visible=false;},update(state,time,viewer,{firstPerson=false}={}){
   if(!enabled||!state?.ball)return;root.visible=true;const p=state.players.find(p=>p.id===state.controlledId&&!p.trainingInactive),b=state.ball;
   const next=state.players.find(p=>p.id===state.nextPlayerId&&!p.trainingInactive);nextPlayer.visible=!state.replay&&!!next&&next.id!==state.controlledId;if(next)nextPlayer.position.set(next.x,2.15,next.z);controlled.visible=!!p&&!state.replay;
   if(p){
@@ -69,6 +75,8 @@ export function buildFootballView(scene,ball,players){
   ballMarker.scale.setScalar(1+Math.min(Math.max(markerDistance-10,0)/42,.70));
   ballMarker.material.opacity=.24+.24*Math.min(markerDistance/42,1);
   ballMarker.visible=height<1.5&&!state.replay&&markerDistance>5;
-  players.root.visible=players.ready;players.updateMatch(state,time,viewer,{firstPerson});
+  lastCamera=getRenderCamera?.()??null;
+  if(lastCamera){lastCameraWorld.copy(lastCamera.matrixWorld);lastCameraProjection.copy(lastCamera.projectionMatrix);}
+  players.root.visible=players.ready;players.updateMatch(state,time,viewer,{firstPerson,camera:lastCamera});
  }};
 }

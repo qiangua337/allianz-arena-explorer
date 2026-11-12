@@ -33,3 +33,20 @@ test('close cursor changes reframe immediately when needed and do not look throu
   framed([x,0,z],camera);framed([x,2,z],camera);const point=new THREE.Vector3(x,1,z),direction=point.clone().sub(camera.position),distance=direction.length(),hit=new THREE.Raycaster(camera.position,direction.normalize(),0,distance-.5).intersectObjects(obstacles,false)[0];assert.equal(hit,undefined,`unobstructed view from ${x},${z}`);
  }
 });
+
+test('active long-ball views have clear stadium sightlines to both player and ball',()=>{
+ const scene=new THREE.Scene(),stadium=buildStadium(scene),obstacles=[];scene.updateMatrixWorld(true);
+ stadium.root.traverse(o=>{if(o.isMesh&&!o.material.transparent&&!o.isInstancedMesh)obstacles.push(o);});
+ for(const aspect of[390/844,844/390,16/9])for(const style of['close','broadcast'])for(const x of[-28,28])for(const end of[-1,1]){
+  const player={id:'home-1',x,z:13*end},ball={x,y:1,z:44*end,vz:18*end};
+  for(const action of['receive','shot']){
+   const tracked=action==='receive'?{...ball,targetId:player.id,vz:-ball.vz}:ball;
+   const pose=footballCamera(player,{style,aspect,ball:tracked,trackShot:action==='shot'}),camera=cameraFor(pose,aspect);
+   for(const target of[[player.x,1,player.z],[ball.x,ball.y,ball.z]]){
+    const direction=new THREE.Vector3(...target).sub(camera.position),distance=direction.length();
+    const hit=new THREE.Raycaster(camera.position,direction.normalize(),0,distance-.5).intersectObjects(obstacles,false)[0];
+    assert.equal(hit,undefined,JSON.stringify({style,aspect,target,camera:pose.position,hit:hit?.object.name}));
+   }
+  }
+ }
+});

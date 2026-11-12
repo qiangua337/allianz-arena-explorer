@@ -17,6 +17,29 @@ globalThis.fetch=async url=>{const data=await fs.readFile(new URL(url));return{o
 const scene=new THREE.Scene(),actors=buildEntrancePlayers(scene);await actors.prepare();globalThis.fetch=realFetch;
 const makeState=()=>({players:[...homeXI,...awayXI].map((d,i)=>({id:d.team+':'+d.player.number,team:d.team,index:i%11,number:d.player.number,name:d.player.name,keeper:d.keeper,x:-22+i%11*4,z:i<11?-20:20,vx:0,vz:0,yaw:i<11?Math.PI:0})),controlledId:'home:9',ball:{x:0,y:.11,z:0,vx:0,vy:0,vz:0,ownerId:null},phase:'playing'});
 
+test('a paused view refreshes actors after a camera turn, a resize, or switching to full shadows',()=>{
+ const camera=new THREE.PerspectiveCamera(60,1,.1,200),state=makeState(),position=new THREE.Vector3();
+ let renderCamera=camera,seenCamera;
+ const players={root:new THREE.Group(),ready:true,updateMatch(s,t,p,options){seenCamera=options.camera;}};
+ const view=buildFootballView(new THREE.Scene(),null,players,{getRenderCamera:()=>renderCamera});
+ view.setEnabled(true);
+ assert.equal(view.cameraChanged(),true);
+ view.update(state,1,position);
+ assert.equal(seenCamera,camera);
+ assert.equal(view.cameraChanged(),false);
+ camera.position.x=1;camera.updateMatrixWorld();
+ assert.equal(view.cameraChanged(),true);
+ view.update(state,1,position);
+ camera.aspect=.6;camera.updateProjectionMatrix();
+ assert.equal(view.cameraChanged(),true);
+ view.update(state,1,position);
+ renderCamera=null;
+ assert.equal(view.cameraChanged(),true);
+ view.update(state,1,position);
+ assert.equal(seenCamera,null);
+ assert.equal(view.cameraChanged(),false);
+});
+
 test('live match actors use their own team and shirt number positions instead of the camera or entrance queue',()=>{
  const state=makeState();actors.reset();actors.updateMatch(state,0,new THREE.Vector3(0,5,0));scene.updateMatrixWorld(true);
  const starters=actors.root.children.filter(o=>o.userData.role==='player');assert.equal(starters.length,22);
