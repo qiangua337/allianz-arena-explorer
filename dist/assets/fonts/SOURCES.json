@@ -1238,7 +1238,7 @@
       },
       {
         "file": "app.js",
-        "sha256": "4fbc363324cd108bf450d7577e80fd9f02752e7386213470e7b34d22818507d7"
+        "sha256": "1e0aab2e7d2a5c62c0e25eb0351e1b9a6ab8952ee5d2efec4f3a7748b0ed39e0"
       },
       {
         "file": "architecture-clip.js",
@@ -1246,7 +1246,7 @@
       },
       {
         "file": "arena-entry.js",
-        "sha256": "426671a4fe44fda3936a10e099b3c7db8e331a340850704e7210eec482d3e1b1"
+        "sha256": "2aae8a65e39cd4592dc670be275e91730d8c37eca0e967ccb3a58c1f63143d6c"
       },
       {
         "file": "arena-floor-map.js",
@@ -1462,7 +1462,7 @@
       },
       {
         "file": "index.html",
-        "sha256": "c1204ea8bdbf7fcb704f5c81e69a1a38b996be9384440f58cae8ba3eb11c375a"
+        "sha256": "f73a056dbe47e1054f88117cfc703616d9d1eb1c9b565cd9f65004353d063523"
       },
       {
         "file": "instant-action.js",

@@ -99,6 +99,26 @@ body:not(.game-active) :is(#explore, #walk-guide, #walk-prompt) {
 #guide-teleport { color: var(--ink) }
 #guide-collapse { border-radius: 4px }
 #guide-collapse:hover { background: var(--subtle) }
+#walking-tour-dialog {
+  --subtle: #263742;
+  --rule: #b8cdd344;
+  --ink: #f5f0e9;
+  --muted: #c3d0d7;
+  --accent: #f497a8;
+  color: var(--ink);
+}
+#walking-tour-dialog .walking-tour-plans > button { color: var(--ink) }
+#walking-tour-dialog p { color: var(--muted) }
+#walking-tour-resume:not([hidden]) {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  margin: 14px 0 0;
+  background: #a61d38;
+  border-color: #ed7084;
+  color: #fff;
+  font-weight: 800;
+}
 .toast { background: #232023; border-color: #f6f1e936; color: #f6f1e9 }
 @media (max-width: 760px), (max-width: 1024px) and (orientation: portrait) {
   body:not(.game-active) {
