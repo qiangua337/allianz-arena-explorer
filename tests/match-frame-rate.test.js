@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {createMatchFrameRate} from '../dist/match-frame-rate.js';
-import {createFramePacer} from '../dist/frame-pacing.js';
+import {createFramePacer,MOBILE_ONLINE_FRAME_SLACK} from '../dist/frame-pacing.js';
 
 function sample(controller, rafFps, renderFps, frameMs, windows = 1) {
  for (let i = 0; i < windows; i++) controller.update({rafFps, renderFps, frameMs});
@@ -109,6 +109,43 @@ test('halftime keeps the existing budget and ignores stale evidence and the firs
  assert.equal(sample(pace,120,60,18).scale,.9);
  assert.equal(pace.update(spiky).scale,.9);
  assert.equal(pace.update(spiky).scale,.82);
+});
+
+test('an online phone can retry 60 Hz early after two steady windows, once per match',()=>{
+ const online=createMatchFrameRate({cap:60,quality:'high',mobile:true,online:true});
+ const normal=createMatchFrameRate({cap:60,quality:'high',mobile:true});
+ const steady={rafFps:60,renderFps:60,frameMs:5,gap95:17,rafGap95:17};
+ const stall={rafFps:36,renderFps:32,frameMs:13,gap95:48,rafGap95:43};
+ for(const controller of [online,normal]){
+  controller.update(steady);
+  assert.equal(controller.update(stall).rate,30);
+ }
+ const spare={...steady,renderFps:30,gap95:34};
+ const noHeadroom={...spare,frameMs:11};
+ assert.equal(online.update(spare).rate,30);
+ assert.equal(online.update(noHeadroom).rate,30);
+ assert.equal(online.update(spare).rate,30);
+ assert.equal(online.update(spare).rate,60);
+ normal.update(spare);
+ assert.equal(normal.update(spare).rate,30);
+ assert.equal(online.update(stall).rate,30);
+ online.update(spare);
+ assert.equal(online.update(spare).rate,30,'a failed early probe leaves the thermal backoff in place');
+});
+
+test('mobile online presentation tolerates ordinary callback variation at 60 and 120 Hz without exceeding the cap',()=>{
+ for(const [refresh,cap] of [[59.94,60],[60,60],[90,60],[120,60],[120,120]]){
+  const pacer=createFramePacer(),draws=[];
+  const samples=Math.floor(refresh*12);
+  for(let frame=0;frame<samples;frame++){
+   const time=frame/refresh+.0011*Math.cos(frame*1.103)+.00027*Math.sin(frame*.33);
+   if(pacer.ready(time,cap,MOBILE_ONLINE_FRAME_SLACK))draws.push(time);
+  }
+  const expected=Math.min(samples,cap*12);
+  assert.ok(draws.length>=expected-1&&draws.length<=expected+1,`${refresh} Hz at ${cap} FPS: ${draws.length}`);
+  const largestGap=Math.max(...draws.slice(1).map((time,i)=>time-draws[i]));
+  assert.ok(largestGap<=Math.ceil(refresh/cap)/refresh+.0028);
+ }
 });
 
 test('real draw deadlines sustain the selected ceiling on 60 and 120 Hz callback streams', () => {

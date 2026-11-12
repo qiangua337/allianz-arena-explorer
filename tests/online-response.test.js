@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createOnlineSimulation} from '../dist/online-client.js';
+import {createOnlinePrediction} from '../dist/online-prediction.js';
 import {createFootballSimulation} from '../dist/football-simulation.js';
 import {packOnlineState} from '../dist/online-protocol.js';
 import {createFramePacer} from '../dist/frame-pacing.js';
@@ -64,6 +65,41 @@ test('a stopped stick sends sequenced neutral immediately while further releases
    client.flushInput(i%25<17?{x:1}:{});
   }
   assert.ok(sent.length-start<=71,'rapid movements leave room for action and heartbeat packets');
+ }finally{client.dispose();}
+});
+test('a 30 fps client shows a short press and release on its next frame without backdating the input',()=>{
+ let clock=0;
+ const {client,sent}=fixture('home',{now:()=>clock});
+ const player=client.state.players[1];
+ try{
+  clock=1000/30;client.update(1/30,{});
+  const start=player.x,elapsed=client.state.elapsed;
+  clock=52;client.flushInput({x:1});
+  assert.ok(Math.abs(player.x-start)<.001,'a late touch cannot move the player over the already elapsed interval');
+  clock=62;client.flushInput({});
+  clock=2000/30;client.update(1/30,{});
+  assert.deepEqual(sent.map(({x,seq})=>[x,seq]),[[0,1],[1,2],[0,3]],'both directions were sent before the next draw');
+  assert.ok(player.x-start>.005&&player.x-start<.015,'the first draw includes the ten-millisecond movement pulse');
+  assert.ok(player.vx>0&&player.vx<.65,'the stick was released before the frame');
+  assert.equal(client.state.elapsed,elapsed,'prediction cannot advance the match clock');
+ }finally{client.dispose();}
+});
+test('an acknowledgment cannot consume prediction sampled before its next movement packet was sent',()=>{
+ const {sim,client}=fixture();
+ const state=client.state,authoritative=structuredClone(state),prediction=createOnlinePrediction('home');
+ try{
+  prediction.receive(authoritative);
+  prediction.update(state,1/60,{x:0,z:0},4);
+  prediction.update(state,1/60,{x:1,z:0},Infinity);
+  prediction.update(state,1/60,{x:-1,z:0},4);
+  prediction.receive(authoritative,4);
+  assert.ok(Math.abs(prediction.pendingSeconds-2/60)<1e-9);
+  prediction.sequencePending(5);
+  prediction.receive(authoritative,4);
+  assert.ok(Math.abs(prediction.pendingSeconds-2/60)<1e-9);
+  prediction.receive(authoritative,5);
+  assert.ok(prediction.pendingSeconds<1e-9);
+  assert.equal(state.ball.ownerId,sim.state.ball.ownerId);
  }finally{client.dispose();}
 });
 test('300 ms network latency does not hold local movement, dribbling or input submission until a server reply',()=>{

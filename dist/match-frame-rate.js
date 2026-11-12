@@ -13,34 +13,36 @@ function availableRate(cap, rafFps) {
 // a scene that first needs fewer pixels, then let spare callbacks reopen it.
 export function createMatchFrameRate(options = {}) {
  let cap, quality, current, goodSamples, limitedSamples, slowSamples, hold, retryDelay, mobile, native120, observedRate;
- let trialScale, scaleRetry, settleSamples;
+ let trialScale, scaleRetry, settleSamples, quickRecoveryAvailable, quickRecoverySamples;
 
  function publish(rate, scale) {
-  if(current&&current.rate!==rate)trialScale=null;
+  if(current&&current.rate!==rate){trialScale=null;quickRecoverySamples=0;}
   if (!current || rate !== current.rate || scale !== current.scale) {
    current = Object.freeze({rate, scale});
   }
   return current;
  }
 
- function reset({cap: requestedCap = cap ?? 120, quality: requestedQuality = quality ?? 'standard', mobile: small = mobile ?? false} = {}) {
+ function reset({cap: requestedCap = cap ?? 120, quality: requestedQuality = quality ?? 'standard', mobile: small = mobile ?? false, online = false} = {}) {
   cap = requestedCap === 120 ? 120 : 60;
   quality = Object.hasOwn(minScale, requestedQuality) ? requestedQuality : 'standard';
   mobile=small;native120=false;observedRate=0;goodSamples = limitedSamples = slowSamples = hold = 0;
   retryDelay = 3;
+  quickRecoveryAvailable = small && online;
+  quickRecoverySamples = 0;
   trialScale = null;
   scaleRetry = settleSamples = 0;
   return publish(cap, mobile&&cap===120&&quality!=='high'?.90:1);
  }
 
  function interrupt(){
-  goodSamples = limitedSamples = slowSamples = 0;
+  goodSamples = limitedSamples = slowSamples = quickRecoverySamples = 0;
   settleSamples = 1;
  }
 
  function update({rafFps, renderFps, frameMs, gap95, rafGap95, active = true} = {}) {
   if (!active || !Number.isFinite(rafFps) || !Number.isFinite(renderFps) || rafFps <= 0 || renderFps <= 0) {
-   goodSamples = limitedSamples = slowSamples = 0;
+   goodSamples = limitedSamples = slowSamples = quickRecoverySamples = 0;
    return current;
   }
   if(settleSamples>0){settleSamples--;return current;}
@@ -62,7 +64,7 @@ export function createMatchFrameRate(options = {}) {
   if (scaleRetry > 0) scaleRetry--;
 
   if (displayLimited) {
-   goodSamples = slowSamples = 0;
+   goodSamples = slowSamples = quickRecoverySamples = 0;
    if (limitedSamples < 2) return current;
    limitedSamples = 0;
    hold = 2;
@@ -71,7 +73,7 @@ export function createMatchFrameRate(options = {}) {
 
   const uneven=Number.isFinite(gap95)&&gap95>1000/rate*1.65;
   if (renderFps < rate * .89 || uneven&&renderFps<rate*.97) {
-   goodSamples = 0;
+   goodSamples = quickRecoverySamples = 0;
    if(++slowSamples<2&&renderFps>=rate*.78)return current;
    slowSamples=0;
    const floor = minScale[quality];
@@ -98,6 +100,19 @@ export function createMatchFrameRate(options = {}) {
   const stable = !uneven&&renderFps >= rate * .95 && (!hasTiming || frameMs < 1000 / rate * .82);
   goodSamples = stable ? goodSamples + 1 : 0;
   if(trialScale?.rate===rate&&goodSamples>=4)trialScale=null;
+
+  // A temporary main-thread stall can lower the draw cap even after display
+  // callbacks recover. Give mobile online play one early 60 Hz probe if two
+  // windows have both steady callbacks and enough CPU time for a 60 Hz draw.
+  const recoveredCallbacks = possible >= 60 && observedRate >= 60 && steadyCallbacks;
+  const canRecoverQuickly = quickRecoveryAvailable && rate < 60 && recoveredCallbacks && stable && hasTiming && frameMs <= 8.5;
+  quickRecoverySamples = canRecoverQuickly ? quickRecoverySamples + 1 : 0;
+  if (quickRecoverySamples >= 2) {
+   quickRecoveryAvailable = false;
+   hold = 0;
+   goodSamples = 0;
+   return publish(60, scale);
+  }
   if (hold || !stable) return current;
 
   // Faster modes get the first opportunity to spend the regained headroom.

@@ -189,9 +189,55 @@ test('live substitutions replace the same field actor and sent-off players disap
  s.players[1].dismissed=true;actors.updateMatch(s,.2,new THREE.Vector3(0,20,0));assert.equal(actor.visible,false);assert.equal(actors.root.children.filter(o=>o.userData.role==='player'&&o.userData.team==='home'&&o.visible).length,10);actors.setOpponent('dortmund');assert.equal(actor.userData.playerNumber,9);assert.ok(actor.name.endsWith('KANE'));
 });
 
-test('the actual LED display follows the chosen opponent and live score without allocating a texture each frame',()=>{
- const labels=[];context.fillText=s=>labels.push(s);const bowl=new THREE.Group(),screens=buildArenaScreens(bowl,{add(){}},{dark:new THREE.MeshBasicMaterial(),steel:new THREE.MeshBasicMaterial()}),s=createFootballSimulation({opponent:'barcelona'}).state;
- labels.length=0;screens.setMatchScore(s);assert.ok(labels.includes('FC BAYERN × FC BARCELONA'));assert.ok(!labels.includes('DORTMUND'));const material=bowl.children[0].children.find(o=>o.geometry?.type==='PlaneGeometry').material,texture=material.map,version=texture.version;screens.setMatchScore(s);assert.equal(texture.version,version);s.score.home=1;screens.setMatchScore(s);assert.equal(material.map,texture);assert.ok(texture.version>version);assert.ok(labels.includes('1 : 0'));delete context.fillText;
+test('LED seconds update only the clock texture while fixture and goal artwork stay independent',()=>{
+ const labels=[];context.fillText=(...args)=>labels.push(args);
+ const bowl=new THREE.Group(),screens=buildArenaScreens(bowl,{add(){}},{dark:new THREE.MeshBasicMaterial(),steel:new THREE.MeshBasicMaterial()}),s=createFootballSimulation({opponent:'barcelona'}).state;
+ const panels=bowl.children.flatMap(group=>group.children.filter(o=>o.geometry?.type==='PlaneGeometry'));
+ const material=panels[0].material,visitor=material.map;
+ const [clock,score]=panels[0].children.map(mesh=>mesh.material.map),overlays=panels.flatMap(panel=>panel.children);
+ assert.equal(panels.length,4);
+ assert.ok(panels.every(panel=>panel.material===material),'both ends share the same artwork');
+ bowl.updateMatrixWorld(true);
+ for(const [i,panel] of panels.entries()){
+  const [timeLabel,scoreLabel]=panel.children;
+  assert.equal(panel.children.length,2);
+  assert.equal(timeLabel.material.map,clock);
+  assert.equal(scoreLabel.material.map,score);
+  assert.equal(timeLabel.geometry.parameters.width,panel.geometry.parameters.width*512/1536);
+  assert.equal(scoreLabel.geometry.parameters.height,panel.geometry.parameters.height*192/864);
+  for(const label of panel.children){
+   assert.equal(label.material.type,'MeshBasicMaterial');
+   assert.equal(label.material.onBeforeCompile,THREE.Material.prototype.onBeforeCompile);
+   assert.equal(label.material.depthTest,true);
+   assert.equal(label.material.depthWrite,true);
+   assert.ok(label.material.polygonOffset&&label.material.polygonOffsetUnits<0);
+   assert.equal(label.visible,false);
+   const zDirection=i===0||i===3?1:-1;
+   const z=label.getWorldPosition(new THREE.Vector3()).z-panel.getWorldPosition(new THREE.Vector3()).z;
+   assert.ok(Math.abs(z-zDirection*.003)<1e-8);
+  }
+ }
+ assert.equal(clock.image.width*clock.image.height,512*64);
+ assert.equal(score.image.width*score.image.height,672*192);
+ try{
+  labels.length=0;screens.setMatchScore(s);
+  assert.ok(overlays.every(label=>label.visible));
+  assert.ok(labels.some(([text])=>text==='FC BAYERN × FC BARCELONA'));assert.ok(!labels.some(([text])=>text==='DORTMUND'));
+  const live=material.map,versions=()=>[live.version,clock.version,score.version],initial=versions();
+  screens.setMatchScore(s);assert.deepEqual(versions(),initial);
+  labels.length=0;s.elapsed=1;screens.setMatchScore(s);
+  assert.equal(material.map,live);
+  assert.deepEqual(versions(),[initial[0],initial[1]+1,initial[2]]);
+  assert.deepEqual(labels,[['EXHIBITION · 02:59',256,42,512]]);
+  labels.length=0;s.score.home=1;screens.setMatchScore(s);
+  assert.deepEqual(versions(),[initial[0],initial[1]+1,initial[2]+1]);
+  assert.deepEqual(labels,[['1 : 0',336,159,672]]);
+  screens.setMatchday(false);
+  assert.ok(overlays.every(label=>!label.visible));assert.equal(material.map,visitor);
+  screens.setMatchday(true);screens.setMatchScore(s);
+  assert.ok(overlays.every(label=>label.visible));assert.equal(material.map,live);
+  assert.deepEqual(versions(),[initial[0],initial[1]+1,initial[2]+1]);
+ }finally{delete context.fillText;}
 });
 test('real jog and sprint skins stay finite and above the pitch through acceleration and turning',()=>{
  const state=makeState(),selected=state.players.find(p=>p.id===state.controlledId);actors.reset();const point=new THREE.Vector3();

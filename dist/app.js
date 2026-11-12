@@ -15,7 +15,7 @@ import {spatializeArchitecture,updateArchitectureSectors} from './spatial-batche
 import {buildDestinationMenu} from './destinations.js';
 import {buildMatchdayExperience} from './matchday.js';
 import {buildFrameBudget,freezeArchitecture,suspendExplorationDuringMatch} from './scene-budget.js';
-import {createFramePacer} from './frame-pacing.js';
+import {createFramePacer,MOBILE_ONLINE_FRAME_SLACK} from './frame-pacing.js';
 import {createMatchFrameRate} from './match-frame-rate.js';
 import {writeHudProperty} from './hud-write.js';
 import {buildWalkBuilding} from './walk-building.js';
@@ -96,7 +96,7 @@ export async function startArena({hub, initial, nightAtStart}){
  matchday.setQuality(qualityMode,qualityScale);visualAssets.registerOutdoor(world.group,stadium.root);applyArchitecturalUV(stadium.root);applyArchitecturalUV(stadium.circulation.root);applyArchitecturalUV(interiors.root);applyArchitecturalUV(building.root);applyArchitecturalUV(world.group);installInteriorShading(interiors.root);
  spatializeArchitecture(stadium.circulation.root);spatializeArchitecture(interiors.rooms.concourse);
  setExplorationMatchMode=suspendExplorationDuringMatch([world.group,building.root,interiors.root,serviceRooms.root,stadium.circulation.root]);
- freezeArchitecture(world.group,[world.rotor]);freezeArchitecture(stadium.root,[stadium.matchBall]);freezeArchitecture(stadium.circulation.root);freezeArchitecture(interiors.root);freezeArchitecture(building.root);destinationMenu=buildDestinationMenu({onDismiss:()=>setNavOpen(false)});buildHotspots();bindUI();setNavOpen(false);document.body.dataset.mode=mode;setDayNight(nightAtStart);applySurfaceQuality(scene,qualityMode);clock.time=performance.now();document.body.dataset.version='10.0.0';document.body.dataset.seats=stadium.seatCount;document.body.dataset.panels=stadium.panelCount;
+ freezeArchitecture(world.group,[world.rotor]);freezeArchitecture(stadium.root,[stadium.matchBall]);freezeArchitecture(stadium.circulation.root);freezeArchitecture(interiors.root);freezeArchitecture(building.root);destinationMenu=buildDestinationMenu({onDismiss:()=>setNavOpen(false)});buildHotspots();bindUI();setNavOpen(false);document.body.dataset.mode=mode;setDayNight(nightAtStart);applySurfaceQuality(scene,qualityMode);clock.time=performance.now();document.body.dataset.version='10.1.0';document.body.dataset.seats=stadium.seatCount;document.body.dataset.panels=stadium.panelCount;
  const requestedPlace=initial.get('place');
  if(initial.get('view')==='walk'){
   const place=requestedPlace&&(places[requestedPlace]||tourGoals[requestedPlace])?requestedPlace:'arcade';
@@ -367,11 +367,13 @@ function render(timestamp){
  const phase=playing?matchday.gameState?.phase:null;
  const replay=playing&&matchday.gameReplaying;
  const matchPaused=playing&&matchday.paused;
- const sample=(phase==='playing'||phase==='penalties')&&!matchPaused&&!replay&&$('game-overlay').hidden&&!document.hidden;
+ const livePhase=phase==='playing'||phase==='penalties';
+ const sample=livePhase&&!matchPaused&&!replay&&$('game-overlay').hidden&&!document.hidden;
  // Keep processing network traffic during halftime while the stationary
  // camera and match overlay only need occasional visual updates.
  const drawRate=matchPaused&&!replay?24:matchFrameRate.state.rate;
- const drawFrame=playing?gameDrawBudget.ready(timestamp/1000,drawRate,.0007):visitDrawBudget.ready(elapsed,phone?60:90);
+ const drawSlack=sample&&phone&&matchday.online?MOBILE_ONLINE_FRAME_SLACK:.0007;
+ const drawFrame=playing?gameDrawBudget.ready(timestamp/1000,drawRate,drawSlack):visitDrawBudget.ready(elapsed,phone?60:90);
  const measureStart=sample?performance.now():0;
  let rendered=false;
  if(!playing){
@@ -452,7 +454,7 @@ function recordFrameGap(histogram,ms){if(ms>0)histogram[Math.min(histogram.lengt
 function frameGap95(histogram,count){if(count<2)return undefined;const limit=Math.ceil(count*.95);let sum=0;for(let ms=1;ms<histogram.length;ms++){sum+=histogram[ms];if(sum>=limit)return ms;}}
 function clearMatchSample(){matchSampleTime=matchSampleFrames=matchSampleDraws=matchSampleWork=matchSampleGameWork=previousRaf=previousDraw=0;matchRafGaps.fill(0);matchDrawGaps.fill(0);}
 function resetMatchBudget(){
- const {rate}=matchFrameRate.reset({cap:matchFps,quality:qualityMode,mobile:innerWidth<=1024});gameDrawBudget.reset();clearMatchSample();recoveryFrames=0;
+ const {rate}=matchFrameRate.reset({cap:matchFps,quality:qualityMode,mobile:innerWidth<=1024,online:!!matchday?.online});gameDrawBudget.reset();clearMatchSample();recoveryFrames=0;
  matchSampling=false;pendingMatchScale=undefined;
  document.body.dataset.targetFps=rate;document.body.dataset.matchFpsCap=matchFps;
  for(const key of ['frameGap95','matchRenderedFps','matchRafFps','matchRafGap95','matchWorkMs','matchGameWorkMs'])delete document.body.dataset[key];

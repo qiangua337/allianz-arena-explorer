@@ -52,6 +52,7 @@ export function createOnlineSimulation(session,settings={}, {now=()=>performance
  const roomRules=session.room?.rules||session.rules||settings.rules,simulation=createFootballSimulation({...settings,opponent:session.opponent,rules:roomRules,duration:roomRules?.duration||180,selections:session.room?.lineups||settings.selections,humanTeams:['home','away']}),state=simulation.state,team=session.team,prediction=createOnlinePrediction(team),interpolation=createOnlineInterpolation();state.controlledId=state.controlledIds[team];state.localTeam=team;state.paused=true;state.online=true;
  const idleInput=safeOnlineInput();
  let frameClock=now(),lastInputAt=-Infinity,lastInput=null,closed=false,lastPacket=null,lastSequence=0,rawInput=null,normalizedInput=null;
+ let predictionClock=frameClock,localInput=idleInput,hasInputBoundary=false;
  let pendingInput=null,inputTimer=null,lastUrgentStopAt=-Infinity;
  const changedInputInterval=1000/60;
  function canSendIntent(){return !closed&&!state.paused&&session.connection==='connected'&&session.room?.started&&!session.room.ended&&['playing','penalties'].includes(state.phase);}
@@ -70,11 +71,23 @@ export function createOnlineSimulation(session,settings={}, {now=()=>performance
   if(session.connection!=='connected'||!session.room?.started||session.room?.ended){
    state.paused=true;prediction.clear();interpolation.clear();state.predictionSeconds=0;
   }
-  if(!canSendIntent())discardPendingInput();
+  if(!canSendIntent()){discardPendingInput();resetLocalInput();}
   state.onlineStatus=session.connection;
  }
  const unsubscribe=session.subscribe(receive);receive();
- function sameInput(a,b){return a===b||!!a&&!!b&&a.x===b.x&&a.z===b.z&&a.sprint===b.sprint&&a.defend===b.defend&&a.charging===b.charging&&a.power===b.power;}
+ function sameMovement(a,b){return a===b||!!a&&!!b&&a.x===b.x&&a.z===b.z&&a.sprint===b.sprint&&a.defend===b.defend&&a.charging===b.charging;}
+ function sameInput(a,b){return sameMovement(a,b)&&a?.power===b?.power;}
+ function resetLocalInput(){
+  predictionClock=Math.max(frameClock,now());
+  localInput=idleInput;
+  hasInputBoundary=false;
+ }
+ function advanceLocal(at,input){
+  const elapsed=Math.max(0,(at-predictionClock)/1000);
+  predictionClock=Math.max(predictionClock,at);
+  const sequence=lastSequence>0&&!sameMovement(input,lastInput)?Infinity:lastSequence;
+  prediction.update(state,elapsed,input,sequence);
+ }
  function normalize(input){
   if(state.paused)return idleInput;
   const {x,z,sprint,defend,charging}=input??idleInput,power=state.chargePower;
@@ -88,6 +101,7 @@ export function createOnlineSimulation(session,settings={}, {now=()=>performance
  function sendControl(safe,at){
   discardPendingInput();
   lastSequence=session.sendInput(safe)||0;
+  if(lastSequence>0)prediction.sequencePending(lastSequence);
   lastInputAt=at;
   lastInput=safe;
  }
@@ -101,8 +115,15 @@ export function createOnlineSimulation(session,settings={}, {now=()=>performance
  function flushInput(input){
   if(!canSendIntent())return;
   pendingInput=normalize(input);
-  if(sameInput(pendingInput,lastInput)){discardPendingInput();return;}
   const at=Math.max(frameClock,now());
+  if(!sameMovement(pendingInput,localInput)){
+   // Integrate the previous direction until the event. A press and release
+   // between frames still produces a small movement on the next paint.
+   advanceLocal(at,localInput);
+   localInput=pendingInput;
+   hasInputBoundary=true;
+  }
+  if(sameInput(pendingInput,lastInput)){discardPendingInput();return;}
   // Releasing the stick must stop held direction even during a slow draw.
   // Bound bypasses to ten per second in addition to the normal 60 Hz cap.
   if((lastInput?.x||lastInput?.z)&&!pendingInput.x&&!pendingInput.z&&
@@ -116,22 +137,26 @@ export function createOnlineSimulation(session,settings={}, {now=()=>performance
  }
  function clearInput(){
   discardPendingInput();
+  resetLocalInput();
   if(!closed&&session.connection==='connected'&&!sameInput(lastInput,idleInput))sendControl(idleInput,Math.max(frameClock,now()));
  }
  function update(dt,input={}){
   if(closed)return state;
   frameClock=Math.max(frameClock+Math.min(dt,.1)*1000,now());
   const safe=normalize(input),sinceSent=frameClock-lastInputAt,interval=state.paused?200:50;
+  interpolation.update(state,dt,session.jitter||0);
+  if(hasInputBoundary)advanceLocal(frameClock,localInput);
   const changed=!sameInput(safe,lastInput);
   if(sinceSent>=interval-.001||changed&&sinceSent>=changedInputInterval-.001)sendControl(safe,frameClock);
   else if(pendingInput){
    if(!changed)discardPendingInput();
    else pendingInput=safe;
   }
-  interpolation.update(state,dt,session.jitter||0);
-  prediction.update(state,dt,safe,lastSequence);
+  if(!hasInputBoundary)advanceLocal(frameClock,safe);
+  localInput=safe;
+  hasInputBoundary=false;
   state.predictionSeconds=prediction.pendingSeconds;
   return state;
  }
- return{state,network:session,continuePeriod(){return session.request({type:'continue'});},setFormation(team,formation){return session.request({type:'formation',formation});},substitute(team,outId,inNumber){return session.request({type:'substitute',outId,inNumber});},ready(){session.send({type:'mode',mode:settings.controlMode||'semi'});session.send({type:'shot-kind',kind:settings.shotKind||'drive'});session.setReady(true);},dispose({keepSession=false}={}){if(closed)return;closed=true;discardPendingInput();unsubscribe();prediction.clear();interpolation.clear();if(!keepSession)session.leave();},update,flushInput,clearInput,action(type,options={}){if(!canSendIntent())return false;const penaltyAim=options.penaltyAim&&safePenaltyAim(options.penaltyAim),sent=session.send({type:'action',action:type,direction:safeOnlineInput(options.direction),power:options.power,...(penaltyAim?{penaltyAim}:{})});if(sent)prediction.animate(type,session.latency,{...options,penaltyAim},state.shotKind);return sent;},setPaused(value){discardPendingInput();sendControl(idleInput,Math.max(frameClock,now()));session.send({type:'pause',paused:!!value});if(value){state.paused=true;prediction.clear();interpolation.clear();}},setControlMode(mode){state.controlMode=mode;session.send({type:'mode',mode});return mode;},setShotKind(kind){state.shotKind=kind;session.send({type:'shot-kind',kind});return kind;}};
+ return{state,network:session,continuePeriod(){return session.request({type:'continue'});},setFormation(team,formation){return session.request({type:'formation',formation});},substitute(team,outId,inNumber){return session.request({type:'substitute',outId,inNumber});},ready(){session.send({type:'mode',mode:settings.controlMode||'semi'});session.send({type:'shot-kind',kind:settings.shotKind||'drive'});session.setReady(true);},dispose({keepSession=false}={}){if(closed)return;closed=true;discardPendingInput();unsubscribe();prediction.clear();interpolation.clear();if(!keepSession)session.leave();},update,flushInput,clearInput,action(type,options={}){if(!canSendIntent())return false;const penaltyAim=options.penaltyAim&&safePenaltyAim(options.penaltyAim),sent=session.send({type:'action',action:type,direction:safeOnlineInput(options.direction),power:options.power,...(penaltyAim?{penaltyAim}:{})});if(sent)prediction.animate(type,session.latency,{...options,penaltyAim},state.shotKind);return sent;},setPaused(value){discardPendingInput();resetLocalInput();sendControl(idleInput,Math.max(frameClock,now()));session.send({type:'pause',paused:!!value});if(value){state.paused=true;prediction.clear();interpolation.clear();}},setControlMode(mode){state.controlMode=mode;session.send({type:'mode',mode});return mode;},setShotKind(kind){state.shotKind=kind;session.send({type:'shot-kind',kind});return kind;}};
 }

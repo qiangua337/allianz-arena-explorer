@@ -120,6 +120,13 @@ export function createOnlinePrediction(team){
    }
    player.x=Math.max(-35.2,Math.min(35.2,player.x));player.z=Math.max(-53.6,Math.min(53.6,player.z));if(ball.ownerId===player.id)carryFootball(player,ball,h,time);left-=h;}}
  function drop(){const record=history[head];pending=Math.max(0,pending-record.dt);record.input=null;head=(head+1)%history.length;length--;}
+ function sequencePending(sequence){
+  for(let i=length-1;i>=0;i--){
+   const record=history[(head+i)%history.length];
+   if(record.seq!==Infinity)break;
+   record.seq=sequence;
+  }
+ }
  function clear(){player=null;playerIndex=-1;ball=null;while(length)drop();pending=0;motion=null;receiveOverride=null;setPiece=penaltyGesture=null;errorX=errorZ=0;age=0;}
  function receive(state,ack=0){
   const penalty=penaltyFor(state);playerIndex=state.players.findIndex(p=>p.id===state.controlledId);
@@ -146,7 +153,16 @@ export function createOnlinePrediction(team){
   if(!p||p.id!==player.id)return;
   age+=dt;if(age>.6){if(p.motion?.id===-1)p.motion=null;motion=null;return;}
   dt=Math.min(.1,Math.max(0,dt));
-  if(sequence>0){if(length===history.length)drop();const record=history[(head+length)%history.length];record.seq=sequence;record.dt=dt;record.input=input;length++;pending+=dt;while(pending>.6)drop();step(input,dt,actors);}
+  if(sequence>0&&dt>0){
+   if(length===history.length)drop();
+   const record=history[(head+length)%history.length];
+   // Until the next send assigns a sequence, an old acknowledgment cannot
+   // remove input sampled after its packet. Keep the whole unsent suffix ordered.
+   record.seq=length&&history[(head+length-1)%history.length].seq===Infinity?Infinity:sequence;
+   record.dt=dt;record.input=input;length++;pending+=dt;
+   while(pending>.6)drop();
+   step(input,dt,actors);
+  }
   const decay=Math.exp(-dt*16);errorX*=decay;errorZ*=decay;
   p.x=player.x+errorX;p.z=player.z+errorZ;p.vx=player.vx;p.vz=player.vz;p.yaw=player.yaw;p.stamina=player.stamina;
   p.defending=player.defending;p.receiveControl=player.receiveControl;p.pivotUntil=player.pivotUntil;
@@ -184,5 +200,5 @@ export function createOnlinePrediction(team){
   const stroke=type==='shoot'?shotKind:type==='through'?'through':'short';
   motion={id:-1,type:type==='through'?'pass':type,elapsed:0,duration,predicted:true,stroke,power:options.power,approachSpeed:Math.hypot(player.vx,player.vz)};
  }
- return{receive,update,clear,animate,get pendingSeconds(){return pending;}};
+ return{receive,update,clear,animate,sequencePending,get pendingSeconds(){return pending;}};
 }
