@@ -40,7 +40,44 @@ export function mergeGeometry(gs){
  for(const g of expanded){count+=g.attributes.position.count;for(const[name,a]of Object.entries(g.attributes))if(!templates.has(name))templates.set(name,a);}
  const out=new THREE.BufferGeometry();for(const[name,template]of templates){const size=template.itemSize,data=new Float32Array(count*size);let offset=0;for(const g of expanded){const a=g.attributes[name],length=g.attributes.position.count*size;if(a&&a.itemSize===size&&a.array instanceof Float32Array&&!a.normalized)data.set(a.array,offset);else for(let i=0;i<g.attributes.position.count;i++)for(let j=0;j<size;j++)data[offset+i*size+j]=a&&j<a.itemSize?a.getComponent(i,j):name==='color'?1:0;offset+=length;}out.setAttribute(name,new THREE.BufferAttribute(data,size));}return out;
 }
-export class Batches{constructor(parent){this.parent=parent;this.entries=new Map();}add(w,h,d,x,y,z,m,yaw=0){let arr=this.entries.get(m);if(!arr){arr=[];this.entries.set(m,arr);}arr.push({w,h,d,x,y,z,yaw});}flush(){const dummy=new THREE.Object3D();for(const[m,arr]of this.entries){const inst=new THREE.InstancedMesh(new THREE.BoxGeometry(1,1,1),m,arr.length);arr.forEach((a,i)=>{dummy.position.set(a.x,a.y,a.z);dummy.scale.set(a.w,a.h,a.d);dummy.rotation.set(0,a.yaw,0);dummy.updateMatrix();inst.setMatrixAt(i,dummy.matrix);});inst.receiveShadow=true;inst.castShadow=true;inst.computeBoundingSphere();this.parent.add(inst);}this.entries.clear();}}
+export class Batches{
+ constructor(parent){this.parent=parent;this.entries=new Map();}
+ add(w,h,d,x,y,z,m,yaw=0){
+  let entries=this.entries.get(m);
+  if(!entries){entries=[];this.entries.set(m,entries);}
+  entries.push({w,h,d,x,y,z,yaw});
+ }
+ flush({sectors=1}={}){
+  const dummy=new THREE.Object3D();
+  for(const [material,entries] of this.entries){
+   let groups=[entries];
+   // Reserve extra draw submissions for rings with enough instances to cull.
+   if(sectors>1&&entries.length>=sectors*24){
+    groups=Array.from({length:sectors},()=>[]);
+    for(const entry of entries){
+     const angle=(Math.atan2(entry.z,entry.x)+Math.PI)/(Math.PI*2);
+     groups[Math.min(sectors-1,Math.floor(angle*sectors))].push(entry);
+    }
+   }
+   const geometry=new THREE.BoxGeometry(1,1,1);
+   for(const group of groups){
+    if(!group.length)continue;
+    const inst=new THREE.InstancedMesh(geometry,material,group.length);
+    group.forEach((entry,i)=>{
+     dummy.position.set(entry.x,entry.y,entry.z);
+     dummy.scale.set(entry.w,entry.h,entry.d);
+     dummy.rotation.set(0,entry.yaw,0);
+     dummy.updateMatrix();
+     inst.setMatrixAt(i,dummy.matrix);
+    });
+    inst.receiveShadow=inst.castShadow=true;
+    inst.computeBoundingSphere();
+    this.parent.add(inst);
+   }
+  }
+  this.entries.clear();
+ }
+}
 let crestTexture,awayCrest;
 export async function loadBrandAssets(){
  const [image,away]=await Promise.all(['fc-bayern.svg','borussia-dortmund.svg'].map(name=>new THREE.ImageLoader().loadAsync(new URL('./assets/'+name,import.meta.url).href)));

@@ -44,8 +44,8 @@ function makeGeometry(binary,part){
  g.setIndex(new THREE.BufferAttribute(new Uint16Array(binary,part.indexOffset,part.indexCount),1));g.computeBoundingSphere();return g;
 }
 
-// Three traverses a live scene again after the animation step. A mobile
-// athlete with a current world pose can skip that second bone traversal.
+// Three traverses the live scene after the animation step. An athlete with a
+// current world pose can skip that second bone traversal.
 class MatchActorGroup extends THREE.Group{
  constructor(){
   super();
@@ -58,7 +58,7 @@ class MatchActorGroup extends THREE.Group{
  invalidatePose(){this.poseDirty=true;}
  updateMatrixWorld(force){
   const parentChanged=this.parent!==this.poseParent||this.parent&&!this.poseParentWorld.equals(this.parent.matrixWorld);
-  if(!this.poseDirty&&!parentChanged&&!this.matrixWorldNeedsUpdate&&
+  if(!this.solvingPose&&!this.poseDirty&&!parentChanged&&!this.matrixWorldNeedsUpdate&&
      this.position.equals(this.posePosition)&&this.quaternion.equals(this.poseRotation)&&this.scale.equals(this.poseScale))return;
   super.updateMatrixWorld(force);
   this.poseParent=this.parent;
@@ -92,10 +92,13 @@ function athlete(data,geometries,textures,definition,motion,atlasSize,cacheWorld
  return{group,body,definition,reset:motionPlayer.reset,showBooking(type){if(booking){booking.visible=!!type;booking.material.color.set(type==='yellow'?0xf1d14c:0xe82d42);}},pose(x,z,heading,time,moving,seatY=0,action=null,options=noActionOptions){
   // Apply locomotion and the football stroke before propagating the skeleton
   // once. Stairs keep their intermediate matrices for foot placement.
-  group.invalidatePose?.();
+  if(cacheWorld)group.solvingPose=true;
   motionPlayer.pose(x,z,heading,time,moving,seatY,true,options);
   if(action||options.defending||options.speed>5.5)applyFootballAction(bones,action,options,group);
-  group.invalidatePose?.();
+  if(cacheWorld){
+   group.solvingPose=false;
+   group.invalidatePose();
+  }
   group.updateMatrixWorld(true);
   updateHand();
  },poseBudget:createFramePacer()};
@@ -152,7 +155,7 @@ export function buildEntrancePlayers(scene,{mobile=false}={}){
    geometry.userData.low??=simplifySkinnedGeometry(geometry,.105,likenessLowParts);
   }
   const starterSlots={home:0,away:0},benchSlots={home:0,away:0};
-  players=matchdayPeople.map(definition=>{const d={...definition,player:{...definition.player},slot:definition.role==='player'?starterSlots[definition.team]++:definition.role==='substitute'?benchSlots[definition.team]++:null},p=athlete(data,geometries,textures,d,motion,mobile?512:d.role==='player'?1024:512,mobile);p.originalDefinition={...definition,player:{...definition.player}};p.geometry=p.body.geometry;root.add(p.group);return p;});
+  players=matchdayPeople.map(definition=>{const d={...definition,player:{...definition.player},slot:definition.role==='player'?starterSlots[definition.team]++:definition.role==='substitute'?benchSlots[definition.team]++:null},p=athlete(data,geometries,textures,d,motion,mobile?512:d.role==='player'?1024:512,true);p.originalDefinition={...definition,player:{...definition.player}};p.geometry=p.body.geometry;root.add(p.group);return p;});
   root.userData.shadows=createActorContactShadows(root,players.length,textures.shadow);
   ready=true;return true;
  })().catch(error=>{loading=null;throw error;});return loading;}
@@ -165,6 +168,7 @@ export function buildEntrancePlayers(scene,{mobile=false}={}){
   actor.pose(0,0,0,0,false);
   const head=actor.body.skeleton.bones[5];
   head.quaternion.copy(head.parent.getWorldQuaternion(new THREE.Quaternion()).invert());
+  actor.group.invalidatePose?.();
   actor.group.updateMatrixWorld(true);
   return actor;
  }

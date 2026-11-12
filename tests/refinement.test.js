@@ -37,6 +37,38 @@ test('an actual post rebound stays live rather than being counted as a goal or a
 test('replay memory remains bounded and saved goals are isolated from later live mutations',()=>{
  const r=createReplayRecorder(),g=createFootballSimulation();for(let i=0;i<1800;i++){g.update(1/60);r.record(g.state);}assert.ok(r.count<=r.capacity&&r.count>=3);g.state.phase='goal';g.state.score.home=1;r.goal(g.state);const clip=r.clip(),copy=JSON.stringify(clip),last=clip.frames.at(-1);assert.equal(last.score.home,1);g.state.ball.x=99;g.state.players[0].x=99;g.state.score.home=5;assert.equal(JSON.stringify(clip),copy);assert.equal(r.clip().frames.at(-1).score.home,1);assert.ok(clip.duration<=8);r.reset();assert.equal(r.clip(),null);assert.equal(r.available,false);
 });
+
+test('replay keeps the roster revision and rebound from each recorded frame and isolates exported highlights',()=>{
+ const r=createReplayRecorder(),g=createFootballSimulation({rules:{mode:'league',duration:180}}),s=g.state;
+ const player=s.players[1],formation=s.teamSheets.home.formation;
+ const nextFormation=formation==='442'?'433':'442';
+ s.phase='playing';s.ball.rebound={team:'home',source:'parry',leaders:{home:player.id}};
+ player.motion={id:4,type:'shoot',elapsed:.1};
+ for(const time of [1,1.1]){s.time=time;r.record(s);}
+ assert.equal(g.setFormation('home',nextFormation).ok,true);
+ s.ball.rebound.leaders.home='home-8';player.motion.elapsed=.2;s.stats.home.shots=1;
+ s.time=1.2;r.record(s);
+ s.phase='goal';s.time=1.3;s.score.home=1;r.goal(s);
+ s.phase='kickoff';s.time=1.4;r.record(s);
+ s.phase='playing';s.time=1.5;s.ball.rebound.leaders.home='home-6';player.motion.elapsed=.3;r.record(s);
+
+ const clip=r.clip();
+ assert.ok(clip.isGoal);
+ assert.equal(clip.frames[0].teamSheets.home.formation,formation);
+ assert.equal(clip.frames[2].teamSheets.home.formation,nextFormation);
+ assert.equal(clip.frames[0].ball.rebound.leaders.home,player.id);
+ assert.equal(clip.frames.at(-1).ball.rebound.leaders.home,'home-8');
+ assert.equal(clip.frames[0].players[1].motion.elapsed,.1);
+ assert.equal(clip.frames.at(-1).players[1].motion.elapsed,.2);
+ assert.equal(clip.frames[0].stats.home.shots,0);
+ assert.equal(clip.frames.at(-1).stats.home.shots,1);
+ assert.equal(clip.frames.at(-1).score.home,1);
+ clip.frames[0].teamSheets.home.formation='edited';
+ clip.frames[0].ball.rebound.leaders.home='edited';
+ assert.equal(clip.frames[1].teamSheets.home.formation,formation);
+ assert.equal(r.clip().frames[0].teamSheets.home.formation,formation);
+ assert.equal(r.clip().frames[0].ball.rebound.leaders.home,player.id);
+});
 test('replay samples interpolate position and the shortest heading arc without touching the live match',()=>{
  const g=createFootballSimulation(),a=g.state,b={...a,time:1,ball:{...a.ball,x:8},players:a.players.map(p=>({...p,x:p.x+4,yaw:-Math.PI+.1})),score:{home:1,away:0}};a.time=0;for(const p of a.players)p.yaw=Math.PI-.1;const before=JSON.stringify(a),clip={frames:[a,b],duration:1},frame=replaySample(clip,.5);assert.equal(frame.ball.x,4);assert.ok(Math.abs(Math.abs(frame.players[0].yaw)-Math.PI)<1e-8);assert.equal(JSON.stringify(a),before);const camera=replayCamera(frame);assert.ok(camera.position.every(Number.isFinite)&&camera.position[1]>5);assert.ok(Math.abs(camera.position[0])<36&&Math.abs(camera.position[2])<60);
 });

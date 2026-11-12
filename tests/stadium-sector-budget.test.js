@@ -46,6 +46,22 @@ test('the real phone follow view submits fewer static-ring triangles without red
  camera.position.set(0,8,214);stadium.update(camera,'orbit');assert.ok(upper.every(o=>o.visible),'all roof shell pieces restore outside');
  stadium.roof.visible=false;assert.ok(ringMeshes.filter(o=>upper.includes(o)||meshes(lining).includes(o)||meshes(trusses).includes(o)).every(o=>{for(let p=o;p;p=p.parent)if(p===stadium.roof)return !p.visible;return false;}));stadium.roof.visible=true;stadium.night(false);
 });
+
+test('bowl fittings retain every box and cull the opposite stand from match cameras',()=>{
+ const fittings=meshes(stadium.bowl.getObjectByName('Bowl concrete steps and metal fittings'));
+ assert.ok(fittings.every(o=>o.isInstancedMesh&&o.castShadow&&o.receiveShadow));
+ assert.ok(fittings.length<=26);
+ const all=fittings.reduce((n,o)=>n+o.count,0);
+ assert.ok(all>9000);
+ scene.updateMatrixWorld(true);
+ for(const [x,z,aspect] of [[20,15,16/9],[-22,-18,16/9],[8,30,390/844]]){
+  const camera=new THREE.PerspectiveCamera(66,aspect,.1,2500);
+  camera.position.set(x,10,z);camera.lookAt(0,1,0);camera.updateMatrixWorld(true);
+  const frustum=new THREE.Frustum().setFromProjectionMatrix(new THREE.Matrix4().multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse));
+  const submitted=fittings.filter(o=>frustum.intersectsObject(o)).reduce((n,o)=>n+o.count,0);
+  assert.ok(submitted>0&&submitted<all*.8,`${submitted}/${all} boxes from ${x}, ${z}`);
+ }
+});
 test('static splitting preserves world area, transforms, UV channels and shadow flags and rejects dynamic instances',()=>{
  const parent=new THREE.Group(),geometry=new THREE.TorusGeometry(90,2,6,80).rotateX(Math.PI/2);geometry.setAttribute('uv1',geometry.attributes.uv.clone());const source=new THREE.Mesh(geometry,new THREE.MeshStandardMaterial());source.position.set(3,7,-4);source.scale.set(1.2,1,1.3);source.castShadow=source.receiveShadow=true;source.customDepthMaterial=new THREE.MeshDepthMaterial();parent.add(source);parent.updateMatrixWorld(true);
  const area=root=>{let area=0;for(const mesh of meshes(root)){const p=mesh.geometry.attributes.position,index=mesh.geometry.index;for(let i=0;i<(index?.count??p.count);i+=3){const v=[0,1,2].map(j=>new THREE.Vector3().fromBufferAttribute(p,index?index.getX(i+j):i+j).applyMatrix4(mesh.matrixWorld));area+=v[1].sub(v[0]).cross(v[2].sub(v[0])).length()/2;}}return area;};

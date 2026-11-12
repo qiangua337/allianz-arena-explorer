@@ -4,6 +4,8 @@
 
 [在线探索](https://allianz-arena-explorer.pages.dev/) · [GitHub 源码](https://github.com/qiangua337/allianz-arena-explorer) · [Cloudflare 部署说明](docs/DEPLOYMENT.md) · [MIT 许可证](LICENSE)
 
+版本 **9.8.6 · 比赛流畅度**。球员骨骼复用已算好的姿势，看台台阶和栏杆按区提交绘制。设备曾稳定达到较高帧率时，短时回调减半会优先降低渲染分辨率。进球集锦继续保存完整的动作和球路，减少进球当下的复制工作。
+
 版本 **9.8.5 · 下底传球与第二落点**。边路接近底线时，朝禁区队友短传，可送倒三角或低平横传。禁区内分别有人冲近门柱和从后方跟进，弧顶继续留回做点。射门被挡出或击中门框后，附近队员会判断下一落点，进攻有人补射，防守有人补位。
 
 版本 **9.8.4 · 进攻节奏与第一脚触球**。电脑会判断前方线路是否被封，选择继续推进、回做或转到远侧。边路进入前场时，队友在禁区外提供回做点，远侧保留换边选项。第一脚接球可顺着跑动方向卸球，低速变向、减速和加速会改变带球的触球距离。[世界总决赛的回做与换边](https://www.youtube.com/watch?v=QIhTW_IlD8Y&t=17884s) · [拜仁禁区外接应](https://www.youtube.com/watch?v=x9cZdf1dwjQ&t=2134s) · [盘带与变速](https://www.youtube.com/watch?v=opf7_d_-P2k&t=435s)

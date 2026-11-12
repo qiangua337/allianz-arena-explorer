@@ -12,7 +12,7 @@ function availableRate(cap, rafFps) {
 // thread. Use render work to distinguish an inexpensive display limit from
 // a scene that first needs fewer pixels, then let spare callbacks reopen it.
 export function createMatchFrameRate(options = {}) {
- let cap, quality, current, goodSamples, limitedSamples, slowSamples, hold, retryDelay, mobile, native120;
+ let cap, quality, current, goodSamples, limitedSamples, slowSamples, hold, retryDelay, mobile, native120, observedRate;
  let trialScale, scaleRetry, settleSamples;
 
  function publish(rate, scale) {
@@ -26,7 +26,7 @@ export function createMatchFrameRate(options = {}) {
  function reset({cap: requestedCap = cap ?? 120, quality: requestedQuality = quality ?? 'standard', mobile: small = mobile ?? false} = {}) {
   cap = requestedCap === 120 ? 120 : 60;
   quality = Object.hasOwn(minScale, requestedQuality) ? requestedQuality : 'standard';
-  mobile=small;native120=false;goodSamples = limitedSamples = slowSamples = hold = 0;
+  mobile=small;native120=false;observedRate=0;goodSamples = limitedSamples = slowSamples = hold = 0;
   retryDelay = 3;
   trialScale = null;
   scaleRetry = settleSamples = 0;
@@ -47,9 +47,16 @@ export function createMatchFrameRate(options = {}) {
   const {rate, scale} = current;
   if(rafFps>=117&&rafFps<=123&&rafGap95<=10)native120=true;
   const possible = availableRate(cap, rafFps);
+  const steadyCallbacks = Number.isFinite(rafGap95) ? rafGap95 <= 1000 / possible * 1.3 : Math.abs(rafFps - possible) <= 4;
+  if (rafFps >= possible * .96 && steadyCallbacks) {
+   observedRate = Math.max(observedRate, possible);
+  }
   const hasTiming = Number.isFinite(frameMs) && frameMs >= 0;
   const cheap = hasTiming && frameMs < 1000 / rate * .66;
-  const displayLimited = possible < rate && (!native120||possible===60||possible===30) && cheap && Math.abs(rafFps - renderFps) <= 3 && Math.abs(rafFps - possible) <= 4;
+  // GPU backpressure can halve the callback rate while CPU submission is
+  // still cheap. Only treat it as a display limit if we have not measured a
+  // faster cadence during this match.
+  const displayLimited = possible < rate && possible >= observedRate && (!native120||possible===60||possible===30) && cheap && Math.abs(rafFps - renderFps) <= 3 && Math.abs(rafFps - possible) <= 4;
   limitedSamples = displayLimited ? limitedSamples + 1 : 0;
   if (hold > 0) hold--;
   if (scaleRetry > 0) scaleRetry--;

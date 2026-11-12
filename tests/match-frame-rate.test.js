@@ -30,6 +30,26 @@ test('a mobile high refresh session starts with headroom and ignores a single mi
  assert.equal(pace.update(spike).scale,.82);
 });
 
+test('a known 60 Hz match reduces pixel work when GPU backpressure halves callbacks',()=>{
+ for(const rafFps of [60,120]){
+  const pace=createMatchFrameRate({cap:60,quality:'low'});
+  const healthy={rafFps,renderFps:60,frameMs:4,gap95:17,rafGap95:Math.ceil(1000/rafFps)};
+  const throttled={rafFps:30,renderFps:30,frameMs:4,gap95:34,rafGap95:34};
+  assert.deepEqual(pace.update(healthy),{rate:60,scale:1});
+  assert.deepEqual(pace.update(throttled),{rate:60,scale:.87});
+  assert.deepEqual(pace.update(throttled),{rate:60,scale:.78});
+  assert.deepEqual(pace.update(healthy),{rate:60,scale:.78});
+  assert.deepEqual(pace.update(healthy),{rate:60,scale:.78});
+ }
+});
+
+test('an inexpensive match on a 30 Hz source still lowers its draw target without changing resolution',()=>{
+ const pace=createMatchFrameRate({cap:60,quality:'low'});
+ const limited={rafFps:30,renderFps:30,frameMs:4,gap95:34,rafGap95:34};
+ assert.deepEqual(pace.update(limited),{rate:60,scale:1});
+ assert.deepEqual(pace.update(limited),{rate:30,scale:1});
+});
+
 test('confirmed 120 Hz falls back to a uniform 60 cadence instead of alternating short and long frames',()=>{
  const pace=createMatchFrameRate({cap:120,quality:'high',mobile:true});
  const sample={rafFps:120,renderFps:103,frameMs:8,gap95:17,rafGap95:9};

@@ -8,7 +8,9 @@ globalThis.document={createElement:()=>({getContext:()=>context}),createElementN
 const {THREE}=await import('../dist/kit.js'),{buildEntrancePlayers}=await import('../dist/entrance-players.js'),{createFootballSimulation}=await import('../dist/football-simulation.js');
 const {footballCamera}=await import('../dist/football-controls.js');
 const fetchOriginal=globalThis.fetch;globalThis.fetch=async url=>{const data=await fs.readFile(new URL(url));return{ok:true,json:async()=>JSON.parse(data),arrayBuffer:async()=>data.buffer.slice(data.byteOffset,data.byteOffset+data.byteLength)};};
-const scene=new THREE.Scene(),actors=buildEntrancePlayers(scene,{mobile:true});await actors.prepare();globalThis.fetch=fetchOriginal;
+const scene=new THREE.Scene(),actors=buildEntrancePlayers(scene,{mobile:true});
+const desktopScene=new THREE.Scene(),desktop=buildEntrancePlayers(desktopScene);
+await Promise.all([actors.prepare(),desktop.prepare()]);globalThis.fetch=fetchOriginal;
 
 test('phone match cameras preserve both featured profiles within the previous triangle and material budgets',()=>{
  const state=createFootballSimulation().state;
@@ -77,7 +79,9 @@ test('combined football strokes and locomotion leave officials accessories on th
  for(const actor of actors.root.children.filter(o=>o.isGroup))for(const bone of actor.getObjectByName('athlete').skeleton.bones){assert.ok(bone.matrixWorld.elements.every(Number.isFinite));assert.ok(Math.abs(bone.quaternion.length()-1)<.00001);}
 });
 
-test('phone render traversal reuses a fresh pose and still follows later actor and parent transforms',()=>{
+const renderFixtures=[['phone',scene,actors],['desktop',desktopScene,desktop]];
+for(const [platform,scene,actors]of renderFixtures){
+test(platform+' render traversal reuses a fresh pose and still follows later actor and parent transforms',()=>{
  const state=createFootballSimulation().state,viewer=new THREE.Vector3(0,14,0);
  state.phase='playing';actors.reset();actors.updateMatch(state,0,viewer);scene.updateMatrixWorld(true);
  const group=actors.root.children.find(o=>o.userData.role==='player'&&o.visible);
@@ -99,4 +103,42 @@ test('phone render traversal reuses a fresh pose and still follows later actor a
  }finally{
   pelvis.updateMatrixWorld=original;actors.root.position.x-=.5;actors.reset();scene.updateMatrixWorld(true);
  }
+});
+}
+
+test('desktop entrance stair solving, bench poses and a replay rewind all keep current world matrices',()=>{
+ const state=createFootballSimulation().state,viewer=new THREE.Vector3(-43,0,0);
+ const groups=desktop.root.children.filter(o=>o.isGroup);
+ const starter=groups.find(o=>o.userData.role==='player');
+ const pelvis=starter.getObjectByName('athlete').skeleton.bones[0],update=pelvis.updateMatrixWorld;
+ let traversals=0;
+ pelvis.updateMatrixWorld=function(...args){traversals++;return update.apply(this,args);};
+ try{
+  desktop.reset();
+  desktop.update(10,10,viewer);
+  assert.ok(starter.position.x> -46.4&&starter.position.x< -40.3);
+  assert.ok(traversals>=3,'each stair foot-placement pass propagates its edits');
+  const stairPasses=traversals;
+  desktopScene.updateMatrixWorld(true);
+  assert.equal(traversals,stairPasses,'rendering an already solved entrance pose needs no extra traversal');
+  for(const t of [12,0]){
+   desktop.reset();
+   state.time=t;state.phase='playing';
+   const player=state.players.find(p=>p.team===starter.userData.team&&p.number===starter.userData.playerNumber);
+   player.x=t?7:-4;
+   desktop.updateMatch(state,t,viewer);
+   const matchPasses=traversals;
+   desktopScene.updateMatrixWorld(true);
+   assert.equal(traversals,matchPasses);
+   assert.ok(Math.abs(pelvis.matrixWorld.elements[12]-player.x)<.25,'pose follows the current match or replay position');
+   const bench=groups.find(o=>o.userData.role==='substitute'&&o.visible);
+   assert.ok(bench);
+   assert.ok(Math.abs(bench.getObjectByName('athlete').skeleton.bones[0].matrixWorld.elements[12]-bench.position.x)<.25);
+   for(const official of groups.filter(o=>o.userData.role==='assistantReferee')){
+    const flag=official.children.find(o=>o.isGroup&&!o.isBone);
+    const wrist=official.getObjectByName('athlete').skeleton.bones[14];
+    assert.ok(new THREE.Vector3().setFromMatrixPosition(flag.matrixWorld).distanceTo(new THREE.Vector3().setFromMatrixPosition(wrist.matrixWorld))<1e-9);
+   }
+  }
+ }finally{pelvis.updateMatrixWorld=update;desktop.reset();}
 });
