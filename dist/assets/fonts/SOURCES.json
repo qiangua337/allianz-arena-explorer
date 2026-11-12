@@ -68,7 +68,7 @@
   ],
   "coverage": {
     "scan": "All non-vendor dist .js and .html, HTML entities and JavaScript Unicode/hex escapes, plus printable ASCII.",
-    "sourceFileCount": 140,
+    "sourceFileCount": 141,
     "requestedCharacters": 1095,
     "requestedCJKCharacters": 945,
     "subsetCharacters": 1080,
@@ -1239,7 +1239,7 @@
       },
       {
         "file": "app.js",
-        "sha256": "663241e65f9738305f600925d6e4027d04d49d4231d531db80eb83d06ea68302"
+        "sha256": "21a9222dd65b6cedcd0db5846e1460ddcc42282c64b1a43cf59da73f436f70b2"
       },
       {
         "file": "architecture-clip.js",
@@ -1247,7 +1247,7 @@
       },
       {
         "file": "arena-entry.js",
-        "sha256": "435f7c52f1dd512bf051910c08d914fa9b968c1b03143970feba9a2cf650879d"
+        "sha256": "274dba873f05e0f665ae08e30f6712b0975d5ffff3ac5c2c755e6b6cdb4f1115"
       },
       {
         "file": "arena-floor-map.js",
@@ -1338,6 +1338,10 @@
         "sha256": "a9803aa16e40e99e5b817301756bc66a07540e9fb9e3ab910add16cbb85e6b9d"
       },
       {
+        "file": "football-defending.js",
+        "sha256": "2c7c105d343cb22ce44de6bba7dfec6f239bee9071a1ee0c0b5f73522b672949"
+      },
+      {
         "file": "football-foot-plant.js",
         "sha256": "ddfcc79c60f51563ee43dd850e92d8d95d314214a313fc7cf448381768bdcad8"
       },
@@ -1407,7 +1411,7 @@
       },
       {
         "file": "football-simulation.js",
-        "sha256": "c840de303c3e4dc717c6a2087c30290135a5f30101d1a366491c6e9161e70fd4"
+        "sha256": "a93b1227e4883ad97315509313179c20488cd8ad7695000d11e12e47e82e7feb"
       },
       {
         "file": "football-squads.js",
@@ -1415,7 +1419,7 @@
       },
       {
         "file": "football-tactics.js",
-        "sha256": "13d9186990f51d34cb48aeb3040b79432267302a4c921d72cba4d31bf3e289e2"
+        "sha256": "5f22d6616642704ef0af00a7b2a37a3adffcb960abd37486d7438ad0ace24f59"
       },
       {
         "file": "football-teams.js",
@@ -1471,7 +1475,7 @@
       },
       {
         "file": "index.html",
-        "sha256": "52705ef70ed05c1f20bb6db197bbc5162fd7538db1aaabfc924795757889277e"
+        "sha256": "d83aa29931d761898d5e3d7f6a679545ff0ca4dfd3b120c47aefc6912ca9d53b"
       },
       {
         "file": "instant-action.js",
@@ -1575,7 +1579,7 @@
       },
       {
         "file": "online-prediction.js",
-        "sha256": "470ba3be8dcbf7d91d651790be7508987d3db9ac6dadb349c6c879589465b987"
+        "sha256": "4bc84e038bbaa8b1281fadddcca7b3db449d58171c8b1ff285c736136269dc78"
       },
       {
         "file": "online-protocol.js",

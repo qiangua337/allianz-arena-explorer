@@ -46,11 +46,71 @@ export function passFlight(ball,target,{type='pass',lane=8}={}){
  if(!lofted){const speed=clamp(d*.43+8,10,22);return{vx:dx/(d||1)*speed,vz:dz/(d||1)*speed,vy:.12,lofted:false};}
  const flight=clamp(d/14.2,.85,2),travel=(1-Math.exp(-.08*flight))/.08;return{vx:dx/travel,vz:dz/travel,vy:(.11-(ball.y||.11)+4.905*flight*flight)/flight,lofted:true,flight};
 }
-export function supportPosition(player,ball,players,{base,role='CM',sign=-1,attacking=false,time=0}={}){
- let x=base[0]+ball.x*.20+(attacking?Math.sin(time*.45+player.index)*1.8:0),z=-sign*base[1]+ball.z*(attacking?.34:.20)+(attacking?sign*6:0);
- if(attacking&&['ST','AM','RW','LW','RM','LM'].includes(role))z=sign*Math.max(sign*z,sign*ball.z+(role==='ST'?10:role==='AM'?4:6));
- if(attacking&&['DM','CM'].includes(role))z=z*.35+(ball.z-sign*(role==='DM'?11:7))*.65;
+const wideAttack=new Set(['LW','RW','LM','RM']);
+const wideBack=new Set(['LB','RB','LWB','RWB']);
+
+export function attackingShape(players,team,system,sign,ball,owner,controlledId){
+ const reception=ball.targetId&&ball.receivePoint;
+ const anchor=owner||{x:ball.x+clamp((reception?.x??ball.x)-ball.x,-6,6),z:ball.z+clamp((reception?.z??ball.z)-ball.z,-8,8)};
+ const {x,z}=anchor,depth=z*sign,flank=Math.sign(x),wide=Math.abs(x)>8;
+ let outlet=null,best=Infinity,deepest=-Infinity,line=-Infinity;
+ for(const player of players){
+  if(player.team!==team){const q=player.z*sign;if(q>deepest){line=deepest;deepest=q;}else if(q>line)line=q;continue;}
+  const role=system.roles[player.index];
+  if(player.id===controlledId||player.id===owner?.id||player.id===ball.targetId||role!=='CM'&&role!=='DM')continue;
+  const cost=Math.abs(system.positions[player.index][0]-x)+Math.abs(player.z-z)*.18+(role==='DM'?2.5:0);
+  if(cost<best){best=cost;outlet=player.id;}
+ }
+ return{anchor:{x,z},depth,flank,wide,outlet,runLine:Number.isFinite(line)?clamp(Math.max(depth+1,line-1),-48,48):48};
+}
+
+export function forwardSupportRun(players,team,system,shape,sign,owner,controlledId,ballTarget,time){
+ const {anchor,depth,wide,flank,runLine}=shape;
+ if(depth< -14||depth>44||owner?.keeper)return null;
+ let best=null;
+ for(const player of players){
+  const role=system.roles[player.index],baseX=system.positions[player.index][0];
+  if(player.team!==team||player.id===controlledId||player.id===owner?.id||player.id===ballTarget||player.runUntil>time||!(role==='ST'||role==='AM'||wideAttack.has(role)))continue;
+  const q=player.z*sign;
+  if(q<depth-12||q>depth+21)continue;
+  const advance=Math.min(runLine,depth+18,q+9.5);
+  if(advance-q<4.5)continue;
+  const x=role==='ST'?clamp(baseX*.9+(wide?flank*4:anchor.x*.25),-14,14):role==='AM'?clamp(anchor.x*.37+(anchor.x>=0?-7:7),-14,14):Math.sign(baseX)*clamp(Math.abs(baseX)-(depth>27?8:3),13,27);
+  const score=(role==='ST'?5:role==='AM'?3:2)+(wide&&Math.sign(baseX)===flank?2:0)-Math.abs(player.x-anchor.x)*.09-Math.abs(q-depth-5)*.12;
+  if(!best||score>best.score)best={id:player.id,x,z:sign*advance,score};
+ }
+ return best;
+}
+
+export function supportPosition(player,ball,players,{base,role='CM',sign=-1,attacking=false,shape=null}={}){
+ const anchor=shape?.anchor??ball,depth=anchor.z*sign,flank=Math.sign(anchor.x),wide=Math.abs(anchor.x)>8,baseX=base[0],side=Math.sign(baseX),nearSide=wide&&flank===side;
+ let x=baseX+anchor.x*.20,q=-base[1]+depth*.20,speed=5.1;
+ if(attacking){
+  const push=-base[1]*.67+depth*.63;
+  if(role==='CB'){
+   x=baseX*.86+anchor.x*.23;q=Math.min(depth-13,push-1);speed=4.75;
+  }else if(wideBack.has(role)){
+   const wingback=role.endsWith('WB');
+   x=side*(nearSide?28:Math.abs(baseX)*.72);q=nearSide?Math.max(push,depth-(wingback?8:12)):Math.min(depth-12,push+(wingback?4:0));speed=5.35;
+  }else if(role==='DM'||role==='CM'){
+   const outlet=shape?.outlet===player.id;
+   x=outlet?anchor.x+(anchor.x>7?-8:anchor.x< -7?8:side*8||7):baseX*.85+anchor.x*.18;
+   q=depth-(outlet?6:role==='DM'?14:10);speed=outlet?5.7:4.9;
+  }else if(role==='ST'){
+   x=baseX*.85+(depth>27&&wide?flank*5:anchor.x*.26);
+   q=Math.max(push,depth+(baseX>0?13:9.5));speed=5.45;
+  }else if(role==='AM'){
+   x=anchor.x*.38+(wide?-flank*4.5:baseX*.7);
+   q=depth+(depth>36?-3:6);speed=5.55;
+  }else if(wideAttack.has(role)){
+   const arriving=wide&&!nearSide&&depth>30;
+   x=side*(arriving?Math.max(10,22-(depth-30)*.65):nearSide?Math.max(19,Math.abs(anchor.x)-5):27);
+   q=arriving?depth+8:Math.max(push,depth+(nearSide?6:4));speed=5.6;
+  }
+  if(shape&&q>depth&&depth> -10)q=Math.min(q,shape.runLine+(role==='ST'?.2:0));
+ }
+ const z=sign*q;
  let avoidX=0,avoidZ=0;
  if(attacking)for(const other of players){if(other.id===player.id||other.dismissed||other.keeper)continue;const dx=x-other.x,dz=z-other.z,d=Math.hypot(dx,dz),radius=other.team===player.team?4.2:3.0;if(d>=radius)continue;const push=(radius-d)*(other.team===player.team?.65:.42);avoidX+=(d>.01?dx/d:player.index%2?1:-1)*push;avoidZ+=(d>.01?dz/d:0)*push*.55;}
- return{x:clamp(x+clamp(avoidX,-3,3),-30,30),z:clamp(z+clamp(avoidZ,-2,2),-48,48)};
+ return{x:clamp(x+clamp(avoidX,-3,3),-30,30),z:clamp(z+clamp(avoidZ,-2,2),-48,48),speed};
 }

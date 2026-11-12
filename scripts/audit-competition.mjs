@@ -26,7 +26,10 @@ try{
  const start=Date.now(),remaining=()=>Math.max(0,110000-(Date.now()-start));let last='';while(penalty.home.state.phase!=='fulltime'&&remaining()>0){const k=penalty.home.state.competition.shootout,key=k.home.length+':'+k.away.length;
   if(k.stage==='ready'&&key!==last){const team=k.team,attempts=[k.home.length,k.away.length],sameAttempt=q=>q?.home.length===attempts[0]&&q?.away.length===attempts[1];
    await penaltyUntil(penalty,()=>[penalty.home,penalty.away].every(c=>{const q=c.state?.competition?.shootout;return c.ws.readyState===1&&!c.state?.paused&&c.state?.phase==='penalties'&&q?.stage==='ready'&&q.team===team&&sameAttempt(q)&&c.room?.seats.every(s=>s.connected&&s.ready&&!s.paused);}), 'both clients see the same ready penalty',Math.min(10000,remaining()));
-   last=key;penalty[team].send({type:'action',action:'shoot',power:.55,direction:{x:team==='home'?0:1,z:-1}});
+   const defender=team==='home'?'away':'home';
+   if(!k.keeperReady)penalty[defender].send({type:'action',action:'penalty-ready'});
+   await penaltyUntil(penalty,()=>[penalty.home,penalty.away].every(c=>{const q=c.state?.competition?.shootout;return sameAttempt(q)&&q.keeperReady&&q.time>=q.kickAllowedAt;}),'keeper confirms and countdown finishes',Math.min(8000,remaining()));
+   last=key;penalty[team].send({type:'action',action:'shoot',power:.55,penaltyAim:{x:team==='home'?0:.82,y:0}});
    await penaltyUntil(penalty,()=>[penalty.home,penalty.away].every(c=>{const q=c.state?.competition?.shootout;return c.state?.phase==='fulltime'||q&&(!sameAttempt(q)||['flight','result'].includes(q.stage));}), 'shot advances from ready within three seconds',Math.min(3000,remaining()));
   }await delay(80);
  }
