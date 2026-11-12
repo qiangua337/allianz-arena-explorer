@@ -39,6 +39,7 @@ body:not(.game-active) :is(#explore, #walk-guide, #walk-prompt) {
   overscroll-behavior: contain;
   scrollbar-width: thin;
   scrollbar-color: var(--rule) transparent;
+  scroll-padding-top: 49px;
 }
 #explore .section-heading {
   position: sticky;
@@ -64,6 +65,15 @@ body:not(.game-active) :is(#explore, #walk-guide, #walk-prompt) {
   color: var(--ink);
 }
 #explore #locations { min-height: 0; max-height: none; flex: none; overflow: visible }
+#explore .destination-status {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  clip-path: inset(50%);
+  overflow: hidden;
+  white-space: nowrap;
+}
 #explore #locations .location {
   min-height: 54px;
   gap: 8px;
@@ -159,7 +169,7 @@ body:not(.game-active) :is(#explore, #walk-guide, #walk-prompt) {
   }
 }
 @media (max-width: 1024px) and (orientation: portrait) {
-  #explore:has(#destination-search:focus) {
+  #explore[data-search-active=true] {
     top: max(58px, calc(env(safe-area-inset-top, 0px) + 48px));
     bottom: auto;
     max-height: min(430px, calc(100dvh - 80px));

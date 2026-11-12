@@ -68,7 +68,7 @@
   ],
   "coverage": {
     "scan": "All non-vendor dist .js and .html, HTML entities and JavaScript Unicode/hex escapes, plus printable ASCII.",
-    "sourceFileCount": 137,
+    "sourceFileCount": 138,
     "requestedCharacters": 1094,
     "requestedCJKCharacters": 944,
     "subsetCharacters": 1079,
@@ -1238,7 +1238,7 @@
       },
       {
         "file": "app.js",
-        "sha256": "5116f4d991a7176f4d5341c63d13a2d4a30d393a72e39904d90e841ac0c75f8d"
+        "sha256": "4fbc363324cd108bf450d7577e80fd9f02752e7386213470e7b34d22818507d7"
       },
       {
         "file": "architecture-clip.js",
@@ -1246,7 +1246,7 @@
       },
       {
         "file": "arena-entry.js",
-        "sha256": "f788df2d3fb4643969abf9d1ab1a621d4cec305e79f52af0ac493b8f6bb4d9ca"
+        "sha256": "426671a4fe44fda3936a10e099b3c7db8e331a340850704e7210eec482d3e1b1"
       },
       {
         "file": "arena-floor-map.js",
@@ -1274,7 +1274,7 @@
       },
       {
         "file": "circulation.js",
-        "sha256": "754ed88ff395edee673b3ae96730022b3b3ed2256830264dd62e03ddd2cd9a63"
+        "sha256": "169679ea029e408eed3f0547a445a436c6c0002d4487a1443152151570d38397"
       },
       {
         "file": "crowd-layout.js",
@@ -1282,7 +1282,7 @@
       },
       {
         "file": "destinations.js",
-        "sha256": "645e7fc30f8b4c70eebcb84f895c476721c9454808b99354971f688e01182f87"
+        "sha256": "06e0ab636ac7f61d8605589511c92d7570fc3ccfe2b968be09b89437fb9c7c2a"
       },
       {
         "file": "editorial-cover.js",
@@ -1462,7 +1462,7 @@
       },
       {
         "file": "index.html",
-        "sha256": "7d7e289bc008812988c2a01d08bc0f05b4b9f66ec13895bb73d27dd2cf0a3aac"
+        "sha256": "c1204ea8bdbf7fcb704f5c81e69a1a38b996be9384440f58cae8ba3eb11c375a"
       },
       {
         "file": "instant-action.js",
@@ -1745,12 +1745,16 @@
         "sha256": "674453e5c1cf29395a4de58bdc71420f5cc7ef28314fe7f1d7601384a713e123"
       },
       {
+        "file": "walk-checkpoint.js",
+        "sha256": "5cbd4e9375ce01e512a940132113bc423fa17e91b606c08b60dda5f3a4a20545"
+      },
+      {
         "file": "walk-continuation.js",
         "sha256": "4dd4d16427a6c20b7f627f7667c187cb41f0863570ea0ae5b893cc395f19a39b"
       },
       {
         "file": "walk-guide.js",
-        "sha256": "35bff45da6382e52a87e0e8873d5d4fcf5b957f4da44528adcac000ebca2a603"
+        "sha256": "283cc5ae4015dd87ff6d434914162df715f4ed4a7f7d2994176ae92e49ac8dc9"
       },
       {
         "file": "walk-motion.js",
@@ -1758,7 +1762,7 @@
       },
       {
         "file": "walk-path.js",
-        "sha256": "ade751c30470f496a68be0a2a21da6992f25f5030f3b320f2136c49aa23c9677"
+        "sha256": "721b6a22b370ad3b807cf091a93e5668c35870d2505cf969ba213dd064084ab6"
       },
       {
         "file": "walk-smoothing.js",
@@ -1766,7 +1770,7 @@
       },
       {
         "file": "walk-tours.js",
-        "sha256": "56b6ca1f5d1778e9a2a38d01ea6c11d510bd2b01550900eadfaeed6bff8762d5"
+        "sha256": "79d4947dd72261bca239f662fef0cecb06b0f51f6ad6d52f801b8970c591dc35"
       },
       {
         "file": "wardrobe-detail.js",

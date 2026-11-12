@@ -39,11 +39,17 @@ export function matchesDestination(place,query='',group='all'){
  const terms=String(query??'').normalize('NFKC').trim().toLowerCase().split(/\s+/).filter(Boolean);
  return terms.every(term=>searchable.includes(term));
 }
-export function buildDestinationMenu(){
+export function buildDestinationMenu({onDismiss}={}){
  const panel=document.getElementById('explore');
  const nav=document.getElementById('locations'),search=document.getElementById('destination-search');
  const tabs=[...document.querySelectorAll('[data-destination-group]')],empty=document.getElementById('destination-empty');
+ const defaultTrigger=document.getElementById('nav-trigger');
  let group='all';
+ let openRequest,invoker;
+ const status=document.createElement('span');
+ status.className='destination-status';
+ status.setAttribute('role','status');
+ nav.before(status);
  // Keep the location list ahead of secondary actions in visual and tab order.
  document.getElementById('walking-tour').before(panel.querySelector('.explore-entrypoints'));
  nav.innerHTML=destinations.map((p,i)=>`<button class="location" data-place="${p.id}" aria-current="false"><span class="location-icon" aria-hidden="true">${String(i+1).padStart(2,'0')}</span><span><b>${p.name}</b><small>${p.detail}</small></span><span class="location-floor">${p.floor}</span></button>`).join('');
@@ -55,6 +61,8 @@ export function buildDestinationMenu(){
    if(!button.hidden)count++;
   }
   empty.hidden=count>0;
+  const announcement=count?`找到 ${count} 个地点`:empty.textContent;
+  if(status.textContent!==announcement)status.textContent=announcement;
   panel.scrollTop=0;
  }
  function selectGroup(tab){
@@ -66,11 +74,43 @@ export function buildDestinationMenu(){
   filter();
  }
  search.oninput=()=>selectGroup(tabs[0]);
- search.onkeydown=e=>{
-  if(e.key!=='Enter'||e.isComposing)return;
-  const first=buttons.find(button=>!button.hidden);
-  if(first&&search.value.trim()){e.preventDefault();first.click();}
- };
+ search.addEventListener('focus',()=>{panel.dataset.searchActive='true';});
+ function focusResult(button){
+  button.focus({preventScroll:true});
+  button.scrollIntoView({block:'nearest',inline:'nearest'});
+ }
+ panel.addEventListener('keydown',e=>{
+  if(e.ctrlKey||e.metaKey||e.altKey)return;
+  // The same arrow and letter keys also drive the first-person view.
+  e.stopPropagation();
+  if(e.isComposing)return;
+  const visible=buttons.filter(button=>!button.hidden);
+  if(e.target===search){
+   if(!visible.length)return;
+   if(e.key==='ArrowDown'||e.key==='ArrowUp'){
+    e.preventDefault();
+    focusResult(e.key==='ArrowDown'?visible[0]:visible.at(-1));
+   }else if(e.key==='Enter'&&search.value.trim()){
+    e.preventDefault();
+    if(visible.length===1)visible[0].click();
+    else focusResult(visible[0]);
+   }
+   return;
+  }
+  const index=visible.indexOf(e.target);
+  if(index<0)return;
+  if(e.key==='ArrowUp'){
+   e.preventDefault();
+   if(index===0)search.focus();
+   else focusResult(visible[index-1]);
+  }else if(e.key==='ArrowDown'){
+   e.preventDefault();
+   focusResult(visible[Math.min(visible.length-1,index+1)]);
+  }else if(e.key==='Home'||e.key==='End'){
+   e.preventDefault();
+   focusResult(e.key==='Home'?visible[0]:visible.at(-1));
+  }
+ });
  for(const [index,tab] of tabs.entries()){
   tab.onclick=()=>selectGroup(tab);
   tab.onkeydown=e=>{
@@ -84,6 +124,38 @@ export function buildDestinationMenu(){
    selectGroup(tabs[next]);tabs[next].focus({preventScroll:true});
   };
  }
+ document.addEventListener('click',event=>{
+  const trigger=event.target.closest?.('#nav-trigger,#guide-goal');
+  if(!trigger||!panel.hidden)return;
+  const request={trigger,keyboard:event.detail===0};
+  openRequest=request;
+  setTimeout(()=>{if(openRequest===request)openRequest=undefined;},0);
+ },true);
+ function setOpen(open){
+  if(open){
+   invoker=openRequest?.trigger??defaultTrigger;
+   if(openRequest?.keyboard){
+    panel.scrollTop=0;
+    search.focus({preventScroll:true});
+   }
+  }else{
+   invoker=undefined;
+   delete panel.dataset.searchActive;
+  }
+  openRequest=undefined;
+ }
+ function dismiss(){
+  if(panel.hidden)return;
+  const returnTo=invoker??defaultTrigger;
+  onDismiss?.();
+  if(panel.hidden)(returnTo.getClientRects().length?returnTo:defaultTrigger).focus({preventScroll:true});
+ }
+ document.addEventListener('keydown',event=>{
+  if(!onDismiss||panel.hidden||event.key!=='Escape'||event.isComposing||event.ctrlKey||event.metaKey||event.altKey||document.querySelector('dialog[open]'))return;
+  event.preventDefault();
+  event.stopPropagation();
+  dismiss();
+ },true);
  selectGroup(tabs[0]);
- return{filter};
+ return{filter,setOpen,dismiss};
 }

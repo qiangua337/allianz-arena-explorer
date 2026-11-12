@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {registerHooks} from 'node:module';
 registerHooks({resolve(s,c,next){return s==='three'?{url:new URL('../dist/vendor/three.module.js',import.meta.url).href,shortCircuit:true}:next(s,c);}});
-const context=new Proxy({createRadialGradient:()=>({addColorStop(){}}),createLinearGradient:()=>({addColorStop(){}}),measureText:t=>({width:String(t).length*20}),getImageData:(x,y,w,h)=>({data:new Uint8ClampedArray(w*h*4)})},{get:(o,k)=>k in o?o[k]:()=>{}}),nodes=new Map();
+const labels=new Set();
+const context=new Proxy({createRadialGradient:()=>({addColorStop(){}}),createLinearGradient:()=>({addColorStop(){}}),measureText:t=>({width:String(t).length*20}),fillText:text=>labels.add(text),getImageData:(x,y,w,h)=>({data:new Uint8ClampedArray(w*h*4)})},{get:(o,k)=>k in o?o[k]:()=>{}}),nodes=new Map();
 globalThis.document={body:{dataset:{}},getElementById:id=>{if(!nodes.has(id))nodes.set(id,{hidden:true,style:{},classList:{toggle(){}},focus(){}});return nodes.get(id);},createElement:()=>({getContext:()=>context}),createElementNS:()=>{const listeners={};return{addEventListener:(k,f)=>listeners[k]=f,removeEventListener(){},set src(value){queueMicrotask(()=>listeners.load?.call(this));}};}};
 const {THREE,loadBrandAssets}=await import('../dist/kit.js');
 const {buildWorld}=await import('../dist/world.js'),{buildStadium}=await import('../dist/stadium.js'),{buildInteriors,roomSpecs}=await import('../dist/interiors.js'),{buildWalkBuilding}=await import('../dist/walk-building.js'),{buildServiceRooms}=await import('../dist/service-rooms.js'),{buildInteractions}=await import('../dist/interactions.js'),{freezeArchitecture}=await import('../dist/scene-budget.js'),{buildFootballView}=await import('../dist/football-view.js');
@@ -61,4 +62,29 @@ test('the real entrance and concourse frusta reject most exterior tree geometry 
   const visible=belt.children.filter(mesh=>frustum.intersectsObject(mesh));
   assert.ok(visible.length<=10&&triangles(visible)>0&&triangles(visible)<allTriangles*.30,'phone view keeps a tight draw and triangle budget');
  }
+});
+
+test('reception wayfinding faces the approach and return paths above walking headroom',()=>{
+ const signs=stadium.circulation.root.getObjectByName('Reception junction wayfinding');
+ const bounds=new THREE.Box3().setFromObject(signs);
+ assert.ok(bounds.min.y>-2.9+2.7,'overhead signs leave more than 2.7 m clear');
+ const approaches=[
+  [[0,-1.2,121],[0,.85,108.88],[0,0,-1]],
+  [[12,-1.2,113],[25.92,.85,113],[1,0,0]],
+  [[32,-1.2,113],[26.08,.85,113],[-1,0,0]],
+  [[22,-1.2,101],[22,.85,107.42],[0,0,1]]
+ ];
+ for(const [position,target,heading] of approaches){
+  const camera=new THREE.PerspectiveCamera(66,390/844,.06,4500);
+  camera.position.fromArray(position);
+  camera.lookAt(camera.position.clone().add(new THREE.Vector3(...heading)));
+  camera.updateMatrixWorld(true);
+  const panel=new THREE.Vector3(...target);
+  const projected=panel.clone().project(camera);
+  assert.ok(Math.abs(projected.x)<1&&Math.abs(projected.y)<1,'the panel fits the walking view');
+  const ray=new THREE.Raycaster(camera.position,panel.sub(camera.position).normalize());
+  const hit=ray.intersectObject(stadium.circulation.root,true)[0];
+  assert.equal(hit?.object.parent,signs,'the sign is visible without an obstruction from '+position.join(','));
+ }
+ for(const text of ['球场参观 →','← 球场参观','← 草坪参观','公共楼梯 ↑','接待大厅 →'])assert.ok(labels.has(text),text);
 });

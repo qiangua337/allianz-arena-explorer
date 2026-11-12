@@ -6,6 +6,8 @@ const {THREE}=await import('../dist/kit.js');
 const {partitionGeometry,spatializeArchitecture,facadeSectorVisible,updateArchitectureSectors}=await import('../dist/spatial-batches.js');
 const {applyArchitecturalUV}=await import('../dist/surface-finishes.js');
 const {walkingTours,createWalkingTour,routeSummary}=await import('../dist/walk-tours.js');
+const {createWalkCheckpoint,safeCheckpointFloor}=await import('../dist/walk-checkpoint.js');
+const {floorHeight}=await import('../dist/navigation.js');
 const {loadVisitorSettings,saveVisitorSettings,qualityProfile}=await import('../dist/visitor-settings.js');
 const {smoothWalkInput}=await import('../dist/walk-smoothing.js');
 const {tourGoals}=await import('../dist/tour-route.js');
@@ -27,6 +29,39 @@ test('world-scale material UVs leave the existing sign and clothing coordinates 
 });
 test('guided walks only advance after the selected stop is reached and finish cleanly',()=>{
  for(const plan of walkingTours){assert.ok(plan.stops.every(id=>tourGoals[id]));const tour=createWalkingTour();tour.start(plan.id);assert.equal(tour.next(),null);for(let i=0;i<plan.stops.length;i++){assert.equal(tour.update('entrance',true).arrived,false);assert.equal(tour.update(plan.stops[i],false).arrived,false);assert.equal(tour.update(plan.stops[i],true).arrived,true);assert.equal(tour.next(),plan.stops[i+1]??null);}assert.equal(tour.state(),null);}
+});
+test('a side trip or reload retains the selected tour stop without advancing it',()=>{
+ const tour=createWalkingTour();
+ tour.start('firstVisit');
+ tour.update('arcade',true);
+ assert.equal(tour.next(),'concourse');
+ assert.equal(tour.update('museum',true).arrived,false);
+ const restored=createWalkingTour();
+ restored.restore(tour.snapshot());
+ assert.equal(restored.state().goal,'concourse');
+ assert.equal(restored.next(),null);
+ restored.update('concourse',true);
+ assert.equal(restored.next(),'lowerStands');
+ restored.restore({id:'firstVisit',index:100});
+ assert.equal(restored.state(),null);
+});
+test('same-tab walk checkpoints match the intended place and refuse stale or obstructed positions',()=>{
+ let payload,writes=0;
+ const storage={setItem(_key,data){payload=data;writes++;},getItem(){return payload;}};
+ const geometry={tiers:[],rooms:{}},feet=floorHeight(0,214,-4,geometry);
+ const point={place:'arcade',x:0,z:214,feet,yaw:8*Math.PI,pitch:.2,guide:{arrived:false,collapsed:false},tour:{id:'firstVisit',index:0}};
+ const session=createWalkCheckpoint(storage);
+ session.save(point);session.save(point);
+ assert.equal(writes,1);
+ assert.equal(session.load('museum'),null);
+ const restored=createWalkCheckpoint(storage).load('arcade');
+ assert.equal(restored.collapsed,false);
+ assert.ok(Math.abs(restored.yaw)<.001);
+ assert.equal(safeCheckpointFloor(restored,geometry,()=>false),feet);
+ assert.equal(safeCheckpointFloor(restored,geometry,()=>true),null);
+ assert.equal(safeCheckpointFloor({...restored,feet:20},geometry,()=>false),null);
+ payload='{"place":"arcade","x":"NaN"}';
+ assert.equal(session.load('arcade'),null);
 });
 test('remaining distance includes vertical stairs and an empty route is zero',()=>{
  assert.deepEqual(routeSummary({x:0,y:0,z:0},[]),{metres:0,seconds:0});assert.equal(routeSummary({x:0,y:0,z:0},[{x:3,y:4,z:0},{x:6,y:4,z:4}]).metres,10);

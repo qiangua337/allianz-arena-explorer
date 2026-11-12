@@ -7,6 +7,7 @@ import {loadVisualAssets,applySurfaceQuality} from './visual-assets.js';
 import {installInteriorShading} from './interior-shading.js';
 import {lightingProfile,updateSceneLighting} from './lighting-profile.js';
 import {walkingTours,createWalkingTour} from './walk-tours.js';
+import {createWalkCheckpoint,safeCheckpointFloor} from './walk-checkpoint.js';
 import {loadVisitorSettings,saveVisitorSettings,qualityProfile,matchFpsCap} from './visitor-settings.js';
 import {smoothWalkInput} from './walk-smoothing.js';
 import {applyArchitecturalUV} from './surface-finishes.js';
@@ -40,7 +41,7 @@ import {serviceRoomAt} from './service-layout.js';
 
 const $=id=>document.getElementById(id),canvas=$('scene');
 const ballCue=$('game-ball-cue'),ballCueArrow=$('game-ball-cue-arrow'),ballCueDistance=$('game-ball-cue-distance');
-let experienceHub;
+let experienceHub,destinationMenu;
 let visitorStorage;try{visitorStorage=window.localStorage;}catch{}const visitorSettings=loadVisitorSettings(visitorStorage),walkingTour=createWalkingTour(),smoothInput={x:0,z:0};let qualityMode=visitorSettings.quality,matchFps=visitorSettings.matchFps,tourUIState='';
 const places={
  exterior:{title:'Allianz Arena',tag:'THE EXTERIOR',desc:'一座属于红色的足球殿堂。拖动视角，开始你的主场之旅。',pos:[251,174,307],target:[0,18,0],walk:[mainEntrance.x,esplanadeHeight(mainEntrance.z)+.055+EYE_HEIGHT,mainEntrance.z],look:mainEntrance.look,accuracy:'公开资料参考复原'},
@@ -71,6 +72,9 @@ const mediaReduced=window.matchMedia('(prefers-reduced-motion: reduce)').matches
 const touchAxes={x:0,y:0};let touchSprint=false,joystickPointer=null;
 // Orbit previews must never become the starting point of a walking route.
 const walker={position:v(...places.exterior.walk),yaw:0,pitch:0,visited:false};
+let walkStorage;
+try{walkStorage=window.sessionStorage;}catch{}
+const walkCheckpoint=createWalkCheckpoint(walkStorage);
 const walkGeometry=()=>({tiers:stadium.tiers,rooms:roomSpecs});
 const navigationPosition=()=>mode==='walk'?walkPosition.set(camera.position.x,(walkFeet??camera.position.y-desiredEye)+desiredEye,camera.position.z):walker.position;
 const toast=text=>{clearTimeout(toastTimer);$('toast').textContent=text;$('toast').classList.add('visible');toastTimer=setTimeout(()=>$('toast').classList.remove('visible'),3500);};
@@ -88,15 +92,37 @@ export async function startArena({hub, initial, nightAtStart}){
  arenaFill=new THREE.DirectionalLight(0xdce7f5,.25);arenaFill.position.set(130,110,-150);scene.add(arenaFill);buildSky();
  $('load-status').textContent='正在加载材质与环境光…';const assetResults=await Promise.all([loadBrandAssets(),loadVisualAssets(renderer,{progress:(n,total)=>{$('load-status').textContent='正在加载材质与环境光 '+n+' / '+total;}})]);visualAssets=assetResults[1];if(visualAssets.environments.indoor)setMaterialEnvironment(visualAssets.environments.indoor);else prepareMaterialLighting(renderer);document.body.dataset.surfaceResolution=visualAssets.resolution;document.body.dataset.assetFailures=visualAssets.failed.length;
  world=buildWorld(scene);stadium=buildStadium(scene);interiors=buildInteriors(scene,stadium.circulation);
- building=buildWalkBuilding(scene);serviceRooms=buildServiceRooms(scene);walkGuide=buildWalkGuide(scene,walkGeometry(),{obstacles:{world:world.colliders,building:building.colliders,interiors:interiors.colliders,circulation:stadium.circulation.colliders,service:serviceRooms.walls},onChoose:()=>setNavOpen(true),onSelect:id=>{stopTour();goPlace(id,false);},onWalk:followDestination,onTeleport:teleportToDestination,onContinue:()=>{if(!walkingTour.state())return false;$('tour-advance').click();return true;},nextDestination:()=>walkingTour.state()?.nextGoal});interactions=buildInteractions(scene,interiors,{toast,serviceRooms,navigate:id=>goPlace(id),setEye:y=>desiredEye=y,seats:stadium.seatPositions,onSit:seatIntoView,onStand:standFromSeat,onFocusSeat:focusArenaSeat,showInfo:showInteractiveInfo});lightBudget=buildLightBudget(scene);matchday=buildMatchdayExperience({scene,stadium,reducedMotion:mediaReduced,mobile:innerWidth<=1024,toast,onBegin:beginMatchday,onPose:applyEntrancePose,onFinish:finishMatchdayEntrance,onVisitBench:visitMatchdayBench,onGameCamera:applyGameCamera,onGameView:updateGameView,onReadGameInput:()=>gameInput(0),onExit:restoreFromMatchday,onPrepare:root=>{applySurfaceQuality(root,qualityMode);return renderer.compileAsync(root,camera,scene);},onPause:value=>{clearWalkInput();setWalkReady(!value);}});
+ building=buildWalkBuilding(scene);serviceRooms=buildServiceRooms(scene);walkGuide=buildWalkGuide(scene,walkGeometry(),{obstacles:{world:world.colliders,building:building.colliders,interiors:interiors.colliders,circulation:stadium.circulation.colliders,service:serviceRooms.walls},onChoose:()=>setNavOpen(true),onSelect:id=>{stopTour();goPlace(id,false);},onWalk:followDestination,onTeleport:teleportToDestination,onContinue:advanceWalkingTourFromGuide,nextDestination:upcomingWalkDestination});interactions=buildInteractions(scene,interiors,{toast,serviceRooms,navigate:id=>goPlace(id),setEye:y=>desiredEye=y,seats:stadium.seatPositions,onSit:seatIntoView,onStand:standFromSeat,onFocusSeat:focusArenaSeat,showInfo:showInteractiveInfo});lightBudget=buildLightBudget(scene);matchday=buildMatchdayExperience({scene,stadium,reducedMotion:mediaReduced,mobile:innerWidth<=1024,toast,onBegin:beginMatchday,onPose:applyEntrancePose,onFinish:finishMatchdayEntrance,onVisitBench:visitMatchdayBench,onGameCamera:applyGameCamera,onGameView:updateGameView,onReadGameInput:()=>gameInput(0),onExit:restoreFromMatchday,onPrepare:root=>{applySurfaceQuality(root,qualityMode);return renderer.compileAsync(root,camera,scene);},onPause:value=>{clearWalkInput();setWalkReady(!value);}});
  matchday.setQuality(qualityMode,qualityScale);visualAssets.registerOutdoor(world.group,stadium.root);applyArchitecturalUV(stadium.root);applyArchitecturalUV(stadium.circulation.root);applyArchitecturalUV(interiors.root);applyArchitecturalUV(building.root);applyArchitecturalUV(world.group);installInteriorShading(interiors.root);
  spatializeArchitecture(stadium.circulation.root);spatializeArchitecture(interiors.rooms.concourse);
  setExplorationMatchMode=suspendExplorationDuringMatch([world.group,building.root,interiors.root,serviceRooms.root,stadium.circulation.root]);
- freezeArchitecture(world.group,[world.rotor]);freezeArchitecture(stadium.root,[stadium.matchBall]);freezeArchitecture(stadium.circulation.root);freezeArchitecture(interiors.root);freezeArchitecture(building.root);buildDestinationMenu();buildHotspots();bindUI();setNavOpen(false);document.body.dataset.mode=mode;setDayNight(nightAtStart);applySurfaceQuality(scene,qualityMode);clock.time=performance.now();document.body.dataset.version='9.7.9';document.body.dataset.seats=stadium.seatCount;document.body.dataset.panels=stadium.panelCount;
- const place=initial.get('place');if(initial.get('view')==='walk')setMode('walk',{place:place&&(places[place]||tourGoals[place])?place:'arcade'});else if(place&&(places[place]||tourGoals[place]))goPlace(place,false);
+ freezeArchitecture(world.group,[world.rotor]);freezeArchitecture(stadium.root,[stadium.matchBall]);freezeArchitecture(stadium.circulation.root);freezeArchitecture(interiors.root);freezeArchitecture(building.root);destinationMenu=buildDestinationMenu({onDismiss:()=>setNavOpen(false)});buildHotspots();bindUI();setNavOpen(false);document.body.dataset.mode=mode;setDayNight(nightAtStart);applySurfaceQuality(scene,qualityMode);clock.time=performance.now();document.body.dataset.version='9.8.0';document.body.dataset.seats=stadium.seatCount;document.body.dataset.panels=stadium.panelCount;
+ const requestedPlace=initial.get('place');
+ if(initial.get('view')==='walk'){
+  const place=requestedPlace&&(places[requestedPlace]||tourGoals[requestedPlace])?requestedPlace:'arcade';
+  const saved=restoreWalkCheckpoint(initial,place);
+  setMode('walk',{place});
+  if(saved)walkGuide.restoreState({goal:normalizeDestination(place),selected:true,collapsed:saved.collapsed,arrived:saved.arrived},navigationPosition());
+ }else if(requestedPlace&&(places[requestedPlace]||tourGoals[requestedPlace]))goPlace(requestedPlace,false);
  $('load-status').textContent='正在准备室内与室外画面…';await renderer.compileAsync(scene,camera);document.body.dataset.ready='true';clock.time=performance.now();renderer.setAnimationLoop(render);
  window.addEventListener('resize',resize);canvas.addEventListener('webglcontextlost',e=>{e.preventDefault();toast('图形上下文已暂停，请重新加载页面恢复。');});
  return arenaEntry;
+}
+
+function restoreWalkCheckpoint(initial,place){
+ if(initial.has('room')||initial.has('experience')||performance.getEntriesByType('navigation')[0]?.type!=='reload')return null;
+ const saved=walkCheckpoint.load(place);
+ if(!saved)return null;
+ const feet=safeCheckpointFloor(saved,walkGeometry(),blocked);
+ if(feet===null)return null;
+ walker.position.set(saved.x,feet+EYE_HEIGHT,saved.z);
+ Object.assign(walker,{yaw:saved.yaw,pitch:saved.pitch,visited:true});
+ walkingTour.restore(saved.tour);
+ return saved;
+}
+function saveWalkCheckpoint(){
+ if(mode!=='walk'||matchStarting||matchday?.active||seatStanding||walkFeet===null)return;
+ walkCheckpoint.save({place:active,x:camera.position.x,z:camera.position.z,feet:walkFeet,yaw,pitch,guide:walkGuide.captureState(),tour:walkingTour.snapshot()});
 }
 
 const arenaEntry={
@@ -117,6 +143,7 @@ const arenaEntry={
  enter(panel){
   if(matchday.active)matchday.exit();
   if(panel==='explore'){
+   walkingTour.cancel();
    setMode('walk',{place:'entrance'});
    teleportToDestination('entrance');beginWalk();
   }else matchday.launch(panel);
@@ -136,7 +163,7 @@ function setDayNight(n){frameBudget.invalidate();night=n;document.body.dataset.e
 function beginMatchday({cinematic,playing=false}){
  matchStarting=true;clearTimeout(toastTimer);$('toast').classList.remove('visible');
  interactions?.stand();
- if(!matchSnapshot)matchSnapshot={mode,active,night,position:camera.position.clone(),quaternion:camera.quaternion.clone(),target:controls.target.clone(),fov:camera.fov,yaw,pitch,walkFeet,desiredEye,ready:walkReady,guide:walkGuide.captureState(),roof:$('roof').checked,map:!document.querySelector('.minimap').hidden,hud:document.body.classList.contains('hud-hidden'),walker:{position:walker.position.clone(),yaw:walker.yaw,pitch:walker.pitch,visited:walker.visited}};
+ if(!matchSnapshot)matchSnapshot={mode,active,night,position:camera.position.clone(),quaternion:camera.quaternion.clone(),target:controls.target.clone(),fov:camera.fov,yaw,pitch,walkFeet,desiredEye,ready:walkReady,guide:walkGuide.captureState(),tour:walkingTour.snapshot(),roof:$('roof').checked,map:!document.querySelector('.minimap').hidden,hud:document.body.classList.contains('hud-hidden'),walker:{position:walker.position.clone(),yaw:walker.yaw,pitch:walker.pitch,visited:walker.visited}};
  stopTour();walkingTour.cancel();refreshWalkingTour();$('info-dialog').close();document.body.classList.remove('hud-hidden');$('toggle-hud').setAttribute('aria-pressed','false');$('toggle-hud').setAttribute('aria-label','隐藏界面');if(cinematic||playing){if(mode!=='walk')setMode('walk',{place:'pitch'});goPlace('pitch',false);if(cinematic)setDayNight(true);$('roof').checked=true;stadium.roof.visible=true;stadium.circulation.setRoof(true);interiors.setRoof(true);document.querySelector('.minimap').hidden=true;$('map-toggle').setAttribute('aria-expanded','false');}walkGuide.setSuppressed(cinematic||playing);clearWalkInput();touchSprint=false;$('touch-sprint').setAttribute('aria-pressed','false');if(playing){yaw=0;pitch=-.14;gameCameraInstant=true;controls.enabled=false;}setWalkReady(true);matchStarting=false;updateLocationURL();frameBudget.invalidate();
 }
 function updateGameView(view){
@@ -171,16 +198,17 @@ function applyEntrancePose(sample,{instant=false,dt=.016}={}){
 function finishMatchdayEntrance({manual=false}={}){clearWalkInput();camera.fov=66;camera.updateProjectionMatrix();syncAngles();walkFeet=floorAt(camera.position.x,camera.position.z);walkGuide.setSuppressed(false);if(manual)walkGuide.setGoal('pitch',camera.position);else walkGuide.arrive('pitch',camera.position);setWalkReady(true);canvas.focus({preventScroll:true});frameBudget.invalidate();}
 function visitMatchdayBench(){teleportToDestination('pitch');camera.position.set(-33.2,1.7,-18);camera.lookAt(-38.5,1.25,-18);syncAngles();walkFeet=0;walker.position.copy(camera.position);walker.yaw=yaw;walker.pitch=pitch;walkGuide.arrive('pitch',camera.position);frameBudget.invalidate();}
 function restoreFromMatchday(){
- const saved=matchSnapshot;if(!saved)return;matchSnapshot=null;clearWalkInput();touchSprint=false;$('touch-sprint').setAttribute('aria-pressed','false');if(mode!==saved.mode)setMode(saved.mode,{place:saved.active});goPlace(saved.active,false);camera.position.copy(saved.position);camera.quaternion.copy(saved.quaternion);camera.fov=saved.fov;camera.updateProjectionMatrix();controls.target.copy(saved.target);if(mode==='orbit')controls.update();yaw=saved.yaw;pitch=saved.pitch;walkFeet=saved.walkFeet;desiredEye=saved.desiredEye;walker.position.copy(saved.walker.position);Object.assign(walker,{yaw:saved.walker.yaw,pitch:saved.walker.pitch,visited:saved.walker.visited});setDayNight(saved.night);$('roof').checked=saved.roof;stadium.roof.visible=saved.roof;stadium.circulation.setRoof(saved.roof);interiors.setRoof(saved.roof);document.querySelector('.minimap').hidden=!saved.map;$('map-toggle').setAttribute('aria-expanded',String(saved.map));document.body.classList.toggle('hud-hidden',saved.hud);$('toggle-hud').setAttribute('aria-pressed',String(saved.hud));$('toggle-hud').setAttribute('aria-label',saved.hud?'显示界面':'隐藏界面');walkGuide.setSuppressed(false);walkGuide.restoreState(saved.guide,navigationPosition(),desiredEye);setWalkReady(saved.ready);controls.enabled=mode==='orbit';for(const[id,on]of[['orbit-mode',mode==='orbit'],['walk-mode',mode==='walk']]){$(id).classList.toggle('active',on);$(id).setAttribute('aria-pressed',String(on));}$('crosshair').hidden=mode!=='walk';updateLocationURL();frameBudget.invalidate();
+ const saved=matchSnapshot;if(!saved)return;matchSnapshot=null;walkingTour.restore(saved.tour);clearWalkInput();touchSprint=false;$('touch-sprint').setAttribute('aria-pressed','false');if(mode!==saved.mode)setMode(saved.mode,{place:saved.active});goPlace(saved.active,false);camera.position.copy(saved.position);camera.quaternion.copy(saved.quaternion);camera.fov=saved.fov;camera.updateProjectionMatrix();controls.target.copy(saved.target);if(mode==='orbit')controls.update();yaw=saved.yaw;pitch=saved.pitch;walkFeet=saved.walkFeet;desiredEye=saved.desiredEye;walker.position.copy(saved.walker.position);Object.assign(walker,{yaw:saved.walker.yaw,pitch:saved.walker.pitch,visited:saved.walker.visited});setDayNight(saved.night);$('roof').checked=saved.roof;stadium.roof.visible=saved.roof;stadium.circulation.setRoof(saved.roof);interiors.setRoof(saved.roof);document.querySelector('.minimap').hidden=!saved.map;$('map-toggle').setAttribute('aria-expanded',String(saved.map));document.body.classList.toggle('hud-hidden',saved.hud);$('toggle-hud').setAttribute('aria-pressed',String(saved.hud));$('toggle-hud').setAttribute('aria-label',saved.hud?'显示界面':'隐藏界面');walkGuide.setSuppressed(false);walkGuide.restoreState(saved.guide,navigationPosition(),desiredEye);setWalkReady(saved.ready);controls.enabled=mode==='orbit';for(const[id,on]of[['orbit-mode',mode==='orbit'],['walk-mode',mode==='walk']]){$(id).classList.toggle('active',on);$(id).setAttribute('aria-pressed',String(on));}$('crosshair').hidden=mode!=='walk';updateLocationURL();frameBudget.invalidate();
 }
 
 function goPlace(id,animate=true){
  if(matchday?.playing&&!matchStarting){toast('请先退出球赛，再继续参观。');return;}
  if(matchday?.cinematic&&!matchStarting)matchday.stopFollowing();
- const tourState=walkingTour.state();if(tourState&&normalizeDestination(id)!==tourState.goal)walkingTour.cancel();
+ const tour=walkingTour.state();
+ const detour=tour?.goal===walkGuide.getGoal()&&normalizeDestination(id)!==tour.goal;
  const p=places[id]||(tourGoals[id]?{...(id==='entrance'?places.exterior:places.stands),title:tourGoals[id]}:null);if(!p)return;setNavOpen(false);clearWalkInput();active=id;document.body.dataset.place=id;document.querySelectorAll('.location').forEach(b=>{const on=b.dataset.place===id;b.classList.toggle('active',on);b.setAttribute('aria-current',on?'location':'false');});$('place-title').textContent=p.title;$('place-tag').textContent=p.tag;$('place-desc').textContent=p.desc;$('accuracy-tag').textContent=p.accuracy;
  walkGuide.setGoal(normalizeDestination(id),navigationPosition(),mode==='walk'?desiredEye:EYE_HEIGHT);
- if(mode==='walk'){setWalkReady(true);canvas.focus({preventScroll:true});transition=null;if(!matchStarting)toast('已设置步行路线：'+(tourGoals[id]||p.title));}else{
+ if(mode==='walk'){setWalkReady(true);canvas.focus({preventScroll:true});transition=null;if(!matchStarting)toast('已设置步行路线：'+(tourGoals[id]||p.title)+(detour?' · 原导览已保留':''));}else{
   controls.maxPolarAngle=roomSpecs[id]||id==='tunnel'||id==='concourse'?Math.PI*.8:Math.PI*.61;
   const dest=v(...p.pos),target=v(...p.target);if(animate&&!mediaReduced&&!roomSpecs[id]&&id!=='tunnel'&&id!=='concourse'){transition={from:camera.position.clone(),to:dest,startTarget:controls.target.clone(),target,time:0,duration:1.65};}else{camera.position.copy(dest);controls.target.copy(target);controls.update();transition=null;}
   if(!tourOn&&!matchStarting)toast('已选择：'+(tourGoals[id]||p.title)+' · 可步行或传送');
@@ -192,14 +220,14 @@ function goPlace(id,animate=true){
 function syncAngles(){const e=new THREE.Euler().setFromQuaternion(camera.quaternion,'YXZ');yaw=e.y;pitch=e.x;}
 function focusArenaSeat({target}){clearWalkInput();camera.lookAt(target.x,target.y,target.z);syncAngles();frameBudget.invalidate();toast('已对准座位 · 再次确认即可入座。');}
 function seatIntoView(session){
- seatStanding={feet:walkFeet??camera.position.y-desiredEye,eye:desiredEye};stopTour();walkingTour.cancel();refreshWalkingTour();clearWalkInput();
+ seatStanding={feet:walkFeet??camera.position.y-desiredEye,eye:desiredEye};stopTour();refreshWalkingTour();clearWalkInput();
  walkFeet=session.feet;desiredEye=session.eyePosition.y-session.feet;camera.position.copy(session.eyePosition);yaw=session.yaw;pitch=-.08;camera.rotation.set(pitch,yaw,0,'YXZ');walkGuide.setSuppressed(true);document.body.dataset.seated='true';frameBudget.invalidate();
 }
 function standFromSeat(session){
  camera.position.copy(session.standingPosition);walkFeet=seatStanding?.feet??floorAt(camera.position.x,camera.position.z);desiredEye=seatStanding?.eye??EYE_HEIGHT;camera.position.y=walkFeet+desiredEye;seatStanding=null;walkGuide.setSuppressed(false);document.body.dataset.seated='false';frameBudget.invalidate();
 }
 function clearWalkInput(){smoothInput.x=smoothInput.z=0;keys.clear();moveFlags.clear();movementPointers.clear();touchAxes.x=touchAxes.y=0;joystickPointer=null;if($('joystick-thumb'))$('joystick-thumb').style.transform='none';dragging=false;lastPointer=null;document.body.classList.remove('looking');}
-function setNavOpen(open){if(open&&matchday?.playing)return;$('explore').hidden=!open;$('nav-trigger').setAttribute('aria-expanded',String(open));$('guide-goal').setAttribute('aria-expanded',String(open));document.body.classList.toggle('nav-open',open);if(open){setMapOpen(false);clearWalkInput();if(document.pointerLockElement===canvas)document.exitPointerLock?.();}}
+function setNavOpen(open){if(open&&matchday?.playing)return;$('explore').hidden=!open;$('nav-trigger').setAttribute('aria-expanded',String(open));$('guide-goal').setAttribute('aria-expanded',String(open));document.body.classList.toggle('nav-open',open);destinationMenu?.setOpen(open);if(open){setMapOpen(false);clearWalkInput();if(document.pointerLockElement===canvas)document.exitPointerLock?.();}}
 function setMapOpen(open){
  if(open&&matchday?.playing)return;
  const panel=$('arena-map-panel');
@@ -399,7 +427,7 @@ function render(timestamp){
   document.body.dataset.camera=camera.position.toArray().map(x=>x.toFixed(3)).join(',');
   document.body.dataset.heading=[yaw,pitch].map(x=>x.toFixed(4)).join(',');
  }
- if(elapsed-lastPerf>1.5){const fps=Math.round(frames/(elapsed-lastPerf)),renderRate=Math.round(drawnFrames/(elapsed-lastPerf));$('performance').textContent=`THREE.JS r${THREE.REVISION}  /  ${stadium.seatCount.toLocaleString()} 个座位模型  /  ${stadium.panelCount.toLocaleString()} 个气枕  /  ${renderRate} FPS`;document.body.dataset.fps=fps;document.body.dataset.renderfps=renderRate;drawnFrames=0;if(!playing&&qualityMode==='standard'){if(elapsed>6&&fps<28&&qualityScale>.82&&(keys.size>0||dragging||joystickPointer!==null||transition||tourOn||matchday?.cinematic)){applyAdaptiveScale(Math.max(.82,qualityScale*.92));recoveryFrames=0;}else if(fps>48&&qualityScale<1){if(++recoveryFrames>=4){applyAdaptiveScale(Math.min(1,qualityScale+.08));recoveryFrames=0;}}else recoveryFrames=0;}document.body.dataset.camera=camera.position.toArray().map(x=>x.toFixed(2)).join(',');document.body.dataset.nearSeats=stadium.detailSeatCount;document.body.dataset.drawcalls=renderer.info.render.calls;document.body.dataset.triangles=renderer.info.render.triangles;frames=0;lastPerf=elapsed;}
+ if(elapsed-lastPerf>1.5){saveWalkCheckpoint();const fps=Math.round(frames/(elapsed-lastPerf)),renderRate=Math.round(drawnFrames/(elapsed-lastPerf));$('performance').textContent=`THREE.JS r${THREE.REVISION}  /  ${stadium.seatCount.toLocaleString()} 个座位模型  /  ${stadium.panelCount.toLocaleString()} 个气枕  /  ${renderRate} FPS`;document.body.dataset.fps=fps;document.body.dataset.renderfps=renderRate;drawnFrames=0;if(!playing&&qualityMode==='standard'){if(elapsed>6&&fps<28&&qualityScale>.82&&(keys.size>0||dragging||joystickPointer!==null||transition||tourOn||matchday?.cinematic)){applyAdaptiveScale(Math.max(.82,qualityScale*.92));recoveryFrames=0;}else if(fps>48&&qualityScale<1){if(++recoveryFrames>=4){applyAdaptiveScale(Math.min(1,qualityScale+.08));recoveryFrames=0;}}else recoveryFrames=0;}document.body.dataset.camera=camera.position.toArray().map(x=>x.toFixed(2)).join(',');document.body.dataset.nearSeats=stadium.detailSeatCount;document.body.dataset.drawcalls=renderer.info.render.calls;document.body.dataset.triangles=renderer.info.render.triangles;frames=0;lastPerf=elapsed;}
 }
 function recordFrameGap(histogram,ms){if(ms>0)histogram[Math.min(histogram.length-1,Math.ceil(ms))]++;}
 function frameGap95(histogram,count){if(count<2)return undefined;const limit=Math.ceil(count*.95);let sum=0;for(let ms=1;ms<histogram.length;ms++){sum+=histogram[ms];if(sum>=limit)return ms;}}
@@ -431,8 +459,28 @@ function setQuality(){
 }
 
 function resize(){document.body.dataset.touch=String(innerWidth<=1024);syncDrawingBuffer();camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();frameBudget.invalidate();}
-function updateLocationURL(){const q=new URLSearchParams(),room=matchday?.onlineRoom||new URLSearchParams(location.search).get('room');if(room)q.set('room',room);if(active!=='exterior')q.set('place',active);if(night)q.set('night','1');if(mode==='walk')q.set('view','walk');if(matchday?.active){q.set('experience',matchday.training?'training':matchday.playing?'football':'matchday');if(matchday.training)q.set('drill',matchday.training);}history.replaceState(null,'',location.pathname+(q.size?'?'+q:''));}
-function refreshWalkingTour(){const state=walkingTour.update(walkGuide.getGoal(),walkGuide.isArrived()),show=state?.arrived&&mode==='walk'&&walkReady&&$('explore').hidden&&!document.querySelector('dialog[open]'),key=JSON.stringify([state?.id,state?.index,state?.arrived,!!show]);if(key===tourUIState)return;tourUIState=key;document.body.dataset.walkingTour=state?.id||'none';$('tour-arrival').hidden=!show;if(state){$('tour-arrival-progress').textContent=`${state.index+1} / ${state.total} · ${state.title}`;$('tour-arrival-title').textContent='已到达 · '+tourGoals[state.goal];$('tour-advance').textContent=state.last?'完成导览':'下一站 →';}}
+function updateLocationURL(){const q=new URLSearchParams(),room=matchday?.onlineRoom||new URLSearchParams(location.search).get('room');if(room)q.set('room',room);if(active!=='exterior'||mode==='walk')q.set('place',active);if(night)q.set('night','1');if(mode==='walk')q.set('view','walk');if(matchday?.active){q.set('experience',matchday.training?'training':matchday.playing?'football':'matchday');if(matchday.training)q.set('drill',matchday.training);}history.replaceState(null,'',location.pathname+(q.size?'?'+q:''));}
+function resumeWalkingTour(){
+ const tour=walkingTour.state();
+ if(!tour)return;
+ $('walking-tour-dialog').close();
+ if(mode!=='walk')setMode('walk',{place:tour.goal});
+ else if(walkGuide.getGoal()!==tour.goal)goPlace(tour.goal,false);
+ beginWalk();refreshWalkingTour();
+}
+function upcomingWalkDestination(){
+ const tour=walkingTour.state();
+ if(!tour)return undefined;
+ return tour.goal===walkGuide.getGoal()?tour.nextGoal:tour.goal;
+}
+function advanceWalkingTourFromGuide(){
+ const tour=walkingTour.state();
+ if(!tour)return false;
+ if(tour.goal===walkGuide.getGoal())$('tour-advance').click();
+ else resumeWalkingTour();
+ return true;
+}
+function refreshWalkingTour(){const state=walkingTour.update(walkGuide.getGoal(),walkGuide.isArrived()),show=state?.arrived&&mode==='walk'&&walkReady&&!seatStanding&&$('explore').hidden&&!document.querySelector('dialog[open]'),key=JSON.stringify([state?.id,state?.index,state?.arrived,!!show]);if(key===tourUIState)return;tourUIState=key;document.body.dataset.walkingTour=state?.id||'none';$('tour-arrival').hidden=!show;if(state){$('tour-arrival-progress').textContent=`${state.index+1} / ${state.total} · ${state.title}`;$('tour-arrival-title').textContent='已到达 · '+tourGoals[state.goal];$('tour-advance').textContent=state.last?'完成导览':'下一站 →';}}
 function stopTour(){if(!tourOn)return;tourOn=false;$('tour').innerHTML='<span>▷</span> 自动巡游 <small>15 个视角</small>';}
 function bindUI(){
  document.body.dataset.touch=String(innerWidth<=1024);
@@ -475,11 +523,12 @@ function bindUI(){
  $('help').onclick=()=>matchday?.playing?matchday.showGameHelp():openDialog('help');$('references').onclick=()=>openDialog('references');document.querySelector('.close-dialog').onclick=()=>$('info-dialog').close();$('info-dialog').addEventListener('click',e=>{if(e.target===$('info-dialog')){const r=$('info-dialog').getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)$('info-dialog').close();}});
  $('tour').onclick=()=>{if(tourOn){stopTour();return;}if(mode==='walk')setMode('orbit');setNavOpen(false);tourOn=true;tourElapsed=0;tourIndex=Object.keys(places).indexOf(active);$('tour').innerHTML='<span>Ⅱ</span> 暂停巡游 <small>每 7.5 秒切换</small>';toast('自动巡游开始；拖动场景或选择区域可暂停。');};
  $('walking-tour-plans').innerHTML=walkingTours.map((plan,i)=>`<button data-walking-tour="${plan.id}"><small>0${i+1} · ${plan.stops.length} 站</small><b>${plan.title}<span>↗</span></b><p>${plan.description}</p></button>`).join('');
- $('walking-tour').onclick=()=>{setNavOpen(false);clearWalkInput();$('walking-tour-dialog').showModal();};$('walking-tour-close').onclick=()=>$('walking-tour-dialog').close();
+ $('walking-tour').onclick=()=>{setNavOpen(false);clearWalkInput();const tour=walkingTour.state(),resume=$('walking-tour-resume');resume.hidden=!tour;if(tour)resume.textContent='继续导览 · '+tourGoals[tour.goal];$('walking-tour-dialog').showModal();};
+ $('walking-tour-resume').onclick=resumeWalkingTour;$('walking-tour-close').onclick=()=>$('walking-tour-dialog').close();
  document.querySelectorAll('[data-walking-tour]').forEach(button=>button.onclick=()=>{walkingTour.cancel();$('walking-tour-dialog').close();if(mode!=='walk')setMode('walk');const selected=walkingTour.start(button.dataset.walkingTour);goPlace(selected.goal,false);beginWalk();toast('已开始：'+selected.title);refreshWalkingTour();});
  $('tour-advance').onclick=()=>{const goal=walkingTour.next();if(goal)goPlace(goal,false);else toast('导览已完成，可以继续自由探索。');refreshWalkingTour();};$('tour-end').onclick=()=>{walkingTour.cancel();refreshWalkingTour();};
  $('nav-trigger').onclick=()=>setNavOpen($('explore').hidden);
- $('toggle-nav').onclick=()=>{setNavOpen(false);$('nav-trigger').focus({preventScroll:true});};
+ $('toggle-nav').onclick=()=>destinationMenu.dismiss();
  document.addEventListener('pointerdown',e=>{if(!$('explore').hidden&&!e.target.closest('#explore,#nav-trigger'))setNavOpen(false);});
  canvas.addEventListener('contextmenu',e=>{if(mode==='walk')e.preventDefault();});
  canvas.addEventListener('pointerdown',e=>{
@@ -497,11 +546,13 @@ function bindUI(){
  window.addEventListener('pointerup',releasePointer);window.addEventListener('pointercancel',releasePointer);
  document.addEventListener('museum-open',()=>{clearWalkInput();stopTour();});
  window.addEventListener('blur',()=>{if(matchday?.active){if(matchday.online)matchday.clearOnlineInput();else matchday.setPaused(true);}if(mode==='walk')setWalkReady(false);else clearWalkInput();});
+ window.addEventListener('pagehide',saveWalkCheckpoint);
  document.addEventListener('visibilitychange',()=>{
   clearMatchSample();
   if(matchSampling)matchFrameRate.interrupt();
   matchSampling=false;
   if(document.hidden){
+   saveWalkCheckpoint();
    if(matchday?.active){if(matchday.online)matchday.clearOnlineInput();else matchday.setPaused(true);}
    clearWalkInput();renderer.setAnimationLoop(null);
   }else{clock.time=performance.now();renderer.setAnimationLoop(render);}

@@ -256,6 +256,25 @@ test('free positions by the shop wall, on an upper aisle and behind the press de
  }
 });
 
+test('clear walks on the south approach and in the public ring skip long waypoint detours',()=>{
+ const south={x:-30,y:floorHeight(-30,188,-3.7,geometry),z:188};
+ const publicRing={x:79.29,y:12.2,z:-78.497};
+ for(const [start,goal,metres]of[[south,'entrance',40],[publicRing,'concourse',35]]){
+  const result=planWalkPath(start,goal,geometry,obstacleGroups);
+  assert.equal(result.blocked,false);
+  assert.deepEqual(result.path,[tourNodes[goal]]);
+  const target=result.path[0];
+  assert.ok(Math.hypot(start.x-target.x,start.y-target.y,start.z-target.z)<metres);
+  assert.equal(walkSegmentClear(start,target,geometry,navigationObstacles(start,obstacleGroups)),true);
+ }
+ const guide=buildWalkGuide(scene,geometry,{obstacles:obstacleGroups}),outsideRange=new THREE.Vector3(-30,1.7+floorHeight(-30,176,-3.7,geometry),176);
+ guide.setGoal('entrance',outsideRange);
+ assert.ok(guide.getRoute().length>1);
+ guide.update(new THREE.Vector3(south.x,south.y+1.7,south.z),0,1.3,'walk');
+ assert.deepEqual(guide.getRoute(),[tourNodes.entrance]);
+ assert.equal(guide.isArrived(),false);
+});
+
 test('all teleport arrivals stand on the correct floor and outside walls and furniture',()=>{
  for(const id of Object.keys(tourGoals)){
   const at=destinationArrival(id,geometry),[x,y,z]=at.position,p={x,y:at.feet,z},walls=navigationObstacles(p,obstacleGroups);

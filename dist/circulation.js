@@ -233,6 +233,43 @@ export function buildCirculation(parent){
 
   colliders.push(orientedCollider(x,107.5,4.8,1.3,ACCESS_BASE,ACCESS_BASE+1.3));
  }
+ // The first turn is shared, then the grass entrance branches away from
+ // the route around the east ring to the public stair. Signs face each
+ // approach so the arrows match the visitor's direction of travel.
+ const junctionSigns=new THREE.Group();junctionSigns.name='Reception junction wayfinding';
+ const fieldColor='#875e1c',stairsColor='#354e57',lobbyColor='#366b58';
+ function junctionBoard(x,z,yaw,front,back=[]){
+  const y=ACCESS_BASE+3.55,width=5.6,height=1.24,top=y+height/2;
+  batch.add(width,height,.14,x,y,z,dark,yaw);
+  for(const side of[-1,1]){
+   const offset=side*(width/2-.45),length=5.4-top;
+   batch.add(.05,length,.05,x+Math.cos(yaw)*offset,top+length/2,z-Math.sin(yaw)*offset,metal);
+  }
+  function face(rows,angle){
+   const nx=Math.sin(angle)*.08,nz=Math.cos(angle)*.08;
+   rows.forEach(([title,sub,bg],i)=>{
+    atlas.add(junctionSigns,title,sub,width-.12,.54,x+nx,y+(.5-i)*.58,z+nz,angle,{bg,accent:bg});
+   });
+  }
+  face(front,yaw);
+  face(back,yaw+Math.PI);
+ }
+ junctionBoard(0,108.8,0,[
+  ['草坪参观 →','VISITOR PASSAGE',fieldColor],
+  ['公共楼梯 →','商店 · 展厅 · 包厢',stairsColor]
+ ]);
+ junctionBoard(visitorPassage.x+4,113,-Math.PI/2,[
+  ['← 草坪参观','VISITOR PASSAGE',fieldColor],
+  ['公共楼梯 ↑','沿环廊前行',stairsColor]
+ ],[
+  ['草坪参观 →','VISITOR PASSAGE',fieldColor],
+  ['接待大厅 ↑','SOUTH LOBBY',lobbyColor]
+ ]);
+ junctionBoard(visitorPassage.x,107.5,Math.PI,[
+  ['← 公共楼梯','商店 · 展厅 · 包厢',stairsColor],
+  ['接待大厅 →','SOUTH LOBBY',lobbyColor]
+ ]);
+ atlas.finish(junctionSigns);
  // A real, lit opening leads under the lower seating tier and onto the pitch.
  const visit=visitorPassage,clear=visit.width,wallDepth=visit.backZ-visit.rampZ;
  batch.add(clear,.16,wallDepth,visit.x,ACCESS_BASE-.08,(visit.backZ+visit.rampZ)/2,floor);
@@ -242,7 +279,11 @@ export function buildCirculation(parent){
   batch.add(.08,.12,wallDepth,x-side*.13,ACCESS_BASE+.28,(visit.backZ+visit.rampZ)/2,red);
   batch.add(.36,4.5,.75,visit.x+side*(clear/2+.12),ACCESS_BASE+2.25,visit.entryZ+.15,red);
   colliders.push(orientedCollider(x,(visit.backZ+visit.rampZ)/2,.24,wallDepth,ACCESS_BASE,visit.head));
-  for(let i=0;i<5;i++){const z=99-i*6.7;batch.add(.07,1.9,3.8,x-side*.13,ACCESS_BASE+1.55,z,red);atlas.add(root,i%2?'MIA SAN MIA':'FC BAYERN','球场参观 →',3.4,.75,x-side*.18,ACCESS_BASE+1.6,z,side<0?Math.PI/2:-Math.PI/2,{bg:'#b41b36'});}
+  for(let i=0;i<5;i++){
+   const z=99-i*6.7;
+   batch.add(.07,1.9,3.8,x-side*.13,ACCESS_BASE+1.55,z,red);
+   atlas.add(root,i%2?'MIA SAN MIA':'FC BAYERN',side<0?'球场参观 →':'← 球场参观',3.4,.75,x-side*.18,ACCESS_BASE+1.6,z,side<0?Math.PI/2:-Math.PI/2,{bg:'#b41b36'});
+  }
  }
  batch.add(clear+.65,.85,.78,visit.x,ACCESS_BASE+4.05,visit.entryZ+.15,red);
  atlas.add(root,'球场参观入口','草坪 · 看台 · 球员通道',clear+.1,.73,visit.x,ACCESS_BASE+4.05,visit.entryZ+.56,0,{bg:'#b41b36'});
@@ -260,6 +301,7 @@ export function buildCirculation(parent){
  finishReception(root,batch,atlas,{floorY:ACCESS_BASE,pale,red,metal,dark});colliders.push(orientedCollider(4,110,.74,.62,ACCESS_BASE,ACCESS_BASE+1.8));
  atlas.add(root,'↑ 室内公共楼梯','公共大厅 · 商店 · 展厅 · 包厢 · 看台',6.4,.9,95.8,.8,10,0,{bg:'#996e24'});
  batch.flush();roofBatch.flush();atlas.finish(root);compactStaticMeshes(root,[roof]);compactStaticMeshes(roof);
+ root.add(junctionSigns);
 
  function decorateConcourse(g){
   const b=new Batches(g);

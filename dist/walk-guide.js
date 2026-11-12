@@ -4,7 +4,7 @@ import {EYE_HEIGHT} from './navigation.js';
 import {inCoreShaft,coreLevels} from './building-layout.js';
 import {tourGoals,tourNodes} from './tour-route.js';
 import {waypointReached,movementInstruction} from './wayfinding.js';
-import {planWalkPath,navigationObstacles,walkSegmentClear} from './walk-path.js';
+import {directWalkDestination,planWalkPath,navigationObstacles,walkSegmentClear} from './walk-path.js';
 import {normalizeDestination} from './arrivals.js';
 import {destinationName} from './destinations.js';
 import {ribbonPoints} from './ribbon-path.js';
@@ -21,7 +21,7 @@ export function buildWalkGuide(scene,geometry,{obstacles={},onChoose,onSelect,on
  const lastPosition=v(0,-2.4,214);let lastDraw=null;
  const feet=p=>({x:p.x,y:p.y-eyeHeight,z:p.z});
  function expand(){collapsed=true;panel.classList.toggle('collapsed',true);$('guide-collapse').textContent='详情';}
- function reset(position=lastPosition){lastPosition.copy(position);anchor=feet(position);const result=planWalkPath(anchor,goal,geometry,obstacles);path=result.path;blocked=result.blocked;arrived=false;planClock=0;lastDraw=null;}
+ function reset(position=lastPosition){lastPosition.copy(position);anchor=feet(position);const result=planWalkPath(anchor,goal,geometry,obstacles);path=result.path;blocked=result.blocked;arrived=false;planClock=0;lastDraw=null;geo.setDrawRange(0,0);}
  function choose(id){if(onSelect)onSelect(id);else setGoal(id);$('scene').focus({preventScroll:true});}
  function setGoal(id,position=lastPosition,currentEyeHeight=EYE_HEIGHT){eyeHeight=currentEyeHeight;goal=normalizeDestination(id);select.value=goal;goalName.textContent=destinationName(goal);selected=true;expand();reset(position);refresh();return goal;}
  select.onclick=()=>onChoose?.();
@@ -59,8 +59,12 @@ export function buildWalkGuide(scene,geometry,{obstacles={},onChoose,onSelect,on
   // clear-segment check above, even when it is just on the other side of a wall.
   while(path.length>1&&waypointReached(p,path[0],anchor,path[1])&&walkSegmentClear(p,path[1],geometry,walls)){anchor=path.shift();lastDraw=null;}
   if(!path.length&&!blocked&&!arrived)reset(position);
-  if(planClock>1.2&&!arrived){planClock=0;const target=path[0],distance=Math.hypot(p.x-anchor.x,p.z-anchor.z);
-   if(blocked?distance>.7:target&&(!walkSegmentClear(p,target,geometry,walls)||distance>55))reset(position);
+  if(planClock>1.2&&!arrived){
+   planClock=0;
+   const target=path[0],distance=Math.hypot(p.x-anchor.x,p.z-anchor.z);
+   if(path.length>1&&distance>.7&&directWalkDestination(p,goal,geometry,walls)){
+    anchor=p;path=[destination];lastDraw=null;
+   }else if(blocked?distance>.7:target&&(!walkSegmentClear(p,target,geometry,walls)||distance>55))reset(position);
   }
   refresh(yaw);
   if(mode==='walk'&&!blocked&&!arrived&&(!lastDraw||Math.hypot(p.x-lastDraw.x,p.y-lastDraw.y,p.z-lastDraw.z)>.15))draw(p);

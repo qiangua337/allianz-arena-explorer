@@ -26,6 +26,14 @@ export function walkSegmentClear(a,b,geometry,obstacles){
  for(let i=1;i<=steps;i++){const t=i/steps,x=a.x+(b.x-a.x)*t,z=a.z+(b.z-a.z)*t,next=floorHeight(x,z,feet,geometry);if(next-feet>MAX_STEP+.01||feet-next>1||!canStandAt(x,z,next,geometry))return false;feet=next;}
  return Math.abs(feet-b.y)<1;
 }
+export function directWalkDestination(position,goal,geometry,obstacles){
+ const destination=tourNodes[goal];
+ // Use open nearby paths, while leaving floor changes and room-door
+ // instructions to the graph that models those transitions.
+ if(!destination||Math.abs(position.y-destination.y)>.8||distance(position,destination)>45)return null;
+ if(serviceRoomAt(position)||roomAt(position)!==roomAt(destination))return null;
+ return walkSegmentClear(position,destination,geometry,obstacles)?destination:null;
+}
 function obstacleCorners(w,y){const gap=.45;
  if(w.cx===undefined)return [[w.x0-gap,w.z0-gap],[w.x0-gap,w.z1+gap],[w.x1+gap,w.z0-gap],[w.x1+gap,w.z1+gap]].map(([x,z])=>({x,y,z}));
  const c=Math.cos(w.yaw),s=Math.sin(w.yaw),out=[];for(const x of[-w.halfW-gap,w.halfW+gap])for(const z of[-w.halfD-gap,w.halfD+gap])out.push({x:w.cx+x*c+z*s,y,z:w.cz-x*s+z*c});return out;
@@ -51,8 +59,11 @@ function validatePath(position,path,geometry,groups,obstacles){
 }
 export function planWalkPath(position,goal,geometry,groups={}){
  const service=serviceRoomAt(position);if(service){const door={...serviceWorld(service,0,.45),y:service.y},outside=serviceWorld(service,0,3.1),node=(p,id,label)=>({...p,y:service.y,id,level:'upper',label,hint:'按 F 或点击互动按钮打开服务间双门，再回到公共大厅。'}),obstacles=navigationObstacles(position,groups),prefix=walkSegmentClear(position,door,geometry,obstacles)?[]:detour(position,door,geometry,obstacles),tail=planWalkPath({...outside,y:service.y},goal,geometry,groups);if(!prefix)return{path:[],blocked:true};return{path:[...prefix,node(door,service.id+'Exit','走出服务间'),node(outside,service.id+'Outside','返回公共大厅'),...tail.path],blocked:tail.blocked};}
+ const obstacles=navigationObstacles(position,groups);
+ const direct=directWalkDestination(position,goal,geometry,obstacles);
+ if(direct)return{path:[direct],blocked:false};
  const route=planTour(position,goal);if(!route.length)return{path:[],blocked:true};
- const obstacles=navigationObstacles(position,groups),remaining=route.map(()=>0);for(let i=route.length-2;i>=0;i--)remaining[i]=remaining[i+1]+distance(route[i],route[i+1]);
+ const remaining=route.map(()=>0);for(let i=route.length-2;i>=0;i--)remaining[i]=remaining[i+1]+distance(route[i],route[i+1]);
  let best=null;for(let i=0;i<Math.min(route.length,5);i++){const target=route[i];if(i&&Math.abs(target.y-position.y)>.85)break;if(i&&distance(position,target)>45)break;
   if(walkSegmentClear(position,target,geometry,obstacles)){const cost=distance(position,target)+remaining[i];if(!best||cost<best.cost)best={cost,index:i};}
   if(target.level==='core'||/^landing/.test(target.id))break;
