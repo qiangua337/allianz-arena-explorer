@@ -43,6 +43,29 @@ test('touch intent is transmitted while rendering is stalled, with a bound on co
   assert.equal(sent.length,5,'a queued touch cannot undo focus loss');
  }finally{client.dispose();}
 });
+test('a stopped stick sends sequenced neutral immediately while further releases obey a rate budget',t=>{
+ t.mock.timers.enable({apis:['Date','setTimeout']});
+ const {client,sent}=fixture('home',{now:Date.now});
+ try{
+  client.flushInput({x:1});
+  t.mock.timers.tick(5);
+  client.flushInput({});
+  assert.deepEqual(sent.map(({x,seq})=>[x,seq]),[[1,1],[0,2]],'the stick release does not wait for a frame or timer');
+  t.mock.timers.tick(17);
+  client.flushInput({x:-1});
+  t.mock.timers.tick(5);
+  client.flushInput({});
+  assert.equal(sent.length,3,'a second rapid release does not bypass the same budget');
+  t.mock.timers.tick(12);
+  assert.deepEqual(sent.map(({x,seq})=>[x,seq]),[[1,1],[0,2],[-1,3],[0,4]],'the deferred stop still replaces the last sent direction');
+  const start=sent.length;
+  for(let i=0;i<1000;i++){
+   t.mock.timers.tick(1);
+   client.flushInput(i%25<17?{x:1}:{});
+  }
+  assert.ok(sent.length-start<=71,'rapid movements leave room for action and heartbeat packets');
+ }finally{client.dispose();}
+});
 test('300 ms network latency does not hold local movement, dribbling or input submission until a server reply',()=>{
  const {sim,client,sent}=fixture(),before={...client.state.players[1]},ball={...client.state.ball},elapsed=client.state.elapsed;
  client.update(1/60,{x:1,z:0});assert.ok(client.state.players[1].x>before.x+.005);assert.equal(sent[0].seq,1);assert.equal(sent[0].x,1);assert.notDeepEqual(client.state.ball,ball);
@@ -53,6 +76,26 @@ test('acknowledged movement is removed from prediction and a correction is blend
  // The first half of these commands have reached the server; the rest remain in flight.
  for(let i=0;i<9;i++)sim.update(1/60,{away:{x:-1,z:0}});deliver(3);client.update(1/60,{x:-1,z:0});assert.ok(Math.abs(client.state.players[12].x-before)<.4);assert.ok(client.state.players[12].x<start-.8);assert.ok(client.state.predictionSeconds<.21);
  const remote=client.state.players[1];assert.equal(remote.x,sim.state.players[1].x);client.dispose();
+});
+test('an authoritative cursor change uses the last displayed local pose for the handoff',()=>{
+ const {sim,client,deliver}=fixture();
+ const old=client.state.players[1],remote=client.state.players[12];
+ try{
+  for(let i=1;i<=6;i++){
+   sim.state.time+=.05;sim.state.players[12].x=i*.25;sim.state.players[12].vx=5;
+   deliver();
+   for(let frame=0;frame<3;frame++)client.update(1/60,{x:1});
+  }
+  const localBefore=old.x,remoteBefore=remote.x;
+  assert.ok(localBefore>sim.state.players[1].x+.6,'the old local actor has pending movement to reconcile');
+  sim.state.controlledIds.home='home-2';
+  deliver();
+  client.update(1/60,{});
+  assert.equal(client.state.controlledId,'home-2');
+  assert.ok(Math.abs(old.x-localBefore)<1e-9,'the handoff uses the position before applying the server packet');
+  assert.ok(remote.x-remoteBefore>=0&&remote.x-remoteBefore<.15,'an unrelated actor keeps its earlier render timeline');
+  assert.equal(client.state.ball.ownerId,sim.state.ball.ownerId);
+ }finally{client.dispose();}
 });
 test('a server pause or lost connection cancels pending prediction, and recovery accepts the authoritative position',()=>{
  const {sim,session,client,deliver}=fixture();for(let i=0;i<12;i++)client.update(1/60,{x:1,z:0});sim.setPaused(true);deliver(4);const frozen={...client.state.ball},x=client.state.players[1].x;for(let i=0;i<30;i++)client.update(1/60,{x:1,z:0});assert.equal(client.state.players[1].x,x);assert.deepEqual(client.state.ball,frozen);assert.equal(client.state.predictionSeconds,0);

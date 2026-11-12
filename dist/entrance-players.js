@@ -54,6 +54,7 @@ class MatchActorGroup extends THREE.Group{
   this.poseRotation=new THREE.Quaternion();
   this.poseScale=new THREE.Vector3();
   this.poseParentWorld=new THREE.Matrix4();
+  this.worldPoseRevision=0;
   this.invalidatePose();
  }
  invalidatePose(){this.poseDirty=true;}
@@ -69,6 +70,35 @@ class MatchActorGroup extends THREE.Group{
   this.poseRotation.copy(this.quaternion);
   this.poseScale.copy(this.scale);
   this.poseDirty=false;
+  this.worldPoseRevision++;
+ }
+}
+
+// A cached world pose already has the same skinning palette. Three visits
+// each visible skeleton on every draw, including between its pose updates.
+class MatchActorSkeleton extends THREE.Skeleton{
+ constructor(bones,group){
+  super(bones);
+  this.group=group;
+ }
+ init(){
+  super.init();
+  this.paletteRevision=-1;
+ }
+ calculateInverses(){
+  super.calculateInverses();
+  this.paletteRevision=-1;
+ }
+ pose(){
+  super.pose();
+  this.group.invalidatePose();
+  this.paletteRevision=-1;
+ }
+ update(){
+  const revision=this.group.worldPoseRevision;
+  if(revision===this.paletteRevision)return;
+  super.update();
+  this.paletteRevision=revision;
  }
 }
 
@@ -76,7 +106,7 @@ function athlete(data,geometries,textures,definition,motion,atlasSize,cacheWorld
  const group=cacheWorld?new MatchActorGroup():new THREE.Group();group.name=definition.team+' · '+definition.role+' · '+definition.player.name;group.userData.role=definition.role;group.userData.team=definition.team;group.userData.playerNumber=definition.player.number??null;
  const bones=data.bones.map(b=>{const bone=new THREE.Bone();bone.name=b.name;return bone;});
  data.bones.forEach((b,i)=>{const parent=b.parent>=0?bones[b.parent]:group;parent.add(bones[i]);bones[i].position.fromArray(b.head);if(b.parent>=0)bones[i].position.sub(new THREE.Vector3().fromArray(data.bones[b.parent].head));});
- group.updateMatrixWorld(true);const skeleton=new THREE.Skeleton(bones);skeleton.calculateInverses();
+ group.updateMatrixWorld(true);const skeleton=cacheWorld?new MatchActorSkeleton(bones,group):new THREE.Skeleton(bones);
  const material=installAthleteSurface(new THREE.MeshStandardMaterial({map:characterAtlas(definition,textures,drawJersey,atlasSize),roughness:.82,alphaTest:.38,side:THREE.DoubleSide}));
  const body=new THREE.SkinnedMesh(actorGeometry(geometries,definition),material);body.name='athlete';body.boundingSphere=new THREE.Sphere(new THREE.Vector3(0,.9,0),1.75);body.castShadow=true;body.receiveShadow=true;group.add(body);body.bind(skeleton,new THREE.Matrix4());
  const motionPlayer=createFootballMotion(data,motion,bones,group,definition);

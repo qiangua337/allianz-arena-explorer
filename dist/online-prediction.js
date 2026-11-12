@@ -5,48 +5,75 @@ const collisionRadius=.70,collisionRadiusSquared=collisionRadius*collisionRadius
 const penaltyFor=state=>state.setPiece||(state.phase==='penalties'?state.competition?.shootout:null);
 const canPredict=state=>!state.paused&&(state.phase==='playing'||state.phase==='penalties')&&penaltyFor(state)?.stage!=='result';
 const canInterpolate=state=>!state.paused&&state.phase==='playing'&&!state.setPiece;
+const shortestTurn=angle=>Math.abs(angle)<=Math.PI?angle:Math.atan2(Math.sin(angle),Math.cos(angle));
 // A small render-only history, never a second simulation: scores, ownership,
 // phase, discipline and the match clock are applied immediately from the wire.
 // Advancing one server-time playhead avoids restarting a short tween on every
 // packet, which otherwise turns 20 Hz snapshots into stop/start mobile motion.
 export function createOnlineInterpolation(){
- const capacity=8,stride=113,frames=Array.from({length:capacity},()=>({time:0,owner:null,pose:new Float64Array(stride),motions:new Array(22)}));
- const displayedMotions=new Array(22);let head=0,length=0,playhead=0,phase='',controlledId=null;
+ const capacity=8,stride=113,frames=Array.from({length:capacity},()=>({time:0,owner:null,ownerIndex:-1,pose:new Float64Array(stride),motions:new Array(22)}));
+ const displayedMotions=new Array(22),handoffs=new Array(22);
+ let head=0,length=0,playhead=0,phase='',controlledId=null,controlledIndex=-1;
  function clear(){
   for(let i=0;i<length;i++)frames[(head+i)%capacity].motions.fill(null);
-  displayedMotions.fill(null);head=length=0;phase='';controlledId=null;
+  displayedMotions.fill(null);handoffs.fill(null);head=length=0;phase='';controlledId=null;controlledIndex=-1;
  }
- function receive(state){
+ function receive(state,former=null){
   if(!canInterpolate(state)||!Number.isFinite(state.time)){clear();return;}
   const latest=length?frames[(head+length-1)%capacity]:null;
-  if(phase!==state.phase||controlledId!==state.controlledId||latest&&state.time<latest.time){clear();}
-  phase=state.phase;controlledId=state.controlledId;let frame;
+  if(phase!==state.phase||latest&&state.time<latest.time)clear();
+  if(controlledId!==state.controlledId){
+   // Both players' authoritative poses already exist in the history. Only
+   // the departing local prediction needs to blend back into that history.
+   if(former&&former.id===controlledId&&controlledIndex>=0){
+    handoffs[controlledIndex]={...former,elapsed:0,offset:null};
+   }
+   controlledId=state.controlledId;
+   controlledIndex=state.players.findIndex(player=>player.id===controlledId);
+   if(controlledIndex>=0)handoffs[controlledIndex]=null;
+  }
+  phase=state.phase;
+  const initial=length===0;
+  let frame;
   if(length&&frames[(head+length-1)%capacity].time===state.time)frame=frames[(head+length-1)%capacity];
   else{if(length===capacity){head=(head+1)%capacity;length--;}frame=frames[(head+length)%capacity];length++;}
-  frame.time=state.time;frame.owner=state.ball.ownerId;
-  for(let i=0;i<22;i++){const p=state.players[i],at=i*5;frame.pose[at]=p.x;frame.pose[at+1]=p.z;frame.pose[at+2]=p.yaw;frame.pose[at+3]=p.vx;frame.pose[at+4]=p.vz;frame.motions[i]=p.motion;}
+  frame.time=state.time;frame.owner=state.ball.ownerId;frame.ownerIndex=-1;
+  for(let i=0;i<22;i++){const p=state.players[i],at=i*5;frame.pose[at]=p.x;frame.pose[at+1]=p.z;frame.pose[at+2]=p.yaw;frame.pose[at+3]=p.vx;frame.pose[at+4]=p.vz;frame.motions[i]=p.motion;if(p.id===frame.owner)frame.ownerIndex=i;}
   frame.pose[110]=state.ball.x;frame.pose[111]=state.ball.y;frame.pose[112]=state.ball.z;
-  if(length===1)playhead=frame.time-.1;
+  if(initial)playhead=frame.time-.1;
  }
  function update(state,dt,jitter=0){
   if(!length||!canInterpolate(state))return;
+  const advance=Math.min(.1,Math.max(0,dt));
   const oldest=frames[head],latest=frames[(head+length-1)%capacity],delay=Math.min(.22,Math.max(.1,.075+Math.max(0,jitter)*.0025));
-  const rate=Math.max(.85,Math.min(1.15,1+(latest.time-delay-playhead)*3));playhead=Math.min(latest.time,playhead+Math.min(.1,Math.max(0,dt))*rate);
+  const rate=Math.max(.85,Math.min(1.15,1+(latest.time-delay-playhead)*3));playhead=Math.min(latest.time,playhead+advance*rate);
   // Once a very old frame leaves the bounded queue, resume from its successor.
   // No extrapolation is allowed to move remote players through a stalled link.
   const time=Math.max(oldest.time,playhead);let a=oldest,b=oldest;
   for(let i=1;i<length;i++){b=frames[(head+i)%capacity];if(b.time>=time)break;a=b;}
   const t=b.time>a.time?Math.max(0,Math.min(1,(time-a.time)/(b.time-a.time))):1;
   const from=a.pose,to=b.pose;
+  const carrier=a.owner&&a.owner===b.owner&&a.owner===state.ball.ownerId?a.ownerIndex:-1;
+  let ballCorrectionX=0,ballCorrectionZ=0;
   for(let i=0;i<22;i++){
-   const p=state.players[i];if(p.id===state.controlledId)continue;
+   if(i===controlledIndex)continue;
+   const p=state.players[i];
    const at=i*5,yaw=from[at+2],turn=to[at+2]-yaw;
    // Ordinary turns already represent the shortest path. Wrap only across
    // the angle boundary, including yaws that have accumulated past one lap.
-   const shortestTurn=Math.abs(turn)<=Math.PI?turn:Math.atan2(Math.sin(turn),Math.cos(turn));
    p.x=from[at]+(to[at]-from[at])*t;p.z=from[at+1]+(to[at+1]-from[at+1])*t;
-   p.yaw=yaw+shortestTurn*t;
+   p.yaw=yaw+shortestTurn(turn)*t;
    p.vx=from[at+3]+(to[at+3]-from[at+3])*t;p.vz=from[at+4]+(to[at+4]-from[at+4])*t;
+   const handoff=handoffs[i];
+   if(handoff){
+    const offset=handoff.offset??={x:handoff.x-p.x,z:handoff.z-p.z,yaw:shortestTurn(handoff.yaw-p.yaw),vx:handoff.vx-p.vx,vz:handoff.vz-p.vz};
+    const fraction=handoff.elapsed/.14,weight=1-fraction*fraction*(3-2*fraction);
+    const dx=offset.x*weight,dz=offset.z*weight;
+    p.x+=dx;p.z+=dz;p.yaw+=offset.yaw*weight;p.vx+=offset.vx*weight;p.vz+=offset.vz*weight;
+    if(i===carrier){ballCorrectionX=dx;ballCorrectionZ=dz;}
+    handoff.elapsed+=advance;
+    if(handoff.elapsed>=.14)handoffs[i]=null;
+   }
    const later=b.motions[i],laterStarted=later&&time+1e-6>=b.time-later.elapsed;
    const stroke=laterStarted?later:a.motions[i];
    const elapsed=stroke?Math.max(0,time-(laterStarted?b.time:a.time)+stroke.elapsed):0;
@@ -60,14 +87,14 @@ export function createOnlineInterpolation(){
   // touches still use their immediate prediction/authoritative position.
   const local=state.controlledId,dx=from[110]-to[110],dz=from[112]-to[112];
   if(state.ball.ownerId!==local&&latest.owner!==local&&a.owner!==local&&b.owner!==local&&dx*dx+dz*dz<36){
-   const kick=a.owner&&!b.owner?b.motions[state.players.findIndex(p=>p.id===a.owner)]:null;
+   const kick=a.owner&&!b.owner?b.motions[a.ownerIndex]:null;
    const strikeAt=kick?b.time-kick.elapsed:0;
    let x0=from[110],y0=from[111],z0=from[112],x1=to[110],y1=to[111],z1=to[112],blend=t;
    if(kick&&strikeAt>a.time&&strikeAt<b.time&&Number.isFinite(kick.contactX)&&Number.isFinite(kick.contactY)&&Number.isFinite(kick.contactZ)){
     if(time<strikeAt){x1=kick.contactX;y1=kick.contactY;z1=kick.contactZ;blend=(time-a.time)/(strikeAt-a.time);}
     else{x0=kick.contactX;y0=kick.contactY;z0=kick.contactZ;blend=(time-strikeAt)/(b.time-strikeAt);}
    }
-   state.ball.x=x0+(x1-x0)*blend;state.ball.y=y0+(y1-y0)*blend;state.ball.z=z0+(z1-z0)*blend;
+   state.ball.x=x0+(x1-x0)*blend+ballCorrectionX;state.ball.y=y0+(y1-y0)*blend;state.ball.z=z0+(z1-z0)*blend+ballCorrectionZ;
   }
  }
  return{receive,update,clear,get bufferedFrames(){return length;},get playhead(){return playhead;},get capacity(){return capacity;},get bytes(){return capacity*stride*Float64Array.BYTES_PER_ELEMENT;}};

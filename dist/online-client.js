@@ -52,11 +52,27 @@ export function createOnlineSimulation(session,settings={}, {now=()=>performance
  const roomRules=session.room?.rules||session.rules||settings.rules,simulation=createFootballSimulation({...settings,opponent:session.opponent,rules:roomRules,duration:roomRules?.duration||180,selections:session.room?.lineups||settings.selections,humanTeams:['home','away']}),state=simulation.state,team=session.team,prediction=createOnlinePrediction(team),interpolation=createOnlineInterpolation();state.controlledId=state.controlledIds[team];state.localTeam=team;state.paused=true;state.online=true;
  const idleInput=safeOnlineInput();
  let frameClock=now(),lastInputAt=-Infinity,lastInput=null,closed=false,lastPacket=null,lastSequence=0,rawInput=null,normalizedInput=null;
- let pendingInput=null,inputTimer=null;
+ let pendingInput=null,inputTimer=null,lastUrgentStopAt=-Infinity;
  const changedInputInterval=1000/60;
  function canSendIntent(){return !closed&&!state.paused&&session.connection==='connected'&&session.room?.started&&!session.room.ended&&['playing','penalties'].includes(state.phase);}
  function discardPendingInput(){clearTimeout(inputTimer);inputTimer=null;pendingInput=null;}
- function receive(){const p=session.packet;if(p&&p!==lastPacket){lastPacket=p;if(applyOnlineState(state,p,team)){prediction.receive(state,p.ack?.[team]||0);interpolation.receive(state);}}if(session.connection!=='connected'||!session.room?.started||session.room?.ended){state.paused=true;prediction.clear();interpolation.clear();state.predictionSeconds=0;}if(!canSendIntent())discardPendingInput();state.onlineStatus=session.connection;}
+ function receive(){
+  const packet=session.packet;
+  if(packet&&packet!==lastPacket){
+   lastPacket=packet;
+   const prior=packet.controlledIds?.[team]!==state.controlledId&&state.players.find(p=>p.id===state.controlledId);
+   const former=prior?{id:prior.id,x:prior.x,z:prior.z,yaw:prior.yaw,vx:prior.vx,vz:prior.vz}:null;
+   if(applyOnlineState(state,packet,team)){
+    prediction.receive(state,packet.ack?.[team]||0);
+    interpolation.receive(state,former);
+   }
+  }
+  if(session.connection!=='connected'||!session.room?.started||session.room?.ended){
+   state.paused=true;prediction.clear();interpolation.clear();state.predictionSeconds=0;
+  }
+  if(!canSendIntent())discardPendingInput();
+  state.onlineStatus=session.connection;
+ }
  const unsubscribe=session.subscribe(receive);receive();
  function sameInput(a,b){return a===b||!!a&&!!b&&a.x===b.x&&a.z===b.z&&a.sprint===b.sprint&&a.defend===b.defend&&a.charging===b.charging&&a.power===b.power;}
  function normalize(input){
@@ -86,6 +102,15 @@ export function createOnlineSimulation(session,settings={}, {now=()=>performance
   if(!canSendIntent())return;
   pendingInput=normalize(input);
   if(sameInput(pendingInput,lastInput)){discardPendingInput();return;}
+  const at=Math.max(frameClock,now());
+  // Releasing the stick must stop held direction even during a slow draw.
+  // Bound bypasses to ten per second in addition to the normal 60 Hz cap.
+  if((lastInput?.x||lastInput?.z)&&!pendingInput.x&&!pendingInput.z&&
+     at-lastInputAt<changedInputInterval&&at-lastUrgentStopAt>=100){
+   lastUrgentStopAt=at;
+   sendControl(pendingInput,at);
+   return;
+  }
   // Coalesce touch events when the render loop or another input has just sent.
   if(inputTimer===null)submitPendingInput();
  }

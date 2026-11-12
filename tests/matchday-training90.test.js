@@ -35,7 +35,7 @@ function fixture({prepareGate=null,onPrepare,audioStart=async()=>true}={}){
  const tabs=['training','play','online','tour'].map(panel=>({...element(),dataset:{matchTab:panel}}));
  globalThis.location={search:'',href:'https://arena.test/'};
  globalThis.document={createElement:element,getElementById:node,querySelectorAll:selector=>selector==='[data-match-tab]'?tabs:[],exitPointerLock(){},
-  body:{dataset:{},classList:{add:(...values)=>values.forEach(x=>classes.add(x)),remove:(...values)=>values.forEach(x=>classes.delete(x)),toggle(x,on){on?classes.add(x):classes.delete(x);}}}};
+  body:{dataset:{},classList:{contains:x=>classes.has(x),add:(...values)=>values.forEach(x=>classes.add(x)),remove:(...values)=>values.forEach(x=>classes.delete(x)),toggle(x,on){on?classes.add(x):classes.delete(x);}}}};
  const calls={crowdConstructed:0,crowdPrepared:0,prepares:[],scores:[],exits:0,lobbyResets:0,ready:0,audioStarts:0,audioStops:0,toasts:[]};
  const audio={muted:false,state:'playing',duration:0,level:0,start:()=>{calls.audioStarts++;return audioStart();},stop(){calls.audioStops++;},setPaused(){},setVolume(){},setMuted(){},cheer(){},kick(){},whistle(){},update(){}};
  const crowd={root:new THREE.Group(),enabled:false,count:100,nearCount:0,visitorCount:10,assetState:'ready',

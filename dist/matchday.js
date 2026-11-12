@@ -11,6 +11,7 @@ import {buildMatchdaySet} from './matchday-set.js';
 import {homeXI,awayXI,substitutes} from './matchday-roster.js';
 import {buildMatchSetup} from './football-setup.js';
 import {footballTeam} from './football-teams.js';
+import {writeHudProperty,writeHudAttribute,writeHudDataset} from './hud-write.js';
 
 export function buildMatchdayExperience({scene,stadium,onBegin,onPose,onFinish,onExit,onPause,onPrepare,onVisitBench,onGameCamera,onGameView,onReadGameInput,getGameRenderCamera,toast,reducedMotion=false,mobile=false}){
  const $=id=>document.getElementById(id),dialog=$('match-dialog'),panel=$('match-controls'),crowd=createLazyCrowd(()=>buildMatchdayCrowd(stadium.bowl,stadium.seatPositions,{mobile,reducedMotion})),players=buildEntrancePlayers(scene,{mobile});
@@ -25,8 +26,16 @@ export function buildMatchdayExperience({scene,stadium,onBegin,onPose,onFinish,o
  const onlineLobby=buildOnlineLobby({getOptions:()=>setup.options,onOpen:()=>setPanel('online'),onEnter:session=>start(false,true,session),toast});
  function pausedNow(){return paused||game.active&&game.state.paused;}
  function cheer(){if(game.training||!active||pending||pausedNow()||worldTime-lastCheer<1.5)return false;lastCheer=worldTime;audio.cheer();crowd.react(worldTime,1);return true;}
- function renderUI(){const stopped=pausedNow(),sample=entranceSample(time,{reducedMotion}),state=!active?'off':pending?'loading':stopped?'paused':game.active?game.state.phase:cinematic?sample.phase:'free';document.body.dataset.matchday=state;document.body.dataset.matchProgress=(time/ENTRANCE_DURATION).toFixed(3);document.body.dataset.matchCrowd=active?String(crowd.count):'0';document.body.dataset.matchCrowdNear=active?String(crowd.nearCount):'0';document.body.dataset.matchCrowdVisitors=active?String(crowd.visitorCount):'0';document.body.dataset.matchCrowdAsset=crowd.assetState;document.body.dataset.matchAudioSeconds=audio.duration.toFixed(2);document.body.dataset.matchPlayers=active?players.positions:'';document.body.classList.toggle('match-cinematic',active&&cinematic);document.body.classList.toggle('match-free',active&&!cinematic);document.body.classList.toggle('match-paused',stopped);
-  $('match-status').textContent=pending?'正在准备入场体验':stopped?'体验已暂停':cinematic?sample.label:'比赛日 · 自由漫游';$('match-pause').textContent=stopped?'继续':'暂停';$('match-pause').setAttribute('aria-label',stopped?'继续入场体验':'暂停入场体验');$('match-pause').hidden=!cinematic&&!stopped;$('match-skip').textContent=cinematic?'结束跟随':'跟队入场';$('match-skip').setAttribute('aria-label',cinematic?'结束跟随，留在当前位置':'选择跟队入场');$('match-cheer').hidden=cinematic;$('match-progress-fill').style.width=(time/ENTRANCE_DURATION*100)+'%';$('match-countdown').hidden=!active||!cinematic||pending||stopped||!sample.countdown;$('match-countdown').textContent=String(sample.countdown||'');$('match-level').value=audio.level;
+ function renderUI(){
+  const stopped=pausedNow(),sample=entranceSample(time,{reducedMotion}),state=!active?'off':pending?'loading':stopped?'paused':game.active?game.state.phase:cinematic?sample.phase:'free';
+  // The entrance controls remain mounted during matches. Unchanged hidden
+  // labels and body selectors must not invalidate style on every HUD tick.
+  writeHudDataset(document.body,{matchday:state,matchProgress:(time/ENTRANCE_DURATION).toFixed(3),matchCrowd:active?crowd.count:0,matchCrowdNear:active?crowd.nearCount:0,matchCrowdVisitors:active?crowd.visitorCount:0,matchCrowdAsset:crowd.assetState,matchAudioSeconds:audio.duration.toFixed(2),matchPlayers:active?players.positions:''});
+  for(const [name,value] of [['match-cinematic',active&&cinematic],['match-free',active&&!cinematic],['match-paused',stopped]])if(document.body.classList.contains(name)!==value)document.body.classList.toggle(name,value);
+  writeHudProperty($('match-status'),'textContent',pending?'正在准备入场体验':stopped?'体验已暂停':cinematic?sample.label:'比赛日 · 自由漫游');
+  writeHudProperty($('match-pause'),'textContent',stopped?'继续':'暂停');writeHudAttribute($('match-pause'),'aria-label',stopped?'继续入场体验':'暂停入场体验');writeHudProperty($('match-pause'),'hidden',!cinematic&&!stopped);
+  writeHudProperty($('match-skip'),'textContent',cinematic?'结束跟随':'跟队入场');writeHudAttribute($('match-skip'),'aria-label',cinematic?'结束跟随，留在当前位置':'选择跟队入场');writeHudProperty($('match-cheer'),'hidden',cinematic);
+  writeHudProperty($('match-progress-fill').style,'width',(time/ENTRANCE_DURATION*100)+'%');writeHudProperty($('match-countdown'),'hidden',!active||!cinematic||pending||stopped||!sample.countdown);writeHudProperty($('match-countdown'),'textContent',sample.countdown||'');writeHudProperty($('match-level'),'value',audio.level);
  }
  function setPanel(panel){
   dialog.dataset.panel=panel;

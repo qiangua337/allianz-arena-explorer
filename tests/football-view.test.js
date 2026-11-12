@@ -79,6 +79,34 @@ test('shot aiming shows body-condition dispersion and stops at first landing wit
  state.chargePower=0;state.shotPreview=null;state.passPreview=null;view.update(state,1.2,new THREE.Vector3());assert.equal(guide.visible,false);assert.equal(aim.visible,false);assert.equal(dispersion.visible,false);
 });
 
+test('draws reuse identical guide geometry and upload only the active pass segment',()=>{
+ const state=makeState(),view=buildFootballView(new THREE.Scene(),null,{ready:true,root:new THREE.Group(),updateMatch(){}}),viewer=new THREE.Vector3();
+ state.ball.ownerId=state.controlledId;
+ state.passPreview={x:3,z:4};
+ view.setEnabled(true);view.update(state,0,viewer);
+ const guide=view.root.getObjectByName('Directional pass or charged shot preview'),spread=view.root.getObjectByName('Shot preparation dispersion');
+ const points=guide.geometry.attributes.position,distances=guide.geometry.attributes.lineDistance,spreadPoints=spread.geometry.attributes.position;
+ assert.deepEqual(points.updateRanges,[{start:0,count:6}]);assert.deepEqual(distances.updateRanges,[{start:0,count:2}]);
+ const passVersion=points.version;
+ state.passPreview={...state.passPreview};view.update(state,.01,viewer);
+ assert.equal(points.version,passVersion,'an identical network preview needs no upload');
+ state.chargePower=.7;
+ state.shotPreview={x:2,y:.8,z:-52.5,vx:1,vz:-28,vy:4,flight:1,quality:1,spread:2,heightSpread:.6};
+ view.update(state,.02,viewer);
+ assert.deepEqual(points.updateRanges,[{start:0,count:99}]);
+ const shotVersion=points.version,spreadVersion=spreadPoints.version;
+ state.shotPreview={...state.shotPreview,quality:.4};view.update(state,.03,viewer);
+ assert.equal(points.version,shotVersion);assert.equal(spreadPoints.version,spreadVersion);
+ assert.equal(guide.material.color.getHex(),0xf39483,'appearance can change without uploading the vertices');
+ state.shotPreview.curve=.2;view.update(state,.04,viewer);
+ assert.equal(points.version,shotVersion+1);assert.equal(spreadPoints.version,spreadVersion+1);
+ state.chargePower=0;view.update(state,.05,viewer);
+ assert.deepEqual(points.updateRanges,[{start:0,count:99}],'an undrawn long write remains queued');
+ points.clearUpdateRanges();distances.clearUpdateRanges();
+ state.ball.x=1;view.update(state,.06,viewer);
+ assert.deepEqual(points.updateRanges,[{start:0,count:6}]);assert.equal(distances.getX(1),Math.fround(Math.hypot(2,4)));
+});
+
 test('a ball previously frozen with the static arena still visibly moves through its world matrix during live play',()=>{
  const frozenBall=new THREE.Mesh(new THREE.SphereGeometry(.11),new THREE.MeshBasicMaterial());frozenBall.position.set(0,.115,0);scene.add(frozenBall);frozenBall.updateMatrix();frozenBall.matrixAutoUpdate=false;frozenBall.matrixWorldAutoUpdate=false;
  const view=buildFootballView(scene,frozenBall,actors),state=makeState();view.setEnabled(true);Object.assign(state.ball,{x:12,y:1.4,z:-21});view.update(state,3,new THREE.Vector3());scene.updateMatrixWorld(true);

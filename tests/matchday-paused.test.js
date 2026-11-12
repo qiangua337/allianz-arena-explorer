@@ -23,9 +23,11 @@ const {packOnlineState}=await import('../dist/online-protocol.js');
 const {buildMatchdayExperience}=await import('../dist/matchday.js');
 
 test('remote pauses and halftime freeze crowd/audio clocks but keep online updates and resume without a time jump',async()=>{
- const nodes=new Map(),classes=new Set(),node=id=>{if(!nodes.has(id)){const handlers={};nodes.set(id,{hidden:false,textContent:'',style:{},dataset:{},classList:{add(){},remove(){},toggle(){}},setAttribute(k,v){this[k]=v;},addEventListener(k,v){handlers[k]=v;},append(){},close(){this.open=false;},showModal(){this.open=true;},focus(){}});}return nodes.get(id);};
+ let entranceWrites=0;
+ const track=(id,object)=>new Proxy(object,{set(target,key,value){if(id.startsWith('match-')||id==='body'&&String(key).startsWith('match')&&key!=='matchBall')entranceWrites++;target[key]=value;return true;}});
+ const nodes=new Map(),classes=new Set(),node=id=>{if(!nodes.has(id)){const handlers={};nodes.set(id,track(id,{hidden:false,textContent:'',style:track(id,{}),dataset:{},classList:{add(){},remove(){},toggle(){}},setAttribute(k,v){this[k]=v;},addEventListener(k,v){handlers[k]=v;},append(){},close(){this.open=false;},showModal(){this.open=true;},focus(){}}));}return nodes.get(id);};
  const context=new Proxy({createRadialGradient:()=>({addColorStop(){}})},{get:(o,k)=>k in o?o[k]:()=>{}});
- globalThis.document={createElement:()=>({dataset:{},append(){},getContext:()=>context}),getElementById:node,querySelectorAll:()=>[],exitPointerLock(){},body:{dataset:{},classList:{add:x=>classes.add(x),remove:x=>classes.delete(x),toggle(x,value){value?classes.add(x):classes.delete(x);}}}};
+ globalThis.document={createElement:()=>({dataset:{},append(){},getContext:()=>context}),getElementById:node,querySelectorAll:()=>[],exitPointerLock(){},body:{dataset:track('body',{}),classList:{contains:x=>classes.has(x),add:x=>classes.add(x),remove:x=>classes.delete(x),toggle(x,value){entranceWrites++;value?classes.add(x):classes.delete(x);}}}};
  const audioPauses=[],pauseEvents=[],crowdTimes=[],cameraSteps=[];let audioUpdates=0,actorUpdates=0;
  const audio={muted:false,state:'playing',duration:10,level:0,start:async()=>true,stop(){},setPaused:value=>audioPauses.push(value),setVolume(){},setMuted(){},cheer(){},kick(){},whistle(){},update(){audioUpdates++;}};
  const crowd={root:new THREE.Group(),count:100,nearCount:0,visitorCount:10,assetState:'ready',prepare:async()=>true,setEnabled(){},setQuality(){},night(){},setOpponent(){},react(){},update:time=>crowdTimes.push(time)};
@@ -44,6 +46,8 @@ test('remote pauses and halftime freeze crowd/audio clocks but keep online updat
  assert.equal(actorUpdates,6);assert.equal(crowdTimes.length,6);assert.equal(audioUpdates,12);
  assert.equal(cameraSteps.length,6);assert.ok(cameraSteps.every(dt=>Math.abs(dt-1/30)<1e-8));
  assert.ok(inputs.length>0,'the network loop keeps running between draw frames');
+ entranceWrites=0;run(2);assert.equal(entranceWrites,0,'an unchanged entrance panel must not mutate the DOM during a live online match');
+ assert.equal(document.body.dataset.matchday,'playing');assert.ok(inputs.length>10,'deduplicating UI writes does not suppress the input heartbeat');
  assert.equal(experience.isAnimating(),true);const before=crowdTimes.at(-1);
  server.setPaused(true);publish(2);run(1/60);assert.equal(experience.paused,true);assert.equal(experience.isAnimating(),false);assert.equal(document.body.dataset.matchday,'paused');assert.equal(audioPauses.at(-1),true);assert.equal(pauseEvents.at(-1),true);assert.equal(experience.cheer(),false);
  const audioCount=audioUpdates,crowdCount=crowdTimes.length,actors=actorUpdates,inputCount=inputs.length;run(10);assert.equal(audioUpdates,audioCount);assert.equal(crowdTimes.length,crowdCount);assert.equal(actorUpdates,actors);assert.ok(inputs.length>inputCount+40,'network input heartbeat remains alive');

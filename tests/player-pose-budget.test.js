@@ -104,6 +104,45 @@ test('an off-camera phone player skips rig traversal and returns in the current 
  }finally{pelvis.updateMatrixWorld=update;actors.reset();}
 });
 
+test('a visible palette uploads on world movement, a camera re-entry or substitution and remains current between poses',()=>{
+ const state=createFootballSimulation().state,target=state.players.find(p=>p.team==='away'&&p.index===2);
+ const group=actors.root.children.find(o=>o.userData.team===target.team&&o.userData.role==='player'&&o.userData.playerNumber===target.number);
+ const body=group.getObjectByName('athlete'),skeleton=body.skeleton;
+ const camera=new THREE.PerspectiveCamera(55,390/844,.1,200),replacement=state.teamSheets.away.bench.find(n=>n!==33);
+ camera.position.set(0,4,0);camera.lookAt(0,1,-25);
+ const sameAsFullCalculation=()=>{
+  const reference=new THREE.Skeleton(skeleton.bones,skeleton.boneInverses);reference.update();
+  assert.deepEqual(skeleton.boneMatrices.slice(0,reference.boneMatrices.length),reference.boneMatrices);
+ };
+ const draw=time=>{
+  state.time=time;actors.updateMatch(state,time,camera.position,{camera});scene.updateMatrixWorld(true);
+  if(group.visible)skeleton.update();
+ };
+ state.phase='playing';actors.reset();
+ try{
+  Object.assign(target,{x:0,z:-20,vx:0,vz:0,yaw:0});
+  draw(1);assert.equal(group.visible,true);
+  if(!skeleton.boneTexture)skeleton.computeBoneTexture();
+  sameAsFullCalculation();
+  const initial=skeleton.boneTexture.version;
+  draw(1+1/120);assert.equal(skeleton.boneTexture.version,initial,'a distant unchanged pose has no palette upload');
+  target.z-=.1;draw(1+2/120);assert.equal(skeleton.boneTexture.version,initial+1);
+  sameAsFullCalculation();
+  actors.root.position.x+=.5;
+  draw(1+3/120);assert.equal(skeleton.boneTexture.version,initial+2);
+  sameAsFullCalculation();
+  camera.lookAt(25,1,0);
+  target.z-=4;draw(1+4/120);assert.equal(group.visible,false);
+  assert.equal(skeleton.boneTexture.version,initial+2);
+  target.number=replacement;draw(1+5/120);assert.equal(group.userData.playerNumber,replacement);
+  assert.equal(skeleton.boneTexture.version,initial+2,'an off-camera substitution does not upload an unseen palette');
+  camera.lookAt(.5,1,-24);draw(1+6/120);
+  assert.equal(group.visible,true);
+  assert.equal(skeleton.boneTexture.version,initial+3);
+  sameAsFullCalculation();
+ }finally{actors.root.position.x=0;actors.setOpponent('dortmund');actors.reset();}
+});
+
 test('combined football strokes and locomotion leave officials accessories on the animated hand',()=>{
  const state=createFootballSimulation().state;state.phase='playing';state.time=5;state.discipline.lastDecision={card:'yellow',at:4.5};actors.reset();const p=state.players[1];p.motion={type:'shoot',elapsed:.2,duration:.46};p.vz=-6;p.yaw=Math.PI;actors.updateMatch(state,5,new THREE.Vector3(0,12,0));scene.updateMatrixWorld(true);
  const referee=actors.root.children.find(o=>o.userData.role==='referee'),card=referee.children.find(o=>o.isMesh&&o.name!=='athlete'),hand=referee.getObjectByName('athlete').skeleton.bones[14].getWorldPosition(new THREE.Vector3());assert.equal(card.visible,true);assert.ok(card.getWorldPosition(new THREE.Vector3()).distanceTo(hand)<1e-9);

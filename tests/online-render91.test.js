@@ -39,11 +39,46 @@ test('adaptive remote playback remains monotonic and bounded through sustained j
  for(let i=0;i<100;i++)buffer.update(s,1/30,0);const x=s.players[12].x;for(let i=0;i<100;i++)buffer.update(s,1/30,0);assert.equal(s.players[12].x,x,'a stale stream cannot extrapolate indefinitely');assert.ok(buffer.playhead<=delivered);
 });
 
-test('pause, interval, goals, control switches and time resets clear old poses while local poses and ownership stay authoritative',()=>{
+test('pause, interval, goals and time resets clear old poses while local poses and ownership stay authoritative',()=>{
  const s=renderState(),buffer=createOnlineInterpolation();pose(s,1);buffer.receive(s);pose(s,1.05);buffer.receive(s);const local=s.players[1];local.x=999;buffer.update(s,1/30,65);assert.equal(local.x,999);
  s.ball.ownerId='home-1';s.ball.x=123;buffer.update(s,1/30,65);assert.equal(s.ball.x,123);
  for(const phase of ['goal','interval']){s.phase=phase;s.players[12].x=50;buffer.receive(s);buffer.update(s,1/30,65);assert.equal(buffer.bufferedFrames,0);assert.equal(s.players[12].x,50);s.phase='playing';pose(s,s.time+.1);buffer.receive(s);}
- s.paused=true;buffer.receive(s);assert.equal(buffer.bufferedFrames,0);s.paused=false;pose(s,2);buffer.receive(s);pose(s,2.05);buffer.receive(s);s.controlledId='away-1';pose(s,2.1);buffer.receive(s);assert.equal(buffer.bufferedFrames,1);pose(s,.1);buffer.receive(s);assert.equal(buffer.bufferedFrames,1);buffer.clear();assert.equal(buffer.bufferedFrames,0);
+ s.paused=true;buffer.receive(s);assert.equal(buffer.bufferedFrames,0);s.paused=false;pose(s,2);buffer.receive(s);pose(s,2.05);buffer.receive(s);s.controlledId='away-1';pose(s,2.1);buffer.receive(s);assert.equal(buffer.bufferedFrames,3);pose(s,.1);buffer.receive(s);assert.equal(buffer.bufferedFrames,1);buffer.clear();assert.equal(buffer.bufferedFrames,0);
+});
+
+test('switching players keeps other players smooth and blends the former local player and their ball together',()=>{
+ const s=renderState(),buffer=createOnlineInterpolation(),formerPlayer=s.players[1],remote=s.players[12],next=s.players[2];
+ s.ball.ownerId=formerPlayer.id;
+ function authority(time){
+  pose(s,time);
+  Object.assign(formerPlayer,{x:12,z:3,vx:0,vz:0});
+  Object.assign(s.ball,{x:12.55,z:3});
+ }
+ for(let i=0;i<=6;i++){
+  authority(1+i*.05);buffer.receive(s);
+  for(let frame=0;frame<3;frame++)buffer.update(s,1/60);
+ }
+ const remoteBefore=remote.x,playhead=buffer.playhead;
+ const former={id:formerPlayer.id,x:13.4,z:3.4,yaw:-Math.PI+.02,vx:2,vz:1};
+ authority(s.time);s.controlledId=next.id;next.x=99;buffer.receive(s,former);
+ assert.equal(buffer.bufferedFrames,7,'the same-tick action replaces only the latest pose');
+ assert.equal(buffer.playhead,playhead);
+ buffer.update(s,1/60);
+ assert.ok(remote.x>=remoteBefore&&remote.x-remoteBefore<.15,'the unrelated remote player never jumps to the newest server tick');
+ assert.equal(next.x,99,'the newly controlled player remains outside interpolation');
+ assert.ok(Math.abs(formerPlayer.x-former.x)<1e-9&&Math.abs(formerPlayer.z-former.z)<1e-9);
+ assert.ok(Math.abs(s.ball.x-formerPlayer.x-.55)<1e-9&&Math.abs(s.ball.z-formerPlayer.z)<1e-9);
+ for(let frame=0;frame<12;frame++)buffer.update(s,1/60);
+ assert.equal(formerPlayer.x,12);assert.equal(formerPlayer.z,3);
+ assert.equal(s.ball.ownerId,formerPlayer.id,'only the server changes possession');
+});
+
+test('a same-timestamp action does not rewind a new stream before a second pose is available',()=>{
+ const s=renderState(),buffer=createOnlineInterpolation();
+ pose(s,1);buffer.receive(s);buffer.update(s,1/60);
+ const playhead=buffer.playhead;
+ pose(s,1);buffer.receive(s);
+ assert.equal(buffer.bufferedFrames,1);assert.equal(buffer.playhead,playhead);
 });
 
 test('remote render interpolation cannot perturb predicted collisions or pressure assistance',()=>{
