@@ -34,8 +34,14 @@ test('a completed human pass transfers control to its receiver, and approaching 
  const interception=start();clearOthers(interception);const user=player(interception),opponent=player(interception,'away-1');user.x=0;user.z=1.6;opponent.x=0;opponent.z=.6;opponent.yaw=0;Object.assign(interception.state.ball,{ownerId:opponent.id,x:0,z:1.2,y:.11});run(interception,.08);assert.equal(interception.state.ball.ownerId,user.id);assert.equal(interception.state.stats.home.tackles,1);
 });
 test('uncontrolled opponents can win possession and keep acting without user movement',()=>{
- const game=start(),s=game.state;const initial=s.players.filter(p=>p.team==='away').map(p=>({id:p.id,x:p.x,z:p.z}));run(game,20);
- assert.ok(initial.some(a=>Math.hypot(player(game,a.id).x-a.x,player(game,a.id).z-a.z)>5));assert.ok(s.stats.away.tackles+s.stats.away.shots+s.stats.away.passes>0);assert.ok(new Set(s.players.map(p=>Math.round(p.x)+','+Math.round(p.z))).size>15);assert.ok(s.events.some(e=>e.team==='away'));
+ const game=start(),s=game.state,initial=s.players.filter(p=>p.team==='away').map(p=>({id:p.id,x:p.x,z:p.z}));
+ let moved=false;
+ // A goal may reset the formation before the end of this observation.
+ for(let i=0;i<40;i++){
+  run(game,.5);
+  moved ||= initial.some(a=>Math.hypot(player(game,a.id).x-a.x,player(game,a.id).z-a.z)>5);
+ }
+ assert.ok(moved);assert.ok(s.stats.away.tackles+s.stats.away.shots+s.stats.away.passes>0);assert.ok(new Set(s.players.map(p=>Math.round(p.x)+','+Math.round(p.z))).size>15);assert.ok(s.events.some(e=>e.team==='away'));
 });
 test('a low ball crossing the actual goal plane scores exactly once then restarts for the conceding side',()=>{
  const game=start();clearOthers(game);Object.assign(game.state.ball,{ownerId:null,x:1,y:.4,z:-52.4,vx:0,vy:0,vz:-18});game.update(1/60);

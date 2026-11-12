@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {passFlight,passOption,supportPosition} from '../dist/football-tactics.js';
+import {attackingShape,forwardSupportRun,passFlight,passOption,supportPosition} from '../dist/football-tactics.js';
+import {footballFormations} from '../dist/football-squads.js';
 
 const passer={id:'home-1',team:'home',x:0,z:0,vx:0,vz:0,yaw:Math.PI,attackSign:-1};
 const ball={x:0,y:.11,z:0};
@@ -55,5 +56,22 @@ test('the holding midfielder steps beside a defender cutting the lane in either 
   const lineGap=Math.abs(guarded.x*marker.z-guarded.z*marker.x)/Math.hypot(guarded.x,guarded.z);
   assert.ok(lineGap>1.25,'the outlet moves into view from the carrier');
   assert.ok(guarded.z*sign<=-3,'the short option stays behind the carrier');
+ }
+});
+
+test('an advanced wide attack keeps a receiver outside the box, a deeper outlet and a switch option in all formations',()=>{
+ for(const system of Object.values(footballFormations))for(const sign of [-1,1]){
+  const owner={id:'home-6',team:'home',x:26,z:38*sign,index:6};
+  const team=system.positions.map(([x,z],index)=>index===6?owner:{id:'home-'+index,team:'home',index,x,z:sign*(21-z*.41),keeper:index===0});
+  const rivals=[{...opponent('away-0',0,51*sign),keeper:true},opponent('away-3',5,45*sign),opponent('away-4',-9,44*sign)];
+  const field=[...team,...rivals],context={x:owner.x,z:owner.z},shape=attackingShape(field,'home',system,sign,context,owner,owner.id);
+  const position=player=>supportPosition(player,context,field,{base:system.positions[player.index],role:system.roles[player.index],sign,attacking:true,shape});
+  assert.ok(shape.edgeSupport&&shape.outlet&&shape.edgeSupport!==shape.outlet);
+  const edge=position(team.find(p=>p.id===shape.edgeSupport)),deeper=position(team.find(p=>p.id===shape.outlet));
+  const opposite=position(team.find(p=>['LW','LM','LWB'].includes(system.roles[p.index])));
+  assert.ok(edge.z*sign>=28&&edge.z*sign<35&&Math.abs(edge.x)<14);
+  assert.ok(deeper.z*sign<=edge.z*sign-3);
+  assert.ok(opposite.x< -22,'the far player remains available to switch the play');
+  assert.notEqual(forwardSupportRun(field,'home',system,shape,sign,owner,owner.id,null,0)?.id,shape.edgeSupport);
  }
 });

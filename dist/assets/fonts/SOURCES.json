@@ -68,7 +68,7 @@
   ],
   "coverage": {
     "scan": "All non-vendor dist .js and .html, HTML entities and JavaScript Unicode/hex escapes, plus printable ASCII.",
-    "sourceFileCount": 141,
+    "sourceFileCount": 142,
     "requestedCharacters": 1095,
     "requestedCJKCharacters": 945,
     "subsetCharacters": 1080,
@@ -1239,7 +1239,7 @@
       },
       {
         "file": "app.js",
-        "sha256": "91afde05e564924423a684d06def192d536db633ab3fc34cf967d1c21edb380b"
+        "sha256": "f605b0994175d58ddae4101d21c76cf73f9f8a0db2c82404ab0d85d0d37ec33d"
       },
       {
         "file": "architecture-clip.js",
@@ -1247,7 +1247,7 @@
       },
       {
         "file": "arena-entry.js",
-        "sha256": "317148223b8698f31e003445eb1d80464ed9aba8f285253f8608ea4e63021f28"
+        "sha256": "5e613be2c58663eec7382168c3a8a473b02591acd7d79d039b298743b839647a"
       },
       {
         "file": "arena-floor-map.js",
@@ -1326,6 +1326,10 @@
         "sha256": "974df13ad63faf87aab2d58c93d39d9128426653093b020b39a4acdb2df8921c"
       },
       {
+        "file": "football-attack.js",
+        "sha256": "30432001a740ddcea753d3c82ae42c15d883d22392b7f21d86990c0d760e7164"
+      },
+      {
         "file": "football-ball.js",
         "sha256": "3fd6fdb2388c8792df276e7f161e35f1377132e06be72e786137206d66e3cd92"
       },
@@ -1371,7 +1375,7 @@
       },
       {
         "file": "football-movement.js",
-        "sha256": "fd0855825a63cd599f8278eeeaf3536cbb24698c90ddfcfeeea4d1b86e094f07"
+        "sha256": "faa87f79090b94689369d2a33b0403133f797a3f3a01f9bd505c57b7f365a7ee"
       },
       {
         "file": "football-penalty-ui.js",
@@ -1411,7 +1415,7 @@
       },
       {
         "file": "football-simulation.js",
-        "sha256": "87ce60752d74c67d75e6d4090cc49e539247a330755a93424c1d6fd0d8e1441b"
+        "sha256": "45093e8466864e2608a474a09079d01bb9e089025d4a15b6678623dc58a76fdd"
       },
       {
         "file": "football-squads.js",
@@ -1419,7 +1423,7 @@
       },
       {
         "file": "football-tactics.js",
-        "sha256": "ae4914957c7824bcc971833b601372be24d1d8fc81fefc3e4c7e719a630bf91f"
+        "sha256": "d60d6d5f0e0538eab8aa3afa5a6e2b53cf86be1331bbdc550f664c22b5b00286"
       },
       {
         "file": "football-teams.js",
@@ -1475,7 +1479,7 @@
       },
       {
         "file": "index.html",
-        "sha256": "3be567295100a33427dba114718c8b5a5dc75bb3efb7447efd9e3650c3cd789e"
+        "sha256": "4947504b9d27f3759c9d9108322325b10aed3a24bc4dc1b71cdf022c5d38cca2"
       },
       {
         "file": "instant-action.js",

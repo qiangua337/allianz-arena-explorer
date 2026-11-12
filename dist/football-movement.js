@@ -43,4 +43,67 @@ export function moveControlledFootballer(p,b,owner,input,dt,time){
  if(input.defend&&b.ownerId!==p.id&&!(chasing&&owner))p.yaw=turnFootballer(p.yaw,Math.atan2(b.x-p.x,b.z-p.z),dt*9);
  p.stamina=clamp(p.stamina+(sprint&&Math.hypot(x,z)>.2?-.10:.085)*dt,0,1);
 }
-export function carryFootball(p,b,dt,time){const speed=Math.hypot(p.vx,p.vz),moving=speed>.15,reach=(p.defending?.46:.58)+Math.min(.28,speed*.035)+(moving?.10*(.5+.5*Math.sin(time*11)):0),x=p.x+Math.sin(p.yaw)*reach,z=p.z+Math.cos(p.yaw)*reach,amount=1-Math.exp(-dt*(time<(p.trapUntil||0)?15:32));b.x+=(x-b.x)*amount;b.z+=(z-b.z)*amount;b.y=.11+(moving?.008*Math.sin(time*13):0);b.vx=p.vx;b.vz=p.vz;b.vy=0;}
+const firstTouchSeconds=.24;
+
+export function clearFootballTouch(ball){
+ ball.firstTouch=null;
+ ball.touchPhase=0;
+}
+
+export function beginFootballTouch(player,ball,input,time){
+ const vx=player.vx||0,vz=player.vz||0,speed=Math.hypot(vx,vz),inputLength=Math.hypot(input?.x||0,input?.z||0);
+ const contactX=ball.x-player.x,contactZ=ball.z-player.z,contactDistance=Math.hypot(contactX,contactZ);
+ let x=Math.sin(player.yaw),z=Math.cos(player.yaw);
+ if(inputLength>.18){x=input.x/inputLength;z=input.z/inputLength;}
+ else if(speed>.70){x=vx/speed;z=vz/speed;}
+ else if(contactDistance>.06){x=contactX/contactDistance;z=contactZ/contactDistance;}
+ const reach=(inputLength>.18&&input?.sprint ? .72 : .46)+Math.min(.19,speed*.037);
+ // A fast or bouncing pass can retain a little motion on contact. A new
+ // steering direction cushions the component that would carry it away.
+ const ballSpeed=Math.hypot(ball.vx,ball.vz),roll=Math.min(.11,1.8/(ballSpeed||1));
+ const along=Math.max(0,ball.vx*x+ball.vz*z),lateral=inputLength>.18?.23:.56;
+ ball.firstTouch={
+  ownerId:player.id,until:time+firstTouchSeconds,x:x*reach,z:z*reach,
+  vx:(along*x+(ball.vx-along*x)*lateral)*roll,
+  vz:(along*z+(ball.vz-along*z)*lateral)*roll
+ };
+}
+
+export function carryFootball(player,ball,dt,time,openPlay=true){
+ const speed=Math.hypot(player.vx,player.vz),forwardX=Math.sin(player.yaw),forwardZ=Math.cos(player.yaw);
+ if(player.keeper||!openPlay){
+  const moving=speed>.15,reach=(player.defending?.46:.58)+Math.min(.28,speed*.035)+(moving?.10*(.5+.5*Math.sin(time*11)):0);
+  const amount=1-Math.exp(-dt*(time<(player.trapUntil||0)?15:32));
+  ball.x+=(player.x+forwardX*reach-ball.x)*amount;ball.z+=(player.z+forwardZ*reach-ball.z)*amount;
+  ball.y=.11+(moving?.008*Math.sin(time*13):0);ball.vx=player.vx;ball.vz=player.vz;ball.vy=0;
+  return;
+ }
+
+ const movementX=player.vx/(speed||1),movementZ=player.vz/(speed||1),pivot=clamp(((player.pivotUntil||0)-time)/.13,0,1);
+ const turn=speed>.45?clamp(1-(movementX*forwardX+movementZ*forwardZ),0,1):0;
+ const extension=player.defending?0:clamp((speed-4.55)/2.3,0,1)*(1-.8*turn)*(1-pivot);
+ ball.touchPhase=speed>.30?((ball.touchPhase||0)+speed*dt/(.78+speed*.19))%1:0;
+ const stride=(1-Math.cos(ball.touchPhase*2*Math.PI))*.5;
+ const baseReach=player.defending ? .37 : .44+.20*pivot;
+ const reach=baseReach+Math.min(.32,speed*(player.defending?.025:.046))+.32*extension+stride*(.056+.15*extension);
+ const travelWeight=clamp((speed-.25)/3,0,1)*(.19*pivot+(.36+.19*turn)*(1-pivot)),side=clamp(forwardZ*movementX-forwardX*movementZ,-1,1)*Math.min(.09,speed*.03);
+ let offsetX=(forwardX*(1-travelWeight)+movementX*travelWeight)*reach+forwardZ*side;
+ let offsetZ=(forwardZ*(1-travelWeight)+movementZ*travelWeight)*reach-forwardX*side;
+ let driftX=0,driftZ=0,settle=0;
+ const touch=ball.firstTouch;
+ if(touch?.ownerId===player.id&&time<touch.until){
+  settle=clamp((touch.until-time)/firstTouchSeconds,0,1);
+  // The first touch gives the initial direction, but live motion can still
+  // turn the player away immediately when the next stick input changes.
+  const weight=settle*(.93-.30*clamp((speed-.75)/3,0,1));
+  offsetX+=(touch.x-offsetX)*weight;offsetZ+=(touch.z-offsetZ)*weight;
+  driftX=touch.vx*settle*dt;driftZ=touch.vz*settle*dt;
+ }else if(touch)ball.firstTouch=null;
+
+ const amount=1-Math.exp(-dt*(33-8*extension-11*settle));
+ const dx=(player.x+offsetX-ball.x)*amount+driftX,dz=(player.z+offsetZ-ball.z)*amount+driftZ;
+ ball.x+=dx;ball.z+=dz;
+ ball.y=settle>0?.11+Math.max(0,ball.y-.11)*Math.exp(-dt*22):.11+stride*extension*.012;
+ const step=Math.hypot(dx,dz),velocityScale=Math.min(1/dt,16/(step||1));
+ ball.vx=dx*velocityScale;ball.vz=dz*velocityScale;ball.vy=0;
+}
