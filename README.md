@@ -4,6 +4,8 @@
 
 [在线探索](https://allianz-arena-explorer.pages.dev/) · [GitHub 源码](https://github.com/qiangua337/allianz-arena-explorer) · [Cloudflare 部署说明](docs/DEPLOYMENT.md) · [MIT 许可证](LICENSE)
 
+版本 **9.8.3 · 传跑与对位防守**。半自动或辅助模式下，加速中短传可切给接球人，让原传球人斜插等待回传。直塞会提前送向队友的跑动路线；中场会横移找出球线。贴近持球队员时，按住逼抢还能横移封路，防守阵线会给中场和后卫留出各自的空间。[科乐美操作演示](https://www.konami.com/efootball/zh-cn/page/new_controls) · [玩法更新](https://www.konami.com/efootball/zh-cn/page/v6/versioninfo_v6-00)
+
 版本 **9.8.2 · 无球跑位**。持球时中场会提供短传接应，边路保持宽度，前场球员会择机前插。失球后中止进攻跑动，远侧球员随防线回收，后卫按区域分工跟防。单机和联机比赛使用同一套跑位逻辑。
 
 版本 **9.8.1 · 点球攻守**。主罚可直接点击球门或用方向键选择左右和高低，按住射门键蓄力。玩家守门时先确认准备，再进行倒数；扑救需要选方向和高度。电脑门将会针对点球大战里重复的落点调整站位，常规比赛加强近射封堵。

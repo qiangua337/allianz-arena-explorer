@@ -1239,7 +1239,7 @@
       },
       {
         "file": "app.js",
-        "sha256": "21a9222dd65b6cedcd0db5846e1460ddcc42282c64b1a43cf59da73f436f70b2"
+        "sha256": "91afde05e564924423a684d06def192d536db633ab3fc34cf967d1c21edb380b"
       },
       {
         "file": "architecture-clip.js",
@@ -1247,7 +1247,7 @@
       },
       {
         "file": "arena-entry.js",
-        "sha256": "274dba873f05e0f665ae08e30f6712b0975d5ffff3ac5c2c755e6b6cdb4f1115"
+        "sha256": "317148223b8698f31e003445eb1d80464ed9aba8f285253f8608ea4e63021f28"
       },
       {
         "file": "arena-floor-map.js",
@@ -1339,7 +1339,7 @@
       },
       {
         "file": "football-defending.js",
-        "sha256": "2c7c105d343cb22ce44de6bba7dfec6f239bee9071a1ee0c0b5f73522b672949"
+        "sha256": "cbbf2f17d6cb7e23b7d3f80596ec219cdede226d9f9fe325aa65734865822008"
       },
       {
         "file": "football-foot-plant.js",
@@ -1371,7 +1371,7 @@
       },
       {
         "file": "football-movement.js",
-        "sha256": "a173cd7ab36b07ca3a026a70cd57ff516682790d40762f93ada0a513701a10da"
+        "sha256": "fd0855825a63cd599f8278eeeaf3536cbb24698c90ddfcfeeea4d1b86e094f07"
       },
       {
         "file": "football-penalty-ui.js",
@@ -1411,7 +1411,7 @@
       },
       {
         "file": "football-simulation.js",
-        "sha256": "a93b1227e4883ad97315509313179c20488cd8ad7695000d11e12e47e82e7feb"
+        "sha256": "87ce60752d74c67d75e6d4090cc49e539247a330755a93424c1d6fd0d8e1441b"
       },
       {
         "file": "football-squads.js",
@@ -1419,7 +1419,7 @@
       },
       {
         "file": "football-tactics.js",
-        "sha256": "5f22d6616642704ef0af00a7b2a37a3adffcb960abd37486d7438ad0ace24f59"
+        "sha256": "ae4914957c7824bcc971833b601372be24d1d8fc81fefc3e4c7e719a630bf91f"
       },
       {
         "file": "football-teams.js",
@@ -1475,7 +1475,7 @@
       },
       {
         "file": "index.html",
-        "sha256": "d83aa29931d761898d5e3d7f6a679545ff0ca4dfd3b120c47aefc6912ca9d53b"
+        "sha256": "3be567295100a33427dba114718c8b5a5dc75bb3efb7447efd9e3650c3cd789e"
       },
       {
         "file": "instant-action.js",

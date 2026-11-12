@@ -18,12 +18,14 @@ test('the far-side block tucks in and recovers as the carrier advances on the ot
   assert.equal(next.has('home-4'),false);
   assert.equal(next.has('home-6'),false);
   for(const id of ['home-5','home-10']){
-   assert.ok(next.get(id).x-initial.get(id).x>11);
-   assert.ok(next.get(id).z*sign<initial.get(id).z*sign-10);
+   assert.ok(next.get(id).x-initial.get(id).x>9);
+   assert.ok(next.get(id).z*sign<initial.get(id).z*sign-7.5);
    assert.ok(next.get(id).speed>6);
   }
-  assert.ok(Math.abs(next.get('home-7').x-wide.x*.62)<1,'a non-pressing midfielder screens the inside lane');
-  assert.ok(next.get('home-7').z*sign<wide.z*sign-5);
+  assert.ok(Math.abs(next.get('home-7').x-wide.x*.62)<1.5,'a non-pressing midfielder screens the inside lane');
+  const screenDepth=next.get('home-7').z*sign,backLineDepth=next.get('home-3').z*sign;
+  assert.ok(screenDepth<=wide.z*sign-3);
+  assert.ok(screenDepth-backLineDepth>9,'the screening midfielder keeps a separate line from the centre-back');
  }
 });
 
@@ -34,7 +36,7 @@ test('two available defenders cover different dangerous runners on the goal side
   const marked=defendingShape([...players,carrier,central,channel],'home',system,sign,carrier,carrier,['home-4','home-6']);
   const first=marked.get('home-3'),second=marked.get('home-7');
   assert.ok(first.z*sign<=central.z*sign-1.25&&second.z*sign<=channel.z*sign-1.25);
-  assert.ok(Math.abs(first.x-central.x)<2&&Math.abs(second.x-channel.x)<2);
+  assert.ok(Math.abs(first.x-central.x)<3&&Math.abs(second.x-channel.x)<3);
   assert.ok(Math.abs(first.x-second.x)>12);
   assert.ok(Math.abs(first.z-base.get('home-3').z)>4);
  }

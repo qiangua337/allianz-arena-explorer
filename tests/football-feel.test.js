@@ -18,6 +18,16 @@ test('assisted selects a closer defender while semi retains manual defence, with
 test('held pressure closes toward the real ball and releasing it stops automatic movement',()=>{
  const g=setup(),user=p(g),opponent=p(g,'away-1');user.x=0;user.z=8;user.yaw=Math.PI;opponent.x=0;opponent.z=0;opponent.vx=opponent.vz=0;Object.assign(g.state.ball,{ownerId:opponent.id,x:0,z:.6,y:.11});const initial=Math.hypot(user.x-g.state.ball.x,user.z-g.state.ball.z);run(g,.7,{defend:true});assert.ok(Math.hypot(user.x-g.state.ball.x,user.z-g.state.ball.z)<initial-1.5);assert.equal(user.defending,true);run(g,.7);assert.equal(user.defending,false);assert.ok(Math.hypot(user.vx,user.vz)<.05);
 });
+test('near a dribbler the pressure control lets the player step laterally while facing the ball',()=>{
+ const g=setup('manual'),user=p(g),opponent=p(g,'away-1');
+ Object.assign(user,{x:0,z:2.2,yaw:Math.PI});Object.assign(opponent,{x:0,z:0,yaw:0,vx:0,vz:0});
+ Object.assign(g.state.ball,{ownerId:opponent.id,x:0,z:.58,y:.11});
+ run(g,.33,{x:1,z:0,defend:true});
+ const heading=Math.atan2(g.state.ball.x-user.x,g.state.ball.z-user.z);
+ assert.ok(user.x>1,'explicit steering takes the defender across the dribbler');
+ assert.ok(Math.abs(Math.atan2(Math.sin(heading-user.yaw),Math.cos(heading-user.yaw)))<.2);
+ assert.equal(g.state.ball.ownerId,opponent.id,'jockeying alone does not trigger a tackle');
+});
 test('shielding the ball behind the carrier rejects body-distance steals, while an exposed ball can be poked physically',()=>{
  const user={x:0,z:0,yaw:0},carrier={x:0,z:1.1};assert.equal(tackleWindow(user,carrier,{x:0,z:1.8,y:.11},{range:2.1}).sheltered,true);assert.equal(tackleWindow(user,carrier,{x:0,z:.6,y:.11},{range:2.1}).canReach,true);
  const g=setup(),u=p(g),o=p(g,'away-1');Object.assign(u,{x:0,z:0,yaw:0});Object.assign(o,{x:0,z:1.1,yaw:0});Object.assign(g.state.ball,{ownerId:o.id,x:0,z:1.7,y:.11});assert.equal(g.action('tackle'),false);assert.equal(g.state.ball.ownerId,o.id);assert.ok(g.state.message.includes('护球'));

@@ -16,11 +16,17 @@ export function moveControlledFootballer(p,b,owner,input,dt,time){
   // this assistance immediately; no minimum lock time is imposed.
   else input={...input,x:0,z:0,sprint:false};
  }
- let x=input.x,z=input.z;const chasing=input.defend&&owner?.team!==p.team;p.defending=!!input.defend;
- if(chasing){const target=pressureTarget(p,owner,b),dx=target.x-p.x,dz=target.z-p.z,d=Math.hypot(dx,dz),assist=Math.min(1,Math.max(0,(d-target.standOff)/2));x=dx/(d||1)*assist*.88+input.x*.4;z=dz/(d||1)*assist*.88+input.z*.4;}
+ let x=input.x,z=input.z,jockey=0;const chasing=input.defend&&owner?.team!==p.team;p.defending=!!input.defend;
+ if(chasing){
+  const target=pressureTarget(p,owner,b),dx=target.x-p.x,dz=target.z-p.z,d=Math.hypot(dx,dz);
+  jockey=owner?clamp((5.4-Math.hypot(owner.x-p.x,owner.z-p.z))/3,0,1):0;
+  const steering=clamp(Math.hypot(x,z)/.65,0,1),assist=clamp((d-target.standOff)/2,0,1)*.88*(1-.88*jockey*steering),manual=.4+.6*jockey;
+  x=dx/(d||1)*assist+x*manual;z=dz/(d||1)*assist+z*manual;
+ }
  else if(!b.ownerId&&b.targetId===p.id&&Math.hypot(x,z)<.18){const target=receivingPoint(p,b),dx=target.x-p.x,dz=target.z-p.z,d=Math.hypot(dx,dz);x=dx/Math.max(1,d);z=dz/Math.max(1,d);}
  else if(time<(p.lungeUntil||0)&&Math.hypot(x,z)<.2){const dx=b.x-p.x,dz=b.z-p.z,d=Math.hypot(dx,dz);x=dx/(d||1)*.7;z=dz/(d||1)*.7;}
- const sprint=!!input.sprint&&p.stamina>.04;let speed=(sprint?7.6:input.defend&&chasing?6:5.5)*(b.ownerId===p.id?(input.defend?.62:input.charging?.65:.91):1),turn=null;
+ const sprint=!!input.sprint&&p.stamina>.04;let speed=(sprint?7.6:chasing?6-jockey*1.35:5.5)*(b.ownerId===p.id?(input.defend?.62:input.charging?.65:.91):1),turn=null;
+ if(chasing&&owner)turn={heading:Math.atan2(b.x-p.x,b.z-p.z),rate:10,response:12+jockey*4};
  if(b.ownerId===p.id&&!input.defend&&!input.charging&&Math.hypot(input.x,input.z)>.18){
   const heading=Math.atan2(input.x,input.z),gap=Math.abs(Math.atan2(Math.sin(heading-p.yaw),Math.cos(heading-p.yaw)));
   if(time>=(p.pivotUntil||0)&&Math.hypot(p.vx,p.vz)>3&&gap>2.1)p.pivotUntil=time+.36;
@@ -34,7 +40,7 @@ export function moveControlledFootballer(p,b,owner,input,dt,time){
   }
  }else p.pivotUntil=0;
  moveFootballer(p,x,z,speed,dt,turn);
- if(input.defend&&b.ownerId!==p.id)p.yaw=turnFootballer(p.yaw,Math.atan2(b.x-p.x,b.z-p.z),dt*9);
+ if(input.defend&&b.ownerId!==p.id&&!(chasing&&owner))p.yaw=turnFootballer(p.yaw,Math.atan2(b.x-p.x,b.z-p.z),dt*9);
  p.stamina=clamp(p.stamina+(sprint&&Math.hypot(x,z)>.2?-.10:.085)*dt,0,1);
 }
 export function carryFootball(p,b,dt,time){const speed=Math.hypot(p.vx,p.vz),moving=speed>.15,reach=(p.defending?.46:.58)+Math.min(.28,speed*.035)+(moving?.10*(.5+.5*Math.sin(time*11)):0),x=p.x+Math.sin(p.yaw)*reach,z=p.z+Math.cos(p.yaw)*reach,amount=1-Math.exp(-dt*(time<(p.trapUntil||0)?15:32));b.x+=(x-b.x)*amount;b.z+=(z-b.z)*amount;b.y=.11+(moving?.008*Math.sin(time*13):0);b.vx=p.vx;b.vz=p.vz;b.vy=0;}

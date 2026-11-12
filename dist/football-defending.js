@@ -1,4 +1,5 @@
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
+const shapeWeight=.60;
 
 const centreBack={width:.80,shift:.36,depth:.50,min:-45,max:-7,mark:0};
 const fullBack={width:.76,shift:.38,depth:.53,min:-43,max:2,mark:1};
@@ -16,7 +17,7 @@ export function defendingShape(field,team,system,sign,ball,owner,pressers){
   if(player.team!==team){
    if(player.id===owner?.id||player.id===ball.ownerId)continue;
    const x=player.x+clamp((player.vx||0)*.30,-1.9,1.9),depth=(player.z+clamp((player.vz||0)*.30,-1.9,1.9))*sign;
-   if(depth>Math.min(12,ballDepth+9)||Math.abs(x)>31)continue;
+   if(depth< -50||depth>Math.min(12,ballDepth+9)||Math.abs(x)>31)continue;
    const gap=Math.hypot(x-ballX,depth-ballDepth),danger=-depth*.24-Math.abs(x)*.19-Math.max(0,gap-22)*.19-Math.max(0,depth-ballDepth)*.28;
    if(danger>-2.6)threats.push({x,depth,danger});
    continue;
@@ -26,7 +27,10 @@ export function defendingShape(field,team,system,sign,ball,owner,pressers){
   const weakSide=base[0]*ballX<0?Math.min(1,Math.abs(ballX)/22):0;
   const x=clamp(base[0]*(profile.width-.18*weakSide)+ballX*profile.shift,-31,31);
   const depth=clamp(-base[1]+ballDepth*profile.depth-2,profile.min,profile.max);
-  const point={x,z:depth*sign,speed:5.1};
+  // Retain part of each player's formation position so the block can shift
+  // without the midfield and the back line moving onto the same space.
+  const anchorX=base[0]+ball.x*.20,anchorDepth=-base[1]+ball.z*sign*.20;
+  const point={x:anchorX+(x-anchorX)*shapeWeight,z:(anchorDepth+(depth-anchorDepth)*shapeWeight)*sign,speed:5.1};
   shape.set(player.id,point);
   if(profile.mark!==undefined)markers.push({player,profile,point,x,depth,used:false});
  }
@@ -47,8 +51,9 @@ export function defendingShape(field,team,system,sign,ball,owner,pressers){
   }
   if(!marker)continue;
   const t=clamp((threat.danger+6)/14,.55,.89);
-  marker.point.x=marker.x+(targetX-marker.x)*t;
-  marker.point.z=Math.min(threat.depth-1.25,marker.depth+(targetDepth-marker.depth)*t)*sign;
+  marker.point.x+=(targetX-marker.x)*t*shapeWeight;
+  const depth=Math.min(threat.depth-1.25,marker.depth+(targetDepth-marker.depth)*t);
+  marker.point.z=Math.min(threat.depth-1.25,marker.point.z*sign+(depth-marker.depth)*shapeWeight)*sign;
   marker.used=true;
   if(++marked===3)break;
  }
@@ -62,7 +67,11 @@ export function defendingShape(field,team,system,sign,ball,owner,pressers){
    const gap=Math.hypot(candidate.x-x,candidate.depth-depth);
    if(gap<best&&gap<15){screen=candidate;best=gap;}
   }
-  if(screen){screen.point.x=screen.x*.24+x*.76;screen.point.z=(screen.depth*.20+depth*.80)*sign;}
+  if(screen){
+   screen.point.x+=(x-screen.x)*.76*shapeWeight;
+   const screenDepth=screen.point.z*sign+(depth-screen.depth)*.80*shapeWeight;
+   screen.point.z=Math.min(Math.max(-40,ballDepth-3),screenDepth)*sign;
+  }
  }
 
  for(const player of field){

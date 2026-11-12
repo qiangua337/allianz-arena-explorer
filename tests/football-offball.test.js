@@ -46,3 +46,26 @@ test('an active run survives server checkpoint recovery and is cancelled on loss
  assert.equal(game.checkpoint().controllers.home.offBall,null);
  assert.ok(weakBack.z*sign<start-3,'the far-side defender recovers even though the ball changes hands on the other flank');
 });
+
+test('a sprint short pass in semi-assisted play hands off the cursor and the original passer runs diagonally',()=>{
+ const {game,sign}=wideAttack('home');game.setControlMode('semi');
+ const passer=player(game,'home-8'),start={x:passer.x,z:passer.z};
+ assert.equal(game.action('pass',{direction:{x:1,z:0,sprint:true}}),true);
+ const receiver=game.state.ball.targetId;
+ assert.equal(receiver,'home-9');assert.equal(game.state.controlledId,receiver);
+ assert.match(game.state.events.at(-1).text,/斜插接应/);
+ run(game,52);
+ assert.equal(game.state.controlledId,receiver);
+ assert.ok((passer.z-start.z)*sign>3,'the passer keeps running while the receiver is controlled');
+ assert.ok(Math.abs(passer.x-start.x)>1.8,'the movement leaves the passing lane laterally');
+});
+
+test('ordinary short passes keep the usual handoff timing and manual control respects the cursor',()=>{
+ for(const mode of ['semi','manual']){
+  const {game}=wideAttack('home');game.setControlMode(mode);
+  assert.equal(game.action('pass',{direction:{x:1,z:0,sprint:mode==='manual'}}),true);
+  assert.equal(game.state.controlledId,'home-8');
+  assert.doesNotMatch(game.state.events.at(-1).text,/斜插接应/);
+  if(mode==='manual'){run(game,55);assert.equal(game.state.controlledId,'home-8');}
+ }
+});
