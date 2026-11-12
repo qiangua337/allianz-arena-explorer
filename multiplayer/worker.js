@@ -1,9 +1,11 @@
 import {createFootballSimulation} from '../dist/football-simulation.js';
 import {safeOnlineInput,packOnlineState,validRoomCode,ONLINE_PROTOCOL} from '../dist/online-protocol.js';
+import {ONLINE_DELTA_CAPABILITY,encodeOnlineDelta} from '../dist/online-state-delta.js';
 import {safePenaltyAim} from '../dist/football-penalty.js';
 import {normalizeRules} from '../dist/football-rules.js';
 import {defaultSelection,normalizeSelection,validateSelection} from '../dist/football-squads.js';
 const TEAMS=['home','away'],TTL=30*60*1000,GRACE=60*1000,alphabet='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const DELTA_KEYFRAME_INTERVAL=20;
 const token=()=>crypto.randomUUID().replace(/-/g,'')+crypto.randomUUID().replace(/-/g,'');
 const json=(data,status=200)=>Response.json(data,{status,headers:{'Cache-Control':'no-store'}});
 const error=(message,status=400)=>json({error:message},status);
@@ -24,12 +26,49 @@ export default {async fetch(request,env){
 
 export class FootballRoom {
  constructor(ctx){this.ctx=ctx;this.meta=null;this.sim=null;this.sockets=new Map();this.inputs={};this.inputSeq={};this.appliedSeq={};this.lastInput={};this.heartbeats={};this.pauses={home:false,away:false};this.seq=0;this.timer=null;this.timerEpoch=0;this.running=false;this.pendingTick=0;this.tickRecoveries=0;this.lastTick=0;this.lastSave=0;this.lastAction={};this.rates={};this.lastRoom='';this.lastRoster=-1;
-  ctx.blockConcurrencyWhile(async()=>{this.meta=await ctx.storage.get('room')||null;const saved=await ctx.storage.get('simulation');if(this.meta?.protocol===ONLINE_PROTOCOL&&saved){this.sim=this.makeSimulation();this.sim.restore(saved);}for(const ws of ctx.getWebSockets()){const attachment=ws.deserializeAttachment();if(attachment?.team){this.sockets.set(attachment.team,ws);this.heartbeats[attachment.team]=Date.now();}}if(this.meta&&this.meta.protocol!==ONLINE_PROTOCOL){await this.end('联机版本已更新，请刷新网页后重建房间');return;}if(this.meta){this.pauses=this.meta.pauses||this.pauses;this.refresh();}});
+  this.deltaSeats=new Set();this.deltaBase=null;this.deltaKeyframeSeq=0;
+  ctx.blockConcurrencyWhile(async()=>{this.meta=await ctx.storage.get('room')||null;const saved=await ctx.storage.get('simulation');if(this.meta?.protocol===ONLINE_PROTOCOL&&saved){this.sim=this.makeSimulation();this.sim.restore(saved);}for(const ws of ctx.getWebSockets()){const attachment=ws.deserializeAttachment();if(attachment?.team){this.setSocket(attachment.team,ws,attachment.stateDelta===true);this.heartbeats[attachment.team]=Date.now();}}if(this.meta&&this.meta.protocol!==ONLINE_PROTOCOL){await this.end('联机版本已更新，请刷新网页后重建房间');return;}if(this.meta){this.pauses=this.meta.pauses||this.pauses;this.refresh();}});
  }
+ setSocket(team,ws,stateDelta){this.sockets.set(team,ws);if(stateDelta)this.deltaSeats.add(team);else this.deltaSeats.delete(team);}
  makeSimulation(){const sim=createFootballSimulation({duration:this.meta.rules.duration,rules:this.meta.rules,selections:this.meta.lineups,seed:this.meta.seed,opponent:this.meta.opponent,difficulty:'regular',humanTeams:TEAMS});for(const team of TEAMS){const preference=this.meta.preferences?.[team];if(preference){sim.setControlMode(preference.controlMode,team);sim.setShotKind(preference.shotKind,team);}}return sim;}
  publicRoom(){return{code:this.meta.code,protocol:ONLINE_PROTOCOL,opponent:this.meta.opponent,rules:this.meta.rules,lineups:this.meta.lineups,intervalReady:this.meta.intervalReady||{},expiresAt:this.meta.expiresAt,started:!!this.meta.started,ended:!!this.meta.ended,rematch:this.meta.rematch||{},reason:this.meta.reason||'',seats:TEAMS.map(team=>({team,connected:this.sockets.has(team),ready:!!this.meta.ready[team],paused:!!this.pauses[team]}))};}
  send(ws,message){try{ws.send(typeof message==='string'?message:JSON.stringify(message));}catch{}}
- broadcast(force=false){if(!this.meta)return;const room=this.publicRoom(),roomText=JSON.stringify(room),changed=force||roomText!==this.lastRoom,details=force||this.sim?.state.rosterRevision!==this.lastRoster,message=JSON.stringify({type:'state',...(changed?{room}:{}),state:this.sim?{...packOnlineState(this.sim.state,++this.seq,this.appliedSeq,details),serverClock:{lagMs:Math.round(this.pendingTick*1000),recoveries:this.tickRecoveries}}:null});this.lastRoom=roomText;this.lastRoster=this.sim?.state.rosterRevision??-1;for(const ws of this.sockets.values())this.send(ws,message);}
+ broadcast(force=false){
+  if(!this.meta)return;
+  const room=this.publicRoom(),roomText=JSON.stringify(room),changed=force||roomText!==this.lastRoom;
+  const live=this.sim?.state,details=force||live?.rosterRevision!==this.lastRoster;
+  const hasDelta=this.deltaSeats.size>0,base=this.deltaBase;
+  const keyframe=hasDelta&&live&&(details||!base||this.seq+1-this.deltaKeyframeSeq>=DELTA_KEYFRAME_INTERVAL||
+   Math.round(live.time*1000)/1000<base.time||live.eventCount<base.eventCount||live.phase!==base.phase||live.paused!==base.paused);
+  const state=live?{...packOnlineState(live,++this.seq,this.appliedSeq,details||keyframe),
+   serverClock:{lagMs:Math.round(this.pendingTick*1000),recoveries:this.tickRecoveries}}:null;
+  this.lastRoom=roomText;this.lastRoster=live?.rosterRevision??-1;
+  const packet={type:'state',...(changed?{room}:{})};
+  let fullMessage,deltaMessage;
+  if(hasDelta&&state){
+   if(keyframe)this.deltaKeyframeSeq=state.seq;
+   else{
+    const delta=encodeOnlineDelta(base,state);
+    if(delta){
+     const encoded=JSON.stringify({...packet,delta});
+     fullMessage=JSON.stringify({...packet,state});
+     if(encoded.length<fullMessage.length)deltaMessage=encoded;
+    }
+   }
+   // A few packOnlineState fields alias the mutable simulation state.
+   this.deltaBase=structuredClone(state);
+  }else this.deltaBase=null;
+  // Periodic recovery frames include details for capable clients. Preserve
+  // the roster payload cadence of existing clients on mixed connections.
+  if(keyframe&&!details){
+   deltaMessage=JSON.stringify({...packet,state});
+   if(this.sockets.size>this.deltaSeats.size){
+    const {teamSheets,discipline,...legacyState}=state;
+    fullMessage=JSON.stringify({...packet,state:legacyState});
+   }
+  }else fullMessage??=JSON.stringify({...packet,state});
+  for(const [team,ws] of this.sockets)this.send(ws,this.deltaSeats.has(team)?deltaMessage??fullMessage:fullMessage);
+ }
  async persist(){if(!this.meta)return;this.meta.pauses=this.pauses;await this.ctx.storage.put({room:this.meta,...(this.sim?{simulation:this.sim.checkpoint()}:{})});}
  async fetch(request){
   const path=new URL(request.url).pathname,now=Date.now();
@@ -45,7 +84,7 @@ export class FootballRoom {
   }
   if(path!=='/socket'||request.headers.get('Upgrade')?.toLowerCase()!=='websocket')return error('需要实时连接',426);
   const protocols=(request.headers.get('Sec-WebSocket-Protocol')||'').split(',').map(v=>v.trim()),credential=protocols.find(p=>p.startsWith('seat.'))?.slice(5),team=TEAMS.find(t=>credential&&this.meta.tokens[t]===credential);if(!team||!protocols.includes('arena-v2'))return error('房间身份已失效，请重新加入',403);
-  const pair=new WebSocketPair(),client=pair[0],server=pair[1],previous=this.sockets.get(team);this.ctx.acceptWebSocket(server,[team]);server.serializeAttachment({team});this.sockets.set(team,server);if(!protocols.includes('ready-v1'))this.meta.ready[team]=false;this.heartbeats[team]=now;this.inputs[team]=safeOnlineInput();this.inputSeq[team]=this.appliedSeq[team]=0;this.lastInput[team]=now;if(previous){try{previous.close(4001,'此席位已在另一个页面连接');}catch{}}
+  const pair=new WebSocketPair(),client=pair[0],server=pair[1],previous=this.sockets.get(team),stateDelta=protocols.includes(ONLINE_DELTA_CAPABILITY);this.ctx.acceptWebSocket(server,[team]);server.serializeAttachment({team,stateDelta});this.setSocket(team,server,stateDelta);if(!protocols.includes('ready-v1'))this.meta.ready[team]=false;this.heartbeats[team]=now;this.inputs[team]=safeOnlineInput();this.inputSeq[team]=this.appliedSeq[team]=0;this.lastInput[team]=now;if(previous){try{previous.close(4001,'此席位已在另一个页面连接');}catch{}}
   this.send(server,{type:'welcome',team,protocol:ONLINE_PROTOCOL,room:this.publicRoom()});this.refresh();this.broadcast(true);return new Response(null,{status:101,webSocket:client,headers:{'Sec-WebSocket-Protocol':'arena-v2'}});
  }
  async webSocketMessage(ws,message){
@@ -90,9 +129,9 @@ export class FootballRoom {
   let budget=Math.min(.5,this.pendingTick);while(budget>1e-8&&!this.sim.state.paused&&!['fulltime','interval'].includes(this.sim.state.phase)){const dt=Math.min(.25,budget);this.sim.update(dt,this.inputs);this.pendingTick=Math.max(0,this.pendingTick-dt);budget-=dt;}
   if(['fulltime','interval'].includes(this.sim.state.phase)){this.refresh();this.persist();}else if(now-this.lastSave>30000){this.lastSave=now;this.persist();}this.broadcast();
  }
- async disconnected(ws){const team=ws.deserializeAttachment()?.team;if(this.sockets.get(team)!==ws)return;this.sockets.delete(team);this.inputs[team]=safeOnlineInput();this.refresh();await this.persist();this.broadcast();}
+ async disconnected(ws){const team=ws.deserializeAttachment()?.team;if(this.sockets.get(team)!==ws)return;this.sockets.delete(team);this.deltaSeats.delete(team);this.inputs[team]=safeOnlineInput();this.refresh();await this.persist();this.broadcast();}
  webSocketClose(ws){return this.disconnected(ws);}
  webSocketError(ws){try{ws.close(1011,'连接中断');}catch{}return this.disconnected(ws);}
- async end(reason){if(!this.meta)return;this.meta.ended=true;this.meta.reason=reason;this.running=false;this.pendingTick=0;this.stopTimer();if(this.sim)this.sim.setPaused(true);this.broadcast(true);for(const ws of this.sockets.values()){try{ws.close(4004,reason);}catch{}}this.sockets.clear();await this.ctx.storage.deleteAll();}
+ async end(reason){if(!this.meta)return;this.meta.ended=true;this.meta.reason=reason;this.running=false;this.pendingTick=0;this.stopTimer();if(this.sim)this.sim.setPaused(true);this.broadcast(true);for(const ws of this.sockets.values()){try{ws.close(4004,reason);}catch{}}this.sockets.clear();this.deltaSeats.clear();this.deltaBase=null;await this.ctx.storage.deleteAll();}
  async alarm(){if(!this.meta)return;const now=Date.now();if(now>=this.meta.expiresAt||this.meta.disconnectAt&&now>=this.meta.disconnectAt){await this.end(this.meta.disconnectAt?'朋友未能重连，房间已结束':'房间已到期');return;}await this.ctx.storage.setAlarm(Math.min(this.meta.expiresAt,this.meta.disconnectAt||Infinity));}
 }

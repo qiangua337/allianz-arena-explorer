@@ -1,4 +1,5 @@
 import {ONLINE_PROTOCOL,roomCode,validRoomCode,safeOnlineInput,applyOnlineState} from './online-protocol.js';
+import {ONLINE_DELTA_CAPABILITY,decodeOnlineDelta} from './online-state-delta.js';
 import {safePenaltyAim} from './football-penalty.js';
 import {createFootballSimulation} from './football-simulation.js';
 import {createOnlinePrediction,createOnlineInterpolation} from './online-prediction.js';
@@ -37,10 +38,19 @@ export function createOnlineSession(seat,{origin=globalThis.location?.origin,Web
   if(now-lastMessageAt>=12000||active&&now-lastSnapshotAt>=6000){recover('比赛同步中断，正在恢复连接');return;}
   if(now-lastPingAt>=4000){lastPingAt=now;session.send({type:'ping',at:now});}
  }
- function open(){retry=null;if(stopped)return;lastSnapshotAt=0;timedSnapshotAt=null;session.connection=attempt?'reconnecting':'connecting';emit();const url=new URL('/api/online/rooms/'+seat.code+'/socket',origin);url.protocol=url.protocol==='https:'?'wss:':'ws:';socket=new WebSocketClass(url.href,['arena-v2','seat.'+seat.token,...(desiredReady?['ready-v1']:[])]);const current=socket;socketTimer=setTimeout(()=>{if(current===socket&&!stopped)recover('实时连接未响应，正在重试');},8000);
+ function open(){retry=null;if(stopped)return;lastSnapshotAt=0;timedSnapshotAt=null;session.connection=attempt?'reconnecting':'connecting';emit();const url=new URL('/api/online/rooms/'+seat.code+'/socket',origin);url.protocol=url.protocol==='https:'?'wss:':'ws:';socket=new WebSocketClass(url.href,['arena-v2','seat.'+seat.token,ONLINE_DELTA_CAPABILITY,...(desiredReady?['ready-v1']:[])]);const current=socket;let wireSnapshot=null;socketTimer=setTimeout(()=>{if(current===socket&&!stopped)recover('实时连接未响应，正在重试');},8000);
   socket.onmessage=event=>{if(current!==socket)return;let p;try{p=JSON.parse(event.data);}catch{return;}if(!p||typeof p!=='object'||Array.isArray(p))return;lastMessageAt=Date.now();
    if(p.type==='welcome'){if(p.protocol!==ONLINE_PROTOCOL){session.error='联机版本已更新，请刷新网页';session.close();return;}clearTimeout(firstTimer);clearTimeout(socketTimer);firstTimer=socketTimer=null;attempt=0;disconnectSince=null;session.connection='connected';session.error='';session.room=p.room;firstResolve?.(session);firstResolve=firstReject=null;clearInterval(heartbeat);heartbeat=setInterval(maintain,1000);lastPingAt=Date.now();session.send({type:'ping',at:lastPingAt});session.send({type:'ready',ready:desiredReady});}
-   if(p.type==='state'){const now=Date.now(),previous=session.packet;sampleJitter(p.state,now);lastSnapshotAt=now;if(p.room)session.room=p.room;session.packet=p.state?{...p.state,teamSheets:p.state.teamSheets??previous?.teamSheets,discipline:p.state.discipline??previous?.discipline}:null;if(session.room?.ended)session.error=session.room.reason||'房间已结束';}
+   if(p.type==='state'){
+    if(p.room)session.room=p.room;
+    if(session.room?.ended)session.error=session.room.reason||'房间已结束';
+    const next=Object.hasOwn(p,'state')?p.state:decodeOnlineDelta(wireSnapshot,p.delta);
+    if(next!==null||p.state===null){
+     wireSnapshot=next;
+     const now=Date.now(),previous=session.packet;sampleJitter(next,now);lastSnapshotAt=now;
+     session.packet=next?{...next,teamSheets:next.teamSheets??previous?.teamSheets,discipline:next.discipline??previous?.discipline}:null;
+    }
+   }
    if(p.type==='result'){const request=pendingRequests.get(p.id);if(request){pendingRequests.delete(p.id);clearTimeout(request.timer);if(p.ok)request.resolve(p);else request.reject(Error(p.error||'设置未能保存'));}}
    if(p.type==='pong'&&Number.isFinite(p.at))session.latency=Math.max(0,Math.round(Date.now()-p.at));emit();
   };

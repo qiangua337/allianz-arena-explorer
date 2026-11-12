@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {createOnlineSession,createOnlineSimulation,requestOnlineSeat} from '../dist/online-client.js';
 import {createFootballSimulation} from '../dist/football-simulation.js';
 import {packOnlineState} from '../dist/online-protocol.js';
+import {ONLINE_DELTA_CAPABILITY,encodeOnlineDelta} from '../dist/online-state-delta.js';
 class FakeSocket{static instances=[];constructor(url,protocols){this.url=url;this.protocols=protocols;this.readyState=1;this.messages=[];FakeSocket.instances.push(this);}send(data){this.messages.push(JSON.parse(data));}close(code=1000,reason=''){this.readyState=3;this.onclose?.({code,reason});}message(data){this.onmessage?.({data:JSON.stringify(data)});}}
 const seat={code:'ABCD2345',team:'away',token:'test-only-seat-credential',opponent:'madrid'};
 const room={code:seat.code,started:true,ended:false,seats:[{team:'home',connected:true,ready:true},{team:'away',connected:true,ready:true}]};
@@ -12,3 +13,37 @@ test('online client submits bounded input without advancing its own score, clock
 test('HTTP room errors are readable and malformed codes never make a network request',async()=>{let calls=0;await assert.rejects(requestOnlineSeat('bad',{},()=>{calls++;}),/8 位/);assert.equal(calls,0);await assert.rejects(requestOnlineSeat('ABCD2345',{},async()=>({ok:false,json:async()=>({error:'房间已满'})})),/房间已满/);await assert.rejects(requestOnlineSeat('',{},async()=>{throw Error('network');}),/连接失败或超时/);});
 
 test('saved assistance and shot preferences reach the room before model readiness can start kickoff',()=>{const sent=[],session={...seat,room:{...room,started:false},connection:'connected',subscribe(){return()=>{};},send(p){sent.push(p);return true;},setReady(ready){sent.push({type:'ready',ready});},leave(){}};const client=createOnlineSimulation(session,{controlMode:'assisted',shotKind:'lob'});client.ready();assert.deepEqual(sent,[{type:'mode',mode:'assisted'},{type:'shot-kind',kind:'lob'},{type:'ready',ready:true}]);assert.equal(client.state.paused,true);client.dispose();});
+
+test('online sessions retain roster details and recover a lost delta base on the next full frame',async t=>{
+ t.mock.timers.enable({apis:['setTimeout','setInterval','Date']});
+ FakeSocket.instances=[];
+ const session=createOnlineSession(seat,{origin:'https://arena.example',WebSocketClass:FakeSocket});
+ const wire=(sim,seq,details)=>JSON.parse(JSON.stringify(packOnlineState(sim.state,seq,undefined,details)));
+ const sim=createFootballSimulation({humanTeams:['home','away'],opponent:'madrid'});
+ try{
+  const promise=session.connect(),socket=FakeSocket.instances[0];
+  assert.ok(socket.protocols.includes(ONLINE_DELTA_CAPABILITY));
+  socket.message({type:'welcome',protocol:2,room});await promise;
+  const first=wire(sim,41,true);
+  socket.message({type:'state',state:first});
+  sim.update(.05);const next=wire(sim,42,false);
+  socket.message({type:'state',delta:encodeOnlineDelta(first,next)});
+  assert.equal(session.packet.seq,42);
+  assert.deepEqual(session.packet.teamSheets,first.teamSheets);
+  assert.deepEqual(session.packet.players,next.players);
+  sim.update(.05);const missing=wire(sim,43,false);
+  sim.update(.05);const later=wire(sim,44,false);
+  socket.message({type:'state',delta:encodeOnlineDelta(missing,later)});
+  assert.equal(session.packet.seq,42);
+  socket.message({type:'state',state:later});
+  assert.equal(session.packet.seq,44);
+  socket.close(1006);t.mock.timers.tick(501);
+  const replacement=FakeSocket.instances[1];
+  replacement.message({type:'welcome',protocol:2,room});
+  sim.update(.05);const future=wire(sim,45,false);
+  replacement.message({type:'state',delta:encodeOnlineDelta(later,future)});
+  assert.equal(session.packet.seq,44,'a replacement socket has no delta base yet');
+  replacement.message({type:'state',state:future});
+  assert.equal(session.packet.seq,45);
+ }finally{session.close();}
+});
