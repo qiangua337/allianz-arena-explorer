@@ -1,3 +1,5 @@
+import {boxDeliveryTime,boxPassTarget} from './football-tactics.js';
+
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z);
 
@@ -10,12 +12,12 @@ function spaceAt(point,opponents,lookAhead=0){
  return room;
 }
 
-function laneSpace(origin,target,opponents,travelTime=0){
+function laneSpace(origin,target,opponents,travelTime=0,includeKeeper=false){
  const dx=target.x-origin.x,dz=target.z-origin.z,length2=dx*dx+dz*dz;
  if(length2<.04)return 0;
  let room=6;
  for(const defender of opponents){
-  if(defender.keeper)continue;
+  if(defender.keeper&&!includeKeeper)continue;
   let x=defender.x-origin.x,z=defender.z-origin.z,t=(x*dx+z*dz)/length2;
   const at=clamp(t,0,1)*travelTime;
   x+=clamp((defender.vx||0)*at,-1.2,1.2);z+=clamp((defender.vz||0)*at,-1.2,1.2);
@@ -62,18 +64,19 @@ function passOutlet(player,ball,teammates,opponents,sign,carry,avoidId,possessio
  let best=null,bestScore=-Infinity;
  for(const mate of teammates){
   if(mate.id===player.id||mate.team!==player.team||mate.dismissed||mate.trainingInactive)continue;
-  const target={x:clamp(mate.x+(mate.vx||0)*.18,-32.5,32.5),z:clamp(mate.z+(mate.vz||0)*.18,-50.4,50.4)},length=distance(ball,target),progress=(target.z-ball.z)*sign;
+  const target=boxPassTarget(ball,mate,sign)??{x:clamp(mate.x+(mate.vx||0)*.18,-32.5,32.5),z:clamp(mate.z+(mate.vz||0)*.18,-50.4,50.4)},length=distance(ball,target),progress=(target.z-ball.z)*sign;
   if(length<2.8||length>44)continue;
   const switchSide=Math.abs(target.x-ball.x)>21&&Math.abs(target.x)>13&&Math.abs(ball.x)>6&&target.x*ball.x<0&&progress>-11;
-  const type=switchSide?'switch':progress< -3.4?'recycle':progress>5?'forward':'support';
-  if(!carry.blocked&&type!=='forward')continue;
-  const travel=length/Math.min(22,9+length*.40),room=spaceAt(target,opponents,travel),lane=laneSpace(ball,target,opponents,travel);
-  if(room<(switchSide?2.9:2.05)||lane<(switchSide?1.45:1.15))continue;
-  const preference=carry.blocked?(switchSide?5.6:type==='recycle'?4.2:type==='support'?1.75:0):0;
+  const type=target.delivery||(switchSide?'switch':progress< -3.4?'recycle':progress>5?'forward':'support');
+  if(!carry.blocked&&type!=='forward'&&!target.delivery)continue;
+  const travel=target.delivery?boxDeliveryTime(length):length/Math.min(22,9+length*.40);
+  const room=spaceAt(target,opponents,travel),lane=laneSpace(ball,target,opponents,travel,!!target.delivery);
+  if(room<(switchSide?2.9:target.delivery?2.5:2.05)||lane<(switchSide?1.45:target.delivery?1.35:1.15))continue;
+  const preference=target.delivery?(target.delivery==='cutback'?7.0:4.35):carry.blocked?(switchSide?5.6:type==='recycle'?4.2:type==='support'?1.75:0):0;
   const score=Math.min(4,lane)*1.16+Math.min(7,room)*.48+clamp(progress,-11,16)*.43+preference-Math.max(0,length-22)*.14-(mate.keeper?5.5:0)-(mate.id===avoidId?4.5:0);
   if(score>bestScore){best={type:'pass',tactic:type,option:{player:mate,...target,lane,distance:length}};bestScore=score;}
  }
- const threshold=carry.blocked?3.7:possessionStyle?10.6:11.8;
+ const threshold=carry.blocked?3.7:best?.option.delivery?7.8:possessionStyle?10.6:11.8;
  return bestScore>=threshold?best:null;
 }
 

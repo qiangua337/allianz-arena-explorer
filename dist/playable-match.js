@@ -6,7 +6,7 @@ import {getSquadEditor} from './squad-editor.js';
 import {periodLabel,intervalLabel} from './football-rules.js';
 import {createOnlineSimulation} from './online-client.js';
 import {copyOnlineInvite} from './online-lobby.js';
-import {shotKinds,shotLabels} from './football-tactics.js';
+import {deliveryLabels,shotKinds,shotLabels} from './football-tactics.js';
 import {shotReadout,shotOutcomeText} from './shot-feedback.js';
 import {createReplayRecorder,replaySample} from './football-replay.js';
 import {controlModes,controlLabels,controlDescriptions,loadFootballSettings,saveFootballSettings} from './football-assist.js';
@@ -71,7 +71,8 @@ export function buildPlayableMatch({scene,stadium,players,audio,onCamera,onView,
   write('game-away-name','textContent',s.fixture.short);if(awayKit!==s.fixture.kit.shirt){awayKit=s.fixture.kit.shirt;writeHudProperty($('game-away-dot').style,'backgroundColor',awayKit);}
   const fps=Number(document.body.dataset.renderfps)||0;write('game-difficulty','textContent',replay?'精彩回放':network?(network.latency||'—')+' ms'+(pending?' · 加载':s.paused?' · 暂停':fps?' · '+fps+'帧':''):difficulties[s.difficulty].label+' · 人机');write('game-difficulty','title',network?'网络往返 '+(network.latency||'—')+' 毫秒；画面 '+(fps||'测量中')+' 帧/秒。移动在本机先响应，球权和进球由服务器确认。':'');$('game-difficulty').classList.toggle('network-slow',!!network&&network.latency>180);write('game-network-help','hidden',!network);write('game-low-quality','textContent',$('quality').value==='low'?'恢复均衡画质':'切换到流畅画质 · 降低细节');if(!s.training)write('game-fixture-title','textContent','FC BAYERN × '+s.fixture.english);
   write('game-player','textContent',p.number+' · '+p.name);write('game-stamina','value',Math.round(p.stamina*100)*.01);
-  write('game-ball-hint','textContent',penalty?'点球 · '+(penalty.role==='shooter'?'主罚':'守门'):prepared?'已预备 · '+prepared.name+' 接球后'+(prepared.type==='shoot'?'射门':'传球'):receiving?'接应 '+receiving.name+' · 可预备传射':leavingPass(s,p)?'传球已出脚 · 换控接应':friendly?'队友控球 · 换控接管':owns?(p.defending?'护球中':s.passPreview?'短传 → '+s.passPreview.name:'控球中'):p.defending?'逼抢中 · 靠近后抢断':s.ball.targetId===p.id?'迎球中 · 方向可接管':Math.hypot(p.x-s.ball.x,p.z-s.ball.z)>25?'离球较远 · 换控接近足球':ballDirection(p,s.ball,aimYaw));
+  const passHint=s.passPreview?(deliveryLabels[s.passPreview.delivery]??'短传')+' → '+s.passPreview.name:'控球中';
+  write('game-ball-hint','textContent',penalty?'点球 · '+(penalty.role==='shooter'?'主罚':'守门'):prepared?'已预备 · '+prepared.name+' 接球后'+(prepared.type==='shoot'?'射门':'传球'):receiving?'接应 '+receiving.name+' · 可预备传射':leavingPass(s,p)?'传球已出脚 · 换控接应':friendly?'队友控球 · 换控接管':owns?(p.defending?'护球中':passHint):!owner&&s.ball.rebound?'争第二落点 · '+ballDirection(p,s.ball,aimYaw):p.defending?'逼抢中 · 靠近后抢断':s.ball.targetId===p.id?'迎球中 · 方向可接管':Math.hypot(p.x-s.ball.x,p.z-s.ball.z)>25?'离球较远 · 换控接近足球':ballDirection(p,s.ball,aimYaw));
   write('game-pressure-label','textContent',owns?'护球':'逼抢');writeHudAttribute($('game-pressure'),'aria-pressed',String(!s.paused&&p.defending));
   write('game-mute','textContent',audio.muted?'♪':'♫');writeHudAttribute($('game-mute'),'aria-pressed',String(audio.muted));writeHudAttribute($('game-mute'),'aria-label',audio.muted?'开启比赛声音':'静音比赛声音');
   write('game-pause','textContent',s.paused?'▷':'Ⅱ');writeHudAttribute($('game-pause'),'aria-label',s.paused?'继续比赛':'暂停比赛');

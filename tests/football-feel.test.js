@@ -68,9 +68,12 @@ test('an AI presser approaches the ball side of a shield rather than repeatedly 
 });
 
 test('autonomous play does not spend most challenges instantly swapping the same possession back',()=>{
+ const fixtures=12;
  let challenges=0,rapidReturns=0,shots=0,passes=0;
- for(let seed=1;seed<=8;seed++){const g=createFootballSimulation({seed,humanTeams:[],rules:{mode:'league',duration:180}});let serial=0,last=null;
+ for(let seed=1;seed<=fixtures;seed++){const g=createFootballSimulation({seed,humanTeams:[],rules:{mode:'league',duration:180}});let serial=0,last=null;
   for(let frame=0;frame<90*60;frame++){g.update(1/60);for(const event of g.state.events.filter(e=>e.id>serial)){if(event.type==='tackle'){challenges++;if(last&&last.team!==event.team&&g.state.time-last.time<1)rapidReturns++;last={team:event.team,time:g.state.time};}if(event.type==='shot')shots++;if(event.type==='pass')passes++;serial=event.id;}}
  }
- assert.ok(challenges>30&&shots>15&&passes>50,'both tackling and attacking remain active');assert.ok(rapidReturns/challenges<.5,`${rapidReturns}/${challenges} challenges were instant counter-tackles`);
+ assert.ok(challenges>=fixtures*3&&shots>=fixtures*2&&passes>=fixtures*6,
+  `over ${fixtures} fixtures: ${challenges} challenges, ${shots} shots and ${passes} passes`);
+ assert.ok(rapidReturns/challenges<.5,`${rapidReturns}/${challenges} challenges were instant counter-tackles`);
 });

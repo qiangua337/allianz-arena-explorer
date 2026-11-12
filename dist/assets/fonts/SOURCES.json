@@ -34,10 +34,10 @@
       "family": "Arena Sans SC",
       "style": "normal",
       "weight": 500,
-      "bytes": 143064,
-      "sha256": "4bd5c4a9a0e292ef310ec1fba74c870786e996c1014901382da13546520bf726",
-      "characters": 1080,
-      "glyphs": 1119,
+      "bytes": 143304,
+      "sha256": "9e03063d591607cc5b9907555793a0ae23fde5404e2965714b5bb28c4ef8dd52",
+      "characters": 1081,
+      "glyphs": 1120,
       "source": "NotoSansSC[wght].ttf",
       "licenseFile": "OFL-NotoSansSC.txt"
     },
@@ -46,10 +46,10 @@
       "family": "Arena Sans SC",
       "style": "normal",
       "weight": 800,
-      "bytes": 144792,
-      "sha256": "30f2ca409e8cb7c8f9b8d58c97f9aa5bdedec679a020bcc0f5aec699b1ebcf69",
-      "characters": 1080,
-      "glyphs": 1119,
+      "bytes": 144928,
+      "sha256": "7dae48ca42fba9970f156c44cf34299d4980f385bc0c5484b65f1f24c55d6fe9",
+      "characters": 1081,
+      "glyphs": 1120,
       "source": "NotoSansSC[wght].ttf",
       "licenseFile": "OFL-NotoSansSC.txt"
     },
@@ -68,11 +68,11 @@
   ],
   "coverage": {
     "scan": "All non-vendor dist .js and .html, HTML entities and JavaScript Unicode/hex escapes, plus printable ASCII.",
-    "sourceFileCount": 142,
-    "requestedCharacters": 1095,
-    "requestedCJKCharacters": 945,
-    "subsetCharacters": 1080,
-    "charsetSha256": "49ae1e633feba3a7fbb5deea5c71cc8a758e394c9deab1bdc66f9944db81441c",
+    "sourceFileCount": 143,
+    "requestedCharacters": 1096,
+    "requestedCJKCharacters": 946,
+    "subsetCharacters": 1081,
+    "charsetSha256": "f6fcb1e0fa648ec21a6e0100cfac85037ce53bf8834ee00b10a4168f5215b4a0",
     "subsetCodepoints": [
       32,
       33,
@@ -967,6 +967,7 @@
       35272,
       35273,
       35282,
+      35299,
       35302,
       35465,
       35745,
@@ -1239,7 +1240,7 @@
       },
       {
         "file": "app.js",
-        "sha256": "f605b0994175d58ddae4101d21c76cf73f9f8a0db2c82404ab0d85d0d37ec33d"
+        "sha256": "ef4d2e5c82711379003ee0cc0324283482ec78e303218b28a2bfb8c6f75be3e4"
       },
       {
         "file": "architecture-clip.js",
@@ -1247,7 +1248,7 @@
       },
       {
         "file": "arena-entry.js",
-        "sha256": "5e613be2c58663eec7382168c3a8a473b02591acd7d79d039b298743b839647a"
+        "sha256": "8e68f27a86fcf847d048c5748762cce1fe5ac4a59ec1456bf80b966c906a0992"
       },
       {
         "file": "arena-floor-map.js",
@@ -1327,7 +1328,7 @@
       },
       {
         "file": "football-attack.js",
-        "sha256": "30432001a740ddcea753d3c82ae42c15d883d22392b7f21d86990c0d760e7164"
+        "sha256": "a050937d2f4122105c54e0e54276b428c7295efeaa0ecc6b73ad83597ecd46e1"
       },
       {
         "file": "football-ball.js",
@@ -1390,6 +1391,10 @@
         "sha256": "587473a0ea61b5c0e29580cae5c8ba2ed2c72f286cf05d629b7072db727a439b"
       },
       {
+        "file": "football-rebound.js",
+        "sha256": "83e0d8fc4dd460f6ef433b0b289b447a2a442d18e50627240e54b6bd83fbc4e6"
+      },
+      {
         "file": "football-regulations.js",
         "sha256": "68ac270968455db704c695e59b46074715199908d89c6f314db3d9990ba34510"
       },
@@ -1415,7 +1420,7 @@
       },
       {
         "file": "football-simulation.js",
-        "sha256": "45093e8466864e2608a474a09079d01bb9e089025d4a15b6678623dc58a76fdd"
+        "sha256": "39de824e4dbc61a49cd5503efa254ffd3219fd0955c00fac97a451a8c3bae8be"
       },
       {
         "file": "football-squads.js",
@@ -1423,7 +1428,7 @@
       },
       {
         "file": "football-tactics.js",
-        "sha256": "d60d6d5f0e0538eab8aa3afa5a6e2b53cf86be1331bbdc550f664c22b5b00286"
+        "sha256": "9dfd2d5864ef5abc710dbea4a068297459a8921f1dfa93f4043c54bcd413ca8a"
       },
       {
         "file": "football-teams.js",
@@ -1479,7 +1484,7 @@
       },
       {
         "file": "index.html",
-        "sha256": "4947504b9d27f3759c9d9108322325b10aed3a24bc4dc1b71cdf022c5d38cca2"
+        "sha256": "c1f9a4c6404ed5ef72fa59fea0d3097c2393b66e7ef0122d4c59ced3d391d5b4"
       },
       {
         "file": "instant-action.js",
@@ -1615,7 +1620,7 @@
       },
       {
         "file": "playable-match.js",
-        "sha256": "be27425c9f9ef269eb05beeb00b625986fba63b28f6e0cce5fe054563fc77183"
+        "sha256": "a577680b31b7af31ef42dbcaf896e7ad5d9d8f780c3fe3c34825042838312506"
       },
       {
         "file": "player-area-layout.js",

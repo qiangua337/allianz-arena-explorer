@@ -75,3 +75,20 @@ test('an advanced wide attack keeps a receiver outside the box, a deeper outlet 
   assert.notEqual(forwardSupportRun(field,'home',system,shape,sign,owner,owner.id,null,0)?.id,shape.edgeSupport);
  }
 });
+
+test('a byline run keeps a near-post option, a trailing cutback target and an edge outlet separate',()=>{
+ for(const system of Object.values(footballFormations))for(const sign of [-1,1])for(const flank of [-1,1]){
+  const owner={id:'home-6',team:'home',x:flank*23,z:47*sign,index:6};
+  const team=system.positions.map(([x,z],index)=>index===6?owner:{id:'home-'+index,team:'home',index,x,z:sign*(32-z*.41),keeper:index===0});
+  const rivals=[{...opponent('away-0',0,51*sign),keeper:true},opponent('away-3',2,48*sign),opponent('away-4',-8,46*sign)];
+  const field=[...team,...rivals],context={x:owner.x,z:owner.z},shape=attackingShape(field,'home',system,sign,context,owner,owner.id);
+  const {near,arriving}=shape.box;
+  const position=id=>{const p=team.find(member=>member.id===id);return supportPosition(p,context,field,{base:system.positions[p.index],role:system.roles[p.index],sign,attacking:true,shape});};
+  const front=position(near.id),late=position(arriving.id),edge=position(shape.edgeSupport);
+  assert.equal(new Set([near.id,arriving.id,shape.edgeSupport,owner.id]).size,4);
+  assert.ok(front.x*flank>=1&&late.x*flank<=-1);
+  assert.ok(front.z*sign>=44&&late.z*sign>=36&&late.z*sign<=44);
+  assert.ok((front.z-late.z)*sign>=3&&edge.z*sign<35);
+  assert.equal(forwardSupportRun(field,'home',system,shape,sign,owner,owner.id,null,0),null);
+ }
+});
