@@ -96,7 +96,7 @@ export async function startArena({hub, initial, nightAtStart}){
  matchday.setQuality(qualityMode,qualityScale);visualAssets.registerOutdoor(world.group,stadium.root);applyArchitecturalUV(stadium.root);applyArchitecturalUV(stadium.circulation.root);applyArchitecturalUV(interiors.root);applyArchitecturalUV(building.root);applyArchitecturalUV(world.group);installInteriorShading(interiors.root);
  spatializeArchitecture(stadium.circulation.root);spatializeArchitecture(interiors.rooms.concourse);
  setExplorationMatchMode=suspendExplorationDuringMatch([world.group,building.root,interiors.root,serviceRooms.root,stadium.circulation.root]);
- freezeArchitecture(world.group,[world.rotor]);freezeArchitecture(stadium.root,[stadium.matchBall]);freezeArchitecture(stadium.circulation.root);freezeArchitecture(interiors.root);freezeArchitecture(building.root);destinationMenu=buildDestinationMenu({onDismiss:()=>setNavOpen(false)});buildHotspots();bindUI();setNavOpen(false);document.body.dataset.mode=mode;setDayNight(nightAtStart);applySurfaceQuality(scene,qualityMode);clock.time=performance.now();document.body.dataset.version='9.8.6';document.body.dataset.seats=stadium.seatCount;document.body.dataset.panels=stadium.panelCount;
+ freezeArchitecture(world.group,[world.rotor]);freezeArchitecture(stadium.root,[stadium.matchBall]);freezeArchitecture(stadium.circulation.root);freezeArchitecture(interiors.root);freezeArchitecture(building.root);destinationMenu=buildDestinationMenu({onDismiss:()=>setNavOpen(false)});buildHotspots();bindUI();setNavOpen(false);document.body.dataset.mode=mode;setDayNight(nightAtStart);applySurfaceQuality(scene,qualityMode);clock.time=performance.now();document.body.dataset.version='9.8.7';document.body.dataset.seats=stadium.seatCount;document.body.dataset.panels=stadium.panelCount;
  const requestedPlace=initial.get('place');
  if(initial.get('view')==='walk'){
   const place=requestedPlace&&(places[requestedPlace]||tourGoals[requestedPlace])?requestedPlace:'arcade';
@@ -344,6 +344,10 @@ function drawMap(force=false){
 
 let modalWasOpen=false;
 function constrainRoomOrbit(){const spec=roomSpecs[active];if(!spec)return;const clipped=constrainInteriorOrbit(camera.position,controls.target,spec);camera.position.copy(clipped.position);controls.target.copy(clipped.target);camera.lookAt(controls.target);}
+function drawArena(){
+ matchday?.cullCrowd(camera);
+ renderer.render(scene,camera);
+}
 function render(timestamp){
  const playing=!!matchday?.playing;
  const raw=Math.min(clock.getDelta(),1);
@@ -407,7 +411,7 @@ function render(timestamp){
   const lightingChanging=updateSceneLighting({hemi,ambient,dayLight,arenaFill},lightingProfile({night,enclosed,position:camera.position}),renderDelta);
   const fixturesChanging=lightBudget.update(camera.position,renderDelta);
   const animated=lightingChanging||fixturesChanging||!!transition||tourOn||dragging||keys.size>0||movementPointers.size>0||interactions.isAnimating?.()||serviceRooms.isAnimating()||matchday?.isAnimating();
-  if(frameBudget.shouldDraw(camera,elapsed,animated,modalOpen)){renderer.render(scene,camera);drawnFrames++;rendered=true;}
+  if(frameBudget.shouldDraw(camera,elapsed,animated,modalOpen)){drawArena();drawnFrames++;rendered=true;}
  }
  if(sample){
   matchSampleTime+=raw;matchSampleFrames++;
@@ -442,7 +446,7 @@ function render(timestamp){
   document.body.dataset.camera=camera.position.toArray().map(x=>x.toFixed(3)).join(',');
   document.body.dataset.heading=[yaw,pitch].map(x=>x.toFixed(4)).join(',');
  }
- if(elapsed-lastPerf>1.5){saveWalkCheckpoint();const fps=Math.round(frames/(elapsed-lastPerf)),renderRate=Math.round(drawnFrames/(elapsed-lastPerf));$('performance').textContent=`THREE.JS r${THREE.REVISION}  /  ${stadium.seatCount.toLocaleString()} 个座位模型  /  ${stadium.panelCount.toLocaleString()} 个气枕  /  ${renderRate} FPS`;document.body.dataset.fps=fps;document.body.dataset.renderfps=renderRate;drawnFrames=0;if(!playing&&qualityMode==='standard'){if(elapsed>6&&fps<28&&qualityScale>.82&&(keys.size>0||dragging||joystickPointer!==null||transition||tourOn||matchday?.cinematic)){applyAdaptiveScale(Math.max(.82,qualityScale*.92));recoveryFrames=0;}else if(fps>48&&qualityScale<1){if(++recoveryFrames>=4){applyAdaptiveScale(Math.min(1,qualityScale+.08));recoveryFrames=0;}}else recoveryFrames=0;}document.body.dataset.camera=camera.position.toArray().map(x=>x.toFixed(2)).join(',');document.body.dataset.nearSeats=stadium.detailSeatCount;document.body.dataset.drawcalls=renderer.info.render.calls;document.body.dataset.triangles=renderer.info.render.triangles;frames=0;lastPerf=elapsed;}
+ if(elapsed-lastPerf>1.5){saveWalkCheckpoint();const fps=Math.round(frames/(elapsed-lastPerf)),renderRate=Math.round(drawnFrames/(elapsed-lastPerf));$('performance').textContent=`THREE.JS r${THREE.REVISION}  /  ${stadium.seatCount.toLocaleString()} 个座位模型  /  ${stadium.panelCount.toLocaleString()} 个气枕  /  ${renderRate} FPS`;document.body.dataset.fps=fps;document.body.dataset.renderfps=renderRate;drawnFrames=0;if(!playing&&qualityMode==='standard'){if(elapsed>6&&fps<28&&qualityScale>.82&&(keys.size>0||dragging||joystickPointer!==null||transition||tourOn||matchday?.cinematic)){applyAdaptiveScale(Math.max(.82,qualityScale*.92));recoveryFrames=0;}else if(fps>48&&qualityScale<1){if(++recoveryFrames>=4){applyAdaptiveScale(Math.min(1,qualityScale+.08));recoveryFrames=0;}}else recoveryFrames=0;}document.body.dataset.camera=camera.position.toArray().map(x=>x.toFixed(2)).join(',');document.body.dataset.nearSeats=stadium.detailSeatCount;document.body.dataset.drawcalls=renderer.info.render.calls;document.body.dataset.triangles=renderer.info.render.triangles;document.body.dataset.matchCrowdSubmitted=matchday?.crowdSubmitted??0;document.body.dataset.matchCrowdBatches=matchday?.crowdBatches??0;frames=0;lastPerf=elapsed;}
 }
 function recordFrameGap(histogram,ms){if(ms>0)histogram[Math.min(histogram.length-1,Math.ceil(ms))]++;}
 function frameGap95(histogram,count){if(count<2)return undefined;const limit=Math.ceil(count*.95);let sum=0;for(let ms=1;ms<histogram.length;ms++){sum+=histogram[ms];if(sum>=limit)return ms;}}
@@ -534,7 +538,7 @@ function bindUI(){
  $('quality').onchange=()=>{setQuality();persistDisplaySettings();toast(qualityMode==='high'?'已启用精细画质与建筑投影。':qualityMode==='low'?'已启用省电画质。':'已启用自适应均衡画质。');};
  for(const select of document.querySelectorAll('[data-match-fps]'))select.onchange=()=>setMatchFps(select.value);
  $('fullscreen').onclick=async()=>{try{if(document.fullscreenElement)await document.exitFullscreen();else await document.documentElement.requestFullscreen();}catch{toast('可使用浏览器全屏功能扩大画面。');}};
- $('capture').onclick=()=>{renderer.render(scene,camera);const a=document.createElement('a');a.download=`allianz-arena-${active}-${night?'night':'day'}.png`;a.href=canvas.toDataURL('image/png');a.click();toast('已保存当前场景截图。');};
+ $('capture').onclick=()=>{drawArena();const a=document.createElement('a');a.download=`allianz-arena-${active}-${night?'night':'day'}.png`;a.href=canvas.toDataURL('image/png');a.click();toast('已保存当前场景截图。');};
  $('help').onclick=()=>matchday?.playing?matchday.showGameHelp():openDialog('help');$('references').onclick=()=>openDialog('references');document.querySelector('.close-dialog').onclick=()=>$('info-dialog').close();$('info-dialog').addEventListener('click',e=>{if(e.target===$('info-dialog')){const r=$('info-dialog').getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)$('info-dialog').close();}});
  $('tour').onclick=()=>{if(tourOn){stopTour();return;}if(mode==='walk')setMode('orbit');setNavOpen(false);tourOn=true;tourElapsed=0;tourIndex=Object.keys(places).indexOf(active);$('tour').innerHTML='<span>Ⅱ</span> 暂停巡游 <small>每 7.5 秒切换</small>';toast('自动巡游开始；拖动场景或选择区域可暂停。');};
  $('walking-tour-plans').innerHTML=walkingTours.map(plan=>`<button data-walking-tour="${plan.id}"><small>${plan.stops.length} 站</small><b>${plan.title}<span>↗</span></b><p>${plan.description}</p></button>`).join('');

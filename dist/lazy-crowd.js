@@ -14,6 +14,8 @@ export function createLazyCrowd(factory){
   get root(){return crowd?.root??null;},
   get count(){return crowd?.count??0;},
   get nearCount(){return crowd?.nearCount??0;},
+  get submittedCount(){return enabled?crowd?.submittedCount??0:0;},
+  get submittedBatches(){return enabled?crowd?.submittedBatches??0:0;},
   get visitorCount(){return crowd?.visitorCount??0;},
   get assetState(){return crowd?.assetState??'off';},
   prepare(){return ensure().prepare();},
@@ -22,6 +24,7 @@ export function createLazyCrowd(factory){
   night(...args){lighting=args;crowd?.night(...args);},
   setOpponent(...args){opponent=args;crowd?.setOpponent(...args);},
   react(...args){if(enabled)crowd?.react(...args);},
-  update(...args){if(enabled)crowd?.update(...args);}
+  update(...args){if(enabled)crowd?.update(...args);},
+  cull(camera){if(enabled)crowd?.cull(camera);}
  };
 }

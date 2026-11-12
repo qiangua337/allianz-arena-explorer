@@ -29,6 +29,11 @@ test('actual near spectators replace their far counterpart and remain within the
  assert.equal(near.count,128);assert.equal(audience.nearCount,128);assert.ok(!near.isSkinnedMesh);assert.ok(near.geometry.index===null);assert.ok(near.geometry.attributes.position.count/3<700);assert.equal(far.reduce((sum,o)=>sum+o.geometry.attributes.fanDetail.array.reduce((a,b)=>a+b,0),0),near.count);
  const matrix=new THREE.Matrix4();near.getMatrixAt(0,matrix);assert.ok(matrix.elements.every(Number.isFinite));const version=near.instanceMatrix.version;for(let i=0;i<200;i++)audience.update(1+i/60,{x:45,y:6,z:0});assert.equal(near.instanceMatrix.version,version,'stationary viewers do not rebuild all audience matrices');
  const flagAttributes=far.map(mesh=>mesh.geometry.attributes.fanDetail);
+ const flagVersions=flagAttributes.map(attribute=>attribute.version),camera=new THREE.PerspectiveCamera(50,390/844,.1,240);
+ camera.position.set(45,6,0);camera.lookAt(-30,6,0);audience.cull(camera);
+ assert.equal(audience.nearCount,128);
+ assert.equal(near.instanceMatrix.version,version);
+ assert.deepEqual(flagAttributes.map(attribute=>attribute.version),flagVersions,'frustum changes do not upload near detail flags');
  for(const attribute of flagAttributes)attribute.clearUpdateRanges();
  audience.update(4.5,{x:45,y:6,z:1.5});
  assert.ok(near.instanceMatrix.version>version,'a different group of seats does update the near instances');
@@ -36,6 +41,52 @@ test('actual near spectators replace their far counterpart and remain within the
  assert.ok(changed.length);
  assert.ok(changed.every(attribute=>attribute.updateRanges.length===1&&attribute.updateRanges[0].count<attribute.count),'a move uploads only the affected part of each sector');
  audience.update(5,{x:999,y:6,z:999});assert.equal(near.count,0);assert.equal(far.reduce((sum,o)=>sum+o.geometry.attributes.fanDetail.array.reduce((a,b)=>a+b,0),0),0);audience.setEnabled(false);assert.equal(audience.root.visible,false);
+});
+test('sprite batches keep all occupied seats and follow a turned camera without losing padded wave edges',()=>{
+ const tiers=[1,15,30];
+ const ring=Array.from({length:24*tiers.length*12},(_,i)=>{
+  const sector=Math.floor(i/(12*tiers.length)),tier=Math.floor(i/12)%tiers.length,angle=(sector+(i%12)/12)*Math.PI/12,radius=45+tier*16;
+  return {x:Math.cos(angle)*radius,y:tiers[tier],z:Math.sin(angle)*radius,yaw:-angle,sector,color:0xc91c36};
+ });
+ const scene=new THREE.Group(),parent=new THREE.Group();
+ parent.position.set(19,2,27);parent.rotation.y=.38;parent.scale.set(1.1,1,.85);scene.add(parent);
+ const audience=buildMatchdayCrowd(parent,ring,{mobile:true}),far=audience.root.children.filter(o=>o.geometry?.attributes.fanTile);
+ const camera=new THREE.PerspectiveCamera(56,390/844,.1,240);
+ camera.position.copy(parent.position).add(new THREE.Vector3(0,4,0));
+ audience.setEnabled(true);
+ assert.equal(far.length,72);
+ assert.equal(far.reduce((n,batch)=>n+batch.count,0),audience.count);
+ const matrix=new THREE.Matrix4(),point=new THREE.Vector3();
+ function look(x,z){
+  camera.lookAt(parent.position.x+x,9,parent.position.z+z);
+  audience.cull(camera);
+  const visible=far.filter(batch=>batch.visible);
+  assert.equal(audience.submittedBatches,visible.length);
+  assert.equal(audience.submittedCount,visible.reduce((n,batch)=>n+batch.count,0));
+  assert.ok(audience.submittedCount>0&&audience.submittedCount<audience.count/2);
+  for(const batch of far){
+   for(let i=0;i<batch.count;i++){
+    batch.getMatrixAt(i,matrix);
+    for(const side of [-1,1]){
+     point.set(side*.508,1.0108,0).applyMatrix4(matrix);
+     assert.ok(batch.boundingBox.containsPoint(point),'bounds include the maximum sway and cheer');
+     point.applyMatrix4(audience.root.matrixWorld).project(camera);
+     if(Math.abs(point.x)<=1&&Math.abs(point.y)<=1&&Math.abs(point.z)<=1)assert.ok(batch.visible,'a visible animated corner is never rejected');
+    }
+   }
+  }
+  return visible;
+ }
+ const north=look(0,-60);
+ const south=look(0,60);
+ assert.ok(north.every(batch=>!south.includes(batch)),'a stationary camera turn refreshes the visible sectors');
+ parent.visible=false;audience.cull(camera);
+ assert.equal(audience.submittedCount,0);
+ parent.visible=true;audience.setEnabled(false);audience.cull(camera);
+ assert.equal(audience.submittedBatches,0);
+ audience.setEnabled(true);
+ assert.ok(far.every(batch=>batch.visible),'re-enabling clears the old view flags');
+ assert.deepEqual(look(0,-60),north);
 });
 test('a moving camera does not re-upload detail when the same seats stay selected',()=>{
  const audience=buildMatchdayCrowd(new THREE.Group(),seats.slice(0,100),{mobile:true});

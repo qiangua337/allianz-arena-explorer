@@ -3,10 +3,10 @@ import assert from 'node:assert/strict';
 import {createLazyCrowd} from '../dist/lazy-crowd.js';
 
 function fixture(){
- let created=0;const calls=[],root={visible:false},real={root,count:56000,nearCount:128,visitorCount:1200,assetState:'fallback',
+ let created=0;const calls=[],root={visible:false},real={root,count:56000,nearCount:128,submittedCount:12000,submittedBatches:9,visitorCount:1200,assetState:'fallback',
   setQuality(...args){calls.push(['quality',...args]);},night(...args){calls.push(['night',...args]);},setOpponent(...args){calls.push(['opponent',...args]);},
   setEnabled(on){root.visible=on;calls.push(['enabled',on]);},prepare(){calls.push(['prepare']);this.assetState='ready';return Promise.resolve(true);},
-  react(...args){calls.push(['react',...args]);},update(...args){calls.push(['update',...args]);}};
+  react(...args){calls.push(['react',...args]);},update(...args){calls.push(['update',...args]);},cull(camera){calls.push(['cull',camera]);}};
  const crowd=createLazyCrowd(()=>{created++;return real;});return{crowd,real,calls,get created(){return created;}};
 }
 
@@ -27,6 +27,23 @@ test('the latest pre-match settings win and later changes reach the existing cro
  const f=fixture();f.crowd.setQuality('high',1);f.crowd.setQuality('standard',.82);f.crowd.night(true);f.crowd.night(false);f.crowd.setOpponent({id:'dortmund'});const club={id:'barcelona'};f.crowd.setOpponent(club);f.crowd.setEnabled(true);
  assert.deepEqual(f.calls.slice(0,3),[['quality','standard',.82],['night',false],['opponent',club]]);
  f.crowd.setQuality('low');f.crowd.night(true);assert.deepEqual(f.calls.slice(-2),[['quality','low'],['night',true]]);assert.equal(f.created,1);
+});
+
+test('render-time crowd culling only visits an enabled crowd and reports the submitted sprites',()=>{
+ const f=fixture(),camera={};
+ f.crowd.cull(camera);
+ assert.equal(f.created,0);
+ assert.equal(f.crowd.submittedCount,0);
+ f.crowd.setEnabled(true);
+ f.crowd.cull(camera);
+ assert.deepEqual(f.calls.at(-1),['cull',camera]);
+ assert.equal(f.crowd.submittedCount,12000);
+ assert.equal(f.crowd.submittedBatches,9);
+ f.crowd.setEnabled(false);
+ f.crowd.cull(camera);
+ assert.deepEqual(f.calls.at(-1),['enabled',false]);
+ assert.equal(f.crowd.submittedCount,0);
+ assert.equal(f.crowd.submittedBatches,0);
 });
 
 test('the deferred real crowd retains lightweight quality and replaces sprites only after detail is enabled',async()=>{
