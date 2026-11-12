@@ -98,7 +98,7 @@ test('the support boot anchors as the skinned actor continues across the grass a
  }
 });
 
-test('passes, finesse, driven shots and lobs have distinct contact and follow-through, while predicted strokes only load',()=>{
+test('passes, finesse, driven shots and lobs have distinct contact and follow-through while uncertain strokes only load',()=>{
  const frame={clip:'Idle_Loop',phase:.45,x:0,z:0},f=fixture();
  const shortContact=f.pose(action('short'),frame),driveContact=f.pose(action('drive'),frame),lobContact=f.pose(action('lob'),frame);
  assert.ok(shortContact.toe[1].x<driveContact.toe[1].x-.5,'the short pass opens the inside of the boot');
@@ -121,6 +121,16 @@ test('passes, finesse, driven shots and lobs have distinct contact and follow-th
   assert.ok(pending.feet[1].z<.25,'an unconfirmed action stays behind the contact point');
   assert.ok(f.boots().every(boot=>boot.lowest>=-.001));
  }
+});
+
+test('a locally presented strike uses the first contact pose at the displayed ball',()=>{
+ const f=fixture(),frame={clip:'Idle_Loop',phase:.25,heading:.9};
+ f.pose(null,frame);
+ const ball=f.worldBall(-.19,.11,.60);
+ f.pose(action('short',{id:-2,predicted:true,contactX:ball.x,contactY:ball.y,contactZ:ball.z}),frame);
+ const boots=f.boots(ball);
+ assert.ok(Math.abs(boots[1].contact-.11)<.025);
+ assert.ok(boots.every(boot=>boot.lowest>=.001));
 });
 
 test('high-speed charge and online anticipation keep both running boots on their base gait',()=>{

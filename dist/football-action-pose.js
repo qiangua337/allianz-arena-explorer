@@ -13,7 +13,7 @@ export function applyFootballAction(bones,motion,{defending=false,speed=0}={},gr
  if(motion?.type==='trap'){bones[15].rotateX(-.17*pulse);bones[16].rotateX(.20*pulse);bones[17].rotateX(.13*pulse);bones[6].rotateZ(-.10*pulse);bones[12].rotateZ(.10*pulse);}
  if(motion?.type==='celebrate'){const lift=Math.min(1,motion.elapsed/.40);bones[6].rotateX(-2.15*lift);bones[12].rotateX(-2.15*lift);bones[7].rotateX(-.35*lift);bones[13].rotateX(-.35*lift);bones[2].rotateY(Math.sin(motion.elapsed*3)*.035);return;}
  if(motion?.type==='shoot'||motion?.type==='pass'){
-  if(motion.predicted){
+  if(motion.predicted&&!(Number.isFinite(motion.contactX)&&Number.isFinite(motion.contactZ))){
    const load=(motion.type==='shoot'?.65:.39)*(.30+.70*Math.sin(Math.min(1,t/.6)*Math.PI/2));
    applyFootballShotPreparation(bones,load,motion,speed);
    return;

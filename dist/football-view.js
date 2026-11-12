@@ -1,6 +1,7 @@
 import {THREE,canvasTexture,mesh} from './kit.js';
 import {tackleWindow} from './football-assist.js';
 import {shotGuideTiming,sampleShotGuide,shotReadout,shotGuideSpread} from './shot-feedback.js';
+import {footballBallForDisplay} from './football-controls.js';
 
 function markGuideBuffer(attribute,count){
  // Keep a pending write if the previous frame never drew the guide.
@@ -78,29 +79,29 @@ export function buildFootballView(scene,ball,players,{getRenderCamera}={}){
    const distance=viewer?controlled.position.distanceTo(viewer):0;
    controlled.scale.setScalar(1+Math.min(Math.max(distance-11,0)/85,.27));
   }
-  const penalty=state.phase==='penalties'||state.setPiece?.type==='penalty',charging=b.ownerId===p?.id&&!!state.chargePower,owner=state.players.find(p=>p.id===b.ownerId&&!p.trainingInactive),target=penalty?null:b.ownerId===p?.id?state.chargePower?state.shotPreview:state.passPreview:!b.ownerId?b.receivePoint:null;guide.visible=!!target&&!state.replay;receiver.visible=!!target&&!charging&&!state.replay;
+  const displayedBall=footballBallForDisplay(state),penalty=state.phase==='penalties'||state.setPiece?.type==='penalty',charging=b.ownerId===p?.id&&!!state.chargePower,owner=state.players.find(p=>p.id===b.ownerId&&!p.trainingInactive),target=penalty||displayedBall!==b?null:b.ownerId===p?.id?state.chargePower?state.shotPreview:state.passPreview:!b.ownerId?b.receivePoint:null;guide.visible=!!target&&!state.replay;receiver.visible=!!target&&!charging&&!state.replay;
   aim.visible=!!target&&charging&&!state.replay;spread.visible=aim.visible;
   if(guide.visible){
    updateGuidePath(b,target,charging);
    const tone=charging?shotReadout(target).tone:null;guide.material.color.set(charging?tone==='risk'?0xf39483:tone==='caution'?0xe8c17c:state.shotKind==='lob'?0xc9b6f6:state.shotKind==='finesse'?0x94dec5:0xf2c46c:0xbde7e1);aim.material.color.copy(guide.material.color);spread.material.color.copy(guide.material.color);receiver.position.set(target.x,.024,target.z);
   }
   const available=p&&owner&&owner.team!==p?.team&&tackleWindow(p,owner,b,{range:2.05}).canReach;gold.color.set(available?0xabe7bb:0xf0dcab);gold.opacity=p&&state.time<p.tackleAt?.38:.82;
-  const height=Math.max(.115,b.y||.11),lift=height-.115;
+  const {x,y,z}=displayedBall,height=Math.max(.115,y||.11),lift=height-.115;
   if(ball){
    if(hasBallSample){
-    const dx=b.x-ballX,dz=b.z-ballZ,distance=Math.hypot(dx,dz);
+    const dx=x-ballX,dz=z-ballZ,distance=Math.hypot(dx,dz);
     if(distance>.0005&&distance<8){
      ballAxis.set(dz/distance,0,-dx/distance);
      const rolling=1-Math.min(lift/.22,1)*.71;
      ball.rotateOnWorldAxis(ballAxis,distance/.11*rolling);
     }
    }
-   ball.position.set(b.x,height,b.z);
+   ball.position.set(x,height,z);
   }
-  hasBallSample=true;ballX=b.x;ballZ=b.z;
-  shadow.position.set(b.x,.013,b.z);shadow.scale.setScalar(.80+Math.min(lift,4)*.26);
+  hasBallSample=true;ballX=x;ballZ=z;
+  shadow.position.set(x,.013,z);shadow.scale.setScalar(.80+Math.min(lift,4)*.26);
   shadowMaterial.opacity=.56/(1+lift*1.55);
-  ballMarker.position.set(b.x,.018,b.z);
+  ballMarker.position.set(x,.018,z);
   const markerDistance=viewer?ballMarker.position.distanceTo(viewer):0;
   ballMarker.scale.setScalar(1+Math.min(Math.max(markerDistance-10,0)/42,.70));
   ballMarker.material.opacity=.24+.24*Math.min(markerDistance/42,1);

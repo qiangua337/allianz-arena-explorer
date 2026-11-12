@@ -1,4 +1,10 @@
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
+// The locally presented first touch can lead the match state. Consumers
+// that award possession, goals or fouls continue to read state.ball.
+export function footballBallForDisplay(state){
+ return state.online&&state.phase==='playing'&&!state.paused&&!state.setPiece&&!state.replay
+  ?state.kickPresentation??state.ball:state.ball;
+}
 // Off-ball close views keep the controlled player readable; the existing edge
 // cue points to a distant ball. Reception and active possession retain it.
 export function footballPlayerFocus(state){

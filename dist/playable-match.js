@@ -69,7 +69,7 @@ export function buildPlayableMatch({scene,stadium,players,audio,onCamera,onView,
   s.cameraMode=cameraMode;lastRenderedPhase=s.phase;lastRenderedPaused=s.paused;const localTeam=network?.team||'home',shootout=s.competition?.shootout,penalty=penaltyContext(s,localTeam),interval=s.phase==='interval';write('game-period','textContent',periodLabel(s)+(shootout?' '+shootout.home.filter(Boolean).length+'–'+shootout.away.filter(Boolean).length:''));write('game-team','disabled',!!s.training||!!replay||pending||done||!!penalty);write('game-overlay-team','disabled',$('game-team').disabled);write('game-overlay-team','hidden',!!s.training||pending||failed||done||!!penalty);const showRadar=!s.training&&(radarChoice??!(mobile||typeof innerWidth==='number'&&innerWidth<=1024));writeHudData(document.body,'gameRadar',String(showRadar));writeHudAttribute($('game-radar-toggle'),'aria-pressed',String(showRadar));
   write('game-score-home','textContent',s.score.home);write('game-score-away','textContent',s.score.away);write('game-clock','textContent',matchTime(s));
   write('game-away-name','textContent',s.fixture.short);if(awayKit!==s.fixture.kit.shirt){awayKit=s.fixture.kit.shirt;writeHudProperty($('game-away-dot').style,'backgroundColor',awayKit);}
-  const fps=Number(document.body.dataset.renderfps)||0;write('game-difficulty','textContent',replay?'精彩回放':network?(network.latency||'—')+' ms'+(pending?' · 加载':s.paused?' · 暂停':fps?' · '+fps+'帧':''):difficulties[s.difficulty].label+' · 人机');write('game-difficulty','title',network?'网络往返 '+(network.latency||'—')+' 毫秒；画面 '+(fps||'测量中')+' 帧/秒。移动在本机先响应，球权和进球由服务器确认。':'');$('game-difficulty').classList.toggle('network-slow',!!network&&network.latency>180);write('game-network-help','hidden',!network);write('game-low-quality','textContent',$('quality').value==='low'?'恢复均衡画质':'切换到流畅画质 · 降低细节');if(!s.training)write('game-fixture-title','textContent','FC BAYERN × '+s.fixture.english);
+  const fps=Number(document.body.dataset.renderfps)||0;write('game-difficulty','textContent',replay?'精彩回放':network?(network.latency||'—')+' ms'+(pending?' · 加载':s.paused?' · 暂停':fps?' · '+fps+'帧':''):difficulties[s.difficulty].label+' · 人机');write('game-difficulty','title',network?'网络往返 '+(network.latency||'—')+' 毫秒；画面 '+(fps||'测量中')+' 帧/秒。正常持球传射时，本机会先显示触球。球权和进球由服务器确认。':'');$('game-difficulty').classList.toggle('network-slow',!!network&&network.latency>180);write('game-network-help','hidden',!network);write('game-low-quality','textContent',$('quality').value==='low'?'恢复均衡画质':'切换到流畅画质 · 降低细节');if(!s.training)write('game-fixture-title','textContent','FC BAYERN × '+s.fixture.english);
   write('game-player','textContent',p.number+' · '+p.name);write('game-stamina','value',Math.round(p.stamina*100)*.01);
   const passHint=s.passPreview?(deliveryLabels[s.passPreview.delivery]??'短传')+' → '+s.passPreview.name:'控球中';
   write('game-ball-hint','textContent',penalty?'点球 · '+(penalty.role==='shooter'?'主罚':'守门'):prepared?'已预备 · '+prepared.name+' 接球后'+(prepared.type==='shoot'?'射门':'传球'):receiving?'接应 '+receiving.name+' · 可预备传射':leavingPass(s,p)?'传球已出脚 · 换控接应':friendly?'队友控球 · 换控接管':owns?(p.defending?'护球中':passHint):!owner&&s.ball.rebound?'争第二落点 · '+ballDirection(p,s.ball,aimYaw):p.defending?'逼抢中 · 靠近后抢断':s.ball.targetId===p.id?'迎球中 · 方向可接管':Math.hypot(p.x-s.ball.x,p.z-s.ball.z)>25?'离球较远 · 换控接近足球':ballDirection(p,s.ball,aimYaw));
@@ -160,7 +160,10 @@ export function buildPlayableMatch({scene,stadium,players,audio,onCamera,onView,
   }
   flushInput(sampled);
   // Keep aim on the action packet even when the movement packet is throttled.
+  const before=simulation.state.kickPresentation?.id;
   const success=simulation.action(type,command);
+  const kick=simulation.state.kickPresentation;
+  if(success&&kick?.status==='pending'&&kick.id!==before)audio.kick?.(kick.type==='shoot'?1:.6);
   render();return success;
  }
  function cancelCharge(){charge=null;shootPointer=null;simulation.state.chargePower=0;write('game-charge','hidden',true);writeHudAttribute($('game-shoot'),'aria-pressed','false');}
@@ -232,7 +235,19 @@ export function buildPlayableMatch({scene,stadium,players,audio,onCamera,onView,
     if(!simulation.state.paused)worldTime+=Math.min(dt,.25);
    }
    const s=simulation.state,networkChanged=refreshPausedNetwork(s);if(s.phase!==lastRenderedPhase||s.paused!==lastRenderedPaused||networkChanged&&s.paused||controlsChanged(s))render();if(!network&&!s.training)recorder.record(s);if(network){if(worldTime>s.time+1)worldTime=s.time;else worldTime=Math.max(worldTime,s.time);}
-   if(s.eventCount<lastEvent)lastEvent=0;if(s.eventCount!==lastEvent){for(const e of s.events.filter(e=>e.id>lastEvent)){if(e.type==='goal'&&!s.training){recorder.goal(s);audio.cheer();onCrowdReaction?.(1);}else if(['shot','pass','through','tackle','woodwork'].includes(e.type)){audio.kick?.(e.type==='shot'?1:.6);if(e.team==='home'&&['shot','tackle'].includes(e.type))onCrowdReaction?.(.3);}else if(['save','parry'].includes(e.type)&&e.team==='home')onCrowdReaction?.(.5);else if(e.type==='start'||e.type==='fulltime')audio.whistle?.();}lastEvent=s.eventCount;}
+   if(s.eventCount<lastEvent)lastEvent=0;
+   if(s.eventCount!==lastEvent){
+    for(const e of s.events){
+     if(e.id<=lastEvent)continue;
+     if(e.type==='goal'&&!s.training){recorder.goal(s);audio.cheer();onCrowdReaction?.(1);}
+     else if(['shot','pass','through','tackle','woodwork'].includes(e.type)){
+      if(!s.kickAudioEventIds?.includes(e.id))audio.kick?.(e.type==='shot'?1:.6);
+      if(e.team==='home'&&['shot','tackle'].includes(e.type))onCrowdReaction?.(.3);
+     }else if(['save','parry'].includes(e.type)&&e.team==='home')onCrowdReaction?.(.5);
+     else if(e.type==='start'||e.type==='fulltime')audio.whistle?.();
+    }
+    lastEvent=s.eventCount;
+   }
    // Sample the camera, ball and bones from the same state just before a
    // draw. Input and network prediction still run on every animation tick.
    if(visualFrame){

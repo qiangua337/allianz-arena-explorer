@@ -12,11 +12,41 @@ function fixture(mobile=false,{onReadGameInput,now}={}){
  globalThis.document={createElement:()=>({getContext:()=>context}),getElementById:node,querySelectorAll:selector=>selector==='[data-game-action]'?actions:[],exitPointerLock(){},body:{dataset:{},classList:{add:x=>classes.add(x),remove:x=>classes.delete(x)}}};
  node('game-radar').getContext=()=>context;
  for(const id of ['game-penalty-target','game-penalty-dive-target'])node(id).firstElementChild={style:{}};
- let actorUpdates=0,scoreUpdates=0,cheers=0;const audio={muted:false,state:'playing',cheer(){},cue(){},setMuted(value){this.muted=value;}},players={ready:true,root:new THREE.Group(),updateMatch(){actorUpdates++;}},ball=new THREE.Mesh();let game;const views=[];
+ let actorUpdates=0,scoreUpdates=0,cheers=0;const contacts=[];const audio={muted:false,state:'playing',cheer(){},cue(){},kick(power){contacts.push(power);},setMuted(value){this.muted=value;}},players={ready:true,root:new THREE.Group(),updateMatch(){actorUpdates++;}},ball=new THREE.Mesh();let game;const views=[];
  game=buildPlayableMatch({scene:new THREE.Scene(),stadium:{matchBall:ball,setMatchScore(){scoreUpdates++;}},players,audio,mobile,onReadGameInput,now,onCamera(){},onView:v=>views.push(v),onPause:value=>game.setPaused(value),onRestart:()=>game.start(),onExit:()=>game.exit(),onCheer:()=>cheers++});
- return{game,node,audio,views,classes,ball,get actorUpdates(){return actorUpdates;},get scoreUpdates(){return scoreUpdates;},get cheers(){return cheers;},get radarDraws(){return radarDraws;}};
+ return{game,node,audio,views,classes,ball,contacts,get actorUpdates(){return actorUpdates;},get scoreUpdates(){return scoreUpdates;},get cheers(){return cheers;},get radarDraws(){return radarDraws;}};
 }
 const run=(game,seconds,input={})=>{for(let i=0;i<Math.round(seconds*60);i++)game.update(1/60,input,{x:0,y:5,z:9});};
+
+test('an online touch pass sounds once at local contact and keeps the confirmed scoreboard authoritative',()=>{
+ const server=createFootballSimulation({humanTeams:['home','away']});
+ run(server,3.05);
+ const carrier=server.state.players.find(player=>player.id===server.state.controlledIds.home);
+ for(const player of server.state.players)if(player.team==='away'){player.x=24;player.z=-30;}
+ Object.assign(server.state.ball,{ownerId:carrier.id,x:carrier.x,y:.11,z:carrier.z-.55});
+ const listeners=new Set(),sent=[];
+ const session={team:'home',opponent:'dortmund',code:'ABCDEFGH',connection:'connected',latency:300,
+  room:{started:true,seats:[{team:'home'},{team:'away'}]},packet:packOnlineState(server.state,1),
+  subscribe(fn){listeners.add(fn);return()=>listeners.delete(fn);},setReady(){},leave(){},
+  send(message){sent.push(message);return true;},sendInput(){return 1;}
+ };
+ const {game,node,contacts}=fixture(true);
+ game.start({},session);game.ready();
+ node('action-pass').fire('pointerdown',{pointerType:'touch',pointerId:1,preventDefault(){}});
+ assert.equal(sent.filter(message=>message.action==='pass').length,1);
+ assert.deepEqual(contacts,[.6]);
+ assert.equal(game.state.ball.ownerId,carrier.id);
+ assert.equal(game.state.stats.home.passes,0);
+ run(game,.14);
+ assert.equal(server.action('pass',{},'home'),true);
+ session.packet=packOnlineState(server.state,2);
+ for(const notify of listeners)notify();
+ run(game,.1);
+ assert.deepEqual(contacts,[.6],'the matching server event must not sound the same kick again');
+ assert.equal(game.state.stats.home.passes,1);
+ assert.deepEqual(game.state.score,server.state.score);
+ game.exit();
+});
 
 test('touch first-time passing and shooting prepare the actual receiver without taking back a ball in flight',()=>{
  const f=fixture(true);f.game.start({training:'passing'});f.game.ready();f.game.action('pass');run(f.game,.04);const receiver=f.game.state.receiveTarget.playerId;

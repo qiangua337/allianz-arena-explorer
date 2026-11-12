@@ -2,7 +2,7 @@ import {drawArenaFloorMap,mapDestinationAt} from './arena-floor-map.js';
 import {joystickAxes} from './touch-control.js';
 import {replayCamera} from './football-replay.js';
 import {constrainInteriorOrbit} from './interior-orbit.js';
-import {footballInput,footballCamera,advanceFootballCamera,offscreenBallCue,penaltyContext,footballControlYaw,footballPlayerFocus,footballShotFocus} from './football-controls.js';
+import {footballInput,footballCamera,advanceFootballCamera,offscreenBallCue,penaltyContext,footballControlYaw,footballPlayerFocus,footballShotFocus,footballBallForDisplay} from './football-controls.js';
 import {loadVisualAssets,applySurfaceQuality} from './visual-assets.js';
 import {installInteriorShading} from './interior-shading.js';
 import {lightingProfile,updateSceneLighting} from './lighting-profile.js';
@@ -96,7 +96,7 @@ export async function startArena({hub, initial, nightAtStart}){
  matchday.setQuality(qualityMode,qualityScale);visualAssets.registerOutdoor(world.group,stadium.root);applyArchitecturalUV(stadium.root);applyArchitecturalUV(stadium.circulation.root);applyArchitecturalUV(interiors.root);applyArchitecturalUV(building.root);applyArchitecturalUV(world.group);installInteriorShading(interiors.root);
  spatializeArchitecture(stadium.circulation.root);spatializeArchitecture(interiors.rooms.concourse);
  setExplorationMatchMode=suspendExplorationDuringMatch([world.group,building.root,interiors.root,serviceRooms.root,stadium.circulation.root]);
- freezeArchitecture(world.group,[world.rotor]);freezeArchitecture(stadium.root,[stadium.matchBall]);freezeArchitecture(stadium.circulation.root);freezeArchitecture(interiors.root);freezeArchitecture(building.root);destinationMenu=buildDestinationMenu({onDismiss:()=>setNavOpen(false)});buildHotspots();bindUI();setNavOpen(false);document.body.dataset.mode=mode;setDayNight(nightAtStart);applySurfaceQuality(scene,qualityMode);clock.time=performance.now();document.body.dataset.version='10.1.0';document.body.dataset.seats=stadium.seatCount;document.body.dataset.panels=stadium.panelCount;
+ freezeArchitecture(world.group,[world.rotor]);freezeArchitecture(stadium.root,[stadium.matchBall]);freezeArchitecture(stadium.circulation.root);freezeArchitecture(interiors.root);freezeArchitecture(building.root);destinationMenu=buildDestinationMenu({onDismiss:()=>setNavOpen(false)});buildHotspots();bindUI();setNavOpen(false);document.body.dataset.mode=mode;setDayNight(nightAtStart);applySurfaceQuality(scene,qualityMode);clock.time=performance.now();document.body.dataset.version='10.2.0';document.body.dataset.seats=stadium.seatCount;document.body.dataset.panels=stadium.panelCount;
  const requestedPlace=initial.get('place');
  if(initial.get('view')==='walk'){
   const place=requestedPlace&&(places[requestedPlace]||tourGoals[requestedPlace])?requestedPlace:'arcade';
@@ -174,7 +174,8 @@ function applyGameCamera(state,view,dt){
  const penalty=state.replay?null:penaltyContext(state),cameraView=penalty?'third':view,phase=state.setPiece?'match-penalty':state.phase,changed=!state.replay&&(gameCameraPlayer!==state.controlledId||gameCameraStoppage!==state.stoppageId||gameCameraPhase!==phase&&(penalty||gameCameraPhase==='match-penalty'||['kickoff','penalties'].includes(phase)));if(changed&&(view==='first'||penalty))gameCameraInstant=true;
  gameCameraPlayer=state.controlledId;gameCameraStoppage=state.stoppageId;gameCameraPhase=phase;
  const period=state.phase==='penalties'?'penalty-'+(state.competition.shootout.home.length+state.competition.shootout.away.length):state.competition?.period;if(gameCameraPeriod!==period){gameCameraInstant=true;gameCameraPeriod=period;if(view==='first')yaw=player.yaw-Math.PI;}if(gameCameraInstant&&view==='first')yaw=player.yaw-Math.PI;
- const desired=state.replay?replayCamera(state,innerWidth/innerHeight):footballCamera(player,{view:cameraView,yaw,pitch,style:state.cameraMode,ball:state.ball,aspect:innerWidth/innerHeight,penalty,training:state.training,playerFocus:footballPlayerFocus(state),trackShot:footballShotFocus(state)}),pose=advanceFootballCamera({position:camera.position.toArray(),target:gameCameraLook?.toArray(),fov:camera.fov},desired,{player,aspect:innerWidth/innerHeight,dt,rate:['broadcast','close'].includes(state.cameraMode)?7:9,changed,instant:gameCameraInstant||cameraView==='first'});camera.position.fromArray(pose.position);
+ const ball=footballBallForDisplay(state),trackShot=ball===state.ball?footballShotFocus(state):ball.type==='shoot';
+ const desired=state.replay?replayCamera(state,innerWidth/innerHeight):footballCamera(player,{view:cameraView,yaw,pitch,style:state.cameraMode,ball,aspect:innerWidth/innerHeight,penalty,training:state.training,playerFocus:footballPlayerFocus(state),trackShot}),pose=advanceFootballCamera({position:camera.position.toArray(),target:gameCameraLook?.toArray(),fov:camera.fov},desired,{player,aspect:innerWidth/innerHeight,dt,rate:['broadcast','close'].includes(state.cameraMode)?7:9,changed,instant:gameCameraInstant||cameraView==='first'});camera.position.fromArray(pose.position);
  if(pose.target){if(!gameCameraLook)gameCameraLook=v();gameCameraLook.fromArray(pose.target);camera.lookAt(gameCameraLook);}else camera.rotation.set(pose.pitch,pose.yaw,0,'YXZ');gameCameraInstant=false;
  if(camera.fov!==pose.fov){camera.fov=pose.fov;camera.updateProjectionMatrix();}
  camera.updateMatrixWorld();
@@ -183,12 +184,12 @@ function applyGameCamera(state,view,dt){
   temp.set(x,y,z).project(camera);
   return temp.set((temp.x+1)*innerWidth/2,(1-temp.y)*innerHeight/2,temp.z);
  });
- const cue=!penalty&&!state.paused&&state.phase==='playing'&&!state.replay?offscreenBallCue(temp.set(state.ball.x,Math.max(.11,state.ball.y),state.ball.z).project(camera),innerWidth,innerHeight):null;
+ const cue=!penalty&&!state.paused&&state.phase==='playing'&&!state.replay?offscreenBallCue(temp.set(ball.x,Math.max(.11,ball.y),ball.z).project(camera),innerWidth,innerHeight):null;
  writeHudProperty(ballCue,'hidden',!cue);
  if(cue){
   writeHudProperty(ballCue.style,'transform',`translate(${Math.round(cue.x)}px,${Math.round(cue.y)}px) translate(-50%,-50%)`);
   writeHudProperty(ballCueArrow.style,'transform',`rotate(${Math.round(cue.angle)}deg)`);
-  writeHudProperty(ballCueDistance,'textContent',Math.round(Math.hypot(player.x-state.ball.x,player.z-state.ball.z))+' m');
+  writeHudProperty(ballCueDistance,'textContent',Math.round(Math.hypot(player.x-ball.x,player.z-ball.z))+' m');
  }
  walkFeet=0;
 }

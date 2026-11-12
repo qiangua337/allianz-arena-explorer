@@ -65,6 +65,24 @@ test('ball and selected-player cues follow simulation state and switching perspe
  const before=JSON.stringify(state);view.update(state,1.2,new THREE.Vector3(30,15,40));assert.equal(JSON.stringify(state),before);view.setEnabled(false);assert.equal(view.root.visible,false);view.update(state,1.3,new THREE.Vector3());assert.equal(view.root.visible,false);
 });
 
+test('the visual ball follows an online kick locally without changing possession or applying it during a stoppage',()=>{
+ const state=makeState(), ball=new THREE.Mesh(), viewer=new THREE.Vector3(10,6,10);
+ const view=buildFootballView(new THREE.Scene(),ball,{ready:true,root:new THREE.Group(),updateMatch(){}});
+ state.online=true;state.ball.ownerId=state.controlledId;
+ state.passPreview={x:2,z:15};
+ state.kickPresentation={id:1,type:'pass',status:'pending',x:1,y:.4,z:3};
+ const authoritative={...state.ball};
+ view.setEnabled(true);
+ view.update(state,1,viewer);
+ assert.deepEqual(ball.position.toArray(),[1,.4,3]);
+ assert.deepEqual(state.ball,authoritative);
+ assert.equal(view.root.getObjectByName('Directional pass or charged shot preview').visible,false);
+ state.paused=true;
+ view.update(state,1.1,viewer);
+ assert.deepEqual(ball.position.toArray(),[0,.115,0]);
+ assert.deepEqual(state.ball,authoritative);
+});
+
 
 test('shot aiming shows body-condition dispersion and stops at first landing without altering the simulated shot',()=>{
  const state=makeState(),p=state.players.find(p=>p.id===state.controlledId),view=buildFootballView(new THREE.Scene(),null,{ready:true,root:new THREE.Group(),updateMatch(){}});view.setEnabled(true);state.ball.ownerId=p.id;state.chargePower=.7;state.shotKind='drive';state.shotPreview={x:2,y:.8,z:-52.5,vx:1,vz:-28,vy:4,flight:1,distance:28,quality:.4,preparation:'backfoot',spread:2,heightSpread:.6};
