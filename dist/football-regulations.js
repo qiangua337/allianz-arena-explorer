@@ -1,6 +1,7 @@
 import {createCompetition,nextPeriod,shootoutWinner,assessChallenge,competitionModes,intervalLabel} from './football-rules.js';
 import {createTeamSheet,footballFormations,squadDefinition} from './football-squads.js';
-import {goalkeeperState,planGoalkeeper,goalkeeperProfile} from './goalkeeper.js';
+import {goalkeeperState,goalkeeperProfile} from './goalkeeper.js';
+import {moveHumanPenaltyKeeper,penaltyCanShoot,penaltyDiveDirection,penaltyDiveHeight,penaltyKeeperSpeed,penaltyTarget,safePenaltyAim} from './football-penalty.js';
 const other=t=>t==='home'?'away':'home',clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 export function createFootballRegulations(s,ctx,{rules=null,duration=180,opponent='dortmund',selections={}}={}){
  const active=()=>s.players.filter(p=>!p.dismissed),byId=id=>s.players.find(p=>p.id===id),name=t=>t==='home'?'拜仁':s.fixture.short;
@@ -38,7 +39,7 @@ export function createFootballRegulations(s,ctx,{rules=null,duration=180,opponen
  // An in-match penalty uses the ordinary score and ball physics. Its temporary
  // controls end on a save, rebound or stoppage; shootout attempts stay separate.
  function prepareMatchPenalty(team,previousControlledIds){const defending=other(team),taker=byId(s.ball.ownerId),keeper=active().find(p=>p.team===defending&&p.keeper),attackSign=s.attackDirections[team],goalZ=attackSign*52.5,spotZ=goalZ-attackSign*11;
-  if(!taker||!keeper)return;ctx.clearControlIntents();s.setPiece={type:'penalty',team,defending,taker:taker.id,keeper:keeper.id,stage:'setup',time:0,goalZ,attackSign,previousControlledIds,keeperGuess:ctx.random()<.5?(ctx.random()<.5?-1:1):0,keeperCommitAt:.06+ctx.random()*.1};
+  if(!taker||!keeper)return;ctx.clearControlIntents();s.setPiece={type:'penalty',team,defending,taker:taker.id,keeper:keeper.id,stage:'setup',time:0,goalZ,attackSign,previousControlledIds};initializePenalty(s.setPiece);
   for(const p of active()){p.vx=p.vz=0;p.motion=null;p.receiveControl=null;p.lungeUntil=p.tackleWindowUntil=0;}
   Object.assign(taker,{x:0,z:spotZ-attackSign*.58,yaw:attackSign<0?Math.PI:0,protectedUntil:s.time+24});
   Object.assign(keeper,{x:0,z:goalZ-attackSign*.12,yaw:attackSign<0?0:Math.PI,keeperState:goalkeeperState()});
@@ -46,35 +47,94 @@ export function createFootballRegulations(s,ctx,{rules=null,duration=180,opponen
  }
  const penaltyPeriodDue=()=>s.elapsed>=(s.competition?s.competition.periodStart+s.competition.periodLength:s.duration)-1e-8;
  function clearMatchPenalty({rebound=false}={}){const k=s.setPiece;if(!k)return;if(rebound&&(k.extended||penaltyPeriodDue())){k.extended=true;return;}const owner=byId(s.ball.ownerId);s.setPiece=null;ctx.clearControlIntents();for(const team of ['home','away']){const current=s.controlledIds[team];if(current!==k.taker&&current!==k.keeper)continue;const previous=byId(k.previousControlledIds?.[team]),fallback=active().filter(p=>p.team===team&&!p.keeper).sort((a,b)=>Math.hypot(a.x-s.ball.x,a.z-s.ball.z)-Math.hypot(b.x-s.ball.x,b.z-s.ball.z))[0],next=owner?.team===team&&!owner.keeper&&s.controlModes[team]!=='manual'?owner:previous&&!previous.dismissed&&!previous.keeper?previous:fallback;if(next)control(team,next);}}
- function movePenaltyKeeper(k,dt,inputs){const keeper=byId(k.keeper),taker=byId(k.taker),line=k.goalZ-k.attackSign*.12,input=inputs[k.defending]||{};
-  if(ctx.humans.has(k.defending)){const g=keeper.keeperState;if(g.phase==='dive'&&s.time>=g.diveUntil)g.phase='recover';if(g.phase==='recover'&&s.time>=g.recoverUntil)g.phase='ready';const dive=g.phase==='dive',recover=g.phase==='recover';ctx.movePlayer(keeper,dive?g.direction:recover?0:clamp(input.x||0,-1,1),0,dive?5.6:3.6,dt);if(dive){g.targetY=1;g.committed=true;}}
-  else{if(k.stage==='flight'&&k.keeperGuess&&k.time>=k.keeperCommitAt&&!k.keeperGuessed){k.keeperGuessed=true;divePenaltyKeeper(k,{direction:{x:k.keeperGuess}});keeper.keeperState.shotId=s.ball.shot?.id;}
-   const plan=planGoalkeeper(keeper,s.ball,k.stage==='flight'?null:taker,s.time,s.difficulty);ctx.movePlayer(keeper,clamp(plan.x-keeper.x,-1,1),0,plan.speed,dt);if(plan.commit){ctx.motion(keeper,'dive',.9);keeper.motion.direction=plan.direction*keeper.attackSign;keeper.motion.height=plan.height;}}
-  keeper.x=clamp(keeper.x,-3.65,3.65);keeper.z=line;keeper.vz=0;keeper.yaw=k.attackSign<0?0:Math.PI;
+ function initializePenalty(k){
+  const humanKeeper=ctx.humans.has(k.defending),humanShooter=ctx.humans.has(k.team);
+  k.keeperReady=!humanKeeper;k.kickAllowedAt=humanShooter?0:1.25;k.aiKickDelay=.30+ctx.random()*.26;
+  if(!humanKeeper){
+   const recent=k.aimHistory?.[k.team]||[],last=recent.at(-1),repeated=!!last&&recent.filter(aim=>Math.abs(aim.x-last.x)<.22&&Math.abs(aim.y-last.y)<.32).length>=2;
+   const profile=goalkeeperProfile(s.difficulty),guess=repeated&&ctx.random()<.85,anticipated=guess?penaltyTarget(last,k.goalZ):null;
+   k.aiKeeper={readAt:profile.reaction*.61+ctx.random()*.055,bias:(ctx.random()*2-1)*profile.error*2.6,anticipated};
+  }else k.aiKeeper=null;
  }
- function stepMatchPenalty(dt,inputs){const k=s.setPiece;k.time+=dt;
+ function restorePenaltyFields(k){
+  if(k.keeperReady!==undefined)return;
+  if(k.type!=='penalty')Object.assign(k,{defending:other(k.team),goalZ:-52.5,attackSign:-1,aimHistory:{home:[],away:[]}});
+  initializePenalty(k);
+ }
+ function confirmPenaltyKeeper(k,team){
+  if(k.stage!=='ready'||team!==k.defending||k.keeperReady!==false)return false;
+  k.keeperReady=true;k.kickAllowedAt=k.time+2.5;return true;
+ }
+ function movePenaltyKeeper(k,dt,inputs){
+  const keeper=byId(k.keeper),g=keeper.keeperState,ai=k.aiKeeper;
+  if(ctx.humans.has(k.defending)){moveHumanPenaltyKeeper(keeper,k.goalZ,s.time,inputs[k.defending],dt,ctx.movePlayer);return;}
+  const bias=ai?.bias||0,prior=ai?.anticipated,x=prior?prior.x*.48:bias*.6;
+  if(k.stage==='ready'){moveHumanPenaltyKeeper(keeper,k.goalZ,s.time,{x:clamp((x-keeper.x)*3,-.65,.65)},dt,ctx.movePlayer);return;}
+  if(g.phase==='dive'&&s.time>=g.diveUntil)g.phase='recover';
+  const readAt=prior ? .08 : ai?.readAt??.17;
+  if(k.stage==='flight'&&!g.committed&&k.time>=readAt){
+   const b=s.ball,remaining=clamp((k.goalZ-k.attackSign*.38-b.z)/(b.vz||1),0,.72),targetX=prior?.x??b.x+b.vx*remaining+bias,targetY=prior?.y??b.y+b.vy*remaining-4.905*remaining**2;
+   const side=targetX-keeper.x;
+   if(Math.abs(side)>.53)divePenaltyKeeper(k,{direction:{x:side},penaltyAim:{y:(targetY-1.16)/.81}});
+   else Object.assign(g,{phase:'set',committed:true,direction:0,targetY:clamp(targetY,.35,1.97)});
+   g.targetX=clamp(targetX,-3.52,3.52);
+  }
+  const tracking=g.phase==='dive'||g.phase==='set',reached=(g.targetX-keeper.x)*g.direction<.48,drive=tracking&&(g.phase==='set'||reached)?clamp((g.targetX-keeper.x)*2,-1,1):tracking?g.direction:0;
+  ctx.movePlayer(keeper,drive,0,g.phase==='dive'?penaltyKeeperSpeed:3.6,dt);
+  keeper.x=clamp(keeper.x,-3.55,3.55);keeper.z=k.goalZ-k.attackSign*.12;keeper.vz=0;keeper.yaw=k.attackSign<0?0:Math.PI;
+ }
+ function maybeKickPenalty(k){
+  if(!penaltyCanShoot(k))return;
+  const wait=k.time-(k.kickAllowedAt??0);
+  if(ctx.humans.has(k.team)?k.type!=='penalty'||wait<20:wait<(k.aiKickDelay??.4))return;
+  const side=ctx.random()<.5?-1:1,x=ctx.random()<.16?side*ctx.random()*.24:side*(.39+ctx.random()*.59);
+  kickPenalty(k,{power:.40+ctx.random()*.49,penaltyAim:{x,y:ctx.random()*1.85-.95}});
+ }
+ function stepMatchPenalty(dt,inputs){const k=s.setPiece;restorePenaltyFields(k);k.time+=dt;
   if(k.stage==='flight'){k.extended=k.extended||penaltyPeriodDue();const stopped=Math.hypot(s.ball.vx,s.ball.vz)<.1&&s.ball.y<=.12&&Math.abs(s.ball.vy)<.2;if(s.phase!=='playing'||s.ball.ownerId||stopped||!k.extended&&(s.lastShot?.outcome!=='flight'||k.time>2.5)){clearMatchPenalty();return false;}}
   if(k.stage==='setup'){if(k.time>=1.8){k.stage='ready';k.time=0;s.phase='playing';s.phaseTime=0;ctx.emit('penalty-ready',k.team,name(k.team)+' · '+byId(k.taker).name+' 主罚',k.taker);}return true;}
   movePenaltyKeeper(k,dt,inputs);
-  if(k.stage==='ready'){if((!ctx.humans.has(k.team)&&k.time>1.8)||k.time>20){const side=ctx.random()<.5?-1:1;matchPenaltyAction('shoot',{power:.35+ctx.random()*.48,direction:{x:side*(.35+ctx.random()*1.25),z:k.attackSign}},k.team);}return true;}
+  if(k.stage==='ready'){maybeKickPenalty(k);return true;}
   return false;
  }
- function divePenaltyKeeper(k,options){const keeper=byId(k.keeper),g=keeper.keeperState;if(s.time<g.recoverUntil)return false;const direction=Math.sign(options.direction?.x||keeper.vx||1),profile=goalkeeperProfile(s.difficulty);Object.assign(g,{phase:'dive',committed:true,direction,diveAt:s.time,diveUntil:s.time+profile.window,recoverUntil:s.time+profile.window+profile.recovery,blockedUntil:0,targetY:1,targetX:clamp(keeper.x+direction*2,-3.7,3.7),holdZ:keeper.z});ctx.motion(keeper,'dive',profile.window+profile.recovery);keeper.motion.direction=direction*keeper.attackSign;keeper.motion.height=1;return true;}
- function matchPenaltyAction(type,options,team){const k=s.setPiece;if(s.paused||k.stage==='setup')return false;if(team===k.team){if(type!=='shoot'||k.stage!=='ready')return false;const power=Number.isFinite(options.power)?clamp(options.power,.15,1):.55,direction=options.direction||{x:0,z:k.attackSign};if(!ctx.shoot(byId(k.taker),{...options,power,direction}))return false;k.stage='flight';k.time=0;byId(k.taker).protectedUntil=s.time+.1;return true;}return team===k.defending&&type==='tackle'?divePenaltyKeeper(k,options):false;}
- function preparePenalty(){const c=s.competition,k=c.shootout,team=(k.home.length+k.away.length)%2?'away':'home',defending=other(team),list=k.eligible[team],taker=byId(list[k[team].length%list.length]),keeper=active().find(p=>p.team===defending&&p.keeper);k.team=team;k.stage='ready';k.time=0;k.outcome=null;k.taker=taker.id;k.keeper=keeper.id;s.attackDirections={[team]:-1,[defending]:1};synchronizeEnds();
-  for(const p of active()){p.x=-12+p.index*2.1;p.z=p.team==='home'?4:8;p.vx=p.vz=0;p.motion=null;}
-  Object.assign(taker,{x:0,z:-40.92,yaw:Math.PI,protectedUntil:s.time+20});Object.assign(keeper,{x:0,z:-52.05,yaw:0,keeperState:goalkeeperState()});Object.assign(s.ball,{x:0,y:.11,z:-41.5,vx:0,vy:0,vz:0,shot:null});ctx.setOwner(taker);control(team,taker);control(defending,keeper);s.phase='penalties';s.paused=false;s.phaseTime=0;s.restartType='shootout';s.restartTeam=team;s.lastShot=null;ctx.emit('penalty-ready',team,name(team)+' · '+taker.name+' 主罚',taker.id);
+ function divePenaltyKeeper(k,options){
+  const keeper=byId(k.keeper),g=keeper.keeperState;if(s.time<g.recoverUntil)return false;
+  const direction=penaltyDiveDirection(options.direction?.x,keeper.vx),targetY=penaltyDiveHeight(options.penaltyAim?.y),profile=goalkeeperProfile(s.difficulty);
+  Object.assign(g,{phase:direction?'dive':'set',committed:true,penaltyDive:true,direction,diveAt:s.time,diveUntil:s.time+profile.window,recoverUntil:s.time+profile.window+profile.recovery,blockedUntil:0,targetY,targetX:clamp(keeper.x+direction*2,-3.7,3.7),holdZ:keeper.z});
+  ctx.motion(keeper,direction?'dive':'save',direction?profile.window+profile.recovery:.55,{direction:direction*keeper.attackSign,height:targetY});return true;
  }
- function beginShootout(){const c=s.competition;c.stage='shootout';c.next=null;const count=Math.min(...['home','away'].map(t=>active().filter(p=>p.team===t).length)),eligible={};for(const team of ['home','away']){const list=active().filter(p=>p.team===team);eligible[team]=[...list.filter(p=>!p.keeper).slice(0,count-1),...list.filter(p=>p.keeper)].map(p=>p.id);}c.shootout={home:[],away:[],eligible,team:'home',stage:'ready',time:0,winner:null};preparePenalty();}
+ function kickPenalty(k,options){
+  if(!penaltyCanShoot(k))return false;
+  const power=Number.isFinite(options.power)?clamp(options.power,.15,1):.55,aim=safePenaltyAim(options.penaltyAim??{x:(options.direction?.x||0)*.68*-k.attackSign,y:-.17}),taker=byId(k.taker);
+  if(!ctx.shoot(taker,{power,penalty:{aim,goalZ:k.goalZ}}))return false;
+  if(k.aimHistory){const history=k.aimHistory[k.team];history.push(aim);if(history.length>4)history.shift();}
+  k.stage='flight';k.time=0;taker.protectedUntil=s.time+.1;return true;
+ }
+ function penaltyAction(k,type,options,team){
+  if(s.paused||!['ready','flight'].includes(k.stage))return false;
+  restorePenaltyFields(k);
+  if(type==='penalty-ready')return confirmPenaltyKeeper(k,team);
+  if(team===k.team)return type==='shoot'&&kickPenalty(k,options);
+  return team===k.defending&&type==='tackle'&&(k.stage==='flight'||penaltyCanShoot(k))&&divePenaltyKeeper(k,options);
+ }
+ function preparePenalty(){const c=s.competition,k=c.shootout,team=(k.home.length+k.away.length)%2?'away':'home',defending=other(team),list=k.eligible[team],taker=byId(list[k[team].length%list.length]),keeper=active().find(p=>p.team===defending&&p.keeper);Object.assign(k,{team,defending,stage:'ready',time:0,outcome:null,taker:taker.id,keeper:keeper.id,goalZ:-52.5,attackSign:-1});initializePenalty(k);s.attackDirections={[team]:-1,[defending]:1};synchronizeEnds();
+  for(const p of active()){p.x=-12+p.index*2.1;p.z=p.team==='home'?4:8;p.vx=p.vz=0;p.motion=null;}
+  Object.assign(taker,{x:0,z:-40.92,yaw:Math.PI,protectedUntil:s.time+20});Object.assign(keeper,{x:0,z:-52.38,yaw:0,keeperState:goalkeeperState()});Object.assign(s.ball,{x:0,y:.11,z:-41.5,vx:0,vy:0,vz:0,shot:null});ctx.setOwner(taker);control(team,taker);control(defending,keeper);s.phase='penalties';s.paused=false;s.phaseTime=0;s.restartType='shootout';s.restartTeam=team;s.lastShot=null;ctx.emit('penalty-ready',team,name(team)+' · '+taker.name+' 主罚',taker.id);
+ }
+ function beginShootout(){const c=s.competition;c.stage='shootout';c.next=null;const count=Math.min(...['home','away'].map(t=>active().filter(p=>p.team===t).length)),eligible={};for(const team of ['home','away']){const list=active().filter(p=>p.team===team);eligible[team]=[...list.filter(p=>!p.keeper).slice(0,count-1),...list.filter(p=>p.keeper)].map(p=>p.id);}c.shootout={home:[],away:[],eligible,aimHistory:{home:[],away:[]},winner:null};preparePenalty();}
  function finishPenalty(goal,outcome=goal?'goal':'wide'){const k=s.competition?.shootout;if(!k||k.stage!=='flight')return false;k[k.team].push(!!goal);k.outcome=outcome;k.stage='result';k.time=0;k.winner=shootoutWinner(k.home,k.away);ctx.finishShot(outcome);stop();ctx.emit('penalty-result',k.team,name(k.team)+(goal?' · 点球命中':' · 点球未进'));return true;}
  function penaltyBoundary(goal){if(s.phase!=='penalties'||s.competition?.shootout?.stage!=='flight')return false;finishPenalty(goal);return true;}
- function stepPenalties(dt,inputs){const k=s.competition.shootout;k.time+=dt;const taker=byId(k.taker),keeper=byId(k.keeper),defending=other(k.team),input=inputs[defending]||{};
+ function stepPenalties(dt,inputs){const k=s.competition.shootout;
+  restorePenaltyFields(k);k.time+=dt;
   if(k.stage==='result'){if(k.time>2){if(k.winner)finish('penalties',k.winner);else preparePenalty();}return true;}
-  const humanKeeper=ctx.humans.has(defending);if(humanKeeper){const direction=clamp(input.x||0,-1,1),dive=keeper.keeperState.phase==='dive'&&s.time<keeper.keeperState.diveUntil;ctx.movePlayer(keeper,dive?keeper.keeperState.direction:direction,0,dive?5.6:3.6,dt);keeper.x=clamp(keeper.x,-3.65,3.65);keeper.z=-52.05;if(dive){keeper.keeperState.targetY=1;keeper.keeperState.committed=true;}}
-  else{const plan=planGoalkeeper(keeper,s.ball,k.stage==='ready'?taker:null,s.time,s.difficulty);ctx.movePlayer(keeper,clamp(plan.x-keeper.x,-1,1),0,plan.speed,dt);keeper.z=-52.05;if(plan.commit){ctx.motion(keeper,'dive',.9);keeper.motion.direction=plan.direction;keeper.motion.height=plan.height;}}
-  if(k.stage==='ready'){if(!ctx.humans.has(k.team)&&k.time>1.8){const side=ctx.random()<.5?-1:1;penaltyAction('shoot',{power:.18+ctx.random()*.75,direction:{x:side*(.1+ctx.random()*1.6),z:-1}},k.team);}return true;}
-  ctx.physicsBall(dt);if(k.stage==='flight'&&s.ball.ownerId===keeper.id)finishPenalty(false,'saved');if(k.stage==='flight'&&(k.time>5.5||Math.abs(s.ball.x)>34||Math.abs(s.ball.z)>54))finishPenalty(false,'wide');return true;
+  movePenaltyKeeper(k,dt,inputs);
+  if(k.stage==='ready'){maybeKickPenalty(k);return true;}
+  ctx.physicsBall(dt);
+  if(k.stage==='flight'&&['saved','parried','woodwork'].includes(s.lastShot?.outcome)){
+   if(s.lastShot.outcome==='saved'||s.lastShot.outcome==='parried')finishPenalty(false,'saved');
+   else if(s.ball.vz*k.attackSign<=0)finishPenalty(false,'woodwork');
+  }
+  if(k.stage==='flight'&&(k.time>5.5||Math.abs(s.ball.x)>34||Math.abs(s.ball.z)>54))finishPenalty(false,'wide');return true;
  }
- function penaltyAction(type,options,team){const k=s.competition.shootout;if(k.stage==='result')return false;if(team===k.team){if(type!=='shoot'||k.stage!=='ready')return false;ctx.shoot(byId(k.taker),options);k.stage='flight';k.time=0;return true;}if(type==='tackle'&&k.stage!=='result'){const keeper=byId(k.keeper),direction=Math.sign(options.direction?.x||keeper.vx||1),profile=goalkeeperProfile(s.difficulty);Object.assign(keeper.keeperState,{phase:'dive',committed:true,direction,diveAt:s.time,diveUntil:s.time+profile.window,recoverUntil:s.time+profile.window+profile.recovery,blockedUntil:0,targetY:1,targetX:clamp(keeper.x+direction*2,-3.7,3.7),holdZ:keeper.z});ctx.motion(keeper,'dive',.9);keeper.motion.direction=direction;return true;}return false;}
- return{reset,synchronizeEnds,periodEnd,continuePeriod,setFormation,substitute,applyPending,foul,clearMatchPenalty,finishPenalty,penaltyBoundary,beginShootout,afterReset(){if(s.competition&&competitionModes[s.competition.mode].standalone)beginShootout();},step(dt,inputs){if(s.phase==='interval')return true;if(s.setPiece)return stepMatchPenalty(dt,inputs);if(s.phase==='penalties')return stepPenalties(dt,inputs);return false;},action(type,options,team){if(type==='continue')return continuePeriod();if(s.setPiece)return matchPenaltyAction(type,options,team);if(s.phase==='penalties')return penaltyAction(type,options,team);return null;}};
+ return{reset,synchronizeEnds,periodEnd,continuePeriod,setFormation,substitute,applyPending,foul,clearMatchPenalty,finishPenalty,penaltyBoundary,beginShootout,afterReset(){if(s.competition&&competitionModes[s.competition.mode].standalone)beginShootout();},step(dt,inputs){if(s.phase==='interval')return true;if(s.setPiece)return stepMatchPenalty(dt,inputs);if(s.phase==='penalties')return stepPenalties(dt,inputs);return false;},action(type,options,team){if(type==='continue')return continuePeriod();const k=s.setPiece||(s.phase==='penalties'?s.competition.shootout:null);return k?penaltyAction(k,type,options,team):null;}};
 }

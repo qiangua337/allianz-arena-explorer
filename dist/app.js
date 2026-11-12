@@ -96,7 +96,7 @@ export async function startArena({hub, initial, nightAtStart}){
  matchday.setQuality(qualityMode,qualityScale);visualAssets.registerOutdoor(world.group,stadium.root);applyArchitecturalUV(stadium.root);applyArchitecturalUV(stadium.circulation.root);applyArchitecturalUV(interiors.root);applyArchitecturalUV(building.root);applyArchitecturalUV(world.group);installInteriorShading(interiors.root);
  spatializeArchitecture(stadium.circulation.root);spatializeArchitecture(interiors.rooms.concourse);
  setExplorationMatchMode=suspendExplorationDuringMatch([world.group,building.root,interiors.root,serviceRooms.root,stadium.circulation.root]);
- freezeArchitecture(world.group,[world.rotor]);freezeArchitecture(stadium.root,[stadium.matchBall]);freezeArchitecture(stadium.circulation.root);freezeArchitecture(interiors.root);freezeArchitecture(building.root);destinationMenu=buildDestinationMenu({onDismiss:()=>setNavOpen(false)});buildHotspots();bindUI();setNavOpen(false);document.body.dataset.mode=mode;setDayNight(nightAtStart);applySurfaceQuality(scene,qualityMode);clock.time=performance.now();document.body.dataset.version='9.8.0';document.body.dataset.seats=stadium.seatCount;document.body.dataset.panels=stadium.panelCount;
+ freezeArchitecture(world.group,[world.rotor]);freezeArchitecture(stadium.root,[stadium.matchBall]);freezeArchitecture(stadium.circulation.root);freezeArchitecture(interiors.root);freezeArchitecture(building.root);destinationMenu=buildDestinationMenu({onDismiss:()=>setNavOpen(false)});buildHotspots();bindUI();setNavOpen(false);document.body.dataset.mode=mode;setDayNight(nightAtStart);applySurfaceQuality(scene,qualityMode);clock.time=performance.now();document.body.dataset.version='9.8.1';document.body.dataset.seats=stadium.seatCount;document.body.dataset.panels=stadium.panelCount;
  const requestedPlace=initial.get('place');
  if(initial.get('view')==='walk'){
   const place=requestedPlace&&(places[requestedPlace]||tourGoals[requestedPlace])?requestedPlace:'arcade';
@@ -171,14 +171,19 @@ function updateGameView(view){
 }
 function applyGameCamera(state,view,dt){
  const player=state.players.find(p=>p.id===state.controlledId);if(!player)return;
- const penalty=penaltyContext(state),phase=state.setPiece?'match-penalty':state.phase,changed=!state.replay&&(gameCameraPlayer!==state.controlledId||gameCameraStoppage!==state.stoppageId||gameCameraPhase!==phase&&(penalty||gameCameraPhase==='match-penalty'||['kickoff','penalties'].includes(phase)));if(changed&&view==='first')gameCameraInstant=true;
+ const penalty=state.replay?null:penaltyContext(state),cameraView=penalty?'third':view,phase=state.setPiece?'match-penalty':state.phase,changed=!state.replay&&(gameCameraPlayer!==state.controlledId||gameCameraStoppage!==state.stoppageId||gameCameraPhase!==phase&&(penalty||gameCameraPhase==='match-penalty'||['kickoff','penalties'].includes(phase)));if(changed&&(view==='first'||penalty))gameCameraInstant=true;
  gameCameraPlayer=state.controlledId;gameCameraStoppage=state.stoppageId;gameCameraPhase=phase;
  const period=state.phase==='penalties'?'penalty-'+(state.competition.shootout.home.length+state.competition.shootout.away.length):state.competition?.period;if(gameCameraPeriod!==period){gameCameraInstant=true;gameCameraPeriod=period;if(view==='first')yaw=player.yaw-Math.PI;}if(gameCameraInstant&&view==='first')yaw=player.yaw-Math.PI;
- const desired=state.replay?replayCamera(state,innerWidth/innerHeight):footballCamera(player,{view,yaw,pitch,style:state.cameraMode,ball:state.ball,aspect:innerWidth/innerHeight,penalty,training:state.training,playerFocus:footballPlayerFocus(state)}),pose=advanceFootballCamera({position:camera.position.toArray(),target:gameCameraLook?.toArray(),fov:camera.fov},desired,{player,aspect:innerWidth/innerHeight,dt,rate:['broadcast','close'].includes(state.cameraMode)?7:9,changed,instant:gameCameraInstant||view==='first'});camera.position.fromArray(pose.position);
+ const desired=state.replay?replayCamera(state,innerWidth/innerHeight):footballCamera(player,{view:cameraView,yaw,pitch,style:state.cameraMode,ball:state.ball,aspect:innerWidth/innerHeight,penalty,training:state.training,playerFocus:footballPlayerFocus(state)}),pose=advanceFootballCamera({position:camera.position.toArray(),target:gameCameraLook?.toArray(),fov:camera.fov},desired,{player,aspect:innerWidth/innerHeight,dt,rate:['broadcast','close'].includes(state.cameraMode)?7:9,changed,instant:gameCameraInstant||cameraView==='first'});camera.position.fromArray(pose.position);
  if(pose.target){if(!gameCameraLook)gameCameraLook=v();gameCameraLook.fromArray(pose.target);camera.lookAt(gameCameraLook);}else camera.rotation.set(pose.pitch,pose.yaw,0,'YXZ');gameCameraInstant=false;
  if(camera.fov!==pose.fov){camera.fov=pose.fov;camera.updateProjectionMatrix();}
  camera.updateMatrixWorld();
- const cue=!state.paused&&state.phase==='playing'&&!state.replay?offscreenBallCue(temp.set(state.ball.x,Math.max(.11,state.ball.y),state.ball.z).project(camera),innerWidth,innerHeight):null;
+ writeHudProperty($('crosshair'),'hidden',cameraView!=='first');
+ if(penalty)matchday.projectGamePenalty((x,y,z)=>{
+  temp.set(x,y,z).project(camera);
+  return temp.set((temp.x+1)*innerWidth/2,(1-temp.y)*innerHeight/2,temp.z);
+ });
+ const cue=!penalty&&!state.paused&&state.phase==='playing'&&!state.replay?offscreenBallCue(temp.set(state.ball.x,Math.max(.11,state.ball.y),state.ball.z).project(camera),innerWidth,innerHeight):null;
  writeHudProperty(ballCue,'hidden',!cue);
  if(cue){
   writeHudProperty(ballCue.style,'transform',`translate(${Math.round(cue.x)}px,${Math.round(cue.y)}px) translate(-50%,-50%)`);
@@ -189,8 +194,11 @@ function applyGameCamera(state,view,dt){
 }
 function gameInput(dt){
  if(matchday.paused)return footballInput();
- const forward=(keys.has('KeyW')||keys.has('ArrowUp')||moveFlags.has('forward')?1:0)-(keys.has('KeyS')||keys.has('ArrowDown')||moveFlags.has('back')?1:0)+touchAxes.y,side=(keys.has('KeyD')||keys.has('ArrowRight')||moveFlags.has('right')?1:0)-(keys.has('KeyA')||keys.has('ArrowLeft')||moveFlags.has('left')?1:0)+touchAxes.x,inputYaw=footballControlYaw(matchday.gameState,{cameraMode:matchday.gameCamera,yaw});
- return{...footballInput({forward,side,yaw:inputYaw,sprint:touchSprint||keys.has('ShiftLeft')||keys.has('ShiftRight'),defend:keys.has('KeyE')}),yaw:inputYaw};
+ const forward=(keys.has('KeyW')||keys.has('ArrowUp')||moveFlags.has('forward')?1:0)-(keys.has('KeyS')||keys.has('ArrowDown')||moveFlags.has('back')?1:0)+touchAxes.y,side=(keys.has('KeyD')||keys.has('ArrowRight')||moveFlags.has('right')?1:0)-(keys.has('KeyA')||keys.has('ArrowLeft')||moveFlags.has('left')?1:0)+touchAxes.x;
+ const penalty=penaltyContext(matchday.gameState),inputYaw=footballControlYaw(matchday.gameState,{cameraMode:penalty?'close':matchday.gameCamera,yaw});
+ const input={...footballInput({forward:penalty?.role==='keeper'?0:forward,side,yaw:inputYaw,sprint:touchSprint||keys.has('ShiftLeft')||keys.has('ShiftRight'),defend:keys.has('KeyE')}),yaw:inputYaw};
+ if(penalty)input.penaltyAimAxis={x:THREE.MathUtils.clamp(side,-1,1),y:THREE.MathUtils.clamp(forward,-1,1)};
+ return input;
 }
 function applyEntrancePose(sample,{instant=false,dt=.016}={}){
  camera.position.x=sample.x;camera.position.z=sample.z;const y=sample.feet+EYE_HEIGHT+sample.bob;camera.position.y=instant?y:THREE.MathUtils.damp(camera.position.y,y,18,dt);walkFeet=sample.feet;desiredEye=EYE_HEIGHT;yaw=sample.yaw;pitch=sample.pitch;camera.rotation.set(pitch,yaw,0,'YXZ');if(Math.abs(camera.fov-sample.fov)>.02){camera.fov=sample.fov;camera.updateProjectionMatrix();}if(instant)walkGuide.setGoal('pitch',camera.position);frameBudget.invalidate();
@@ -273,7 +281,7 @@ async function lockMouse(){
  pointerLockPending=true;updateLookHint();try{await canvas.requestPointerLock();}catch{toast('鼠标未锁定，可继续按住画面转头。');}finally{pointerLockPending=false;updateLookHint();}
 }
 function turn(dx,dy,sensitivity=.003){yaw-=dx*sensitivity;pitch=THREE.MathUtils.clamp(pitch-dy*sensitivity,-1.44,1.44);camera.rotation.set(pitch,yaw,0,'YXZ');}
-function keyCode(event){const aliases={w:'KeyW',a:'KeyA',s:'KeyS',d:'KeyD',q:'KeyQ',e:'KeyE',p:'KeyP',n:'KeyN',h:'KeyH',f:'KeyF',t:'KeyT',j:'KeyJ',k:'KeyK',l:'KeyL',c:'KeyC',g:'KeyG',v:'KeyV',r:'KeyR',z:'KeyZ',' ':'Space',space:'Space',up:'ArrowUp',down:'ArrowDown',left:'ArrowLeft',right:'ArrowRight',escape:'Escape',esc:'Escape',shift:'ShiftLeft'};return event.code&&event.code!=='Unidentified'?event.code:(aliases[(event.key||'').toLowerCase()]||event.key);}
+function keyCode(event){const aliases={w:'KeyW',a:'KeyA',s:'KeyS',d:'KeyD',q:'KeyQ',e:'KeyE',p:'KeyP',n:'KeyN',h:'KeyH',f:'KeyF',t:'KeyT',j:'KeyJ',k:'KeyK',l:'KeyL',c:'KeyC',g:'KeyG',v:'KeyV',r:'KeyR',x:'KeyX',z:'KeyZ',' ':'Space',space:'Space',up:'ArrowUp',down:'ArrowDown',left:'ArrowLeft',right:'ArrowRight',escape:'Escape',esc:'Escape',shift:'ShiftLeft'};return event.code&&event.code!=='Unidentified'?event.code:(aliases[(event.key||'').toLowerCase()]||event.key);}
 
 function inside(x,z,spec,margin=0){return x>spec.x-spec.w/2-margin&&x<spec.x+spec.w/2+margin&&z>spec.z-spec.d/2-margin&&z<spec.z+spec.d/2+margin;}
 function floorAt(x,z,feetY=walkFeet??camera.position.y-desiredEye){return floorHeight(x,z,feetY,{tiers:stadium.tiers,rooms:roomSpecs});}
@@ -571,7 +579,11 @@ function bindUI(){
    if(e.target.closest?.('button')&&['Enter','NumpadEnter','Space'].includes(code))return;
    const movement=['KeyW','KeyA','KeyS','KeyD','KeyE','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','ShiftLeft','ShiftRight'].includes(code);e.preventDefault();
    if(matchday.gameReplaying){if(code==='Escape'||code==='KeyR')matchday.endReplay();return;}if(code==='KeyR'){if(!e.repeat)matchday.startReplay();return;}if(code==='Escape'){if(!e.repeat)matchday.setPaused(!matchday.paused);return;}if(code==='KeyH'){if(!e.repeat)matchday.showGameHelp();return;}if(matchday.paused)return;
-   if(movement)keys.add(code);if(e.repeat)return;if(code==='KeyK'||code==='KeyF')matchday.beginGameCharge();const action={KeyJ:'pass',KeyL:'through',Space:'tackle',KeyQ:'switch'}[code];if(action)matchday.gameAction(action,{direction:gameInput(0)});if(code==='KeyZ')matchday.cycleShotKind();if(code==='KeyC')matchday.cycleGameCamera();if(code==='KeyG')matchday.cheer();if(code==='KeyV'||code==='KeyP')matchday.setGameView(matchday.gameView==='first'?'third':'first');if(code==='KeyN'){setDayNight(!night);updateLocationURL();}return;
+   if(movement)keys.add(code);if(e.repeat)return;
+   const penalty=penaltyContext(matchday.gameState);
+   if(penalty&&movement)matchday.nudgeGamePenaltyAim();
+   if(penalty&&code==='KeyX')matchday.centerGamePenaltyAim();
+   if(code==='KeyK'||code==='KeyF')matchday.beginGameCharge();const action={KeyJ:'pass',KeyL:'through',Space:'tackle',KeyQ:'switch'}[code];if(action)matchday.gameAction(action,{direction:gameInput(0)});if(code==='KeyZ')matchday.cycleShotKind();if(code==='KeyC')matchday.cycleGameCamera();if(code==='KeyG')matchday.cheer();if(!penalty&&(code==='KeyV'||code==='KeyP'))matchday.setGameView(matchday.gameView==='first'?'third':'first');if(code==='KeyN'){setDayNight(!night);updateLocationURL();}return;
   }
   if(matchday?.cinematic){if(code==='Escape'||code==='Space')matchday.setPaused(!matchday.paused);if(movement||code==='Space'||code==='Escape')e.preventDefault();return;}if(code==='Escape'){if(!$('arena-map-panel').hidden){setMapOpen(false);$('map-toggle').focus({preventScroll:true});return;}if(!$('explore').hidden){setNavOpen(false);canvas.focus({preventScroll:true});}else if(mode==='walk'){document.exitPointerLock?.();setWalkReady(false);}return;}
   if(mode==='walk'&&['PageUp','PageDown'].includes(code)){e.preventDefault();if(!walkReady)beginWalk();pitch=THREE.MathUtils.clamp(pitch+(code==='PageUp'?.12:-.12),-1.44,1.44);camera.rotation.set(pitch,yaw,0,'YXZ');frameBudget.invalidate();return;}

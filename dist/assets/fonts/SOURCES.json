@@ -34,10 +34,10 @@
       "family": "Arena Sans SC",
       "style": "normal",
       "weight": 500,
-      "bytes": 142888,
-      "sha256": "0a6c6cbba57d954fdf2cca519b7e46bfcc4753057f51a88a273dcc93018084e3",
-      "characters": 1079,
-      "glyphs": 1118,
+      "bytes": 143064,
+      "sha256": "4bd5c4a9a0e292ef310ec1fba74c870786e996c1014901382da13546520bf726",
+      "characters": 1080,
+      "glyphs": 1119,
       "source": "NotoSansSC[wght].ttf",
       "licenseFile": "OFL-NotoSansSC.txt"
     },
@@ -46,10 +46,10 @@
       "family": "Arena Sans SC",
       "style": "normal",
       "weight": 800,
-      "bytes": 144552,
-      "sha256": "93a033f8bccaa40e4f07bcab41a589af1ea3c20a8f8be3d042540c0c5b09c73d",
-      "characters": 1079,
-      "glyphs": 1118,
+      "bytes": 144792,
+      "sha256": "30f2ca409e8cb7c8f9b8d58c97f9aa5bdedec679a020bcc0f5aec699b1ebcf69",
+      "characters": 1080,
+      "glyphs": 1119,
       "source": "NotoSansSC[wght].ttf",
       "licenseFile": "OFL-NotoSansSC.txt"
     },
@@ -68,11 +68,11 @@
   ],
   "coverage": {
     "scan": "All non-vendor dist .js and .html, HTML entities and JavaScript Unicode/hex escapes, plus printable ASCII.",
-    "sourceFileCount": 138,
-    "requestedCharacters": 1094,
-    "requestedCJKCharacters": 944,
-    "subsetCharacters": 1079,
-    "charsetSha256": "9feca68725685d453f2a38a8568a9c7372beaaa81ce7cdd48dd0464c19737143",
+    "sourceFileCount": 140,
+    "requestedCharacters": 1095,
+    "requestedCJKCharacters": 945,
+    "subsetCharacters": 1080,
+    "charsetSha256": "49ae1e633feba3a7fbb5deea5c71cc8a758e394c9deab1bdc66f9944db81441c",
     "subsetCodepoints": [
       32,
       33,
@@ -586,6 +586,7 @@
       24917,
       24930,
       25104,
+      25105,
       25110,
       25112,
       25130,
@@ -1238,7 +1239,7 @@
       },
       {
         "file": "app.js",
-        "sha256": "1e0aab2e7d2a5c62c0e25eb0351e1b9a6ab8952ee5d2efec4f3a7748b0ed39e0"
+        "sha256": "663241e65f9738305f600925d6e4027d04d49d4231d531db80eb83d06ea68302"
       },
       {
         "file": "architecture-clip.js",
@@ -1246,7 +1247,7 @@
       },
       {
         "file": "arena-entry.js",
-        "sha256": "2aae8a65e39cd4592dc670be275e91730d8c37eca0e967ccb3a58c1f63143d6c"
+        "sha256": "435f7c52f1dd512bf051910c08d914fa9b968c1b03143970feba9a2cf650879d"
       },
       {
         "file": "arena-floor-map.js",
@@ -1369,12 +1370,20 @@
         "sha256": "a173cd7ab36b07ca3a026a70cd57ff516682790d40762f93ada0a513701a10da"
       },
       {
+        "file": "football-penalty-ui.js",
+        "sha256": "23d46eff2aed6b12aee2ca3ba7ecb41c14f5dce51f57ea963ea3cbd2ed2e93d9"
+      },
+      {
+        "file": "football-penalty.js",
+        "sha256": "f18ba4973b128fb316f5aef81fee7f24e0800230f9008c7de9326ce562591908"
+      },
+      {
         "file": "football-radar.js",
         "sha256": "587473a0ea61b5c0e29580cae5c8ba2ed2c72f286cf05d629b7072db727a439b"
       },
       {
         "file": "football-regulations.js",
-        "sha256": "f331faf8976318707ec3948b3700a5ec50b0adc91780eb1e392a20806c43c3f1"
+        "sha256": "68ac270968455db704c695e59b46074715199908d89c6f314db3d9990ba34510"
       },
       {
         "file": "football-replay.js",
@@ -1398,7 +1407,7 @@
       },
       {
         "file": "football-simulation.js",
-        "sha256": "632754392f496e2b88d0408695e1f452b837fd5eff32ff871ce33fde1bd4766d"
+        "sha256": "c840de303c3e4dc717c6a2087c30290135a5f30101d1a366491c6e9161e70fd4"
       },
       {
         "file": "football-squads.js",
@@ -1422,7 +1431,7 @@
       },
       {
         "file": "football-view.js",
-        "sha256": "6df04b541a91b9eeab01f00e8273fc3da58979870a3f35cdcb3051ef03e9065c"
+        "sha256": "4cc26eff6f7836d185ac5296eecc5476cc5b83c5d62f32ac6c50e7a69d20f255"
       },
       {
         "file": "frame-pacing.js",
@@ -1434,7 +1443,7 @@
       },
       {
         "file": "goal-feedback.js",
-        "sha256": "1b2de52c24cdb7be9c817119cb7c81ae1b1939eaddcb7ff9e2185f607ff6715c"
+        "sha256": "d4160f1094157ab9442c91ba4677fd8347083b2fdc8a648b601d9060d2f67b05"
       },
       {
         "file": "goal-frame.js",
@@ -1446,7 +1455,7 @@
       },
       {
         "file": "goalkeeper.js",
-        "sha256": "cbbe67169bbd8c77a682b084c8cc38956237572d1957da6c4abcba207e640fca"
+        "sha256": "8cd9b22a859e286e52b5bcd664d6628975c117e7a2b4fc4b67284a95904e5486"
       },
       {
         "file": "honours.js",
@@ -1462,7 +1471,7 @@
       },
       {
         "file": "index.html",
-        "sha256": "f73a056dbe47e1054f88117cfc703616d9d1eb1c9b565cd9f65004353d063523"
+        "sha256": "52705ef70ed05c1f20bb6db197bbc5162fd7538db1aaabfc924795757889277e"
       },
       {
         "file": "instant-action.js",
@@ -1534,7 +1543,7 @@
       },
       {
         "file": "matchday.js",
-        "sha256": "41ffe167c5ce00948475a62d086ecc4c3369d9319fa1dc12a96fd72ef8edf88b"
+        "sha256": "c85581825a0e0a3be2fd9dc5445e7696dbd31ec524157c1757f749fc1012dcf5"
       },
       {
         "file": "museum-catalog.js",
@@ -1558,7 +1567,7 @@
       },
       {
         "file": "online-client.js",
-        "sha256": "ff1f14b3b8a6c8f771f7cd7c6ea8bfe1aa7d9435f497a281849994df674fb9f8"
+        "sha256": "5a06706a60acb0969a86004e1bc3d78a82758502ebdefc897df70a85ef1c6286"
       },
       {
         "file": "online-lobby.js",
@@ -1566,11 +1575,11 @@
       },
       {
         "file": "online-prediction.js",
-        "sha256": "c26ff344e8331014f33f9da12281e36de5e59b3cb9bf1299b7b94b0839ca2404"
+        "sha256": "470ba3be8dcbf7d91d651790be7508987d3db9ac6dadb349c6c879589465b987"
       },
       {
         "file": "online-protocol.js",
-        "sha256": "1273e686087dfc867ce945d9c6e246ea54e95151be0fab5b4c6345dd39007974"
+        "sha256": "bba5354260831afbfe60a602a2a7ee37beafa8d9ef193627230dbe8bb56e795f"
       },
       {
         "file": "performance.js",
@@ -1598,7 +1607,7 @@
       },
       {
         "file": "playable-match.js",
-        "sha256": "36dfbc66a6d7ecf4fc3e338c66dab305f869095c974a11a9c993057665032e47"
+        "sha256": "be27425c9f9ef269eb05beeb00b625986fba63b28f6e0cce5fe054563fc77183"
       },
       {
         "file": "player-area-layout.js",

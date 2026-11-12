@@ -1,5 +1,6 @@
 import {createFootballSimulation} from '../dist/football-simulation.js';
 import {safeOnlineInput,packOnlineState,validRoomCode,ONLINE_PROTOCOL} from '../dist/online-protocol.js';
+import {safePenaltyAim} from '../dist/football-penalty.js';
 import {normalizeRules} from '../dist/football-rules.js';
 import {defaultSelection,normalizeSelection,validateSelection} from '../dist/football-squads.js';
 const TEAMS=['home','away'],TTL=30*60*1000,GRACE=60*1000,alphabet='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -67,8 +68,8 @@ export class FootballRoom {
    await this.persist();this.broadcast();return;
   }
   if(!this.sim||this.sim.state.paused||!this.meta.started)return;
-  if(packet.type==='action'&&['pass','through','shoot','switch','tackle'].includes(packet.action)){
-   if(now-(this.lastAction[team]||0)<70)return;this.lastAction[team]=now;const direction=safeOnlineInput(packet.direction);this.sim.action(packet.action,{direction,power:Number.isFinite(packet.power)?Math.max(.15,Math.min(1,packet.power)):.5,kind:this.sim.state.shotKinds[team]},team);this.broadcast();
+  if(packet.type==='action'&&['pass','through','shoot','switch','tackle','penalty-ready'].includes(packet.action)){
+   if(now-(this.lastAction[team]||0)<70)return;this.lastAction[team]=now;const direction=safeOnlineInput(packet.direction),penaltyAim=packet.penaltyAim&&safePenaltyAim(packet.penaltyAim);this.sim.action(packet.action,{direction,penaltyAim,power:Number.isFinite(packet.power)?Math.max(.15,Math.min(1,packet.power)):.5,kind:this.sim.state.shotKinds[team]},team);this.broadcast();
   }
  }
  stopTimer(){if(this.timer!==null)clearInterval(this.timer);this.timer=null;this.timerEpoch++;}

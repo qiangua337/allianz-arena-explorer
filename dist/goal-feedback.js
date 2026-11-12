@@ -13,9 +13,16 @@ transformed.z+=netWave*netPower*netAnchoring*(1.-tiedCorner);`);};
 }
 
 export function goalFeedbackController(nets){
- let score='0:0',lastTime=null;
- return{reset(){score='0:0';lastTime=null;for(const net of nets)net.reset();},update(state,time){
+ let score='0:0',lastTime=null,keeperCamera=-1;
+ function frameKeeperCamera(side){
+  if(side===keeperCamera)return;
+  keeperCamera=side;
+  nets.forEach((net,index)=>{net.material.opacity=index===side ? .14 : .53;});
+ }
+ return{reset(){score='0:0';lastTime=null;frameKeeperCamera(-1);for(const net of nets)net.reset();},update(state,time){
   const dt=lastTime===null?0:Math.max(0,time-lastTime);lastTime=time;for(const net of nets)net.update(dt);
+  const penalty=state.setPiece?.type==='penalty'?state.setPiece:state.phase==='penalties'?state.competition?.shootout:null;
+  frameKeeperCamera(penalty&&!state.replay&&penalty.team!==(state.localTeam||'home')?((penalty.goalZ??-52.5)<0?0:1):-1);
   const key=state.score.home+':'+state.score.away;if(key!==score){score=key;if(state.phase==='goal'){const side=state.ball.z<0?0:1;nets[side]?.pulse(state.ball.z<0?-state.ball.x:state.ball.x,state.ball.y);}}
  }};
 }

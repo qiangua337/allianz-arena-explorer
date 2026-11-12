@@ -6,6 +6,7 @@ import {passOption,shotOption,shotPreparation,receivingPoint,shotKinds,passFligh
 import {goalFrameCollision} from './goal-frame.js';
 import {footballFormations,squadDefinition} from './football-squads.js';
 import {createFootballRegulations} from './football-regulations.js';
+import {penaltyFlight} from './football-penalty.js';
 import {moveFootballer as movePlayer,moveControlledFootballer,carryFootball,continuesReceiveIntent} from './football-movement.js';
 import {trainingLayout} from './football-training-layout.js';
 
@@ -84,8 +85,15 @@ export function createFootballSimulation({duration=180,seed=73417,controlMode='s
   emit(type,player.team,player.name+(flight.lofted?' 挑传直塞 → ':type==='through'?' 直塞 → ':' → ')+option.player.name,player.id,practice?{targetId:option.player.id}:null);
   return true;
  }
- function shoot(player,{direction=null,power=.55,kind}={}){
-  const b=state.ball,human=isHuman(player),mode=kind||(human?state.shotKinds[player.team]:'drive'),keeper=onField().find(p=>p.keeper&&p.team!==player.team),pressure=pressureNear(player),preparation=shotPreparation(player,b,{power,pressure}),error=(random()*2-1)*(preparation.spread+(!human&&player.team==='away'?tuning.shotError*.5:0)),heightError=(random()*2-1)*preparation.heightSpread+preparation.heightBias,aim=shotOption(player,b,{direction,power,error,heightError,kind:mode,keeper,pressure});
+ function shoot(player,{direction=null,power=.55,kind,penalty=null}={}){
+  const b=state.ball;let aim;
+  if(penalty){
+   const flight=penaltyFlight(b,penalty.goalZ,penalty.aim,power,random);
+   aim={...flight,curve:0,kind:'drive',quality:power>.76?'risky':'clean',preparation:power>.76?'overpowered':'set',limited:power>.76};
+  }else{
+   const human=isHuman(player),mode=kind||(human?state.shotKinds[player.team]:'drive'),keeper=onField().find(p=>p.keeper&&p.team!==player.team),pressure=pressureNear(player),preparation=shotPreparation(player,b,{power,pressure}),error=(random()*2-1)*(preparation.spread+(!human&&player.team==='away'?tuning.shotError*.5:0)),heightError=(random()*2-1)*preparation.heightSpread+preparation.heightBias;
+   aim=shotOption(player,b,{direction,power,error,heightError,kind:mode,keeper,pressure});
+  }
   if(aim.distance<.01)return false;
   motion(player,'shoot',.46,strikeDetails(player,aim.kind,power));
   release(player,aim.vx,aim.vz,aim.vy);
@@ -123,7 +131,7 @@ export function createFootballSimulation({duration=180,seed=73417,controlMode='s
    if(isControlled){moveControlledFootballer(p,b,owner,input,dt,worldTime);continue;}
    if(practice&&p.team==='home'&&!p.keeper&&b.targetId!==p.id){p.vx=p.vz=0;if(owner?.id!==p.id)p.yaw=face(b.x-p.x,b.z-p.z);continue;}
    p.defending=false;p.stamina=Math.min(1,p.stamina+.035*dt);let targetX,targetZ,speed=p.keeper?4.6:5.1;const aiFactor=p.team==='away'?tuning.speed:1;
-   if(p.keeper){const plan=planGoalkeeper(p,b,owner,worldTime,state.difficulty);targetX=plan.x;targetZ=plan.z;speed=plan.speed;
+   if(p.keeper){const plan=planGoalkeeper(p,b,owner,worldTime,state.difficulty,{openPlay:true});targetX=plan.x;targetZ=plan.z;speed=plan.speed;
     if(plan.commit){motion(p,'dive',goalkeeperProfile(state.difficulty).window+goalkeeperProfile(state.difficulty).recovery);p.motion.direction=plan.direction*attackSign(p.team);p.motion.height=plan.height;}
     if(b.ownerId===p.id&&worldTime>p.decisionAt&&worldTime-p.possessionSince>.75){pass(p);p.decisionAt=worldTime+1.4;}
    }else if(!b.ownerId&&b.targetId===p.id){const target=receivingPoint(p,b);targetX=target.x;targetZ=target.z;speed=5.7;
@@ -137,7 +145,12 @@ export function createFootballSimulation({duration=180,seed=73417,controlMode='s
    }else{
     const system=footballFormations[state.teamSheets[p.team].formation],base=(state.competition?system.positions:formation)[p.index],target=supportPosition(p,b,state.players,{base,role:system.roles[p.index],sign,attacking:possession===p.team,time:worldTime});targetX=target.x;targetZ=target.z;
    }
-   const dx=targetX-p.x,dz=targetZ-p.z,d=Math.hypot(dx,dz);movePlayer(p,d>.3?dx/Math.max(1,d):0,d>.3?dz/Math.max(1,d):0,speed*(p.keeper?1:aiFactor)*Math.min(1,d/(p.keeper&&p.keeperState?.phase==='dive'?.45:1.8)),dt);if(p.keeper)p.yaw=turnFootballer(p.yaw,face(b.x-p.x,b.z-p.z),dt*8);
+   const dx=targetX-p.x,dz=targetZ-p.z,d=Math.hypot(dx,dz);
+   if(p.keeper){
+    const dive=p.keeperState?.phase==='dive',set=p.keeperState?.closeShot||p.keeperState?.phase==='smother',heading=face(b.x-p.x,b.z-p.z);
+    const arrival=dive?.6:set?1.1:1.8,normalizer=Math.max(set?.32:1,d);
+    movePlayer(p,d>.06?dx/normalizer:0,d>.06?dz/normalizer:0,speed*Math.min(1,d/arrival),dt,{heading,rate:8,response:dive&&set?21:16});
+   }else movePlayer(p,d>.3?dx/Math.max(1,d):0,d>.3?dz/Math.max(1,d):0,speed*aiFactor*Math.min(1,d/1.8),dt);
   }
   // Body separation has fixed world dimensions; camera motion never moves NPCs.
   for(let i=0;i<field.length;i++)for(let j=i+1;j<field.length;j++){
@@ -153,7 +166,7 @@ export function createFootballSimulation({duration=180,seed=73417,controlMode='s
   state.stats[defender.team].tackles++;emit('tackle',defender.team,defender.name+'出脚断球',defender.id);return true;
  }
  function keeperSave(previous){
-  const b=state.ball,owner=byId(b.ownerId);for(const p of onField()){if(!p.keeper||owner?.team===p.team)continue;const contact=goalkeeperContact(p,b,previous,worldTime,state.difficulty);if(!contact)continue;const speed=Math.hypot(b.vx,b.vz),k=p.keeperState;
+  const b=state.ball,owner=byId(b.ownerId);for(const p of onField()){if(!p.keeper||owner?.team===p.team)continue;const contact=goalkeeperContact(p,b,previous,worldTime,state.difficulty,{openPlay:!state.setPiece&&state.phase!=='penalties'});if(!contact)continue;const speed=Math.hypot(b.vx,b.vz),k=p.keeperState;
    const shot=b.shot,isShot=shot&&shot.team!==p.team&&state.lastShot?.id===shot.id;
    if(isShot&&lastSavedShotId!==shot.id){state.stats[p.team].saves++;lastSavedShotId=shot.id;}
    if(speed>5&&!p.motion)motion(p,'save',.65);

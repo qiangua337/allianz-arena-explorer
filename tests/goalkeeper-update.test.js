@@ -6,10 +6,11 @@ import {shotOption} from '../dist/football-tactics.js';
 import {createReplayRecorder} from '../dist/football-replay.js';
 const run=(g,n=1)=>{for(let i=0;i<n;i++)g.update(1/60);};
 const keeper=()=>({id:'away-0',index:0,team:'away',keeper:true,x:0,z:-50,keeperState:goalkeeperState()});
-function scenario(distance=18,seed=733){
+function scenario(distance=18,seed=733,sign=-1){
  const g=createFootballSimulation({difficulty:'regular',seed});run(g,190);const s=g.state,p=s.players.find(p=>p.id===s.controlledId);
- for(const q of s.players)if(q.id!==p.id&&!q.keeper)Object.assign(q,{x:q.team==='home'?28:-28,z:30,vx:0,vz:0,decisionAt:1e6,tackleAt:1e6});
- Object.assign(p,{x:0,z:-52.5+distance,yaw:Math.PI,vx:0,vz:0});Object.assign(s.players.find(q=>q.id==='away-0'),{x:0,z:-50,vx:0,vz:0});Object.assign(s.ball,{x:0,y:.11,z:p.z-.58,ownerId:p.id,vx:0,vy:0,vz:0});return g;
+ s.attackDirections={home:sign,away:-sign};
+ for(const q of s.players){q.attackSign=s.attackDirections[q.team];if(q.id!==p.id&&!q.keeper)Object.assign(q,{x:q.team==='home'?28:-28,z:-sign*30,vx:0,vz:0,decisionAt:1e6,tackleAt:1e6});}
+ Object.assign(p,{x:0,z:sign*(52.5-distance),yaw:sign<0?Math.PI:0,vx:0,vz:0});Object.assign(s.players.find(q=>q.id==='away-0'),{x:0,z:sign*50,vx:0,vz:0});Object.assign(s.ball,{x:0,y:.11,z:p.z+sign*.58,ownerId:p.id,vx:0,vy:0,vz:0});return g;
 }
 test('a keeper has a reaction delay and cannot reverse an already committed dive',()=>{
  const p=keeper(),b={x:0,y:.3,z:-35,vx:5,vy:3,vz:-28,shot:{id:5,team:'home'}};
@@ -23,6 +24,34 @@ test('saves need a physical swept hand or body hit, and a parry leaves a recover
 test('angle positioning stays inside the posts, and a keeper comes out to challenge close dribbling',()=>{
  const p=keeper(),owner={id:'home-1',team:'home'},wide=planGoalkeeper(p,{x:30,z:-28,vx:0,vz:0},owner,0,'regular');assert.ok(Math.abs(wide.x)<=2.4);
  const close=planGoalkeeper(p,{x:1,z:-46,vx:0,vz:0},owner,.1,'regular');assert.equal(p.keeperState.phase,'smother');assert.ok(close.z>-50);assert.ok(close.speed>4);
+});
+test('an open-play keeper can block a close low shot while still reacting, with no reach outside the set stance',()=>{
+ const p=keeper(),ball={x:.56,y:.43,z:-49.86,vx:0,vy:0,vz:-29,ownerId:null,shot:{id:3,team:'home',at:1}},openPlay={openPlay:true};
+ planGoalkeeper(p,ball,null,1.01,'regular',openPlay);
+ assert.ok(p.keeperState.readAt>1.18);
+ assert.equal(p.keeperState.committed,false);
+ assert.equal(goalkeeperContact(p,ball,{...ball,z:-49.3},1.03,'regular',openPlay)?.kind,'parry');
+ for(const point of [{x:1.6},{y:1.86}]){
+  const shot={...ball,...point};
+  assert.equal(goalkeeperContact(p,shot,{...shot,z:-49.3},1.03,'regular',openPlay),null);
+ }
+});
+test('a near-range centre drive is harder to score than a clean corner at either end',()=>{
+ for(const sign of [-1,1]){
+  let centreSaves=0,cornerGoals=0;
+  for(let seed=1;seed<=6;seed++){
+   for(const aim of [0,seed%2?-1:1]){
+    const g=scenario(8,seed*733,sign),s=g.state;
+    s.players.find(p=>p.id==='away-0').x=(seed%3-1)*.6;
+    assert.equal(g.action('shoot',{power:aim?.9:.45,direction:{x:aim,z:sign}}),true);
+    for(let i=0;i<90&&!s.score.home&&!s.stats.away.saves;i++)run(g);
+    if(aim)cornerGoals+=s.score.home;
+    else centreSaves+=s.stats.away.saves;
+   }
+  }
+  assert.ok(centreSaves>=5, 'a set keeper must be able to cover the centre');
+  assert.ok(cornerGoals>=4, 'a close, well-placed drive can still beat the keeper');
+ }
 });
 test('normal open shots can score from 18 and 24 metres through actual flight while central shots can be parried',()=>{
  for(const distance of[18,24]){let goals=0,saves=0;for(let seed=1;seed<=6;seed++){const g=scenario(distance,seed*733);g.action('shoot',{power:.9,direction:{x:1,z:0}});for(let i=0;i<180;i++){g.update(1/60);if(g.state.phase==='goal'||g.state.stats.away.saves)break;}goals+=g.state.score.home;saves+=g.state.stats.away.saves;}assert.ok(goals>0,distance+' m shots must not all be auto-saved');assert.ok(goals<=6&&saves<=6);}

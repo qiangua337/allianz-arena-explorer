@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {createFootballSimulation} from '../dist/football-simulation.js';
 import {packOnlineState,applyOnlineState} from '../dist/online-protocol.js';
 import {createOnlineSimulation} from '../dist/online-client.js';
+import {penaltyTarget} from '../dist/football-penalty.js';
 
 const run=(g,frames,input={})=>{for(let i=0;i<frames;i++)g.update(1/60,input);};
 const close=(a,b)=>assert.ok(Math.abs(a-b)<1e-8,`${a} differs from ${b}`);
@@ -14,7 +15,8 @@ function award({seed=1,team='home',period=1,humanTeams=['home','away']}={}){
  Object.assign(a,{x:0,z:sign*42,yaw:sign<0?Math.PI:0,vx:0,vz:0,protectedUntil:0,tackleAt:0});Object.assign(d,{x:0,z:sign*41,yaw:a.yaw,vx:0,vz:sign*5.4,tackleAt:0});Object.assign(g.state.ball,{x:0,y:.11,z:sign*42.6,vx:0,vy:0,vz:0,ownerId:a.id,shot:null});g.action('tackle',{},defending);
  assert.equal(g.state.restartType,'penaltyKick');assert.equal(g.state.setPiece?.team,team);return{g,sign,team,defending};
 }
-function ready(options){const f=award(options);run(f.g,115);assert.equal(f.g.state.setPiece.stage,'ready');return f;}
+function confirm(f){assert.equal(f.g.action('penalty-ready',{},f.defending),true);run(f.g,150);}
+function ready(options){const f=award(options);run(f.g,115);assert.equal(f.g.state.setPiece.stage,'ready');confirm(f);return f;}
 function shoot(f,side=.8,power=.7){assert.equal(f.g.action('shoot',{power,direction:{x:side,z:f.sign}},f.team),true);}
 function online(g,team){const listeners=new Set();let seq=0,packetSeq=0;const session={team,opponent:'dortmund',connection:'connected',latency:300,room:{started:true,ended:false,rules:{mode:'league',duration:180}},packet:packOnlineState(g.state,++packetSeq),subscribe(fn){listeners.add(fn);return()=>listeners.delete(fn);},sendInput(){return++seq;},send(){return true;},leave(){}};const client=createOnlineSimulation(session,{controlMode:'manual'});return{client,deliver(){session.packet=packOnlineState(g.state,++packetSeq,{[team]:seq});for(const fn of listeners)fn();}};}
 
@@ -58,13 +60,13 @@ test('a goalkeeper parry during an extended penalty does not stop the still-movi
  const f=ready();f.g.state.elapsed=89.99;shoot(f);run(f.g,3);f.g.action('tackle',{direction:{x:1}},f.defending);let steps=0;while(f.g.state.lastShot.outcome==='flight'&&steps++<60)f.g.update(1/60);assert.equal(f.g.state.lastShot.outcome,'parried');assert.equal(f.g.state.phase,'playing');assert.equal(f.g.state.setPiece.extended,true);assert.ok(Math.hypot(f.g.state.ball.vx,f.g.state.ball.vz)>1);run(f.g,600);assert.equal(f.g.state.setPiece,null);assert.equal(f.g.state.phase,'interval');
 });
 
-test('AI penalties and a human ready timeout resolve into live play rather than holding the fixture forever',()=>{
+test('AI penalties resolve into live play, and the shot timeout begins only after a human keeper confirms',()=>{
  for(let seed=1;seed<=12;seed++){const f=award({seed,humanTeams:[]});run(f.g,600);assert.equal(f.g.state.setPiece,null);assert.ok(f.g.state.stats.home.shots>0);assert.ok(f.g.state.elapsed>.2);}
- const f=ready();run(f.g,1280);assert.equal(f.g.state.setPiece,null);assert.equal(f.g.state.stats.home.shots,1);assert.ok(f.g.state.elapsed>0);
+ const f=award();run(f.g,1450);assert.equal(f.g.state.setPiece.stage,'ready');assert.equal(f.g.state.stats.home.shots,0);assert.equal(f.g.action('penalty-ready',{},f.team),false);confirm(f);run(f.g,1280);assert.equal(f.g.state.setPiece,null);assert.equal(f.g.state.stats.home.shots,1);assert.ok(f.g.state.elapsed>0);
 });
 
 test('checkpoint recovery preserves setup, ready and mid-dive penalty authority and deterministic outcomes',()=>{
- const f=award();for(const stage of ['setup','ready','flight']){if(stage==='ready')run(f.g,115);if(stage==='flight'){shoot(f);run(f.g,3);f.g.action('tackle',{direction:{x:1}},f.defending);run(f.g,4);}assert.equal(f.g.state.setPiece.stage,stage);const recovered=createFootballSimulation({humanTeams:['home','away'],controlMode:'manual',rules:{mode:'league',duration:180}});recovered.restore(f.g.checkpoint());run(f.g,stage==='flight'?35:3);run(recovered,stage==='flight'?35:3);assert.deepEqual(recovered.state,f.g.state);}
+ const f=award();for(const stage of ['setup','ready','flight']){if(stage==='ready')run(f.g,115);if(stage==='flight'){confirm(f);shoot(f);run(f.g,3);f.g.action('tackle',{direction:{x:1}},f.defending);run(f.g,4);}assert.equal(f.g.state.setPiece.stage,stage);const recovered=createFootballSimulation({humanTeams:['home','away'],controlMode:'manual',rules:{mode:'league',duration:180}});recovered.restore(f.g.checkpoint());run(f.g,stage==='flight'?35:3);run(recovered,stage==='flight'?35:3);assert.deepEqual(recovered.state,f.g.state);}
 });
 
 test('online role packets preserve ordinary penalties and keeper dives with backward-compatible optional fields',()=>{
@@ -76,4 +78,63 @@ test('300ms online prediction freezes the taker and ball, keeps the goalie on th
  for(const team of ['home','away']){const f=ready({team}),a=online(f.g,team),b=online(f.g,f.defending),taker=a.client.state.players.find(p=>p.id===a.client.state.controlledId),keeper=b.client.state.players.find(p=>p.id===b.client.state.controlledId),original={x:taker.x,z:taker.z,ball:{...a.client.state.ball}},line=keeper.z;
   for(let i=0;i<12;i++){a.client.update(1/60,{x:1,z:f.sign});b.client.update(1/60,{x:1,z:-f.sign});}close(taker.x,original.x);close(taker.z,original.z);assert.deepEqual(a.client.state.ball,original.ball);assert.ok(keeper.x>.15);close(keeper.z,line);assert.equal(b.client.action('tackle',{direction:{x:-1}}),true);b.client.update(1/60,{});assert.equal(keeper.motion.type,'dive');assert.equal(keeper.motion.direction,-keeper.attackSign);run(f.g,3);shoot(f);a.deliver();b.deliver();for(let i=0;i<6;i++)b.client.update(1/60,{x:1,z:f.sign});close(keeper.z,line);a.client.dispose();b.client.dispose();
  }
+});
+
+test('a human keeper can prepare as long as needed and gets a full countdown after confirming',()=>{
+ const g=createFootballSimulation({rules:{mode:'shootout'}}),k=g.state.competition.shootout;
+ assert.equal(g.action('shoot',{power:.66,penaltyAim:{x:.9,y:.9}},'home'),true);run(g,170);
+ assert.equal(k.team,'away');assert.equal(k.keeperReady,false);run(g,1800);
+ assert.equal(k.stage,'ready');assert.equal(g.state.stats.away.shots,0);
+ assert.equal(g.action('penalty-ready',{},'away'),false);assert.equal(g.action('tackle',{direction:{x:1}},'home'),false);
+ assert.equal(g.action('penalty-ready',{},'home'),true);assert.equal(g.action('penalty-ready',{},'home'),false);
+ run(g,149);assert.equal(k.stage,'ready');assert.equal(g.action('shoot',{power:.5},'away'),false);
+ run(g,45);assert.notEqual(k.stage,'ready');assert.equal(g.state.stats.away.shots,1);
+});
+
+test('retained two-axis aim places shots low or high at either end regardless of ordinary shot style',()=>{
+ for(const team of ['home','away'])for(const x of [-.84,.84])for(const y of [-.83,.83]){
+  const f=ready({team}),target=penaltyTarget({x,y},f.sign*52.5);
+  f.g.setShotKind('lob',team);
+  assert.equal(f.g.action('shoot',{power:.68,penaltyAim:{x,y}},team),true);
+  run(f.g,3);f.g.action('tackle',{direction:{x:-Math.sign(target.x)}},f.defending);
+  for(let step=0;step<65&&f.g.state.lastShot.outcome==='flight';step++)run(f.g,1);
+  assert.equal(f.g.state.lastShot.outcome,'goal');
+  assert.ok(Math.abs(f.g.state.ball.x-target.x)<.12);
+  assert.ok(Math.abs(f.g.state.ball.y-target.y)<.15);
+ }
+});
+
+test('a timed goalkeeper dive must cover the shot height and neutral input holds the centre',()=>{
+ const f=ready(),saved=f.g.checkpoint();
+ for(const [aimHeight,diveHeight,expected] of [[.82,.82,'parried'],[.82,-.82,'goal'],[-.82,-.82,'parried'],[-.82,.82,'goal']]){
+  f.g.restore(saved);
+  assert.equal(f.g.action('shoot',{power:.68,penaltyAim:{x:.68,y:aimHeight}},f.team),true);run(f.g,3);
+  assert.equal(f.g.action('tackle',{direction:{x:1},penaltyAim:{y:diveHeight}},f.defending),true);
+  run(f.g,35);assert.equal(f.g.state.lastShot.outcome,expected);
+ }
+ f.g.restore(saved);
+ assert.equal(f.g.action('tackle',{direction:{x:0},penaltyAim:{y:0}},f.defending),true);
+ const keeper=f.g.state.players.find(p=>p.id===f.g.state.setPiece.keeper);run(f.g,8);
+ assert.equal(keeper.keeperState.phase,'set');close(keeper.x,0);
+});
+
+test('CPU penalty keeper covers the middle and learns repeated corners while varied attempts can still score',()=>{
+ function trial(seed,aims){
+  const g=createFootballSimulation({rules:{mode:'shootout'},seed}),k=g.state.competition.shootout,outcomes=[];
+  for(const penaltyAim of aims){
+   assert.equal(k.team,'home');assert.equal(g.action('shoot',{power:.70,penaltyAim}),true);
+   for(let i=0;i<95&&k.stage==='flight';i++)run(g,1);
+   assert.equal(k.stage,'result');outcomes.push(k.outcome);if(outcomes.length===aims.length)break;
+   run(g,122);assert.equal(g.action('penalty-ready',{},'home'),true);run(g,360);
+  }
+  return outcomes;
+ }
+ const highRight={x:.95,y:.95};let predictableSaved=0,variedScored=0;
+ for(let seed=1;seed<=24;seed++){
+  assert.deepEqual(trial(seed,[{x:0,y:0}]),['saved']);
+  const same=trial(seed,[highRight,highRight,highRight]);
+  const varied=trial(seed,[highRight,{x:-.9,y:-.8},{x:-.96,y:.91}]);
+  assert.equal(same[0],'goal');predictableSaved+=Number(same[2]==='saved');variedScored+=Number(varied[2]==='goal');
+ }
+ assert.ok(predictableSaved>=12);assert.ok(variedScored>=20);
 });

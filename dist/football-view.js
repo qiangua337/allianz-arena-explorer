@@ -33,7 +33,7 @@ export function buildFootballView(scene,ball,players){
    const distance=viewer?controlled.position.distanceTo(viewer):0;
    controlled.scale.setScalar(1+Math.min(Math.max(distance-11,0)/85,.27));
   }
-  const charging=b.ownerId===p?.id&&!!state.chargePower,owner=state.players.find(p=>p.id===b.ownerId&&!p.trainingInactive),target=b.ownerId===p?.id?state.chargePower?state.shotPreview:state.passPreview:!b.ownerId?b.receivePoint:null;guide.visible=!!target&&!state.replay;receiver.visible=!!target&&!charging&&!state.replay;
+  const penalty=state.phase==='penalties'||state.setPiece?.type==='penalty',charging=b.ownerId===p?.id&&!!state.chargePower,owner=state.players.find(p=>p.id===b.ownerId&&!p.trainingInactive),target=penalty?null:b.ownerId===p?.id?state.chargePower?state.shotPreview:state.passPreview:!b.ownerId?b.receivePoint:null;guide.visible=!!target&&!state.replay;receiver.visible=!!target&&!charging&&!state.replay;
   aim.visible=!!target&&charging&&!state.replay;spread.visible=aim.visible;
   if(target){const points=guidePositions;
    if(charging){const timing=shotGuideTiming(b,target);for(let i=0;i<33;i++){sampleShotGuide(b,target,timing.duration*i/32,guidePoint);points.setXYZ(i,guidePoint.x,guidePoint.y,guidePoint.z);}guideGeometry.setDrawRange(0,33);aim.position.copy(guidePoint);aim.rotation.x=timing.lands?-Math.PI/2:0;

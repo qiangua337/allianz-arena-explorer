@@ -10,6 +10,19 @@ const {arenaMapView,mapProject,mapUnproject,mapDestinationAt,drawArenaFloorMap}=
 const {tourNodes}=await import('../dist/tour-route.js');
 const {createGoalNetMaterial,goalFeedbackController}=await import('../dist/goal-feedback.js');
 
+test('the penalty keeper camera fades only the net in front of the local viewer',()=>{
+ const nets=[createGoalNetMaterial(),createGoalNetMaterial()],feedback=goalFeedbackController(nets);
+ const state={score:{home:0,away:0},phase:'penalties',competition:{shootout:{team:'away'}}};
+ feedback.update(state,0);
+ assert.deepEqual(nets.map(net=>net.material.opacity),[.14,.53]);
+ feedback.update({...state,localTeam:'away'},1);
+ assert.deepEqual(nets.map(net=>net.material.opacity),[.53,.53]);
+ feedback.update({...state,phase:'playing',setPiece:{type:'penalty',goalZ:52.5,team:'away'}},2);
+ assert.deepEqual(nets.map(net=>net.material.opacity),[.53,.14]);
+ feedback.reset();
+ assert.deepEqual(nets.map(net=>net.material.opacity),[.53,.53]);
+});
+
 test('fast balls hit both goal posts and crossbars through a swept physical test while clear goal-mouth shots pass',()=>{
  for(const s of[-1,1]){
   for(const x of[-3.66,3.66]){const hit=goalFrameCollision({x,y:1,z:s*51.9},{x,y:1,z:s*53.2},{x:0,y:0,z:s*35});assert.ok(hit&&hit.t>0&&hit.t<1);assert.ok(hit.velocity.z*s<0);assert.equal(hit.name,'门柱');}

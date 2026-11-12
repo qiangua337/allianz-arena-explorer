@@ -1,6 +1,20 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {footballInput,footballCamera,matchTime,ballDirection,penaltyContext,footballControlYaw} from '../dist/football-controls.js';
+import {movePenaltyAim,penaltyKeeperWaiting} from '../dist/football-penalty-ui.js';
+
+test('penalty directions retain the selected height and side when the movement input is released',()=>{
+ let aim=movePenaltyAim({x:0,y:0},{x:-1,y:1},.25,false);
+ assert.deepEqual(aim,{x:-.65,y:.65});
+ assert.equal(movePenaltyAim(aim,{x:0,y:0},1,false),aim);
+ aim=movePenaltyAim(aim,{x:0,y:-1},1,false);
+ assert.deepEqual(aim,{x:-.65,y:-1});
+ const dive=movePenaltyAim({x:0,y:0},{x:1,y:-1},.016,true);
+ assert.deepEqual(dive,{x:1,y:-1});
+ assert.equal(movePenaltyAim(dive,{x:0,y:0},1,true),dive);
+ assert.equal(penaltyKeeperWaiting({role:'keeper',stage:'ready',keeperReady:false}),true);
+ assert.equal(penaltyKeeperWaiting({role:'shooter',stage:'ready',keeperReady:false}),false);
+});
 
 test('camera-relative football movement rotates correctly without diagonal speed gain',()=>{
  assert.deepEqual(footballInput({forward:1}),{x:0,z:-1,sprint:false,defend:false});
