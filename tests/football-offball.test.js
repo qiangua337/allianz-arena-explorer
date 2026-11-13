@@ -47,6 +47,28 @@ test('an active run survives server checkpoint recovery and is cancelled on loss
  assert.ok(weakBack.z*sign<start-3,'the far-side defender recovers even though the ball changes hands on the other flank');
 });
 
+test('a stationary carrier gets a short option and a separate runner without sending the centre-backs forward',()=>{
+ for(const team of ['home','away']){
+  const {game,sign}=wideAttack(team);
+  run(game,1);
+  const first=game.checkpoint().controllers[team].offBall;
+  assert.ok(first.run&&first.support&&first.run.id!==first.support.id);
+  const helper=player(game,first.support.id),start={x:helper.x,z:helper.z};
+  const plannedGap=Math.hypot(first.support.x-start.x,first.support.z-start.z);
+  run(game,66);
+  assert.ok(Math.hypot(first.support.x-helper.x,first.support.z-helper.z)<plannedGap-2.5);
+  assert.ok(first.support.z*sign<first.run.z*sign,'the two players offer separate passing depths');
+  assert.equal(game.state.ball.ownerId,team+'-8');
+  for(const id of [team+'-3',team+'-4'])assert.ok(player(game,id).z*sign<8);
+  const ids=new Set([first.run.id]);
+  for(let i=0;i<270;i++){
+   game.update(1/60);
+   if(i%15===0){const {run}=game.checkpoint().controllers[team].offBall;if(run)ids.add(run.id);}
+  }
+  assert.ok(ids.size>1,'the forward run rotates when the carrier keeps the ball');
+ }
+});
+
 test('a sprint short pass in semi-assisted play hands off the cursor and the original passer runs diagonally',()=>{
  const {game,sign}=wideAttack('home');game.setControlMode('semi');
  const passer=player(game,'home-8'),start={x:passer.x,z:passer.z};

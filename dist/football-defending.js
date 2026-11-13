@@ -6,20 +6,33 @@ const fullBack={width:.76,shift:.38,depth:.53,min:-43,max:2,mark:1};
 const wingBack={...fullBack,min:-42,max:7};
 const holding={width:.78,shift:.37,depth:.60,min:-39,max:9,mark:.85,screen:true};
 const midfielder={...holding,depth:.57,min:-36,max:16,mark:2};
-const wide={width:.76,shift:.36,depth:.61,min:-34,max:22};
-const forward={width:.82,shift:.32,depth:.62,min:-28,max:30};
+const wide={width:.76,shift:.36,depth:.61,min:-34,max:22,outletCover:6.5};
+const forward={width:.82,shift:.32,depth:.62,min:-28,max:30,outletCover:5.5};
 const roles={CB:centreBack,LB:fullBack,RB:fullBack,LWB:wingBack,RWB:wingBack,DM:holding,CM:midfielder,AM:forward,LM:wide,RM:wide,LW:wide,RW:wide,ST:forward};
 
 export function defendingShape(field,team,system,sign,ball,owner,pressers){
- const ballX=clamp(ball.x+(ball.vx||0)*.28,-33,33),ballDepth=clamp((ball.z+(ball.vz||0)*.28)*sign,-51,51),shape=new Map(),markers=[],threats=[];
+ const ballX=clamp(ball.x+(ball.vx||0)*.28,-33,33),ballDepth=clamp((ball.z+(ball.vz||0)*.28)*sign,-51,51);
+ const shape=new Map(),markers=[],threats=[],outlets=[],screeners=[],markedIds=[];
+ const carrier=owner??(ball.targetId&&field.find(player=>player.id===ball.targetId));
+ const guardOutlets=carrier&&carrier.team!==team;
  for(const player of field){
   if(player.dismissed||player.trainingInactive||player.keeper)continue;
   if(player.team!==team){
    if(player.id===owner?.id||player.id===ball.ownerId)continue;
    const x=player.x+clamp((player.vx||0)*.30,-1.9,1.9),depth=(player.z+clamp((player.vz||0)*.30,-1.9,1.9))*sign;
-   if(depth< -50||depth>Math.min(12,ballDepth+9)||Math.abs(x)>31)continue;
-   const gap=Math.hypot(x-ballX,depth-ballDepth),danger=-depth*.24-Math.abs(x)*.19-Math.max(0,gap-22)*.19-Math.max(0,depth-ballDepth)*.28;
-   if(danger>-2.6)threats.push({x,depth,danger});
+   if(depth< -50||Math.abs(x)>32)continue;
+   const relativeDepth=depth-ballDepth,gap=Math.hypot(x-ballX,relativeDepth);
+   if(depth<=Math.min(12,ballDepth+9)){
+    const danger=-depth*.24-Math.abs(x)*.19-Math.max(0,gap-22)*.19-Math.max(0,relativeDepth)*.28;
+    if(danger>-2.6)threats.push({id:player.id,x,depth,danger});
+   }
+   if(guardOutlets&&player.id!==carrier.id&&relativeDepth>=-9&&relativeDepth<=26&&gap>=6&&gap<=33){
+    // Meet a runner between their current lane and its projected receiving point.
+    const nextX=player.x+clamp((player.vx||0)*.62,-3.1,3.1);
+    const nextDepth=(player.z+clamp((player.vz||0)*.62,-3.1,3.1))*sign;
+    outlets.push({id:player.id,x:ballX+(nextX-ballX)*.79,depth:ballDepth+(nextDepth-ballDepth)*.79-.9,
+     priority:Math.max(0,6-gap*.20)+Math.max(0,1.8-Math.abs(x)*.065)});
+   }
    continue;
   }
   if(pressers?.includes(player.id))continue;
@@ -33,6 +46,7 @@ export function defendingShape(field,team,system,sign,ball,owner,pressers){
   const point={x:anchorX+(x-anchorX)*shapeWeight,z:(anchorDepth+(depth-anchorDepth)*shapeWeight)*sign,speed:5.1};
   shape.set(player.id,point);
   if(profile.mark!==undefined)markers.push({player,profile,point,x,depth,used:false});
+  if(profile.outletCover)screeners.push({profile,point,x:point.x,depth:point.z*sign,used:false});
  }
 
  // Keep the dangerous lanes covered without assigning two defenders to the same runner.
@@ -54,7 +68,8 @@ export function defendingShape(field,team,system,sign,ball,owner,pressers){
   marker.point.x+=(targetX-marker.x)*t*shapeWeight;
   const depth=Math.min(threat.depth-1.25,marker.depth+(targetDepth-marker.depth)*t);
   marker.point.z=Math.min(threat.depth-1.25,marker.point.z*sign+(depth-marker.depth)*shapeWeight)*sign;
-  marker.used=true;
+  marker.used=true;markedIds.push(threat.id);
+  marker.point.faceBall=true;
   if(++marked===3)break;
  }
 
@@ -71,6 +86,31 @@ export function defendingShape(field,team,system,sign,ball,owner,pressers){
    screen.point.x+=(x-screen.x)*.76*shapeWeight;
    const screenDepth=screen.point.z*sign+(depth-screen.depth)*.80*shapeWeight;
    screen.point.z=Math.min(Math.max(-40,ballDepth-3),screenDepth)*sign;
+   screen.point.faceBall=true;
+  }
+ }
+
+ // The midfield and forwards close other routes without joining the two
+ // pressers. Move only when there is an actual outlet within their zone.
+ if(outlets.length&&screeners.length){
+  outlets.sort((a,b)=>b.priority-a.priority);
+  let covered=0;
+  for(const outlet of outlets){
+   if(markedIds.includes(outlet.id))continue;
+   let best=null,bestGap=14;
+   for(const screener of screeners){
+    if(screener.used)continue;
+    const gap=Math.hypot(outlet.x-screener.x,(outlet.depth-screener.depth)*1.15);
+    if(gap<bestGap){best=screener;bestGap=gap;}
+   }
+   if(!best)continue;
+   const dx=outlet.x-best.x,dz=outlet.depth-best.depth;
+   const move=Math.min(.77,best.profile.outletCover/(Math.hypot(dx,dz)||1))*clamp((14-bestGap)/3,0,1);
+   best.point.x=clamp(best.x+dx*move,-31,31);
+   best.point.z=clamp(best.depth+dz*move,best.depth-5,best.depth+4)*sign;
+   best.point.faceBall=true;
+   best.used=true;
+   if(++covered===2)break;
   }
  }
 

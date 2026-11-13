@@ -244,6 +244,39 @@ function supportPassingLane(player,players,anchor,point,maxDepth,sign){
  return best;
 }
 
+// Create a second passing option while the forward runner pulls a marker away.
+// This is a short, committed move to the side of the carrier, not another sprint at goal.
+export function passingSupportRun(players,team,system,shape,sign,owner,excluded,previous){
+ if(!owner||owner.keeper)return null;
+ const {anchor,depth}=shape;
+ let best=null;
+ for(const player of players){
+  if(player.team!==team||player.keeper||player.dismissed||player.trainingInactive||
+     player.id===owner.id||excluded.includes(player.id)||player.passRun)continue;
+  const role=system.roles[player.index],baseX=system.positions[player.index][0];
+  if(role!=='DM'&&role!=='CM'&&role!=='AM'&&role!=='ST'&&!wideAttack.has(role)&&!wideBack.has(role))continue;
+  if(distance(player,anchor)>30)continue;
+  const sides=Math.abs(baseX)>12?[Math.sign(baseX)]:[-1,1];
+  for(const side of sides){
+   const x=clamp(anchor.x+side*(wideAttack.has(role)?10:7.5),-30,30);
+   const offset=wideBack.has(role)?-8:role==='DM'?-6:role==='ST'?7:-4;
+   const alternate=wideBack.has(role)||role==='DM'?offset-4:role==='ST'?3:4;
+   for(const laneDepth of [offset,alternate]){
+    const limit=laneDepth>0?Math.min(43,shape.runLine):43;
+    const z=sign*clamp(depth+laneDepth,-48,Math.max(depth-1,limit));
+    const point={x,z},gap=distance(player,point);
+    if(gap<2.2||gap>18||distance(anchor,point)<5)continue;
+    if(previous?.id===player.id&&distance(previous,point)<3.2)continue;
+    const quality=supportLaneScore(players,player,anchor,point);
+    if(quality.lane<1.35**2||quality.score<2.6)continue;
+    const score=quality.score-gap*.13+(role==='DM'||role==='CM'?1.15:0)-(previous?.id===player.id?1.4:0);
+    if(!best||score>best.score)best={id:player.id,x,z,score};
+   }
+  }
+ }
+ return best;
+}
+
 export function supportPosition(player,ball,players,{base,role='CM',sign=-1,attacking=false,shape=null}={}){
  const anchor=shape?.anchor??ball,depth=anchor.z*sign,flank=Math.sign(anchor.x),wide=Math.abs(anchor.x)>8,baseX=base[0],side=Math.sign(baseX),nearSide=wide&&flank===side;
  let x=baseX+anchor.x*.20,q=-base[1]+depth*.20,speed=5.1;

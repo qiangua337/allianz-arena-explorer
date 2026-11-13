@@ -3,7 +3,7 @@ import {goalkeeperState,planGoalkeeper,goalkeeperContact,goalkeeperProfile} from
 import {validControlMode,turnFootballer,cursorCandidate,tackleWindow,pressureTarget,sweptBallContact} from './football-assist.js';
 import {homeXI,awayXI} from './matchday-roster.js';
 import {footballTeam,opponentSquad,difficulties} from './football-teams.js';
-import {attackingShape,deliveryLabels,forwardSupportRun,passOption,shotOption,shotPreparation,receivingPoint,shotKinds,passFlight,passSupportRun,supportPosition,possessionTeam} from './football-tactics.js';
+import {attackingShape,deliveryLabels,forwardSupportRun,passingSupportRun,passOption,shotOption,shotPreparation,receivingPoint,shotKinds,passFlight,passSupportRun,supportPosition,possessionTeam} from './football-tactics.js';
 import {goalFrameCollision} from './goal-frame.js';
 import {footballFormations,squadDefinition} from './football-squads.js';
 import {createFootballRegulations} from './football-regulations.js';
@@ -188,17 +188,28 @@ export function createFootballSimulation({duration=180,seed=73417,controlMode='s
  function attackingRun(team,field,system,shape,sign,owner,b){
   const controller=controllers[team],selection=state.teamSheets[team].formation,control=humans.has(team)?state.controlledIds[team]:null;
   let plan=controller.offBall;
-  if(plan?.formation!==selection)controller.offBall=plan={formation:selection,run:null,anchor:null,nextAt:0};
-  const id=plan.run?.id;
-  if(id&&(worldTime>=plan.run.until||id===control||id===owner?.id||id===b.targetId||id===shape.edgeSupport||shape.box||!field.some(p=>p.id===id)))plan.run=null;
-  if(b.shot||b.rebound){plan.run=null;return null;}
-  // Commit to one run so players do not alternate directions as a marker moves.
-  if(!plan.run&&worldTime>=plan.nextAt&&(!plan.anchor||distance(shape.anchor,plan.anchor)>=4.5||worldTime>=(plan.retryAt??plan.nextAt+2.55))){
+  if(plan?.formation!==selection)controller.offBall=plan={formation:selection,run:null,support:null,nextAt:0,supportAt:0};
+  if(b.shot||b.rebound){plan.run=plan.support=null;return plan;}
+  const assigned=[control,owner?.id,b.targetId,shape.edgeSupport,shape.box?.near?.id,shape.box?.arriving?.id];
+  const available=job=>job&&worldTime<job.until&&!assigned.includes(job.id)&&field.some(p=>p.id===job.id&&!p.passRun);
+  if(!available(plan.run)||shape.box)plan.run=null;
+  if(!available(plan.support)||!owner||owner.keeper)plan.support=null;
+  // Check the space again when a run ends, even if the ball carrier holds position.
+  if(!plan.run&&worldTime>=plan.nextAt){
    const run=forwardSupportRun(field,team,system,shape,sign,owner,control,b.targetId,worldTime,plan.lastRunner);
-   plan.nextAt=worldTime+(run?2.65:.24);
-   if(run){plan.run={id:run.id,x:run.x,z:run.z,until:worldTime+1.65};plan.anchor=shape.anchor;plan.lastRunner=run.id;plan.retryAt=worldTime+5.2;}
+   plan.nextAt=worldTime+(run?1.95:.35);
+   if(run){
+    plan.run={id:run.id,x:run.x,z:run.z,until:worldTime+1.65};plan.lastRunner=run.id;
+    if(plan.support?.id===run.id)plan.support=null;
+   }
   }
-  return plan.run;
+  if(!plan.support&&worldTime>=(plan.supportAt??0)){
+   const recent=worldTime<(plan.lastSupport?.until??0)?plan.lastSupport:null;
+   const support=passingSupportRun(field,team,system,shape,sign,owner,[...assigned,plan.run?.id],recent);
+   plan.supportAt=worldTime+(support?2.05:.45);
+   if(support){plan.support={...support,until:worldTime+1.75};plan.lastSupport={...support,until:worldTime+3.8};}
+  }
+  return plan;
  }
  function updatePlayers(dt,inputs){
   const b=state.ball,owner=byId(b.ownerId),field=onField(),pressers={},systems={},attacks={},runs={},defences={};
@@ -235,7 +246,9 @@ export function createFootballSimulation({duration=180,seed=73417,controlMode='s
    if(isControlled){moveControlledFootballer(p,b,owner,input,dt,worldTime);continue;}
    if(practice&&p.team==='home'&&!p.keeper&&b.targetId!==p.id){p.vx=p.vz=0;if(owner?.id!==p.id)p.yaw=face(b.x-p.x,b.z-p.z);continue;}
    p.defending=false;p.stamina=Math.min(1,p.stamina+.035*dt);let targetX,targetZ,speed=p.keeper?4.6:5.1;const aiFactor=p.team==='away'?tuning.speed:1;
-   const system=systems[p.team],role=system.roles[p.index],base=system.positions[p.index],shape=attacks[p.team],run=runs[p.team];
+   const system=systems[p.team],role=system.roles[p.index],base=system.positions[p.index],shape=attacks[p.team];
+   const run=runs[p.team]?.run,support=runs[p.team]?.support;
+   let faceBallAtTarget=false;
    if(p.passRun&&(possession!==p.team||worldTime>=p.passRun.until||b.ownerId===p.id))p.passRun=null;
    if(p.keeper){const plan=planGoalkeeper(p,b,owner,worldTime,state.difficulty,{openPlay:true});targetX=plan.x;targetZ=plan.z;speed=plan.speed;
     if(plan.commit){motion(p,'dive',goalkeeperProfile(state.difficulty).window+goalkeeperProfile(state.difficulty).recovery);p.motion.direction=plan.direction*attackSign(p.team);p.motion.height=plan.height;}
@@ -261,11 +274,13 @@ export function createFootballSimulation({duration=180,seed=73417,controlMode='s
     const target=chases.targets[p.id];targetX=target.x;targetZ=target.z;speed=target.speed;
    }else if(p.passRun&&!rebound){targetX=p.passRun.x;targetZ=sign*Math.min(p.passRun.z*sign,shape?.runLine??48);speed=6.45;
    }else if(run?.id===p.id){targetX=run.x;targetZ=sign*Math.min(run.z*sign,shape.runLine);speed=6.65;
+   }else if(support?.id===p.id){targetX=support.x;targetZ=support.z;speed=5.65;faceBallAtTarget=true;
    }else if(possession!==p.team&&pressers[p.team].includes(p.id)){
     const first=pressers[p.team][0]===p.id,target=first?pressureTarget(p,owner,b):null;
     targetX=first?target.x:b.x*.72+p.x*.18;targetZ=first?target.z:b.z-sign*(openPlay?5.0:3.1);speed=first?5.55:5.05;
    }else{
-    const target=defences[p.team]?.get(p.id)??supportPosition(p,b,field,{base,role,sign,attacking:possession===p.team,shape});targetX=target.x;targetZ=target.z;speed=target.speed;
+    const target=defences[p.team]?.get(p.id)??supportPosition(p,b,field,{base,role,sign,attacking:possession===p.team,shape});
+    targetX=target.x;targetZ=target.z;speed=target.speed;faceBallAtTarget=target.faceBall;
    }
    const dx=targetX-p.x,dz=targetZ-p.z,d=Math.hypot(dx,dz);
    if(p.keeper){
@@ -273,8 +288,9 @@ export function createFootballSimulation({duration=180,seed=73417,controlMode='s
     const arrival=dive?.6:set?1.1:1.8,normalizer=Math.max(set?.32:1,d);
     movePlayer(p,d>.06?dx/normalizer:0,d>.06?dz/normalizer:0,speed*Math.min(1,d/arrival),dt,{heading,rate:8,response:dive&&set?21:16});
    }else{
-    const lead=chases?.targets[p.id]?.lead,arrival=lead?.85:1.8,heading=lead&&d<1?face(b.x-p.x,b.z-p.z):undefined;
-    movePlayer(p,d>.3?dx/Math.max(1,d):0,d>.3?dz/Math.max(1,d):0,speed*aiFactor*abilityFactor(playerAbilities(p).pace,.004)*Math.min(1,d/arrival),dt,lead?{heading,response:14}:undefined);
+    const lead=chases?.targets[p.id]?.lead,arrival=lead?.85:1.8;
+    const heading=(lead||faceBallAtTarget)&&d<1?face(b.x-p.x,b.z-p.z):undefined;
+    movePlayer(p,d>.3?dx/Math.max(1,d):0,d>.3?dz/Math.max(1,d):0,speed*aiFactor*abilityFactor(playerAbilities(p).pace,.004)*Math.min(1,d/arrival),dt,lead||faceBallAtTarget?{heading,response:14}:undefined);
    }
   }
   // Body separation has fixed world dimensions; camera motion never moves NPCs.

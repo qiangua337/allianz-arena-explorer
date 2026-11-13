@@ -4,7 +4,7 @@
 
 [在线探索](https://allianz-arena-explorer.pages.dev/) · [GitHub 源码](https://github.com/qiangua337/allianz-arena-explorer) · [Cloudflare 部署说明](docs/DEPLOYMENT.md) · [MIT 许可证](LICENSE)
 
-版本 **10.6.2 · 点球手感**。手机滑动时实时显示瞄准与力度，门将按射门高度伸手，扑挡或击中门框后保留足球的运动再判定结果。
+版本 **10.6.3 · 无球跑位**。持球队员停下组织时，队友会轮流前插和拉开接应，防守球员会提前跟进接应者并封传球线。
 
 版本 **10.4.0 · 弱网同步限流**。每个席位独立确认收到的快照。网络吃紧时，服务器减少该席位的常规同步，及时发送传射和换边等变化，并用完整快照恢复同步。
 

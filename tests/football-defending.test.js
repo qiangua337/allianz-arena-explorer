@@ -47,3 +47,22 @@ test('dismissed or training-inactive players do not influence defensive assignme
  const build=extra=>defendingShape([...players,carrier,...extra],'home',system,-1,carrier,carrier,[undefined,'home-6']);
  assert.deepEqual(build([dismissed,inactive]),build([]));
 });
+
+test('both wingers cut separate passing routes while the carrier holds still',()=>{
+ for(const sign of [-1,1]){
+  const players=actors(sign),carrier=opponent(1,1,-12,sign);
+  const right={...opponent(7,20,-6,sign),vx:3,vz:2*sign};
+  const left={...opponent(8,-20,-7,sign),vx:-3,vz:2*sign};
+  const targets=runners=>defendingShape([...players,carrier,...runners],'home',system,sign,carrier,carrier,['home-2','home-7']);
+  const shape=targets([]),covered=targets([right,left]);
+  for(const [id,receiver] of [['home-9',right],['home-10',left]]){
+   const before=shape.get(id),after=covered.get(id);
+   assert.equal(after.faceBall,true);
+   assert.ok(after.z*sign<before.z*sign-3,'the winger comes back toward the passing route');
+   assert.equal(Math.sign(after.x),Math.sign(receiver.x),'each winger keeps their side');
+   const depth=(after.z-carrier.z)*sign;
+   assert.ok(depth>0,'the winger covers the outlet beyond the carrier');
+  }
+  for(const id of ['home-3','home-4'])assert.deepEqual(covered.get(id),shape.get(id),'the centre-backs keep their line');
+ }
+});
