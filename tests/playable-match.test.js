@@ -98,28 +98,43 @@ test('instant cursor and tackle controls survive canceled touches, focus clearin
  node('game-tackle').fire('pointerdown',{...touch,pointerId:15});assert.equal(p.motion.type,'tackle','the actual tackle motion starts before the finger is released');
 });
 
-test('the ordinary-penalty HUD waits for the human goalkeeper and uses the selected dive after kickoff',()=>{
+test('one goalkeeper tap confirms readiness and a later swipe can change the automatic dive',()=>{
  const f=fixture(true);f.game.start({rules:{mode:'league',duration:180}});f.game.ready();run(f.game,3.2);const s=f.game.state,attacker=s.players.find(p=>p.id==='away-1'),defender=s.players.find(p=>p.id===s.controlledId);
  Object.assign(attacker,{x:0,z:42,yaw:0,vx:0,vz:0,protectedUntil:0,tackleAt:0});Object.assign(defender,{x:0,z:41,yaw:0,vx:0,vz:5.4,tackleAt:0});Object.assign(s.ball,{x:0,y:.11,z:42.6,vx:0,vy:0,vz:0,ownerId:attacker.id,shot:null});f.game.action('tackle');assert.equal(s.setPiece.type,'penalty');run(f.game,2);
  assert.equal(document.body.dataset.controlContext,'penalty-keeper');const keeper=s.players.find(p=>p.id===s.controlledId);assert.equal(keeper.keeper,true);assert.equal(f.node('game-tackle-label').textContent,'扑救');assert.equal(f.node('game-tackle')['aria-label'],'门将扑救');assert.equal(f.node('game-shoot').disabled,true);assert.equal(f.node('action-switch').disabled,true);assert.equal(f.node('action-pass').disabled,true);assert.equal(f.node('game-pressure').disabled,true);assert.equal(f.game.beginCharge(),false);assert.equal(f.node('game-penalty-hint').hidden,false);assert.equal(f.node('game-penalty-status').textContent,'你守门');
- run(f.game,4);assert.equal(s.setPiece.stage,'ready');assert.equal(f.node('game-penalty-ready').hidden,false);assert.equal(f.node('game-tackle').disabled,true);
- f.node('game-penalty-ready').onclick();assert.equal(s.setPiece.keeperReady,true);assert.match(f.node('game-penalty-timing').textContent,/3 秒后可射门/);assert.equal(f.node('game-penalty-ready').hidden,true);
+ run(f.game,4);assert.equal(s.setPiece.stage,'ready');assert.equal(f.node('game-penalty-ready').hidden,false);assert.equal(f.node('game-penalty-dive-target').hidden,false);
  run(f.game,.05,{penaltyAimAxis:{x:1,y:1}});assert.equal(document.body.dataset.gamePenaltyAim,'1.00,1.00');
  const pad=f.node('game-penalty-dive-target');pad.getBoundingClientRect=()=>({left:0,top:0,width:180,height:120});
  const touch={pointerId:81,pointerType:'touch',button:0,preventDefault(){}};
  pad.fire('pointerdown',{...touch,clientX:20,clientY:110,timeStamp:10});
  pad.fire('pointerup',{...touch,clientX:20,clientY:110,timeStamp:100});
- assert.equal(document.body.dataset.gamePenaltyAim,'-1.00,-1.00');
- assert.equal(s.setPiece.diveQueued,false,'the touch zone can select a direction while waiting without diving');
+ assert.equal(document.body.dataset.gamePenaltyAim,'-1.00,0.00');
+ assert.equal(s.setPiece.keeperReady,true);assert.match(f.node('game-penalty-timing').textContent,/3 秒后可射门/);assert.equal(f.node('game-penalty-ready').hidden,true);
+ assert.equal(s.setPiece.diveQueued,true,'the first tap confirms readiness and queues the save');
+ assert.equal(f.node('game-penalty-dive-left')['aria-pressed'],'true');
+ assert.equal(keeper.motion,null,'the queued save does not move the keeper early');
  for(let i=0;i<250&&s.setPiece.stage==='ready';i++)f.game.update(1/60,{},{});
  assert.equal(s.setPiece.stage,'runup');assert.equal(f.node('game-tackle').disabled,false);
  assert.equal(f.node('game-penalty-runup').hidden,false);
  pad.fire('pointerdown',{...touch,clientX:90,clientY:60,timeStamp:1000});
  pad.fire('pointerup',{...touch,clientX:148,clientY:22,timeStamp:1100});
- assert.equal(s.setPiece.diveQueued,true,'one directional swipe queues a dive during the opponent run-up');
- assert.equal(f.node('game-tackle').disabled,true);
+ assert.equal(s.setPiece.diveQueued,true,'a directional swipe updates the selection during the run-up');
+ assert.equal(f.node('game-penalty-dive-right')['aria-pressed'],'true');
  for(let i=0;i<70&&!keeper.motion;i++)f.game.update(1/60,{},{});
  assert.equal(keeper.motion.type,'dive');assert.equal(keeper.keeperState.direction,-1);assert.ok(keeper.keeperState.targetY>1.9);assert.equal(s.competition.shootout,null);
+});
+
+test('one tap on a quick penalty direction shoots with standard power and no separate charge',()=>{
+ const f=fixture(true);f.game.start({rules:{mode:'shootout'}});f.game.ready();
+ assert.equal(f.node('game-penalty-shot-choices').hidden,false);
+ assert.equal(f.node('game-penalty-meter').hidden,true);
+ f.node('game-penalty-shot-left').fire('click',{detail:1});
+ const s=f.game.state,round=s.competition.shootout;
+ assert.equal(round.stage,'runup');assert.equal(document.body.dataset.gamePenaltyAim,'-0.84,-0.25');
+ assert.equal(f.node('game-penalty-shot-choices').hidden,true);
+ assert.equal(f.game.quickPenaltyDirection(1),false);
+ run(f.game,round.runupDuration+.04);
+ assert.equal(s.stats.home.shots,1);assert.ok(s.ball.vx<0);assert.equal(s.lastShot.power,.62);
 });
 
 test('the online ordinary-penalty taker can charge and shoot once, then cannot recharge during flight',()=>{

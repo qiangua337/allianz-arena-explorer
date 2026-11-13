@@ -16,6 +16,14 @@ export const penaltyDiveLead=.13;
 export const penaltyPowerRisk=.76;
 export const penaltyStandardPower=.62;
 
+export function penaltyCanChooseDive(penalty){
+ return penalty?.stage==='ready'||penalty?.stage==='runup'||penalty?.stage==='flight';
+}
+
+export function penaltyCanChangeDive(penalty){
+ return penalty?.stage==='ready'||penalty?.stage==='runup'&&penalty.time+1e-6<penalty.runupDuration-penaltyDiveLead;
+}
+
 export function penaltyFlight(ball,goalZ,value,power,random,finishing=90){
  const target=penaltyTarget(value,goalZ);
  const over=clamp((power-penaltyPowerRisk)/(1-penaltyPowerRisk),0,1);

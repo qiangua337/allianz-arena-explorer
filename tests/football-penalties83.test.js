@@ -92,7 +92,7 @@ test('a human keeper can prepare as long as needed and gets a full countdown aft
  assert.equal(g.action('shoot',{power:.66,penaltyAim:{x:.9,y:.9}},'home'),true);run(g,225);
  assert.equal(k.team,'away');assert.equal(k.keeperReady,false);run(g,1800);
  assert.equal(k.stage,'ready');assert.equal(g.state.stats.away.shots,0);
- assert.equal(g.action('penalty-ready',{},'away'),false);assert.equal(g.action('tackle',{direction:{x:1}},'home'),false);
+ assert.equal(g.action('penalty-ready',{},'away'),false);
  assert.equal(g.action('penalty-ready',{},'home'),true);assert.equal(g.action('penalty-ready',{},'home'),false);
  run(g,149);assert.equal(k.stage,'ready');assert.equal(g.action('shoot',{power:.5},'away'),false);
  run(g,45);assert.equal(k.stage,'runup');assert.equal(g.state.stats.away.shots,0);run(g,65);assert.equal(g.state.stats.away.shots,1);
@@ -152,17 +152,26 @@ test('CPU penalty keeper covers the middle and learns repeated corners while var
  assert.ok(variedScored>=10,`varied third shot: ${variedScored} goals`);
 });
 
-test('the kick cue leaves the ball on the spot and one queued dive commits near contact',()=>{
- const f=ready(),g=f.g,k=g.state.setPiece,ball={...g.state.ball};
+test('one keeper choice starts the countdown and can be revised before the dive',()=>{
+ const f=award(),g=f.g,k=g.state.setPiece;
+ run(g,115);
+ const ball={...g.state.ball};
  const keeper=g.state.players.find(p=>p.id===k.keeper);
  const taker=g.state.players.find(p=>p.id===k.taker),start=taker.z;
- assert.equal(g.action('tackle',{direction:{x:1}},f.defending),false);
+ assert.equal(g.action('tackle',{direction:{x:-1}},f.defending),true);
+ assert.ok(k.keeperReady&&k.diveQueued);
+ const allowed=k.kickAllowedAt;
+ run(g,35);
+ assert.equal(g.action('tackle',{direction:{x:0}},f.defending),true);
+ assert.equal(k.kickAllowedAt,allowed,'changing direction does not restart the countdown');
+ assert.equal(keeper.keeperState.phase,'ready');
+ assert.equal(g.action('shoot',{power:.62},f.team),false);
+ run(g,115);
  assert.ok(g.action('shoot',{power:.62,penaltyAim:{x:.68,y:.82}},f.team));
  assert.equal(k.stage,'runup');
  assert.equal(g.action('shoot',{power:1},f.team),false);
  assert.ok(g.action('tackle',{direction:{x:1},penaltyAim:{y:.82}},f.defending));
  assert.equal(k.diveQueued,true);
- assert.equal(g.action('tackle',{direction:{x:-1}},f.defending),false);
  run(g,20);
  assert.deepEqual(g.state.ball,ball);
  assert.ok((taker.z-start)*f.sign>.2);
@@ -171,7 +180,19 @@ test('the kick cue leaves the ball on the spot and one queued dive commits near 
  assert.equal(k.stage,'flight');
  assert.equal(k.diveQueued,false);
  assert.equal(keeper.keeperState.direction,1);
+ assert.equal(g.action('tackle',{direction:{x:-1}},f.defending),false);
  assert.equal(g.state.lastShot.power,.62);
  run(g,45);
  assert.ok(['parried','saved'].includes(g.state.lastShot.outcome));
+});
+
+test('the simple keeper choice covers normal high and low shots on the selected side',()=>{
+ const f=ready(),checkpoint=f.g.checkpoint();
+ for(const y of [-.62,.62]){
+  f.g.restore(checkpoint);
+  assert.ok(f.g.action('tackle',{direction:{x:1},penaltyAim:{y:0}},f.defending));
+  assert.ok(f.g.action('shoot',{power:.62,penaltyAim:{x:.68,y}},f.team));
+  run(f.g,100);
+  assert.ok(['saved','parried'].includes(f.g.state.lastShot.outcome));
+ }
 });

@@ -16,8 +16,8 @@ import {buildFootballView} from './football-view.js';
 import {buildFootballRadar} from './football-radar.js';
 import {difficulties,loadMatchOptions,matchOptions,saveMatchOptions} from './football-teams.js';
 import {matchTime,addedTimeLabel,ballDirection,penaltyContext} from './football-controls.js';
-import {penaltyCanShoot,penaltyStandardPower} from './football-penalty.js';
-import {buildPenaltyControls,penaltyCanDive,penaltyFlick,penaltyKeeperWaiting,renderPenaltyScore} from './football-penalty-ui.js';
+import {penaltyCanChangeDive,penaltyCanChooseDive,penaltyCanShoot,penaltyStandardPower} from './football-penalty.js';
+import {buildPenaltyControls,penaltyFlick,penaltyKeeperWaiting,renderPenaltyScore} from './football-penalty-ui.js';
 import {bindInstantAction} from './instant-action.js';
 
 const actionBits={pass:32,through:64,shoot:128};
@@ -36,7 +36,10 @@ function looseKickAvailable(state,player){
 export function buildPlayableMatch({scene,stadium,players,audio,onCamera,onView,onPause,onRestart,onExit,onChangeMatch,onCheer,onCrowdReaction,onReadGameInput,getRenderCamera,toast,mobile=false,now=()=>performance.now()}){
  let storage;try{storage=globalThis.localStorage;}catch{}
  const elements=Object.create(null),$=id=>elements[id]??=(document.getElementById(id));
- const penaltyControls=buildPenaltyControls($,{onDive:aim=>action('tackle',{penaltyAim:aim})});
+ const penaltyControls=buildPenaltyControls($,{
+  onDive:aim=>action('tackle',{penaltyAim:aim}),
+  onQuickShot:aim=>action('shoot',{power:penaltyStandardPower,penaltyAim:aim})
+ });
  const settings=loadFootballSettings(storage),pressurePointers=new Set(),view=buildFootballView(scene,stadium.matchBall,players,{getRenderCamera}),radar=buildFootballRadar($('game-radar'));
  const actionButtons=[...document.querySelectorAll('[data-game-action]')];
  const modeButtons=[...document.querySelectorAll('[data-control-mode]')];
@@ -52,6 +55,10 @@ export function buildPlayableMatch({scene,stadium,players,audio,onCamera,onView,
   if(!pendingPenalty||!penalty)return false;
   const pending=pendingPenalty;
   return pending.type===type&&pending.taker===penalty.taker&&pending.team===penalty.team&&now()<pending.until;
+ }
+ function keeperChoiceLocked(penalty,keeper){
+  if(['dive','set','recover'].includes(keeper?.keeperState?.phase))return true;
+  return !penaltyCanChangeDive(penalty)&&(penalty.diveQueued||pendingPenaltyAction('tackle',penalty));
  }
  const lastActions={player:null,owner:null,flags:-1,penaltyTeam:null,penaltyStage:null};
  function controlsChanged(s,remember=false){
@@ -100,9 +107,9 @@ export function buildPlayableMatch({scene,stadium,players,audio,onCamera,onView,
   if(network&&!pending&&!failed&&!network.room?.started&&network.connection==='connected'){const own=network.room?.seats.find(p=>p.team===localTeam);if(!own?.ready){write('game-resume','hidden',false);if(!s.training)write('game-resume','textContent','确认阵容并准备');}}
   if(done&&s.competition?.result){const result=s.competition.result,winner=result.winner==='home'?'拜仁':result.winner?s.fixture.short:null;if(!s.training)write('game-overlay-description','textContent',result.reason==='abandoned'?'球员不足七人，比赛终止':winner?winner+'获胜':'双方战平');if(shootout)$('game-overlay-description').textContent+=' · 点球 '+shootout.home.filter(Boolean).length+' : '+shootout.away.filter(Boolean).length;}
   const decision=s.discipline?.lastDecision,showDecision=decision&&s.time-decision.at<3.2&&!overlay;write('game-referee-note','hidden',!showDecision);if(showDecision)write('game-referee-note','textContent',(decision.card?{yellow:'黄牌',red:'红牌','second-yellow':'两黄变一红'}[decision.card]+' · ':'裁判哨响 · ')+decision.reason);
-  const diveCommitted=penalty?.role==='keeper'&&(penalty.diveQueued||pendingPenaltyAction('tackle',penalty)||['dive','set','recover'].includes(p.keeperState?.phase));
+  const diveCommitted=penalty?.role==='keeper'&&keeperChoiceLocked(penalty,p);
   const shotCommitted=penalty?.role==='shooter'&&pendingPenaltyAction('shoot',penalty);
-  penaltyControls.render(penalty,{overlay:overlay||!!replay,touch:mobile||document.body.dataset.touch==='true',stoppageId:s.stoppageId,power:charge&&penalty?(s.chargePower||0):0,committed:diveCommitted||shotCommitted});
+  penaltyControls.render(penalty,{overlay:overlay||!!replay,touch:mobile||document.body.dataset.touch==='true',stoppageId:s.stoppageId,power:charge&&penalty?(s.chargePower||0):0,committed:diveCommitted||shotCommitted,pendingDive:pendingPenaltyAction('tackle',penalty)});
   write('game-camera','disabled',!!penalty);
   if(!s.training)writeHudAttribute($('game-ui'),'aria-label',network?'好友联机足球比赛':'人机足球比赛');write('game-radar-direction','textContent',(localTeam==='home'?'拜仁':s.fixture.short)+'进攻 '+((s.attackDirections?.[localTeam]??-1)<0?'→':'←'));if(!s.training)write('game-help-opponent','textContent',network?'你控制'+(network.team==='home'?'拜仁':s.fixture.short)+'，朋友控制另一队；其余队员由 AI 配合。双方共用比分与球的位置。':'控制拜仁对战 AI。金色脚环是你，浅色连线指向当前传球目标；雷达上方的箭头显示当前进攻方向，中场后换边。');writeHudData(document.body,'onlineRoom',network?.code||'');writeHudData(document.body,'onlineTeam',network?.team||'');writeHudData(document.body,'onlineConnection',network?.connection||'');
   if(!s.training)report.update(s,!pending&&!failed&&(done||interval||s.paused)&&(!network||network.room?.started));else write('game-result','hidden',true);
@@ -118,7 +125,7 @@ export function buildPlayableMatch({scene,stadium,players,audio,onCamera,onView,
   for(const button of actionButtons){
    const type=button.dataset.gameAction;
    const disabled=type==='tackle'&&penalty
-    ?!penaltyCanDive(penalty)||diveCommitted
+    ?penalty.role!=='keeper'||!penaltyCanChooseDive(penalty)||diveCommitted
     :!actionPlay||(type==='pass'||type==='through')&&!canKick||type==='tackle'&&(owns||friendly||!!receiving||cooling);
    writeHudProperty(button,'disabled',overlay||disabled);
    if(type==='tackle')writeHudAttribute(button,'data-cooling',cooling);
@@ -155,7 +162,7 @@ export function buildPlayableMatch({scene,stadium,players,audio,onCamera,onView,
   if(!active||pending||failed||simulation.state.paused)return false;
   const sampled=currentInput();
   const penalty=penaltyContext(simulation.state,network?.team||'home');
-  if(penalty?.role==='keeper'&&type==='tackle'&&penaltyKeeperWaiting(penalty))type='penalty-ready';
+  if(penalty?.role==='keeper'&&type==='tackle'&&!options.penaltyAim&&penaltyKeeperWaiting(penalty))type='penalty-ready';
   const command={direction:sampled,...options};
   if(penalty&&type==='shoot'){
    if(penalty.role!=='shooter'||!penaltyCanShoot(penalty)||pendingPenaltyAction(type,penalty))return false;
@@ -163,7 +170,7 @@ export function buildPlayableMatch({scene,stadium,players,audio,onCamera,onView,
   }
   if(penalty?.role==='keeper'&&type==='tackle'){
    const keeper=simulation.state.players.find(p=>p.id===penalty.keeper);
-   if(!penaltyCanDive(penalty)||penalty.diveQueued||pendingPenaltyAction(type,penalty)||['dive','set','recover'].includes(keeper?.keeperState?.phase))return false;
+   if(!penaltyCanChooseDive(penalty)||keeperChoiceLocked(penalty,keeper))return false;
    const facing=penalty.goalZ<0?1:-1, aim=options.penaltyAim||penaltyControls.aim;
    command.direction={x:aim.x*facing,z:0};command.penaltyAim=aim;
   }
@@ -171,6 +178,7 @@ export function buildPlayableMatch({scene,stadium,players,audio,onCamera,onView,
   // Keep aim on the action packet even when the movement packet is throttled.
   const before=simulation.state.kickPresentation?.id;
   const success=simulation.action(type,command);
+  if(success&&penalty?.role==='keeper'&&type==='tackle')penaltyControls.recordDive(command.penaltyAim);
   if(success&&network&&penalty&&['shoot','tackle'].includes(type)){
    pendingPenalty={type,taker:penalty.taker,team:penalty.team,until:now()+Math.max(450,network.latency*1.5||0)};
   }
@@ -247,6 +255,7 @@ export function buildPlayableMatch({scene,stadium,players,audio,onCamera,onView,
   exit(keepNetwork=false){simulation.dispose?.({keepSession:keepNetwork});network=null;replay=null;writeHudData(document.body,'gameReplay','false');recorder.reset();document.body.classList.remove('game-replay');write('game-replay-panel','hidden',true);active=false;pending=false;if(squadEditing)getSquadEditor().close();penaltyControls.clear();clearInput();view.setEnabled(false);trainingView.setEnabled(false);writeHudData(document.body,'gameTraining','');write('game-ui','hidden',true);$('game-help-dialog').close();document.body.classList.remove('game-active');delete document.body.dataset.gamePhase;},
   showTeam,clearInput,flushInput,setPaused(value){simulation.setPaused(value);if(value)clearInput();render();},setControlMode,cycleShotKind,setView,setCamera,cycleCamera,showHelp,action,beginCharge,releaseCharge,cancelCharge,
   projectPenalty:penaltyControls.project,
+  quickPenaltyDirection:penaltyControls.quickDirection,
   nudgePenaltyAim(){penaltyControls.move(currentInput().penaltyAimAxis,.07);},
   centerPenaltyAim:penaltyControls.center,
   update(dt,input,viewer,visualFrame=true){

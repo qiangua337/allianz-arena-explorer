@@ -69,7 +69,9 @@ export function goalkeeperContact(p,ball,previous,time,difficulty,{openPlay=fals
  const extension=diving?(closeShot?.21:.16)+(closeShot?.64:.58)*Math.sin(progress*Math.PI):0,closeBlock=closeShot&&!diving&&!recovering;
  let point=null;
  if(reacted&&!recovering&&(!diving||progress>.08)){
-  const hands={x:p.x+k.direction*extension,y:smothering?.45:clamp(ball.shot?k.targetY:ball.y,.35,1.95),z:p.z+sign*.34},radii={x:diving?(k.penaltyDive&&!openPlay?.87:.43):closeBlock?.55:.49,y:diving?.39:.48,z:.44};
+  const balancedSave=!openPlay&&k.penaltyDive&&k.balancedPenaltySave;
+  const hands={x:p.x+k.direction*extension,y:smothering?.45:clamp(ball.shot?k.targetY:ball.y,.35,1.95),z:p.z+sign*.34};
+  const radii={x:diving?(k.penaltyDive&&!openPlay?.92:.43):closeBlock?.55:.49,y:balancedSave?.79:diving?.39:.48,z:.44};
   point=contactOnSegment(previous,ball,hands,radii);
  }
  // A body can block the ball before the hands react, but it is not a 3 m
