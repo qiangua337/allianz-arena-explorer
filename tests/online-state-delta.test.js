@@ -91,6 +91,24 @@ test('a compact penalty snapshot keeps goalkeeper state and explicitly clears it
  assert.deepEqual(away.players[11].keeperState,{phase:'ready'});
 });
 
+test('the penalty run-up clock is public but committed shot and dive inputs stay private',()=>{
+ const game=fixture(),state=game.state;
+ const runup={
+  stage:'runup',time:.3,runupDuration:.8,
+  pendingKick:{aim:{x:.91,y:-.77},power:.82},queuedDive:{direction:{x:-1}}
+ };
+ state.setPiece={type:'penalty',...runup};
+ state.competition.shootout={...runup,home:[],away:[]};
+ const packet=wire(game,1);
+ for(const penalty of [packet.setPiece,packet.competition.shootout]){
+  assert.equal(penalty.stage,'runup');
+  assert.equal(penalty.time,.3);
+  assert.equal(penalty.runupDuration,.8);
+  assert.equal(Object.hasOwn(penalty,'pendingKick'),false);
+  assert.equal(Object.hasOwn(penalty,'queuedDive'),false);
+ }
+});
+
 test('optional team details can be omitted and later supplied without keeping stale raw fields',()=>{
  const game=fixture();
  const initial=wire(game,3);

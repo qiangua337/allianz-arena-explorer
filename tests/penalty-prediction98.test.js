@@ -4,6 +4,7 @@ import {createFootballSimulation} from '../dist/football-simulation.js';
 import {createOnlineSimulation} from '../dist/online-client.js';
 import {createOnlineInterpolation} from '../dist/online-prediction.js';
 import {packOnlineState} from '../dist/online-protocol.js';
+import {penaltyDiveLead} from '../dist/football-penalty.js';
 
 const advance=(game,steps,input={})=>{
  for(let frame=0;frame<steps;frame++)game.update(1/60,input);
@@ -32,10 +33,14 @@ test('the shootout keeper moves immediately along the line while waiting, and th
  }finally{keeper.dispose();taker.dispose();}
 });
 
-test('a high directional dive remains visible through pre-action snapshots and the change to ball flight',()=>{
+test('a high directional dive remains visible through delayed snapshots at ball contact',()=>{
  const game=createFootballSimulation({humanTeams:['home','away'],rules:{mode:'shootout'}});
  assert.ok(game.action('penalty-ready',{},'away'));
  advance(game,154);
+ assert.ok(game.action('shoot',{power:.6,penaltyAim:{x:-.7,y:1}},'home'));
+ const runup=game.state.competition.shootout;
+ assert.equal(runup.stage,'runup');
+ advance(game,Math.ceil((runup.runupDuration-penaltyDiveLead+.03)*60));
  const {client,deliver}=delayedSeat(game,'away'),keeper=client.state.players[11];
  const input={direction:{x:-1},penaltyAim:{y:1}};
  try{
@@ -44,13 +49,41 @@ test('a high directional dive remains visible through pre-action snapshots and t
   assert.ok(keeper.x<-.015);
   advance(game,3);deliver();advance(client,2);
   assert.equal(keeper.motion.id,-1);assert.equal(keeper.keeperState.phase,'dive');
-  assert.ok(game.action('shoot',{power:.6,penaltyAim:{x:-.7,y:1}},'home'));
-  advance(game,2);deliver();advance(client,2);
+  for(let frame=0;runup.stage==='runup'&&frame<16;frame++)advance(game,1);
+  assert.equal(runup.stage,'flight');
+  deliver();advance(client,2);
   assert.equal(keeper.motion.id,-1);assert.equal(keeper.keeperState.direction,-1);
   assert.ok(game.action('tackle',input,'away'));advance(game,2);deliver();advance(client,2);
   assert.ok(keeper.motion.id>=0);
   assert.equal(keeper.keeperState.direction,-1);
   assert.equal(keeper.z,-52.38);
+ }finally{client.dispose();}
+});
+
+test('the online keeper does not show a dive on an early buffered command',()=>{
+ const game=createFootballSimulation({humanTeams:['home','away'],rules:{mode:'shootout'}});
+ assert.ok(game.action('penalty-ready',{},'away'));
+ advance(game,154);
+ const {client,deliver}=delayedSeat(game,'away'),keeper=client.state.players[11];
+ const input={direction:{x:1},penaltyAim:{y:-1}};
+ try{
+  assert.ok(client.action('tackle',input));
+  advance(client,2);
+  assert.equal(keeper.motion,null);
+  assert.ok(game.action('shoot',{power:.6,penaltyAim:{x:.7,y:-1}},'home'));
+  const runup=game.state.competition.shootout;
+  advance(game,2);deliver();
+  assert.ok(client.action('tackle',input));
+  advance(client,4);
+  assert.equal(keeper.motion,null);
+  assert.equal(keeper.keeperState.phase,'ready');
+  assert.ok(game.action('tackle',input,'away'));
+  for(let frame=0;runup.stage==='runup'&&frame<90;frame++)advance(game,1);
+  assert.equal(runup.stage,'flight');
+  deliver();advance(client,2);
+  assert.equal(keeper.motion.type,'dive');
+  assert.ok(keeper.motion.id>=0);
+  assert.equal(keeper.keeperState.direction,1);
  }finally{client.dispose();}
 });
 

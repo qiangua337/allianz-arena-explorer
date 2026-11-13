@@ -1,6 +1,6 @@
 import {moveControlledFootballer,moveFootballer,carryFootball} from './football-movement.js';
 import {goalkeeperProfile,goalkeeperState} from './goalkeeper.js';
-import {moveHumanPenaltyKeeper,penaltyCanShoot,penaltyDiveDirection,penaltyDiveHeight} from './football-penalty.js';
+import {moveHumanPenaltyKeeper,penaltyDiveDirection,penaltyDiveHeight,penaltyDiveLead} from './football-penalty.js';
 const collisionRadius=.70,collisionRadiusSquared=collisionRadius*collisionRadius;
 const penaltyFor=state=>state.setPiece||(state.phase==='penalties'?state.competition?.shootout:null);
 const canPredict=state=>!state.paused&&(state.phase==='playing'||state.phase==='penalties')&&penaltyFor(state)?.stage!=='result';
@@ -135,10 +135,11 @@ export function createOnlinePrediction(team){
   // Interpolated render poses must never become collision or pressure inputs.
   // Keep these tiny authority records separate from the displayed players.
   for(let i=0;i<actors.length;i++){const p=state.players[i],a=actors[i];if(p){a.id=p.id;a.team=p.team;a.x=p.x;a.z=p.z;a.vx=p.vx;a.vz=p.vz;a.yaw=p.yaw;a.dismissed=p.dismissed;}else{a.id=null;a.dismissed=true;}}
-  owner=ball.ownerId?actors.find(p=>p.id===ball.ownerId):null;time=state.time;age=0;phase=state.phase;difficulty=state.difficulty;setPiece=penalty?{goalZ:-52.5,...penalty}:null;
+  owner=ball.ownerId?actors.find(p=>p.id===ball.ownerId):null;time=state.time;age=0;phase=state.phase;difficulty=state.difficulty;
+  setPiece=penalty?{goalZ:-52.5,...penalty,runupStartedAt:state.time-(penalty.time??0)}:null;
   if(reset){motion=penaltyGesture=null;receiveOverride=null;}
   else if(penaltyGesture){
-   const serverDive=player.keeperState?.diveAt>=penaltyGesture.state.diveAt-.09&&player.motion?.type===motion?.type;
+   const serverDive=player.motion?.id>=0&&['dive','set'].includes(player.keeperState?.phase);
    if(serverDive||time>=penaltyGesture.expiresAt)motion=penaltyGesture=null;
   }else if(player.motion?.type===motion?.type)motion=null;
   if(player.receiveControl?.passId===receiveOverride)player.receiveControl=null;
@@ -180,14 +181,20 @@ export function createOnlinePrediction(team){
  }
  function animate(type,latency=0,options={},shotKind='drive'){
   if(!player)return;
-  if(setPiece&&type==='tackle'){
-   if(player.id!==setPiece.keeper||setPiece.stage!=='flight'&&!penaltyCanShoot(setPiece))return;
+  if(setPiece){
+   // The referee starts the approach and controls when the ball is struck.
+   // An early keeper input can be sent to the server without playing a dive.
+   if(type!=='tackle'||player.id!==setPiece.keeper)return;
+   const diveOnRunup=setPiece.stage==='runup'&&time>=setPiece.runupStartedAt+setPiece.runupDuration-penaltyDiveLead;
+   if(setPiece.stage!=='flight'&&!diveOnRunup)return;
    const g=player.keeperState,profile=goalkeeperProfile(difficulty),direction=penaltyDiveDirection(options.direction?.x,player.vx),height=penaltyDiveHeight(options.penaltyAim?.y);
    if(penaltyGesture||time<(g.recoverUntil||0))return;
-   const gesture={phase:direction?'dive':'set',committed:true,direction,diveAt:time,diveUntil:time+profile.window,recoverUntil:time+profile.window+profile.recovery,targetY:height};
+   const saveWindow=profile.window+penaltyDiveLead;
+   const targetX=Math.max(-3.7,Math.min(3.7,player.x+direction*2));
+   const gesture={phase:direction?'dive':'set',committed:true,direction,diveAt:time,diveUntil:time+saveWindow,recoverUntil:time+saveWindow+profile.recovery,targetX,targetY:height};
    penaltyGesture={state:gesture,expiresAt:time+Math.min(.75,Math.max(.24,latency/1000+.16))};
    Object.assign(g,gesture);
-   motion={id:-1,type:direction?'dive':'save',elapsed:0,duration:direction?profile.window+profile.recovery:.55,direction:direction*player.attackSign,height};
+   motion={id:-1,type:direction?'dive':'save',elapsed:0,duration:direction?saveWindow+profile.recovery:.55,direction:direction*player.attackSign,height};
    return;
   }
   const duration=Math.min(.48,Math.max(.24,latency/1000+.08));

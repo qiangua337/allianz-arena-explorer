@@ -140,6 +140,64 @@ body:not([data-game-training]:not([data-game-training=""])) #game-ui .game-score
   border-radius: 0 6px 6px 0;
 }
 
+#game-penalty-score {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  display: grid;
+  grid-template-columns: auto auto auto;
+  gap: 8px;
+  align-items: center;
+  padding: 4px 7px;
+  border: 1px solid var(--match-line);
+  border-radius: 5px;
+  background: var(--match-inset);
+}
+
+#game-penalty-score[hidden] {
+  display: none;
+}
+
+#game-penalty-score span {
+  display: flex;
+  gap: 4px;
+}
+
+#game-penalty-score small {
+  color: var(--match-ink);
+  font-size: 9px;
+  white-space: nowrap;
+}
+
+#game-penalty-score i {
+  display: grid;
+  place-content: center;
+  width: 9px;
+  height: 9px;
+  border: 1px solid #cec7d5;
+  border-radius: 50%;
+}
+
+#game-penalty-score i[data-result="goal"] {
+  border-color: #abf0c7;
+  background: #abf0c7;
+}
+
+#game-penalty-score i[data-result="miss"] {
+  border-color: #f7a5a7;
+  color: #f7a5a7;
+}
+
+#game-penalty-score i[data-result="miss"]::before {
+  content: "×";
+  font: 9px/1 system-ui, sans-serif;
+}
+
+#game-penalty-score i[data-result="next"] {
+  border-color: var(--match-gold);
+  box-shadow: 0 0 0 2px #f4d18d3d;
+}
+
 #game-ui .game-tools {
   top: var(--match-top);
   right: var(--match-right);
@@ -699,24 +757,37 @@ body.game-active #game-ui .game-actions button:active:not(:disabled) {
 #game-penalty-target i,
 #game-penalty-dive-target i {
   position: absolute;
-  width: 19px;
-  height: 19px;
+  width: 24px;
+  height: 24px;
   transform: translate(-50%, -50%);
   border: 2px solid #fff6e2;
   border-radius: 50%;
-  background: #ffcc67bf;
+  background: #ffcc6726;
   box-shadow: 0 0 0 1px #231b15, 0 0 10px #101519ae;
   pointer-events: none;
+}
+
+#game-penalty-target i::after {
+  position: absolute;
+  inset: 8px;
+  content: "";
+  border-radius: 50%;
+  background: #fff6e2;
 }
 
 #game-ui .game-penalty-hint {
   top: auto;
   bottom: max(18px, calc(env(safe-area-inset-bottom, 0px) + 12px));
-  width: min(324px, calc(100vw - 26px));
+  width: min(306px, calc(100vw - 26px));
   max-width: none;
-  padding: 10px 12px;
-  line-height: 1.4;
+  padding: 10px;
+  line-height: 1.35;
   text-align: left;
+  color: var(--match-ink);
+  background: var(--match-surface);
+  border: 1px solid var(--match-line);
+  border-radius: 9px;
+  box-shadow: 0 3px 12px #0004;
 }
 
 .penalty-status-row {
@@ -734,10 +805,81 @@ body.game-active #game-ui .game-actions button:active:not(:disabled) {
   font-size: 11px;
 }
 
+#game-ui .penalty-timing {
+  margin-top: 4px;
+  color: var(--match-muted);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+#game-ui .game-penalty-hint[data-role="keeper"][data-stage="runup"] .penalty-timing,
+#game-ui .game-penalty-hint[data-role="shooter"][data-stage="ready"] .penalty-timing {
+  color: var(--match-gold);
+}
+
+#game-penalty-meter {
+  margin-top: 6px;
+  color: var(--match-muted);
+  font-size: 10px;
+}
+
+#game-penalty-meter > div:first-child {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.penalty-power-track {
+  position: relative;
+}
+
+.penalty-power-track i {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 76%;
+  width: 2px;
+  background: var(--match-ink);
+  opacity: .8;
+}
+
+#game-penalty-power,
+#game-penalty-runup {
+  display: block;
+  width: 100%;
+  height: 5px;
+  overflow: hidden;
+  appearance: none;
+  border: 0;
+  border-radius: 10px;
+  background: #ffffff28;
+  color: var(--match-gold);
+}
+
+#game-penalty-runup {
+  margin-top: 5px;
+}
+
+#game-penalty-meter[data-tone="risk"] #game-penalty-power {
+  color: #ff8c93;
+}
+
+#game-ui :is(#game-penalty-power, #game-penalty-runup)::-webkit-progress-bar {
+  background: transparent;
+}
+
+#game-ui :is(#game-penalty-power, #game-penalty-runup)::-webkit-progress-value {
+  background: currentColor;
+}
+
+#game-ui :is(#game-penalty-power, #game-penalty-runup)::-moz-progress-bar {
+  background: currentColor;
+}
+
 #game-penalty-instruction {
   display: block;
-  margin-top: 5px;
-  color: var(--match-ink);
+  margin-top: 6px;
+  color: var(--match-muted);
   font-size: 11px;
 }
 
@@ -760,10 +902,13 @@ body.game-active #game-ui .game-actions button:active:not(:disabled) {
 
 #game-penalty-dive-target {
   position: relative;
-  height: 72px;
-  margin-top: 7px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-rows: repeat(3, minmax(0, 1fr));
+  height: 96px;
+  margin-top: 8px;
   border: 1px solid #e9dfd49c;
-  border-radius: 4px;
+  border-radius: 5px;
   background: linear-gradient(#f4eee13b, #f4eee13b) center 33.3% / 100% 1px no-repeat,
     linear-gradient(#f4eee13b, #f4eee13b) center 66.7% / 100% 1px no-repeat,
     linear-gradient(#f4eee13b, #f4eee13b) 33.3% center / 1px 100% no-repeat,
@@ -774,39 +919,86 @@ body.game-active #game-ui .game-actions button:active:not(:disabled) {
   cursor: crosshair;
 }
 
-#game-penalty-dive-target i { width: 14px; height: 14px }
+#game-penalty-dive-target > button {
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--match-ink);
+  font: 14px/1 system-ui, sans-serif;
+  opacity: .7;
+  pointer-events: none;
+}
 
-#game-ui :is(#game-penalty-target, #game-penalty-ready, #game-penalty-dive-target, #game-penalty-instruction)[hidden] {
+#game-penalty-dive-target > button:focus-visible {
+  outline: 2px solid var(--match-gold);
+  outline-offset: -2px;
+  opacity: 1;
+}
+
+#game-penalty-dive-target i {
+  width: 22px;
+  height: 22px;
+  background: #ffcc6735;
+}
+
+#game-ui .game-penalty-hint[data-stage="runup"][data-commit="false"] #game-penalty-dive-target,
+#game-ui .game-penalty-hint[data-stage="flight"][data-commit="false"] #game-penalty-dive-target {
+  border-color: var(--match-gold);
+  background-color: #f4d18d14;
+}
+
+#game-penalty-dive-target[aria-disabled="true"] {
+  cursor: default;
+  pointer-events: none;
+}
+
+#game-ui :is(#game-penalty-target, #game-penalty-ready, #game-penalty-dive-target, #game-penalty-instruction, #game-penalty-meter, #game-penalty-timing, #game-penalty-runup, #game-penalty-aim-label)[hidden] {
   display: none;
 }
 
-body.game-active[data-control-context^="penalty"] :is(#touch-sprint, #game-shot-mode, #game-shot-toggle) {
+body.game-active[data-control-context^="penalty"] :is(#touch-sprint, #game-shot-mode, #game-shot-toggle, .game-player, #game-shot-feedback) {
   display: none !important;
 }
 
-body.game-active[data-control-context="penalty-shooter"] #game-ui .game-power {
-  top: auto;
-  left: 50%;
-  bottom: max(88px, calc(env(safe-area-inset-bottom, 0px) + 82px));
-  transform: translateX(-50%);
+body.game-active[data-control-context^="penalty"] #game-ui .game-actions {
+  grid-template-rows: auto;
+  width: auto;
+}
+
+body.game-active[data-control-context^="penalty"] #game-ui .game-actions :is(#game-shoot, #game-tackle) {
+  grid-area: 1 / 1;
+  touch-action: none;
 }
 
 @media (max-width: 760px), (max-height: 500px) and (min-width: 540px) and (orientation: landscape) {
   body.game-active[data-touch="true"] #game-ui .game-penalty-hint {
-    left: calc(50% + 9px);
+    left: 50%;
     bottom: var(--match-control-bottom);
     max-width: none;
-    width: min(290px, calc(100vw - 210px));
+    width: min(306px, calc(100vw - 212px));
     padding: 8px;
   }
 
-  body.game-active[data-touch="true"][data-control-context^="penalty"] #game-ui .game-player {
-    display: none;
+  body.game-active[data-touch="true"][data-control-context^="penalty"] #game-ui .game-actions {
+    grid-template-columns: minmax(60px, 68px) !important;
   }
 
-  body.game-active[data-touch="true"][data-control-context="penalty-shooter"] #game-ui .game-power {
-    left: calc(50% + 9px);
-    bottom: calc(var(--match-control-bottom) + 78px);
-    max-width: min(290px, calc(100vw - 210px));
+  body.game-active[data-touch="true"][data-control-context^="penalty"] #game-ui .game-actions :is(#game-shoot, #game-tackle) {
+    width: 100%;
+    height: 62px;
+  }
+
+  body.game-active[data-touch="true"] #game-penalty-dive-target {
+    height: 120px;
+  }
+}
+
+@media (max-width: 350px) and (orientation: portrait) {
+  body.game-active[data-touch="true"] #game-ui .game-penalty-hint {
+    bottom: calc(var(--match-control-bottom) + var(--match-joystick-size) + 8px);
+    width: min(232px, calc(100vw - 28px));
   }
 }

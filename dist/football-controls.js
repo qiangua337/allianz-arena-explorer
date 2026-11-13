@@ -21,7 +21,7 @@ export function penaltyContext(state,team=state.players.find(p=>p.id===state.con
  if(!p)return null;return{...p,role:p.team===team?'shooter':'keeper',goalZ:ordinary?.goalZ??-52.5,kind:ordinary?'match':'shootout'};
 }
 export function footballControlYaw(state,{cameraMode='close',yaw=0}={}){
- const penalty=penaltyContext(state);if(penalty&&cameraMode!=='first'){const attacking=penalty.goalZ<0?0:Math.PI;return penalty.role==='keeper'?attacking+Math.PI:attacking;}
+ const penalty=penaltyContext(state);if(penalty&&cameraMode!=='first')return penalty.goalZ<0?0:Math.PI;
  if(state.training&&cameraMode==='close'){const player=state.players.find(p=>p.id===state.controlledId);return state.training.id==='shooting'&&player?shootingTrainingYaw(player):Math.atan2(10,8);}
  return['broadcast','close'].includes(cameraMode)?Math.atan2(32,8):yaw;
 }
@@ -44,7 +44,16 @@ export function advanceFootballCamera(previous,desired,{player,aspect=16/9,dt=1/
 }
 export function footballCamera(player,{view='third',yaw=0,pitch=-.14,style='follow',ball=player,aspect=16/9,penalty=null,training=null,playerFocus=0,trackShot=false}={}){
  if(view==='first')return{position:[player.x,1.68,player.z],target:null,fov:76,yaw,pitch:clamp(pitch,-.95,.5)};
- if(penalty){const role=typeof penalty==='string'?penalty:penalty.role,side=typeof penalty==='string'||penalty.goalZ<0?1:-1;return role==='keeper'?{position:[0,3,-59.8*side],target:[0,1,-43*side],fov:aspect<.85?100:68,controlYaw:side>0?Math.PI:0}:{position:[player.x*.2,4.5,(aspect<.85?-28:-32)*side],target:[0,.8,-51.5*side],fov:55,controlYaw:side>0?0:Math.PI};}
+ if(penalty){
+  const goalZ=typeof penalty==='string'?-52.5:penalty.goalZ;
+  const sign=Math.sign(goalZ);
+  const portrait=clamp((1.1-aspect)/.33,0,1);
+  const fov=29+15*portrait;
+  const goalFit=3.66/(.90*Math.max(.25,aspect)*Math.tan(fov*Math.PI/360));
+  const depth=Math.max(22+1.5*portrait,goalFit+.35);
+  return{position:[0,1.9+.90*portrait,goalZ-sign*depth],
+   target:[0,.45,goalZ-sign*5.5],fov,controlYaw:sign<0?0:Math.PI};
+ }
  if(training&&style==='close')return trainingCamera(player,ball,training,aspect);
  if(style==='broadcast'||style==='close'){
   const close=style==='close',portrait=aspect<.85;

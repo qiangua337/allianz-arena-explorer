@@ -7,7 +7,13 @@ export const roomCode=value=>String(value||'').toUpperCase().replace(/[\s-]/g,''
 export const validRoomCode=value=>/^[A-HJ-NP-Z2-9]{8}$/.test(value);
 const rounded=v=>Number.isFinite(v)?Math.round(v*1000)/1000:0;
 const compact=value=>typeof value==='number'?rounded(value):Array.isArray(value)?value.map(compact):value&&typeof value==='object'?Object.fromEntries(Object.entries(value).map(([k,v])=>[k,compact(v)])):value;
-const publicPenalty=penalty=>{if(!penalty)return null;const {eligible,aimHistory,aiKeeper,aiKickDelay,...visible}=penalty;return visible;};
+function publicPenalty(penalty){
+ if(!penalty)return null;
+ // The run-up clock is visible to both seats. Neither player can see the
+ // other seat's selected shot or buffered dive before it happens.
+ const {eligible,aimHistory,aiKeeper,aiKickDelay,pendingKick,queuedDive,...visible}=penalty;
+ return visible;
+}
 export function safeOnlineInput(value={}){value=value&&typeof value==='object'?value:{};const x=Number.isFinite(value.x)?Math.max(-1,Math.min(1,value.x)):0,z=Number.isFinite(value.z)?Math.max(-1,Math.min(1,value.z)):0,n=Math.max(1,Math.hypot(x,z));return{x:x/n,z:z/n,sprint:value.sprint===true,defend:value.defend===true,charging:value.charging===true,power:Number.isFinite(value.power)?Math.max(0,Math.min(1,value.power)):0};}
 export function packOnlineState(s,seq=0,ack={home:0,away:0},details=true){
  const competition=s.competition?compact({...s.competition,shootout:publicPenalty(s.competition.shootout)}):null,penaltyKeeper=s.setPiece?.keeper??s.competition?.shootout?.keeper;

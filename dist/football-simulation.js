@@ -7,7 +7,7 @@ import {attackingShape,deliveryLabels,forwardSupportRun,passOption,shotOption,sh
 import {goalFrameCollision} from './goal-frame.js';
 import {footballFormations,squadDefinition} from './football-squads.js';
 import {createFootballRegulations} from './football-regulations.js';
-import {penaltyFlight} from './football-penalty.js';
+import {penaltyFlight,penaltyPowerRisk} from './football-penalty.js';
 import {defendingShape} from './football-defending.js';
 import {planCpuAttack} from './football-attack.js';
 import {moveFootballer as movePlayer,moveControlledFootballer,carryFootball,beginFootballTouch,clearFootballTouch,continuesReceiveIntent} from './football-movement.js';
@@ -152,8 +152,9 @@ export function createFootballSimulation({duration=180,seed=73417,controlMode='s
  function shoot(player,{direction=null,power=.55,kind,penalty=null}={}){
   const b=state.ball;let aim;
   if(penalty){
-   const flight=penaltyFlight(b,penalty.goalZ,penalty.aim,power,random);
-   aim={...flight,curve:0,kind:'drive',quality:power>.76?'risky':'clean',preparation:power>.76?'overpowered':'set',limited:power>.76};
+   const flight=penaltyFlight(b,penalty.goalZ,penalty.aim,power,random,playerAbilities(player).finishing);
+   const risky=power>penaltyPowerRisk;
+   aim={...flight,curve:0,kind:'drive',quality:risky?'risky':'clean',preparation:risky?'overpowered':'set',limited:risky};
   }else{
    const human=isHuman(player),mode=kind||(human?state.shotKinds[player.team]:'drive'),keeper=onField().find(p=>p.keeper&&p.team!==player.team),pressure=pressureNear(player),preparation=shotPreparation(player,b,{power,pressure}),error=(random()*2-1)*(preparation.spread+(!human&&player.team==='away'?tuning.shotError*.5:0)),heightError=(random()*2-1)*preparation.heightSpread+preparation.heightBias;
    aim=shotOption(player,b,{direction,power,error,heightError,kind:mode,keeper,pressure});

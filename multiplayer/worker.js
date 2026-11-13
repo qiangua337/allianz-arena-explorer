@@ -7,7 +7,7 @@ import {defaultSelection,normalizeSelection,validateSelection} from '../dist/foo
 const TEAMS=['home','away'],TTL=30*60*1000,GRACE=60*1000,alphabet='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const DELTA_KEYFRAME_INTERVAL=20;
 const SNAPSHOT_WINDOW=10,RECEIPT_HISTORY=32,RECOVERY_INTERVAL=1500,RECEIPTS_PER_SECOND=16;
-const urgentEvents=new Set(['pass','through','shot','goal','foul','card','penalty-ready','penalty-result']);
+const urgentEvents=new Set(['pass','through','shot','goal','foul','card','penalty-ready','penalty-start','penalty-result']);
 const token=()=>crypto.randomUUID().replace(/-/g,'')+crypto.randomUUID().replace(/-/g,'');
 const json=(data,status=200)=>Response.json(data,{status,headers:{'Cache-Control':'no-store'}});
 const error=(message,status=400)=>json({error:message},status);

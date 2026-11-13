@@ -103,11 +103,23 @@ test('the ordinary-penalty HUD waits for the human goalkeeper and uses the selec
  Object.assign(attacker,{x:0,z:42,yaw:0,vx:0,vz:0,protectedUntil:0,tackleAt:0});Object.assign(defender,{x:0,z:41,yaw:0,vx:0,vz:5.4,tackleAt:0});Object.assign(s.ball,{x:0,y:.11,z:42.6,vx:0,vy:0,vz:0,ownerId:attacker.id,shot:null});f.game.action('tackle');assert.equal(s.setPiece.type,'penalty');run(f.game,2);
  assert.equal(document.body.dataset.controlContext,'penalty-keeper');const keeper=s.players.find(p=>p.id===s.controlledId);assert.equal(keeper.keeper,true);assert.equal(f.node('game-tackle-label').textContent,'扑救');assert.equal(f.node('game-tackle')['aria-label'],'门将扑救');assert.equal(f.node('game-shoot').disabled,true);assert.equal(f.node('action-switch').disabled,true);assert.equal(f.node('action-pass').disabled,true);assert.equal(f.node('game-pressure').disabled,true);assert.equal(f.game.beginCharge(),false);assert.equal(f.node('game-penalty-hint').hidden,false);assert.equal(f.node('game-penalty-status').textContent,'你守门');
  run(f.game,4);assert.equal(s.setPiece.stage,'ready');assert.equal(f.node('game-penalty-ready').hidden,false);assert.equal(f.node('game-tackle').disabled,true);
- f.node('game-penalty-ready').onclick();assert.equal(s.setPiece.keeperReady,true);assert.match(f.node('game-penalty-instruction').textContent,/3 秒后可射门/);assert.equal(f.node('game-penalty-ready').hidden,true);
+ f.node('game-penalty-ready').onclick();assert.equal(s.setPiece.keeperReady,true);assert.match(f.node('game-penalty-timing').textContent,/3 秒后可射门/);assert.equal(f.node('game-penalty-ready').hidden,true);
  run(f.game,.05,{penaltyAimAxis:{x:1,y:1}});assert.equal(document.body.dataset.gamePenaltyAim,'1.00,1.00');
- for(let i=0;i<200&&s.setPiece.stage==='ready';i++)f.game.update(1/60,{},{});
- assert.equal(s.setPiece.stage,'flight');assert.equal(f.node('game-tackle').disabled,false);
- f.node('game-tackle').fire('pointerdown',{pointerId:81,pointerType:'touch',button:0,preventDefault(){}});assert.equal(keeper.motion.type,'dive');assert.equal(keeper.keeperState.direction,1);assert.ok(keeper.keeperState.targetY>1.9);assert.equal(s.competition.shootout,null);
+ const pad=f.node('game-penalty-dive-target');pad.getBoundingClientRect=()=>({left:0,top:0,width:180,height:120});
+ const touch={pointerId:81,pointerType:'touch',button:0,preventDefault(){}};
+ pad.fire('pointerdown',{...touch,clientX:20,clientY:110,timeStamp:10});
+ pad.fire('pointerup',{...touch,clientX:20,clientY:110,timeStamp:100});
+ assert.equal(document.body.dataset.gamePenaltyAim,'-1.00,-1.00');
+ assert.equal(s.setPiece.diveQueued,false,'the touch zone can select a direction while waiting without diving');
+ for(let i=0;i<250&&s.setPiece.stage==='ready';i++)f.game.update(1/60,{},{});
+ assert.equal(s.setPiece.stage,'runup');assert.equal(f.node('game-tackle').disabled,false);
+ assert.equal(f.node('game-penalty-runup').hidden,false);
+ pad.fire('pointerdown',{...touch,clientX:90,clientY:60,timeStamp:1000});
+ pad.fire('pointerup',{...touch,clientX:148,clientY:22,timeStamp:1100});
+ assert.equal(s.setPiece.diveQueued,true,'one directional swipe queues a dive during the opponent run-up');
+ assert.equal(f.node('game-tackle').disabled,true);
+ for(let i=0;i<70&&!keeper.motion;i++)f.game.update(1/60,{},{});
+ assert.equal(keeper.motion.type,'dive');assert.equal(keeper.keeperState.direction,-1);assert.ok(keeper.keeperState.targetY>1.9);assert.equal(s.competition.shootout,null);
 });
 
 test('the online ordinary-penalty taker can charge and shoot once, then cannot recharge during flight',()=>{
@@ -116,8 +128,49 @@ test('the online ordinary-penalty taker can charge and shoot once, then cannot r
  const f=fixture(true),deliver=frame=>{session.packet=packOnlineState(s,frame);for(const fn of listeners)fn();run(f.game,.12);};f.game.start({},session);f.game.ready();assert.equal(f.game.beginCharge(),false);
  run(server,2);deliver(2);assert.equal(document.body.dataset.controlContext,'penalty-shooter');assert.equal(f.node('game-shoot').disabled,true);assert.equal(f.game.beginCharge(),false);
  assert.equal(server.action('penalty-ready',{},'away'),true);run(server,2.6);deliver(3);
- assert.equal(f.node('game-shoot').disabled,false);assert.equal(f.node('game-tackle').disabled,true);assert.equal(f.node('action-pass').disabled,true);assert.equal(f.game.beginCharge(),true);run(f.game,.3,{penaltyAimAxis:{x:-1,y:1}});assert.equal(f.game.releaseCharge(),true);assert.equal(s.stats.home.shots,1);assert.equal(s.setPiece.stage,'flight');const shots=messages.filter(p=>p.type==='action'&&p.action==='shoot');assert.equal(shots.length,1);assert.ok(shots[0].penaltyAim.x<-.5&&shots[0].penaltyAim.y>.5);assert.ok(s.ball.vx<0);
- deliver(4);assert.equal(f.game.beginCharge(),false);assert.equal(f.node('game-shoot').disabled,true);assert.equal(s.competition.shootout,null);
+ assert.equal(f.node('game-shoot').disabled,false);assert.equal(f.node('game-tackle').disabled,true);assert.equal(f.node('action-pass').disabled,true);
+ assert.equal(f.game.beginCharge(),true);run(f.game,.3,{penaltyAimAxis:{x:-1,y:1}});
+ assert.equal(f.node('game-charge').hidden,true);assert.ok(f.node('game-penalty-power').value>.62);
+ assert.equal(f.game.releaseCharge(),true);assert.equal(s.stats.home.shots,0);assert.equal(s.setPiece.stage,'runup');
+ const shots=messages.filter(p=>p.type==='action'&&p.action==='shoot');assert.equal(shots.length,1);assert.ok(shots[0].penaltyAim.x<-.5&&shots[0].penaltyAim.y>.5);
+ assert.equal(f.game.beginCharge(),false,'latency does not permit a duplicate shot before acknowledgement');
+ deliver(4);assert.equal(f.game.beginCharge(),false);assert.equal(f.node('game-shoot').disabled,true);
+ run(server,s.setPiece.runupDuration+.03);assert.equal(s.setPiece.stage,'flight');assert.equal(s.stats.home.shots,1);assert.ok(s.ball.vx<0);
+ deliver(5);assert.equal(f.game.beginCharge(),false);assert.equal(s.competition.shootout,null);
+});
+
+test('a short mobile swipe on the penalty shoot button sends one directed shot',()=>{
+ const f=fixture(true);f.game.start({rules:{mode:'shootout'}});f.game.ready();
+ const shoot=f.node('game-shoot'),touch={pointerId:26,pointerType:'touch',button:0,preventDefault(){}};
+ shoot.fire('pointerdown',{...touch,clientX:350,clientY:730,timeStamp:200});
+ shoot.fire('pointerup',{...touch,clientX:290,clientY:696,timeStamp:300});
+ shoot.onclick({detail:1});
+ const s=f.game.state,round=s.competition.shootout;
+ assert.equal(round.stage,'runup');
+ assert.equal(document.body.dataset.gamePenaltyAim,'-1.00,0.57');
+ assert.equal(f.node('game-shoot').disabled,true);
+ run(f.game,round.runupDuration+.04);
+ assert.equal(s.stats.home.shots,1);assert.ok(s.ball.vx<0);assert.ok(s.lastShot.power>.62);
+});
+
+test('the shootout score shows five recent attempts and the next kicker in sudden death',()=>{
+ const f=fixture(true);f.game.start({opponent:'madrid',rules:{mode:'shootout'}});f.game.ready();
+ const round=f.game.state.competition.shootout,box=f.node('game-penalty-score');
+ assert.equal(box.hidden,false);assert.equal(f.node('game-penalty-round').textContent,'第 1 轮');
+ assert.equal(f.node('game-penalty-home-0').dataset.result,'next');
+ round.home.push(true,false,true,true,false);round.away.push(false,true,false,true,true);
+ f.game.setControlMode('manual');
+ assert.equal(f.node('game-penalty-round').textContent,'第 6 轮');
+ assert.equal(f.node('game-penalty-home-0').dataset.result,'miss');
+ assert.equal(f.node('game-penalty-home-4').dataset.result,'next');
+ assert.equal(f.node('game-clock').textContent,'3–3');
+ round.home.push(true);round.away.push(false);round.stage='result';round.winner='home';
+ f.game.setControlMode('manual');
+ assert.equal(f.node('game-penalty-round').textContent,'第 6 轮');
+ assert.equal(f.node('game-penalty-home-4').dataset.result,'goal');
+ assert.equal(f.node('game-penalty-away-4').dataset.result,'miss');
+ assert.equal(f.node('game-clock').textContent,'4–3');
+ assert.match(box['aria-label'],/拜仁 4 · 皇马 3/);
 });
 test('the actual match HUD presents half time and continues into the second half instead of remaining under a pause overlay',async()=>{
  const {game,node}=fixture();game.start({rules:{mode:'league',duration:180}});game.ready();run(game,3.1);game.state.elapsed=89.99;run(game,.1);assert.equal(game.state.phase,'playing');assert.equal(node('game-period').textContent,'上半场 · 补时 +1′');assert.ok(node('game-clock').textContent.startsWith('45:00 +00:'));run(game,2.1);assert.equal(game.state.phase,'interval');assert.equal(node('game-overlay').hidden,false);assert.equal(node('game-overlay-title').textContent,'中场休息');assert.equal(node('game-resume').textContent,'开始下半场');await node('game-resume').onclick();run(game,.2);assert.equal(game.state.competition.period,2);assert.equal(game.state.paused,false);assert.equal(node('game-overlay').hidden,true);assert.equal(node('game-period').textContent,'下半场');
