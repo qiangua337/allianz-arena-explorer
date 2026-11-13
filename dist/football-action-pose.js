@@ -1,8 +1,11 @@
 import {applyFootballKick,applyFootballShotPreparation,keepFootballBootsAboveFloor,liftFootballBootsAboveFloor} from './football-kick-pose.js';
 // Football strokes layer over the CC0 locomotion clips before the skeleton's
 // single world update. Kicks plant their support foot and begin at contact.
-export function applyFootballAction(bones,motion,{defending=false,speed=0}={},group){
+export function applyFootballAction(bones,motion,{defending=false,speed=0,holdingBall=false}={},group){
  const t=motion?Math.max(0,Math.min(1,motion.elapsed/motion.duration)):0,pulse=Math.sin(t*Math.PI);
+ if(motion?.type==='keeperThrow'){
+  const finish=1-t; bones[6].rotateX(-.30*finish);bones[7].rotateX(-.55*finish);bones[12].rotateX(-1.85*finish);bones[13].rotateX(-.27*finish);bones[2].rotateY(-.16*finish);return;
+ }
  if(motion?.type==='booking'){bones[12].rotateX(-2.65);bones[13].rotateX(-.2);bones[2].rotateY(.08);return;}
  if(motion?.type==='prepareShot'){
   const load=.28+Math.min(1,motion.elapsed)*.30;
@@ -38,6 +41,9 @@ export function applyFootballAction(bones,motion,{defending=false,speed=0}={},gr
   if(lean>0){bones[0].position.y=Math.max(.28,bones[0].position.y);liftFootballBootsAboveFloor(bones);bones[0].position.y+=.20*arm*(1-arm);}
  }
  if(motion?.type==='trap'||motion?.type==='tackle')keepFootballBootsAboveFloor(bones);
+ if(holdingBall&&motion?.type!=='dive'&&motion?.type!=='save'){
+  bones[6].rotateX(-.66);bones[12].rotateX(-.66);bones[7].rotateX(-.84);bones[13].rotateX(-.84);bones[6].rotateZ(.14);bones[12].rotateZ(-.14);
+ }
  if(defending){bones[6].rotateZ(-.13);bones[12].rotateZ(.13);bones[2].rotateX(.07);}
  else if(speed>5.5)bones[2].rotateX(Math.min(.11,(speed-5.5)*.055));
 }

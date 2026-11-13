@@ -75,6 +75,12 @@ export function beginFootballTouch(player,ball,input,time){
 
 export function carryFootball(player,ball,dt,time,openPlay=true){
  const speed=Math.hypot(player.vx,player.vz),forwardX=Math.sin(player.yaw),forwardZ=Math.cos(player.yaw);
+ if(player.keeperState?.holdingWithHands){
+  const amount=1-Math.exp(-dt*22);
+  ball.x+=(player.x+forwardX*.43-ball.x)*amount;ball.z+=(player.z+forwardZ*.43-ball.z)*amount;
+  ball.y+=(1.05-ball.y)*amount;ball.vx=player.vx;ball.vz=player.vz;ball.vy=0;
+  return;
+ }
  if(player.keeper||!openPlay){
   const moving=speed>.15,reach=(player.defending?.46:.58)+Math.min(.28,speed*.035)+(moving?.10*(.5+.5*Math.sin(time*11)):0);
   const amount=1-Math.exp(-dt*(time<(player.trapUntil||0)?15:32));

@@ -85,6 +85,54 @@ test('a keeper cleanly passes a caught ball to a safe outlet without touching it
  assert.equal(s.stats.home.passes,1);
 });
 
+for(const period of [1,2])test(`a close striker cannot repeatedly steal a caught ball from the keeper in half ${period}`,()=>{
+ const game=start({opponent:'madrid',difficulty:'challenge',controlMode:'manual',rules:{mode:'league',duration:180},seed:105});
+ if(period===2){
+  const snapshot=game.checkpoint();
+  Object.assign(snapshot.state,{elapsed:90,phase:'interval',paused:true});
+  snapshot.state.competition.next=2;
+  game.restore(snapshot);assert.ok(game.continuePeriod());run(game,2.8);
+ }
+ const s=game.state,sign=game.attackSign('home'),keeper=player(game,'home-0'),striker=player(game,'away-1');
+ for(const p of s.players){
+  const z=p.team==='home'?sign*(31+Math.abs(p.index-5)):-sign*(18+p.index*.8);
+  Object.assign(p,{x:(p.index-5)*3.3,z,vx:0,vz:0,yaw:p.team==='home'?(sign>0?0:Math.PI):(sign>0?Math.PI:0),decisionAt:s.time+.4,tackleAt:s.time+.15});
+ }
+ Object.assign(keeper,{x:2.43,z:-sign*48.42});
+ Object.assign(striker,{x:1.53,z:-sign*47.10});
+ const defender=player(game,'home-2');Object.assign(defender,{x:5.93,z:-sign*43.35});
+ s.controlledId=s.controlledIds.home=defender.id;
+ Object.assign(s.ball,{x:2.43,z:-sign*47.91,y:.11,vx:0,vz:-sign*2,vy:0,ownerId:null,targetId:null,receivePoint:null,shot:null});
+ game.update(1/60);
+ assert.equal(s.ball.ownerId,keeper.id);
+ const caught=s.eventCount,initialClock=s.elapsed;
+ run(game,.6);
+ assert.equal(s.ball.ownerId,keeper.id,'the striker cannot kick a ball the keeper holds');
+ let clearance;
+ for(let i=0;i<35&&!clearance;i++){
+  game.update(1/60);
+  clearance=s.events.find(e=>e.id>caught&&e.playerId===keeper.id&&e.type==='clearance');
+ }
+ assert.ok(clearance,'the keeper sends the ball long under pressure');
+ assert.equal(s.ball.ownerId,null);
+ assert.ok(s.ball.y>.85&&s.ball.vz*sign>18);
+ run(game,.65);
+ assert.ok(s.ball.z*sign>-36,'the ball leaves the penalty area');
+ assert.ok(s.elapsed>initialClock+1);
+ assert.equal(s.events.filter(e=>e.id>caught&&e.playerId===striker.id&&e.type==='tackle').length,0);
+});
+
+test('a goalkeeper with the ball at their feet can still be tackled',()=>{
+ const game=start({opponent:'madrid'});clearOthers(game);
+ const s=game.state,keeper=player(game,'away-0'),user=player(game);
+ Object.assign(keeper,{x:0,z:-47,yaw:0,protectedUntil:0});
+ Object.assign(user,{x:0,z:-45.82,yaw:Math.PI});
+ Object.assign(s.ball,{x:0,y:.11,z:-46.42,ownerId:keeper.id});
+ assert.equal(game.action('tackle'),true);
+ assert.equal(s.ball.ownerId,null);
+ assert.equal(s.stats.home.tackles,1);
+});
+
 for(const period of [1,2])test(`a pressured goal kick without a safe short outlet clears upfield in half ${period}`,()=>{
  const game=start({duration:20,opponent:'madrid',rules:{mode:'league',duration:20},seed:972}),s=game.state;
  if(period===2){
