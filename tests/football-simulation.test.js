@@ -61,6 +61,75 @@ test('goalkeepers collect a reachable loose ball physically without counting it 
  const game=start();clearOthers(game);const keeper=player(game,'away-0');keeper.x=0;keeper.z=-48;Object.assign(game.state.ball,{ownerId:null,x:0,y:.5,z:-47.90,vx:0,vy:0,vz:-10});game.update(1/60);
  assert.equal(game.state.ball.ownerId,keeper.id);assert.equal(game.state.stats.away.saves,0);assert.ok(Math.abs(keeper.z+48)<.1);assert.equal(game.state.events.at(-1).type,'receive');
 });
+test('a keeper cleanly passes a caught ball to a safe outlet without touching its own distribution again',()=>{
+ const game=start({opponent:'madrid',seed:972}),s=game.state,keeper=player(game,'home-0');
+ Object.assign(keeper,{x:0,z:49.5,vx:0,vz:0,yaw:Math.PI});
+ Object.assign(s.ball,{x:0,y:.5,z:49.35,vx:0,vy:0,vz:10,ownerId:null,shot:null});
+ game.update(1/60);
+ assert.equal(s.ball.ownerId,keeper.id);
+ assert.equal(game.action('tackle'),false);
+ assert.equal(s.message,'门将持球 · 正在组织出球');
+ const startEvent=s.eventCount;
+ let pass;
+ for(let frame=0;frame<75&&!pass;frame++){
+  game.update(1/60);
+  pass=s.events.find(event=>event.id>startEvent&&event.type==='pass'&&event.playerId===keeper.id);
+ }
+ assert.ok(pass,'an open outlet receives an ordinary distribution in under 1.25 seconds');
+ assert.equal(s.ball.ownerId,null);
+ assert.ok(s.ball.targetId?.startsWith('home-'));
+ assert.ok(s.ball.vz<0);
+ run(game,.35);
+ assert.equal(s.events.filter(event=>event.id>startEvent&&event.playerId===keeper.id).length,1);
+ assert.notEqual(s.ball.ownerId,keeper.id);
+ assert.equal(s.stats.home.passes,1);
+});
+
+for(const period of [1,2])test(`a pressured goal kick without a safe short outlet clears upfield in half ${period}`,()=>{
+ const game=start({duration:20,opponent:'madrid',rules:{mode:'league',duration:20},seed:972}),s=game.state;
+ if(period===2){
+  while(s.phase!=='interval')game.update(1/60);
+  assert.ok(game.continuePeriod());
+  run(game,2.75);
+ }
+ const keeper=player(game,'home-0'),sign=game.attackSign('home');
+ for(const p of s.players){
+  if(p.keeper)continue;
+  Object.assign(p,{x:p.index%2===0?18:-18,z:sign*35,vx:0,vz:0,tackleAt:1e6});
+ }
+ const pressing=player(game,'away-1');
+ Object.assign(pressing,{x:1.4,z:-sign*45,decisionAt:1e6});
+ // Push a wide away-team shot out over the defending side's goal line.
+ if(period===1){
+  const opponent=player(game,'away-0');
+  Object.assign(opponent,{x:0,z:sign*48,vx:0,vz:0,yaw:0});
+  Object.assign(s.ball,{x:0,y:.45,z:sign*47.85,vx:0,vy:0,vz:sign*10,ownerId:null,shot:null});
+  game.update(1/60);
+  assert.equal(s.ball.ownerId,opponent.id);
+ }
+ Object.assign(s.ball,{ownerId:null,x:9,y:.11,z:-sign*52.43,vx:0,vy:0,vz:-sign*17,shot:null});
+ game.update(1/60);
+ assert.equal(s.restartType,'goalkick');
+ assert.equal(s.ball.ownerId,keeper.id);
+ assert.equal(s.phase,'kickoff');
+ run(game,1.75);
+ assert.equal(s.phase,'kickoff');
+ assert.equal(s.ball.ownerId,keeper.id);
+ const restart=s.eventCount;
+ let clearance;
+ for(let frame=0;frame<80&&!clearance;frame++){
+  game.update(1/60);
+  clearance=s.events.find(event=>event.id>restart&&event.type==='clearance'&&event.playerId===keeper.id);
+ }
+ assert.ok(clearance,'the keeper releases upfield when no safe outlet is available');
+ assert.equal(s.phase,'playing');
+ assert.equal(s.ball.ownerId,null);
+ assert.ok(s.ball.vz*sign>18);
+ assert.ok(s.ball.vy>4);
+ assert.equal(keeper.motion.lofted,true);
+ assert.equal(s.stats.home.shots,0);
+ assert.deepEqual(s.score,{home:0,away:0});
+});
 test('pause, finite capped updates and full time freeze the live simulation; restart clears score and clock',()=>{
  const game=start({duration:1});clearOthers(game);game.setPaused(true);const snapshot=JSON.stringify(game.state);game.update(100,{x:1,z:-1});assert.equal(JSON.stringify(game.state),snapshot);assert.equal(game.action('shoot'),false);game.setPaused(false);
  const before=game.state.elapsed;game.update(Infinity);game.update(NaN);game.update(-10);assert.equal(game.state.elapsed,before);game.update(100);assert.ok(game.state.elapsed-before<.251);run(game,1);assert.equal(game.state.phase,'fulltime');const end=JSON.stringify(game.state);game.update(1,{z:1});assert.equal(JSON.stringify(game.state),end);

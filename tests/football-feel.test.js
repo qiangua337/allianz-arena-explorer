@@ -71,7 +71,8 @@ test('autonomous play does not spend most challenges instantly swapping the same
  const fixtures=12;
  let challenges=0,rapidReturns=0,shots=0,passes=0;
  for(let seed=1;seed<=fixtures;seed++){const g=createFootballSimulation({seed,humanTeams:[],rules:{mode:'league',duration:180}});let serial=0,last=null;
-  for(let frame=0;frame<90*60;frame++){g.update(1/60);for(const event of g.state.events.filter(e=>e.id>serial)){if(event.type==='tackle'){challenges++;if(last&&last.team!==event.team&&g.state.time-last.time<1)rapidReturns++;last={team:event.team,time:g.state.time};}if(event.type==='shot')shots++;if(event.type==='pass')passes++;serial=event.id;}}
+  for(let frame=0;frame<360*60&&g.state.phase!=='fulltime';frame++){if(g.state.phase==='interval')g.continuePeriod();g.update(1/60);for(const event of g.state.events.filter(e=>e.id>serial)){if(event.type==='tackle'){challenges++;if(last&&last.team!==event.team&&g.state.time-last.time<1)rapidReturns++;last={team:event.team,time:g.state.time};}if(event.type==='shot')shots++;if(event.type==='pass')passes++;serial=event.id;}}
+  assert.equal(g.state.phase,'fulltime');
  }
  assert.ok(challenges>=fixtures*3&&shots>=fixtures*2&&passes>=fixtures*6,
   `over ${fixtures} fixtures: ${challenges} challenges, ${shots} shots and ${passes} passes`);

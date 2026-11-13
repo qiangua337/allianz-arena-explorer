@@ -13,7 +13,7 @@ function launchFor(state,player,ball,type,direction,power,pressure){
  }
  const option=passOption(state.players,player,ball,{direction,type,power});
  if(!option)return null;
- const flight=passFlight(ball,option,{type,lane:option.lane});
+ const flight=passFlight(ball,option,{type,lane:option.lane,player});
  return{...flight,stroke:flight.lofted?'lofted':type==='through'&&!option.delivery?'through':'short'};
 }
 

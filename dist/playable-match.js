@@ -1,3 +1,4 @@
+import {playerSpecialties} from './football-abilities.js';
 import {writeHudProperty,writeHudAttribute,writeHudData,writeHudDataset} from './hud-write.js';
 import {createFootballTraining} from './football-training.js';
 import {buildTrainingView} from './training-view.js';
@@ -14,7 +15,7 @@ import {createFootballSimulation} from './football-simulation.js';
 import {buildFootballView} from './football-view.js';
 import {buildFootballRadar} from './football-radar.js';
 import {difficulties,loadMatchOptions,matchOptions,saveMatchOptions} from './football-teams.js';
-import {matchTime,ballDirection,penaltyContext} from './football-controls.js';
+import {matchTime,addedTimeLabel,ballDirection,penaltyContext} from './football-controls.js';
 import {penaltyCanShoot} from './football-penalty.js';
 import {buildPenaltyControls,penaltyAimLabel,penaltyKeeperWaiting} from './football-penalty-ui.js';
 import {bindInstantAction} from './instant-action.js';
@@ -66,13 +67,13 @@ export function buildPlayableMatch({scene,stadium,players,audio,onCamera,onView,
  }
  function render(){
   if(!active)return;const s=simulation.state,receiving=s.receiveTarget||null,prepared=s.preparedAction||null,p=s.players.find(p=>p.id===s.controlledId),done=s.phase==='fulltime',owner=s.players.find(o=>o.id===s.ball.ownerId),owns=owner?.id===p.id,friendly=!!owner&&owner.team===p.team&&!owns;controlsChanged(s,true);
-  s.cameraMode=cameraMode;lastRenderedPhase=s.phase;lastRenderedPaused=s.paused;const localTeam=network?.team||'home',shootout=s.competition?.shootout,penalty=penaltyContext(s,localTeam),interval=s.phase==='interval';write('game-period','textContent',periodLabel(s)+(shootout?' '+shootout.home.filter(Boolean).length+'–'+shootout.away.filter(Boolean).length:''));write('game-team','disabled',!!s.training||!!replay||pending||done||!!penalty);write('game-overlay-team','disabled',$('game-team').disabled);write('game-overlay-team','hidden',!!s.training||pending||failed||done||!!penalty);const showRadar=!s.training&&(radarChoice??!(mobile||typeof innerWidth==='number'&&innerWidth<=1024));writeHudData(document.body,'gameRadar',String(showRadar));writeHudAttribute($('game-radar-toggle'),'aria-pressed',String(showRadar));
+  s.cameraMode=cameraMode;lastRenderedPhase=s.phase;lastRenderedPaused=s.paused;const localTeam=network?.team||'home',shootout=s.competition?.shootout,penalty=penaltyContext(s,localTeam),interval=s.phase==='interval',added=addedTimeLabel(s);write('game-period','textContent',periodLabel(s)+(added?' · '+added:'')+(shootout?' '+shootout.home.filter(Boolean).length+'–'+shootout.away.filter(Boolean).length:''));write('game-team','disabled',!!s.training||!!replay||pending||done||!!penalty);write('game-overlay-team','disabled',$('game-team').disabled);write('game-overlay-team','hidden',!!s.training||pending||failed||done||!!penalty);const showRadar=!s.training&&(radarChoice??!(mobile||typeof innerWidth==='number'&&innerWidth<=1024));writeHudData(document.body,'gameRadar',String(showRadar));writeHudAttribute($('game-radar-toggle'),'aria-pressed',String(showRadar));
   write('game-score-home','textContent',s.score.home);write('game-score-away','textContent',s.score.away);write('game-clock','textContent',matchTime(s));
   write('game-away-name','textContent',s.fixture.short);if(awayKit!==s.fixture.kit.shirt){awayKit=s.fixture.kit.shirt;writeHudProperty($('game-away-dot').style,'backgroundColor',awayKit);}
   const fps=Number(document.body.dataset.renderfps)||0;write('game-difficulty','textContent',replay?'精彩回放':network?(network.latency||'—')+' ms'+(pending?' · 加载':s.paused?' · 暂停':fps?' · '+fps+'帧':''):difficulties[s.difficulty].label+' · 人机');write('game-difficulty','title',network?'网络往返 '+(network.latency||'—')+' 毫秒；画面 '+(fps||'测量中')+' 帧/秒。正常持球传射时，本机会先显示触球。球权和进球由服务器确认。':'');$('game-difficulty').classList.toggle('network-slow',!!network&&network.latency>180);write('game-network-help','hidden',!network);write('game-low-quality','textContent',$('quality').value==='low'?'恢复均衡画质':'切换到流畅画质 · 降低细节');if(!s.training)write('game-fixture-title','textContent','FC BAYERN × '+s.fixture.english);
-  write('game-player','textContent',p.number+' · '+p.name);write('game-stamina','value',Math.round(p.stamina*100)*.01);
+  write('game-player','textContent',p.number+' · '+p.name);write('game-player-specialties','textContent','擅长 '+playerSpecialties(p.team,s.fixture.id,p.number,p.keeper));write('game-stamina','value',Math.round(p.stamina*100)*.01);
   const passHint=s.passPreview?(deliveryLabels[s.passPreview.delivery]??'短传')+' → '+s.passPreview.name:'控球中';
-  write('game-ball-hint','textContent',penalty?'点球 · '+(penalty.role==='shooter'?'主罚':'守门'):prepared?'已预备 · '+prepared.name+' 接球后'+(prepared.type==='shoot'?'射门':'传球'):receiving?'接应 '+receiving.name+' · 可预备传射':leavingPass(s,p)?'传球已出脚 · 换控接应':friendly?'队友控球 · 换控接管':owns?(p.defending?'护球中':passHint):!owner&&s.ball.rebound?'争第二落点 · '+ballDirection(p,s.ball,aimYaw):p.defending?'逼抢中 · 靠近后抢断':s.ball.targetId===p.id?'迎球中 · 方向可接管':Math.hypot(p.x-s.ball.x,p.z-s.ball.z)>25?'离球较远 · 换控接近足球':ballDirection(p,s.ball,aimYaw));
+  write('game-ball-hint','textContent',penalty?'点球 · '+(penalty.role==='shooter'?'主罚':'守门'):prepared?'已预备 · '+prepared.name+' 接球后'+(prepared.type==='shoot'?'射门':'传球'):receiving?'接应 '+receiving.name+' · 可预备传射':leavingPass(s,p)?'传球已出脚 · 换控接应':friendly?(owner.keeper?(s.phase==='kickoff'&&s.restartType==='goalkick'?'球门球 · 门将准备开球':'门将持球 · 正在组织出球'):'队友控球 · 换控接管'):owns?(p.defending?'护球中':passHint):!owner&&s.ball.rebound?'争第二落点 · '+ballDirection(p,s.ball,aimYaw):p.defending?'逼抢中 · 靠近后抢断':s.ball.targetId===p.id?'迎球中 · 方向可接管':Math.hypot(p.x-s.ball.x,p.z-s.ball.z)>25?'离球较远 · 换控接近足球':ballDirection(p,s.ball,aimYaw));
   write('game-pressure-label','textContent',owns?'护球':'逼抢');writeHudAttribute($('game-pressure'),'aria-pressed',String(!s.paused&&p.defending));
   write('game-mute','textContent',audio.muted?'♪':'♫');writeHudAttribute($('game-mute'),'aria-pressed',String(audio.muted));writeHudAttribute($('game-mute'),'aria-label',audio.muted?'开启比赛声音':'静音比赛声音');
   write('game-pause','textContent',s.paused?'▷':'Ⅱ');writeHudAttribute($('game-pause'),'aria-label',s.paused?'继续比赛':'暂停比赛');
@@ -244,7 +245,7 @@ export function buildPlayableMatch({scene,stadium,players,audio,onCamera,onView,
       if(!s.kickAudioEventIds?.includes(e.id))audio.kick?.(e.type==='shot'?1:.6);
       if(e.team==='home'&&['shot','tackle'].includes(e.type))onCrowdReaction?.(.3);
      }else if(['save','parry'].includes(e.type)&&e.team==='home')onCrowdReaction?.(.5);
-     else if(e.type==='start'||e.type==='fulltime')audio.whistle?.();
+     else if(e.type==='start'||e.type==='interval'||e.type==='fulltime')audio.whistle?.();
     }
     lastEvent=s.eventCount;
    }

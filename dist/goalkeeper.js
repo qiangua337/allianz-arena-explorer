@@ -1,3 +1,4 @@
+import {abilityFactor,playerAbilities} from './football-abilities.js';
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 export function goalkeeperProfile(difficulty='regular'){
  return difficulty==='casual'?{reaction:.31,shuffle:3.35,dive:5.2,window:.44,recovery:.72,error:.20}:difficulty==='challenge'?{reaction:.205,shuffle:3.95,dive:5.8,window:.47,recovery:.57,error:.09}:{reaction:.255,shuffle:3.65,dive:5.5,window:.455,recovery:.65,error:.14};
@@ -23,7 +24,8 @@ export function planGoalkeeper(p,ball,owner,time,difficulty,{openPlay=false}={})
   k.shotId=shot.id;k.committed=false;k.holdX=p.x;k.holdZ=p.z;
   k.closeShot=openPlay&&Math.hypot(ball.x,ball.z-goal)<15;
   const released=openPlay&&Number.isFinite(shot.at)?Math.min(time,shot.at):time;
-  k.readAt=Math.max(released+profile.reaction-(k.closeShot?.045:0),k.recoverUntil);
+  const reflex=openPlay?abilityFactor(playerAbilities(p).goalkeeping,.009,90):1;
+  k.readAt=Math.max(released+profile.reaction/reflex-(k.closeShot?.045:0),k.recoverUntil);
   if(openPlay&&(k.phase==='track'||k.phase==='set'))k.phase='ready';
  }
  if(k.phase==='dive')return{x:k.targetX,z:k.holdZ,speed:profile.dive};
@@ -77,6 +79,7 @@ export function goalkeeperContact(p,ball,previous,time,difficulty,{openPlay=fals
  const block=closeBlock&&!body?contactOnSegment(previous,ball,{x:p.x,y:.53,z:p.z+sign*.16},{x:.66,y:.57,z:.33}):null;
  const contact=point||body||block;if(!contact||(contact.z-p.z)*sign<-.22)return null;
  const settled=!diving&&!recovering&&point&&Math.abs(point.x-p.x)<.28&&point.y<1.7;
- const catchable=point&&speed<(openPlay&&settled?23:19.5)&&point.distance<.60&&!recovering&&(!diving||speed<12);
+ const hands=openPlay?abilityFactor(playerAbilities(p).goalkeeping,.006):1;
+ const catchable=point&&speed<(openPlay&&settled?23:19.5)*hands&&point.distance<.60&&!recovering&&(!diving||speed<12);
  return{kind:catchable?'catch':'parry',point:contact};
 }

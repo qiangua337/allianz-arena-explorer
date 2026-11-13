@@ -24,7 +24,7 @@ test('same-tick action broadcasts and a paused interval do not manufacture netwo
 });
 
 for(const scenario of [{fps:30},{fps:30,jitter:.065},{fps:30,jitter:.065,loss:.1},{fps:60,jitter:.065},{fps:120,jitter:.065,loss:.1}])test(`300ms RTT keeps remote motion continuous with ${scenario.fps}fps, ${scenario.jitter||0}s jitter and ${scenario.loss||0} missing snapshots`,()=>{
- const result=runOnlineLink(createOnlineSimulation,scenario);assert.equal(result.remote.zeroOrBackward,0);assert.ok(result.remote.stdStep<.025);assert.ok(result.remote.maxStep<.22);assert.ok(result.predictionPeak<=.6);assert.ok(result.meanSnapshotBytes<5000);assert.equal(result.updates,scenario.fps*6);
+ const result=runOnlineLink(createOnlineSimulation,scenario);assert.equal(result.remote.zeroOrBackward,0);assert.ok(result.remote.stdStep<.025);assert.ok(result.remote.maxStep<.22*(1+(97-80)*.003),'a faster player retains the same jump budget relative to sprint speed');assert.ok(result.predictionPeak<=.6);assert.ok(result.meanSnapshotBytes<5000);assert.equal(result.updates,scenario.fps*6);
 });
 function renderState(){const state=createFootballSimulation({humanTeams:['home','away']}).state;state.phase='playing';state.paused=false;state.time=1;state.controlledId='home-1';state.ball.ownerId='away-1';return state;}
 function pose(state,time){state.time=time;for(const p of state.players){p.x=time*5;p.z=0;p.yaw=Math.PI-.03;p.vx=5;p.vz=0;}state.ball.x=time*5;state.ball.y=.11;state.ball.z=0;}

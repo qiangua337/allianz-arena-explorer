@@ -120,7 +120,7 @@ test('the online ordinary-penalty taker can charge and shoot once, then cannot r
  deliver(4);assert.equal(f.game.beginCharge(),false);assert.equal(f.node('game-shoot').disabled,true);assert.equal(s.competition.shootout,null);
 });
 test('the actual match HUD presents half time and continues into the second half instead of remaining under a pause overlay',async()=>{
- const {game,node}=fixture();game.start({rules:{mode:'league',duration:180}});game.ready();run(game,3.1);game.state.elapsed=89.99;run(game,.1);assert.equal(game.state.phase,'interval');assert.equal(node('game-overlay').hidden,false);assert.equal(node('game-overlay-title').textContent,'中场休息');assert.equal(node('game-resume').textContent,'开始下半场');await node('game-resume').onclick();run(game,.2);assert.equal(game.state.competition.period,2);assert.equal(game.state.paused,false);assert.equal(node('game-overlay').hidden,true);assert.equal(node('game-period').textContent,'下半场');
+ const {game,node}=fixture();game.start({rules:{mode:'league',duration:180}});game.ready();run(game,3.1);game.state.elapsed=89.99;run(game,.1);assert.equal(game.state.phase,'playing');assert.equal(node('game-period').textContent,'上半场 · 补时 +1′');assert.ok(node('game-clock').textContent.startsWith('45:00 +00:'));run(game,2.1);assert.equal(game.state.phase,'interval');assert.equal(node('game-overlay').hidden,false);assert.equal(node('game-overlay-title').textContent,'中场休息');assert.equal(node('game-resume').textContent,'开始下半场');await node('game-resume').onclick();run(game,.2);assert.equal(game.state.competition.period,2);assert.equal(game.state.paused,false);assert.equal(node('game-overlay').hidden,true);assert.equal(node('game-period').textContent,'下半场');
 });
 test('display controls preserve the live match, and pausing exposes an actual readable statistics report',()=>{const {game,node}=fixture();game.start();game.ready();run(game,3.2);const time=game.state.elapsed;node('game-more').onclick();assert.equal(node('game-ui').dataset.more,'true');assert.equal(node('game-more')['aria-label'],'收起比赛设置');node('game-radar-toggle').onclick();assert.equal(document.body.dataset.gameRadar,'false');assert.equal(game.state.elapsed,time);assert.equal(game.state.paused,false);node('game-pause').onclick();assert.equal(game.state.paused,true);assert.equal(node('game-result').hidden,false);assert.ok(node('game-result').innerHTML.includes('report-score'));assert.ok(node('game-result').innerHTML.includes('射正'));assert.equal(node('game-overlay-team').hidden,false);game.start();assert.equal(node('game-ui').dataset.more,'false');assert.equal(node('game-more')['aria-label'],'展开比赛设置');});
 
@@ -247,4 +247,18 @@ test('optional replay freezes the real score, ball and clock, then returns pause
 
 test('shot style buttons cycle without resetting a match and changing style cancels an unfinished charge',()=>{
  const f=fixture();f.game.start();f.game.ready();run(f.game,3.1);const before=f.game.state.elapsed;assert.equal(f.game.beginCharge(),true);f.node('game-shot-mode').onclick();assert.equal(f.game.state.shotKind,'finesse');assert.equal(f.game.releaseCharge(),false);assert.equal(f.game.state.stats.home.shots,0);assert.equal(f.game.state.elapsed,before);f.game.cycleShotKind();assert.equal(f.game.state.shotKind,'lob');assert.equal(f.node('game-shot-mode').textContent,'挑射 Z');f.game.start({opponent:'madrid'});assert.equal(f.game.state.shotKind,'lob');
+});
+
+test('goalkeeper possession explains automatic distribution and identifies goal-kick setup',()=>{
+ const {game,node}=fixture(true);game.start();game.ready();run(game,3.1);
+ const s=game.state,keeper=s.players.find(p=>p.team==='home'&&p.keeper);
+ Object.assign(s.ball,{ownerId:keeper.id,x:keeper.x,y:.11,z:keeper.z});
+ game.setControlMode('manual');
+ assert.equal(node('game-ball-hint').textContent,'门将持球 · 正在组织出球');
+ assert.equal(node('action-pass').disabled,true);
+ node('action-switch').fire('click',{detail:0,preventDefault(){}});
+ assert.notEqual(s.controlledId,keeper.id);
+ s.phase='kickoff';s.restartType='goalkick';
+ game.setControlMode('manual');
+ assert.equal(node('game-ball-hint').textContent,'球门球 · 门将准备开球');
 });

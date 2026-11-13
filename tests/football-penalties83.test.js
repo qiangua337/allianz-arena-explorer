@@ -9,7 +9,7 @@ const run=(g,frames,input={})=>{for(let i=0;i<frames;i++)g.update(1/60,input);};
 const close=(a,b)=>assert.ok(Math.abs(a-b)<1e-8,`${a} differs from ${b}`);
 function award({seed=1,team='home',period=1,humanTeams=['home','away']}={}){
  const g=createFootballSimulation({seed,humanTeams,controlMode:'manual',rules:{mode:'league',duration:180}});run(g,190);
- if(period===2){g.state.elapsed=89.99;g.update(.05);g.continuePeriod();run(g,170);}
+ if(period===2){g.state.elapsed=89.99;run(g,150);assert.equal(g.continuePeriod(),true);run(g,170);}
  const sign=g.attackSign(team),defending=team==='home'?'away':'home',a=g.state.players.find(p=>p.id===team+'-1'),d=g.state.players.find(p=>p.id===defending+'-1');
  // Trigger the real foul adjudication; keep the naturally simulated goalkeeper.
  Object.assign(a,{x:0,z:sign*42,yaw:sign<0?Math.PI:0,vx:0,vz:0,protectedUntil:0,tackleAt:0});Object.assign(d,{x:0,z:sign*41,yaw:a.yaw,vx:0,vz:sign*5.4,tackleAt:0});Object.assign(g.state.ball,{x:0,y:.11,z:sign*42.6,vx:0,vy:0,vz:0,ownerId:a.id,shot:null});g.action('tackle',{},defending);
@@ -48,16 +48,21 @@ test('ordinary penalty misses use the real goal-kick restart and restore the out
  const f=ready();shoot(f);Object.assign(f.g.state.ball,{x:7,y:1,z:f.sign*52.4,vx:0,vy:0,vz:f.sign*25});f.g.update(1/60);assert.equal(f.g.state.restartType,'goalkick');assert.equal(f.g.state.restartTeam,f.defending);assert.equal(f.g.state.setPiece,null);assert.equal(f.g.state.score.home,0);assert.equal(f.g.state.controlledIds[f.defending],f.defending+'-1');run(f.g,120);assert.equal(f.g.state.phase,'playing');
 });
 
+function setPenaltyAtWhistle(f,period=1){
+ f.g.state.elapsed=period*90;
+ Object.assign(f.g.state.competition.addedTime,{minimum:2,played:2});
+}
+
 test('a penalty awarded at the period limit completes before halftime or full time',()=>{
- for(const period of [1,2]){const f=ready({period});f.g.state.elapsed=period*90-.01;shoot(f);run(f.g,20);assert.equal(f.g.state.phase,'playing');assert.equal(f.g.state.setPiece.stage,'flight');run(f.g,270);assert.equal(f.g.state.score.home,1);assert.equal(f.g.state.setPiece,null);assert.equal(f.g.state.phase,period===1?'interval':'fulltime');assert.equal(f.g.state.elapsed,period*90);}
+ for(const period of [1,2]){const f=ready({period});setPenaltyAtWhistle(f,period);shoot(f);run(f.g,20);assert.equal(f.g.state.phase,'playing');assert.equal(f.g.state.setPiece.stage,'flight');run(f.g,270);assert.equal(f.g.state.score.home,1);assert.equal(f.g.state.setPiece,null);assert.equal(f.g.state.phase,period===1?'interval':'fulltime');assert.equal(f.g.state.elapsed,period*90);}
 });
 
 test('an extended penalty can physically strike the post and then enter either goal before the whistle',()=>{
- for(const team of ['home','away'])for(const period of [1,2]){const f=ready({team,period});f.g.state.elapsed=period*90-.01;shoot(f);Object.assign(f.g.state.ball,{x:3.35,y:.9,z:f.sign*52.15,vx:10,vy:0,vz:f.sign*20});f.g.update(1/60);assert.equal(f.g.state.lastShot.outcome,'woodwork');assert.equal(f.g.state.score[team],0);assert.equal(f.g.state.setPiece.extended,true);assert.equal(f.g.state.phase,'playing');run(f.g,3);assert.equal(f.g.state.score[team],1);assert.equal(f.g.state.lastShot.outcome,'goal');run(f.g,240);assert.equal(f.g.state.phase,period===1?'interval':'fulltime');}
+ for(const team of ['home','away'])for(const period of [1,2]){const f=ready({team,period});setPenaltyAtWhistle(f,period);shoot(f);Object.assign(f.g.state.ball,{x:3.35,y:.9,z:f.sign*52.15,vx:10,vy:0,vz:f.sign*20});f.g.update(1/60);assert.equal(f.g.state.lastShot.outcome,'woodwork');assert.equal(f.g.state.score[team],0);assert.equal(f.g.state.setPiece.extended,true);assert.equal(f.g.state.phase,'playing');run(f.g,3);assert.equal(f.g.state.score[team],1);assert.equal(f.g.state.lastShot.outcome,'goal');run(f.g,240);assert.equal(f.g.state.phase,period===1?'interval':'fulltime');}
 });
 
 test('a goalkeeper parry during an extended penalty does not stop the still-moving ball',()=>{
- const f=ready();f.g.state.elapsed=89.99;shoot(f);run(f.g,3);f.g.action('tackle',{direction:{x:1}},f.defending);let steps=0;while(f.g.state.lastShot.outcome==='flight'&&steps++<60)f.g.update(1/60);assert.equal(f.g.state.lastShot.outcome,'parried');assert.equal(f.g.state.phase,'playing');assert.equal(f.g.state.setPiece.extended,true);assert.ok(Math.hypot(f.g.state.ball.vx,f.g.state.ball.vz)>1);run(f.g,600);assert.equal(f.g.state.setPiece,null);assert.equal(f.g.state.phase,'interval');
+ const f=ready();setPenaltyAtWhistle(f);shoot(f);run(f.g,3);f.g.action('tackle',{direction:{x:1}},f.defending);let steps=0;while(f.g.state.lastShot.outcome==='flight'&&steps++<60)f.g.update(1/60);assert.equal(f.g.state.lastShot.outcome,'parried');assert.equal(f.g.state.phase,'playing');assert.equal(f.g.state.setPiece.extended,true);assert.ok(Math.hypot(f.g.state.ball.vx,f.g.state.ball.vz)>1);run(f.g,600);assert.equal(f.g.state.setPiece,null);assert.equal(f.g.state.phase,'interval');
 });
 
 test('AI penalties resolve into live play, and the shot timeout begins only after a human keeper confirms',()=>{

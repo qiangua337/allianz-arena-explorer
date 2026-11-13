@@ -5,6 +5,7 @@ const cloneObject=value=>value?structuredClone(value):null;
 function copy(s,roster){
  const competition=copyObject(s.competition);
  if(competition?.result)competition.result={...competition.result};
+ if(competition?.addedTime)competition.addedTime={...competition.addedTime};
  if(competition?.shootout)competition.shootout=structuredClone(competition.shootout);
  const ball={...s.ball,shot:copyObject(s.ball.shot),receivePoint:copyObject(s.ball.receivePoint)};
  if(ball.firstTouch)ball.firstTouch={...ball.firstTouch};

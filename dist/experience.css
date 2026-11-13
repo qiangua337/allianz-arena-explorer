@@ -123,3 +123,7 @@ body.game-active[data-game-paused=true] #movement,body.game-active[data-game-pha
 
 /* The dark match report keeps its own contrast in daytime venues too. */
 .game-overlay{--panel:#14232c;--ink:#edf3ef;--muted:#b9c6c8;--rule:#ffffff26;--subtle:#ffffff0c;color:var(--ink)}
+
+/* Ability summaries stay below the controlled player's name and possession hint. */
+.game-player .game-player-specialties{display:block;margin-top:5px;color:#e7cb87;line-height:1.25}
+.squad-candidates .squad-player-abilities{color:#dfc998;line-height:1.4}

@@ -1,3 +1,4 @@
+import {abilityFactor,playerAbilities} from './football-abilities.js';
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z);
 export function possessionTeam(ball,players){const owner=players.find(p=>p.id===ball.ownerId&&!p.dismissed);if(owner)return owner.team;const receiver=players.find(p=>p.id===ball.targetId&&!p.dismissed);return receiver?.team||ball.shot?.team||null;}
@@ -47,6 +48,7 @@ export function boxPassTarget(ball,mate,sign,{direction=null,type='pass'}={}){
 export function passOption(players,player,ball,{direction=null,type='pass',power=.45}={}){
  const strength=direction?Math.hypot(direction.x,direction.z):0,aim=strength>.18?{x:direction.x/strength,z:direction.z/strength}:{x:Math.sin(player.yaw),z:Math.cos(player.yaw)},sign=player.attackSign??(player.team==='home'?-1:1);
  let best=null;
+ const vision=abilityFactor(playerAbilities(player).passing,.012);
  for(const mate of players){if(mate.dismissed||mate.team!==player.team||mate.id===player.id)continue;
   const dx=mate.x-ball.x,dz=mate.z-ball.z,d=Math.hypot(dx,dz);if(d<2.5||d>48)continue;const alignment=(dx*aim.x+dz*aim.z)/d;if(strength>.18&&alignment<.1)continue;
   let target=boxPassTarget(ball,mate,sign,{direction:aim,type}),coverage;
@@ -63,7 +65,7 @@ export function passOption(players,player,ball,{direction=null,type='pass',power
    coverage=passLane(players,player.team,ball,mate);
   }
   const {lane,space}=coverage;
-  const score=alignment*(strength>.18?23:11)+Math.min(space,9)*.65+Math.min(lane,5)*1.6-clamp(2-lane,0,2)*6-Math.abs(d-(type==='through'?22:13+power*9))*.23+clamp(dz*sign,-16,24)*.10-(mate.keeper?6:0)+(target.delivery?2.2:0);
+  const score=alignment*(strength>.18?23:11)+(Math.min(space,9)*.65+Math.min(lane,5)*1.6)*vision-clamp(2-lane,0,2)*6-Math.abs(d-(type==='through'?22:13+power*9))*.23+clamp(dz*sign,-16,24)*.10-(mate.keeper?6:0)+(target.delivery?2.2:0);
   if(!best||score>best.score)best={player:mate,...target,score,lane,distance:d};
  }return best;
 }
@@ -76,7 +78,8 @@ export function shotPreparation(player,ball,{power=.5,pressure=Infinity}={}){
  power=clamp(power,.15,1);const sign=player.attackSign??(player.team==='home'?-1:1),dx=-ball.x,dz=sign*52.5-ball.z,distance=Math.hypot(dx,dz),yaw=Number.isFinite(player.yaw)?player.yaw:Math.atan2(dx,dz),alignment=distance>.01?(Math.sin(yaw)*dx+Math.cos(yaw)*dz)/distance:1;
  const back=clamp((Math.acos(clamp(alignment,-1,1))-.85)/1.8,0,1),speed=clamp((Math.hypot(player.vx||0,player.vz||0)-3)/5,0,1),range=clamp((distance-24)/42,0,1.6),over=clamp((power-.8)/.2,0,1),crowded=clamp((3-pressure)/3,0,1),quality=clamp(1-back*.40-speed*.25-range*.19-over*.10-crowded*.12,.08,1);
  const preparation=back>.25?'backfoot':speed>.4?'rushed':crowded>.5?'pressured':over>.6?'overpowered':range>.25?'long-range':'balanced';
- return{quality,preparation,spread:.12+distance*(range*.011+back*.040+speed*.014+over*.008+crowded*.008),heightSpread:.02+range*.35+back*.40+speed*.20+over*.60+crowded*.18,heightBias:over*(.4+back*.6+range*.25)};
+ const control=abilityFactor(playerAbilities(player).finishing,.018);
+ return{quality:clamp(quality+(control-1)*.16,.08,1),preparation,spread:(.12+distance*(range*.011+back*.040+speed*.014+over*.008+crowded*.008))/control,heightSpread:(.02+range*.35+back*.40+speed*.20+over*.60+crowded*.18)/control,heightBias:over*(.4+back*.6+range*.25)};
 }
 export function shotOption(player,ball,{direction=null,power=.5,error=0,heightError=null,kind='drive',keeper=null,pressure=Infinity}={}){
  kind=shotKinds.includes(kind)?kind:'drive';power=clamp(power,.15,1);const preparation=shotPreparation(player,ball,{power,pressure});
@@ -99,14 +102,15 @@ export const boxDeliveryTime=distance=>-Math.log1p(-.39*distance/boxDeliverySpee
 
 // A blocked through-ball can travel over the defensive line. Open passing
 // lanes retain a fast grounded ball; the landing still uses ordinary physics.
-export function passFlight(ball,target,{type='pass',lane=8,delivery=target.delivery}={}){
+export function passFlight(ball,target,{type='pass',lane=8,delivery=target.delivery,player}={}){
  const dx=target.x-ball.x,dz=target.z-ball.z,d=Math.hypot(dx,dz),lofted=type==='through'&&d>12&&lane<1.7;
+ const pace=abilityFactor(playerAbilities(player).passing,.004);
  if(delivery==='cutback'||delivery==='cross'){
-  const speed=boxDeliverySpeed(d);
+  const speed=boxDeliverySpeed(d)*pace;
   return{vx:dx/(d||1)*speed,vz:dz/(d||1)*speed,vy:.06,lofted:false};
  }
- if(!lofted){const speed=clamp(d*.43+8,10,22);return{vx:dx/(d||1)*speed,vz:dz/(d||1)*speed,vy:.12,lofted:false};}
- const flight=clamp(d/14.2,.85,2),travel=(1-Math.exp(-.08*flight))/.08;return{vx:dx/travel,vz:dz/travel,vy:(.11-(ball.y||.11)+4.905*flight*flight)/flight,lofted:true,flight};
+ if(!lofted){const speed=clamp(d*.43+8,10,22)*pace;return{vx:dx/(d||1)*speed,vz:dz/(d||1)*speed,vy:.12,lofted:false};}
+ const flight=clamp(d/(14.2*pace),.85,2),travel=(1-Math.exp(-.08*flight))/.08;return{vx:dx/travel,vz:dz/travel,vy:(.11-(ball.y||.11)+4.905*flight*flight)/flight,lofted:true,flight};
 }
 const wideAttack=new Set(['LW','RW','LM','RM']);
 const wideBack=new Set(['LB','RB','LWB','RWB']);

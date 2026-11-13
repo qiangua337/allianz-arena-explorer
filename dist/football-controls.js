@@ -103,7 +103,19 @@ function fitFootballCamera(points,target,offset,fov,aspect,{maxScale=Infinity,wi
  const lens=widerTan>tan?Math.min(fov+widenBy,Math.atan(widerTan)*360/Math.PI):fov;
  return{position:target.map((n,i)=>n+offset[i]*Math.min(scale,maxScale)),target,fov:lens,controlYaw:Math.atan2(offset[0],offset[2])};
 }
-export function matchTime(state){if(state.competition?.stage==='shootout')return'点球';const seconds=state.competition?Math.max(0,Math.floor(state.elapsed/state.competition.regulationDuration*5400)):Math.max(0,Math.ceil(state.duration-state.elapsed));return String(Math.floor(seconds/60)).padStart(2,'0')+':'+String(seconds%60).padStart(2,'0');}
+const clockText=seconds=>String(Math.floor(seconds/60)).padStart(2,'0')+':'+String(seconds%60).padStart(2,'0');
+export function matchTime(state){
+ const c=state.competition;
+ if(c?.stage==='shootout')return '点球';
+ const seconds=c?Math.max(0,Math.floor(state.elapsed/c.regulationDuration*5400+1e-6)):Math.max(0,Math.ceil(state.duration-state.elapsed));
+ const added=c?.addedTime;
+ return clockText(seconds)+(added?.minimum>0&&state.phase==='playing'?' +'+clockText(Math.max(0,Math.floor(added.played/c.regulationDuration*5400+1e-6))):'');
+}
+export function addedTimeLabel(state){
+ const c=state.competition,added=c?.addedTime;
+ if(!added?.minimum||!['playing','kickoff','goal'].includes(state.phase)||c.stage==='shootout')return '';
+ return added.attackingTeam?'最后一攻':'补时 +'+Math.round(added.minimum/c.regulationDuration*90)+'′';
+}
 export function ballDirection(player,ball,yaw){
  const dx=ball.x-player.x,dz=ball.z-player.z,forward=-Math.sin(yaw)*dx-Math.cos(yaw)*dz,right=Math.cos(yaw)*dx-Math.sin(yaw)*dz;
  return (Math.abs(right)>Math.abs(forward)*.65?(right>0?'右侧 →':'← 左侧'):forward>=0?'前方 ↑':'后方 ↓')+' '+Math.round(Math.hypot(dx,dz))+' m';

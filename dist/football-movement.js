@@ -1,5 +1,6 @@
 import {turnFootballer,pressureTarget} from './football-assist.js';
 import {receivingPoint} from './football-tactics.js';
+import {abilityFactor,playerAbilities} from './football-abilities.js';
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 export function continuesReceiveIntent(input,receive){const strength=Math.hypot(input.x||0,input.z||0),original=Math.hypot(receive.x,receive.z),alignment=((input.x||0)*receive.x+(input.z||0)*receive.z)/Math.max(.001,strength*original);return strength>=.18&&Math.abs(strength-original)<=.18&&alignment>=.95&&!!input.sprint===receive.sprint&&!input.defend;}
 // Shared by authoritative simulation and local movement prediction.
@@ -25,18 +26,20 @@ export function moveControlledFootballer(p,b,owner,input,dt,time){
  }
  else if(!b.ownerId&&b.targetId===p.id&&Math.hypot(x,z)<.18){const target=receivingPoint(p,b),dx=target.x-p.x,dz=target.z-p.z,d=Math.hypot(dx,dz);x=dx/Math.max(1,d);z=dz/Math.max(1,d);}
  else if(time<(p.lungeUntil||0)&&Math.hypot(x,z)<.2){const dx=b.x-p.x,dz=b.z-p.z,d=Math.hypot(dx,dz);x=dx/(d||1)*.7;z=dz/(d||1)*.7;}
- const sprint=!!input.sprint&&p.stamina>.04;let speed=(sprint?7.6:chasing?6-jockey*1.35:5.5)*(b.ownerId===p.id?(input.defend?.62:input.charging?.65:.91):1),turn=null;
+ const abilities=playerAbilities(p),sprint=!!input.sprint&&p.stamina>.04;
+ let speed=(sprint?7.6:chasing?6-jockey*1.35:5.5)*abilityFactor(abilities.pace,sprint?.006:.003)*(b.ownerId===p.id?(input.defend?.62:input.charging?.65:.91*abilityFactor(abilities.dribbling,.0025)):1),turn=null;
  if(chasing&&owner)turn={heading:Math.atan2(b.x-p.x,b.z-p.z),rate:10,response:12+jockey*4};
  if(b.ownerId===p.id&&!input.defend&&!input.charging&&Math.hypot(input.x,input.z)>.18){
   const heading=Math.atan2(input.x,input.z),gap=Math.abs(Math.atan2(Math.sin(heading-p.yaw),Math.cos(heading-p.yaw)));
-  if(time>=(p.pivotUntil||0)&&Math.hypot(p.vx,p.vz)>3&&gap>2.1)p.pivotUntil=time+.36;
+  const control=abilityFactor(abilities.dribbling,.008);
+  if(time>=(p.pivotUntil||0)&&Math.hypot(p.vx,p.vz)>3&&gap>2.1)p.pivotUntil=time+.36/control;
   if(time<(p.pivotUntil||0)){speed*=.35+.65*Math.max(0,Math.cos(gap));turn={heading,rate:9,response:22};}
   else{
    // Plant into an ordinary cut instead of changing the travel direction
    // much faster than the body and its dribbling touch can follow. Straight
    // acceleration is unchanged; sharper cuts retain a little more momentum.
    const travel=Math.hypot(p.vx,p.vz)>.4?Math.atan2(p.vx,p.vz):p.yaw,cut=Math.abs(Math.atan2(Math.sin(heading-travel),Math.cos(heading-travel)));
-   turn={rate:9,response:12-3*clamp((cut-.35)/1.2,0,1)};
+   turn={rate:9,response:12-3*clamp((cut-.35)/1.2,0,1)/control};
   }
  }else p.pivotUntil=0;
  moveFootballer(p,x,z,speed,dt,turn);
@@ -57,7 +60,8 @@ export function beginFootballTouch(player,ball,input,time){
  if(inputLength>.18){x=input.x/inputLength;z=input.z/inputLength;}
  else if(speed>.70){x=vx/speed;z=vz/speed;}
  else if(contactDistance>.06){x=contactX/contactDistance;z=contactZ/contactDistance;}
- const reach=(inputLength>.18&&input?.sprint ? .72 : .46)+Math.min(.19,speed*.037);
+ const control=abilityFactor(playerAbilities(player).dribbling,.009);
+ const reach=((inputLength>.18&&input?.sprint ? .72 : .46)+Math.min(.19,speed*.037))/control;
  // A fast or bouncing pass can retain a little motion on contact. A new
  // steering direction cushions the component that would carry it away.
  const ballSpeed=Math.hypot(ball.vx,ball.vz),roll=Math.min(.11,1.8/(ballSpeed||1));
@@ -84,7 +88,7 @@ export function carryFootball(player,ball,dt,time,openPlay=true){
  const extension=player.defending?0:clamp((speed-4.55)/2.3,0,1)*(1-.8*turn)*(1-pivot);
  ball.touchPhase=speed>.30?((ball.touchPhase||0)+speed*dt/(.78+speed*.19))%1:0;
  const stride=(1-Math.cos(ball.touchPhase*2*Math.PI))*.5;
- const baseReach=player.defending ? .37 : .44+.20*pivot;
+ const baseReach=player.defending ? .37 : (.44+.20*pivot)/abilityFactor(playerAbilities(player).dribbling,.008);
  const reach=baseReach+Math.min(.32,speed*(player.defending?.025:.046))+.32*extension+stride*(.056+.15*extension);
  const travelWeight=clamp((speed-.25)/3,0,1)*(.19*pivot+(.36+.19*turn)*(1-pivot)),side=clamp(forwardZ*movementX-forwardX*movementZ,-1,1)*Math.min(.09,speed*.03);
  let offsetX=(forwardX*(1-travelWeight)+movementX*travelWeight)*reach+forwardZ*side;
@@ -100,7 +104,7 @@ export function carryFootball(player,ball,dt,time,openPlay=true){
   driftX=touch.vx*settle*dt;driftZ=touch.vz*settle*dt;
  }else if(touch)ball.firstTouch=null;
 
- const amount=1-Math.exp(-dt*(33-8*extension-11*settle));
+ const amount=1-Math.exp(-dt*(33-8*extension-11*settle)*abilityFactor(playerAbilities(player).dribbling,.006));
  const dx=(player.x+offsetX-ball.x)*amount+driftX,dz=(player.z+offsetZ-ball.z)*amount+driftZ;
  ball.x+=dx;ball.z+=dz;
  ball.y=settle>0?.11+Math.max(0,ball.y-.11)*Math.exp(-dt*22):.11+stride*extension*.012;
