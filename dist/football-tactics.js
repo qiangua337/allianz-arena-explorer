@@ -31,6 +31,17 @@ function passLane(players,team,from,to){
  return{lane,space};
 }
 
+function directedThroughTarget(mate,ball,aim,range,sign){
+ const advance=(mate.z-ball.z)*sign,forward=(mate.vz||0)*sign;
+ if(mate.keeper||range<9||advance<1||forward<1.7||(mate.x-ball.x)*Math.sign(aim.x)<6)return null;
+ // Meet a player who is cutting inward as well as one sprinting straight down the wing.
+ const leadTime=clamp(range/26,.42,.95);
+ const x=clamp(mate.x+(mate.vx||0)*leadTime,-32.5,32.5),z=clamp(mate.z+mate.vz*leadTime,-50.4,50.4);
+ const dx=x-ball.x,dz=z-ball.z,alignment=(dx*aim.x+dz*aim.z)/(Math.hypot(dx,dz)||1);
+ if(alignment<.88||(z-mate.z)*sign<.85)return null;
+ return{x,z,alignment};
+}
+
 export function boxPassTarget(ball,mate,sign,{direction=null,type='pass'}={}){
  const fromDepth=ball.z*sign,side=Math.sign(ball.x),toDepth=mate.z*sign,inward=(ball.x-mate.x)*side;
  if(fromDepth<39||Math.abs(ball.x)<16.5||mate.keeper||mate.dismissed||mate.trainingInactive||Math.abs(mate.x)>16||inward<6.5)return null;
@@ -47,18 +58,28 @@ export function boxPassTarget(ball,mate,sign,{direction=null,type='pass'}={}){
 
 export function passOption(players,player,ball,{direction=null,type='pass',power=.45}={}){
  const strength=direction?Math.hypot(direction.x,direction.z):0,aim=strength>.18?{x:direction.x/strength,z:direction.z/strength}:{x:Math.sin(player.yaw),z:Math.cos(player.yaw)},sign=player.attackSign??(player.team==='home'?-1:1);
- let best=null;
+ const wideAim=type==='through'&&strength>.18&&Math.abs(aim.x)>.38&&aim.z*sign>=-.16;
+ let best=null,runner=null;
  const vision=abilityFactor(playerAbilities(player).passing,.012);
- for(const mate of players){if(mate.dismissed||mate.team!==player.team||mate.id===player.id)continue;
+ for(const mate of players){if(mate.dismissed||mate.trainingInactive||mate.team!==player.team||mate.id===player.id)continue;
   const dx=mate.x-ball.x,dz=mate.z-ball.z,d=Math.hypot(dx,dz);if(d<2.5||d>48)continue;const alignment=(dx*aim.x+dz*aim.z)/d;if(strength>.18&&alignment<.1)continue;
   let target=boxPassTarget(ball,mate,sign,{direction:aim,type}),coverage;
+  const lead=wideAim&&!target?directedThroughTarget(mate,ball,aim,d,sign):null;
+  if(lead){
+   const {lane,space}=passLane(players,player.team,ball,lead);
+   if(space>1.45&&(lane>=.8||d>=16)){
+    const score=lead.alignment*34+Math.min(lane,5)*.55+Math.min(space,6)*.4+
+     Math.min(Math.abs(dx),27)*.16+Math.min((mate.vz||0)*sign,6)*.65;
+    if(!runner||score>runner.score)runner={player:mate,x:lead.x,z:lead.z,score,lane,distance:d,directed:true};
+   }
+  }
   if(target)coverage=passLane(players,player.team,ball,target);
   else if(type==='through'){
-   const lead=throughTarget(mate,ball,aim,d,power,sign);
-   target=lead.target;coverage=passLane(players,player.team,ball,target);
-   if(lead.shorter&&coverage.space<2.3){
-    const shorter=passLane(players,player.team,ball,lead.shorter);
-    if(shorter.space>coverage.space+1&&shorter.lane>=coverage.lane-.25){target=lead.shorter;coverage=shorter;}
+   const option=throughTarget(mate,ball,aim,d,power,sign);
+   target=option.target;coverage=passLane(players,player.team,ball,target);
+   if(option.shorter&&coverage.space<2.3){
+    const shorter=passLane(players,player.team,ball,option.shorter);
+    if(shorter.space>coverage.space+1&&shorter.lane>=coverage.lane-.25){target=option.shorter;coverage=shorter;}
    }
   }else{
    target={x:clamp(mate.x+(mate.vx||0)*.22,-32.5,32.5),z:clamp(mate.z+(mate.vz||0)*.22,-50.4,50.4)};
@@ -71,7 +92,7 @@ export function passOption(players,player,ball,{direction=null,type='pass',power
    ?clamp(forwardSpeed-1.7,0,3.4)*.86:0;
   const score=alignment*(strength>.18?23:11)+(Math.min(space,9)*.65+Math.min(lane,5)*1.6)*vision-clamp(2-lane,0,2)*6-Math.abs(d-(type==='through'?22:13+power*9))*.23+clamp(dz*sign,-16,24)*.10-(mate.keeper?6:0)+(target.delivery?2.2:0)+movingBonus;
   if(!best||score>best.score)best={player:mate,...target,score,lane,distance:d};
- }return best;
+ }return runner??best;
 }
 export const shotKinds=['drive','finesse','lob'];
 export const shotLabels={drive:'劲射',finesse:'搓射',lob:'挑射'};
@@ -113,7 +134,7 @@ export function passFlight(ball,target,{type='pass',lane=8,delivery=target.deliv
   const speed=boxDeliverySpeed(d)*pace;
   return{vx:dx/(d||1)*speed,vz:dz/(d||1)*speed,vy:.06,lofted:false};
  }
- if(!lofted){const speed=clamp(d*.43+8,10,22)*pace;return{vx:dx/(d||1)*speed,vz:dz/(d||1)*speed,vy:.12,lofted:false};}
+ if(!lofted){const speed=clamp(d*.43+8,10,target.directed?26:22)*pace;return{vx:dx/(d||1)*speed,vz:dz/(d||1)*speed,vy:.12,lofted:false};}
  const flight=clamp(d/(14.2*pace),.85,2),travel=(1-Math.exp(-.08*flight))/.08;return{vx:dx/travel,vz:dz/travel,vy:(.11-(ball.y||.11)+4.905*flight*flight)/flight,lofted:true,flight};
 }
 const wideAttack=new Set(['LW','RW','LM','RM']);

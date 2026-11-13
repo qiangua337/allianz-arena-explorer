@@ -115,7 +115,7 @@ export function createFootballSimulation({duration=180,seed=73417,controlMode='s
   const diagonalRun=human&&type==='pass'&&direction?.sprint===true&&!option.player.keeper&&state.controlModes[player.team]!=='manual';
   const role=footballFormations[state.teamSheets[player.team].formation].roles[player.index];
   player.passRun=!practice&&!state.setPiece?passSupportRun(player,option,available(),role,diagonalRun,worldTime):null;
-  b.targetId=option.player.id;b.receivePoint={x:option.x,z:option.z,until:worldTime+4};
+  b.targetId=option.player.id;b.receivePoint={x:option.x,z:option.z,until:worldTime+4,...(option.directed?{directed:true}:{})};
   player.yaw=face(dx,dz);state.stats[player.team].passes++;
   if(diagonalRun&&player.passRun)takePassControl(option.player,controllers[player.team].receiveIntent);
   const label=diagonalRun&&player.passRun?' · 斜插接应':tactic==='switch'?' · 换边':tactic==='recycle'?' · 回传重组':'';
@@ -401,8 +401,15 @@ export function createFootballSimulation({duration=180,seed=73417,controlMode='s
    }return;
   }
   if(keeperSave(previous))return;
-  const speed=Math.hypot(b.vx,b.vz),eligible=[];
-  for(const p of onField()){if(p.keeper||p.id===claimBlockId&&worldTime<claimBlockUntil)continue;const contact=sweptBallContact(p,b,previous,{range:speed>16?.48:.85,playerPrevious:previousPositions.get(p)});if(contact)eligible.push({p,t:contact.t});}
+  const speed=Math.hypot(b.vx,b.vz),eligible=[],directed=b.receivePoint?.directed&&byId(b.targetId);
+  for(const p of onField()){
+   if(p.keeper||p.id===claimBlockId&&worldTime<claimBlockUntil)continue;
+   // Other teammates let a directed ball run unless it actually reaches their feet.
+   const lettingRun=directed&&p.team===directed.team&&p.id!==directed.id&&speed>5;
+   const range=speed>16||lettingRun?.48:.85;
+   const contact=sweptBallContact(p,b,previous,{range,playerPrevious:previousPositions.get(p)});
+   if(contact)eligible.push({p,t:contact.t});
+  }
   eligible.sort((a,b)=>a.t-b.t||distance(a.p,b)-distance(b.p,b));
   const hit=eligible[0];
   if(!hit)return;

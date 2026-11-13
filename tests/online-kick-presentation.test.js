@@ -52,6 +52,33 @@ for(const type of ['pass','through','shoot'])for(const team of ['home','away']){
  });
 }
 
+test('online wide through balls use the latest runner and velocity before render interpolation catches up',()=>{
+ for(const team of ['home','away']){
+  const f=fixture(team),{game,server,client,local,player}=f,sign=player.attackSign;
+  const nearId=team+'-8',wideId=team+'-9';
+  const actor=(state,id)=>state.players.find(p=>p.id===id);
+  try{
+   for(const p of server.players)Object.assign(p,{x:-32,z:-sign*43,vx:0,vz:0});
+   Object.assign(player,{x:0,z:0});
+   Object.assign(server.ball,{x:.6,y:.11,z:0});
+   Object.assign(actor(server,nearId),{x:5,z:sign*5});
+   Object.assign(actor(server,wideId),{x:20,z:sign*3,vx:3.7,vz:2.5*sign});
+   f.arrive();
+   // The render buffer can still be showing the wingers before they switched lanes.
+   Object.assign(actor(local,nearId),{x:9,z:-sign*2});
+   Object.assign(actor(local,wideId),{x:10,z:sign*16,vx:0,vz:0});
+   const right={x:1,z:0},power=.85;
+   assert.ok(client.action('through',{direction:right,power}));
+   assert.ok(game.action('through',{direction:right,power},team));
+   const display=local.kickPresentation;
+   assert.equal(server.ball.targetId,wideId);
+   assert.ok(display.vx>10&&display.vz*sign>2,'display leads the current winger in the running direction');
+   for(const key of ['vx','vy','vz'])assert.ok(Math.abs(display[key]-server.ball[key])<.005,key);
+   assert.equal(local.ball.ownerId,player.id,'visual launch does not change possession');
+  }finally{client.dispose();}
+ }
+});
+
 test('confirmation preserves contact progress even after the control cursor changes and deduplicates only its exact event',()=>{
  const f=fixture(),{game,client,local,actor,server}=f;
  try{

@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {attackingShape,forwardSupportRun,passFlight,passOption,supportPosition} from '../dist/football-tactics.js';
+import {createFootballSimulation} from '../dist/football-simulation.js';
 import {footballFormations} from '../dist/football-squads.js';
 
 const passer={id:'home-1',team:'home',x:0,z:0,vx:0,vz:0,yaw:Math.PI,attackSign:-1};
@@ -43,6 +44,61 @@ test('a through ball can stop short of a guarded landing while still leading the
  assert.ok(safer.x>2&&safer.x<open.x-1);
  assert.ok(safer.z<running.z&&safer.z>open.z);
  assert.ok(Math.hypot(safer.x-farMarker.x,safer.z-farMarker.z)>2);
+});
+
+function switchOfPlay(flank,sign,humanTeams=['home']){
+ const game=createFootballSimulation({opponent:'madrid',rules:{mode:'league'},seed:972,controlMode:'semi',humanTeams});
+ const saved=game.checkpoint(),state=saved.state;
+ state.phase='playing';state.elapsed=sign<0?18:108;
+ state.competition.period=sign<0?1:2;
+ state.competition.periodStart=sign<0?0:90;
+ state.attackDirections={home:sign,away:-sign};
+ for(const p of state.players){
+  const defending=p.team==='away';
+  Object.assign(p,{x:(p.index-5)*5,z:(defending?47:-38)*sign,vx:0,vz:0,
+   attackSign:defending?-sign:sign,decisionAt:1e6,tackleAt:1e6});
+ }
+ const actor=state.players.find(p=>p.id==='home-2');
+ const runner=state.players.find(p=>p.id==='home-10');
+ const decoy=state.players.find(p=>p.id==='home-8');
+ Object.assign(actor,{x:14.57*flank,z:3.85*sign,yaw:Math.atan2(-flank,sign*.18)});
+ Object.assign(runner,{x:-19.32*flank,z:10.73*sign,vx:6.07*flank,vz:4.18*sign});
+ Object.assign(decoy,{x:-.08*flank,z:7.51*sign,vx:3.14*flank,vz:4.70*sign});
+ state.controlledIds.home=state.controlledId=actor.id;
+ Object.assign(state.ball,{x:14.57*flank,z:4.43*sign,y:.11,ownerId:actor.id,
+  targetId:null,receivePoint:null,shot:null,vx:0,vz:0,vy:0});
+ const direction={x:runner.x-state.ball.x,z:runner.z-state.ball.z};
+ game.restore(saved);
+ const player=id=>game.state.players.find(p=>p.id===id);
+ return {game,actor:player(actor.id),runner:player(runner.id),decoy:player(decoy.id),direction};
+}
+
+test('an aimed diagonal through ball reaches the running far winger across either flank and half',()=>{
+ for(const flank of [-1,1])for(const sign of [-1,1]){
+  const {game,actor,runner,decoy,direction}=switchOfPlay(flank,sign);
+  const {ball}=game.state;
+  const option=passOption(game.state.players,actor,ball,{type:'through',direction,power:.52});
+  assert.equal(option?.player.id,runner.id,'the closer decoy must not take over this clear switch');
+  assert.equal(game.action('through',{direction,power:.52}),true);
+  assert.equal(ball.targetId,runner.id);
+  for(let frame=0;frame<155&&!ball.ownerId;frame++)game.update(1/60);
+  assert.equal(ball.ownerId,runner.id);
+  assert.equal(game.state.controlledId,runner.id);
+  assert.notEqual(ball.ownerId,decoy.id);
+ }
+});
+
+test('a defender can still intercept an explicitly selected through ball',()=>{
+ const {game,runner,direction}=switchOfPlay(1,-1,['home','away']);
+ const {ball}=game.state,blocker=game.state.players.find(p=>p.id==='away-2');
+ game.state.controlledIds.away=blocker.id;
+ assert.equal(game.action('through',{direction,power:.52}),true);
+ assert.equal(ball.targetId,runner.id);
+ for(let frame=0;frame<110&&!ball.ownerId;frame++){
+  if(frame===4)Object.assign(blocker,{x:ball.x+ball.vx/60,z:ball.z+ball.vz/60,vx:0,vz:0});
+  game.update(1/60);
+ }
+ assert.equal(ball.ownerId,blocker.id);
 });
 
 test('the holding midfielder steps beside a defender cutting the lane in either attacking direction',()=>{

@@ -5,16 +5,24 @@ const clamp=(value,min,max)=>Math.max(min,Math.min(value,max));
 const openPlay=state=>state.phase==='playing'&&!state.paused&&!state.setPiece;
 const kickEvent={pass:'pass',through:'through',shoot:'shot'};
 
-function launchFor(state,player,ball,type,direction,power,pressure){
+function launchFor(state,latest,player,index,origin,type,direction,power,pressure){
  if(type==='shoot'){
   const keeper=state.players.find(p=>p.keeper&&!p.dismissed&&p.team!==player.team);
-  const shot=shotOption(player,ball,{direction,power,kind:state.shotKind,keeper,pressure});
+  const shot=shotOption(player,origin,{direction,power,kind:state.shotKind,keeper,pressure});
   return shot.distance>.01?{...shot,stroke:shot.kind}:null;
  }
- const option=passOption(state.players,player,ball,{direction,type,power});
+ // Render interpolation intentionally trails the remote players. Use the
+ // latest match positions and velocities to choose the lane, while showing
+ // the release from the foot the local player can currently see.
+ const field=state.players.map((actor,i)=>{
+  const row=latest.players[i];
+  return {...actor,x:row[0],z:row[1],vx:row[2],vz:row[3],yaw:row[4],dismissed:!!row[13]};
+ });
+ const passer=field[index],ball=latest.ball;
+ const option=passOption(field,passer,ball,{direction,type,power});
  if(!option)return null;
- const flight=passFlight(ball,option,{type,lane:option.lane,player});
- return{...flight,stroke:flight.lofted?'lofted':type==='through'&&!option.delivery?'through':'short'};
+ const flight=passFlight(ball,option,{type,lane:option.lane,player:passer,power});
+ return{...flight,targetId:option.player.id,stroke:flight.lofted?'lofted':type==='through'&&!option.delivery?'through':'short'};
 }
 
 // This is a short presentation lead, not another simulation. It uses the
@@ -48,7 +56,7 @@ export function createOnlineKickPresentation(team){
    pressure=Math.min(pressure,Math.hypot(foe.x-player.x,foe.z-player.z),Math.hypot(wireFoe[0]-wirePlayer[0],wireFoe[1]-wirePlayer[1]));
   }
   if(pressure<1.45||Math.hypot(origin.x-player.x,origin.z-player.z)>1.35)return false;
-  const flight=launchFor(state,player,origin,type,direction,power,pressure);
+  const flight=launchFor(state,latest,player,controlledIndex,origin,type,direction,power,pressure);
   const speed=flight&&Math.hypot(flight.vx,flight.vz);
   if(!Number.isFinite(speed)||speed<1)return false;
   const id=++serial,shot=type==='shoot',rtt=Number.isFinite(latency)&&latency>0?latency:220;
@@ -99,7 +107,8 @@ export function createOnlineKickPresentation(team){
    if(lead<.08){state.kickPresentation=null;active=null;continue;}
    // Let the authoritative free ball catch a small visual lead before
    // joining it. A deflection or unexpected launch reconciles immediately.
-   if(!b.ownerId&&!b.rebound&&travel>4&&travel>Math.hypot(b.vx,b.vz)*.7)attempt.catchUntil=at+Math.min(130,25+1000*lead/travel);
+   const sameTarget=!attempt.flight.targetId||b.targetId===attempt.flight.targetId;
+   if(sameTarget&&!b.ownerId&&!b.rebound&&travel>4&&travel>Math.hypot(b.vx,b.vz)*.7)attempt.catchUntil=at+Math.min(130,25+1000*lead/travel);
    else blend(attempt,at);
   }
   if(!openPlay(state)){clear(state);return;}
