@@ -66,3 +66,30 @@ test('both wingers cut separate passing routes while the carrier holds still',()
   for(const id of ['home-3','home-4'])assert.deepEqual(covered.get(id),shape.get(id),'the centre-backs keep their line');
  }
 });
+
+test('during a turnover the spare centre-backs retreat while the full-backs recover against separate runners',()=>{
+ for(const sign of [-1,1]){
+  const players=actors(sign);
+  for(const index of [3,4,5,6])players[index].z+=11*sign;
+  const carrier={...opponent(1,7,-8,sign),vz:-5.8*sign};
+  const left={...opponent(7,-8,-17,sign),vx:-1,vz:-6.5*sign};
+  const right={...opponent(8,20,-18,sign),vx:1,vz:-6.2*sign};
+  const targets=counter=>defendingShape([...players,carrier,left,right],'home',system,sign,carrier,carrier,['home-2','home-7'],{counter});
+  const settled=targets(false),recovering=targets(true);
+  for(const id of ['home-3','home-4']){
+   const before=settled.get(id),after=recovering.get(id);
+   assert.equal(after.recovery,true);
+   assert.ok((before.z-after.z)*sign>2);
+   assert.equal(before.x,after.x,'the spare pair keeps the centre protected');
+  }
+  for(const [id,runner] of [['home-5',left],['home-6',right]]){
+   const after=recovering.get(id);
+   assert.ok(after.faceBall&&after.recovery&&after.speed>=6.35);
+   assert.ok((runner.z-after.z)*sign>2.2,'the marker gets between their own goal and the sprinting runner');
+   assert.equal(Math.sign(after.x),Math.sign(runner.x));
+  }
+  assert.equal(recovering.has('home-2'),false,'the selected pressers keep their separate jobs');
+  assert.equal(recovering.has('home-7'),false);
+  assert.deepEqual(recovering.get('home-1'),settled.get('home-1'),'the far forward does not join the pursuit');
+ }
+});

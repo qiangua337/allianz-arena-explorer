@@ -1,8 +1,8 @@
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 const shapeWeight=.60;
 
-const centreBack={width:.80,shift:.36,depth:.50,min:-45,max:-7,mark:0};
-const fullBack={width:.76,shift:.38,depth:.53,min:-43,max:2,mark:1};
+const centreBack={width:.80,shift:.36,depth:.50,min:-45,max:-7,mark:0,backLine:true};
+const fullBack={width:.76,shift:.38,depth:.53,min:-43,max:2,mark:1,backLine:true};
 const wingBack={...fullBack,min:-42,max:7};
 const holding={width:.78,shift:.37,depth:.60,min:-39,max:9,mark:.85,screen:true};
 const midfielder={...holding,depth:.57,min:-36,max:16,mark:2};
@@ -10,21 +10,28 @@ const wide={width:.76,shift:.36,depth:.61,min:-34,max:22,outletCover:6.5};
 const forward={width:.82,shift:.32,depth:.62,min:-28,max:30,outletCover:5.5};
 const roles={CB:centreBack,LB:fullBack,RB:fullBack,LWB:wingBack,RWB:wingBack,DM:holding,CM:midfielder,AM:forward,LM:wide,RM:wide,LW:wide,RW:wide,ST:forward};
 
-export function defendingShape(field,team,system,sign,ball,owner,pressers){
+export function defendingShape(field,team,system,sign,ball,owner,pressers,{counter=false}={}){
  const ballX=clamp(ball.x+(ball.vx||0)*.28,-33,33),ballDepth=clamp((ball.z+(ball.vz||0)*.28)*sign,-51,51);
  const shape=new Map(),markers=[],threats=[],outlets=[],screeners=[],markedIds=[];
  const carrier=owner??(ball.targetId&&field.find(player=>player.id===ball.targetId));
  const guardOutlets=carrier&&carrier.team!==team;
+ const retreat=counter&&guardOutlets;
+ const carrierSpeed=Math.max(0,-(carrier?.vz||0)*sign);
  for(const player of field){
   if(player.dismissed||player.trainingInactive||player.keeper)continue;
   if(player.team!==team){
    if(player.id===owner?.id||player.id===ball.ownerId)continue;
-   const x=player.x+clamp((player.vx||0)*.30,-1.9,1.9),depth=(player.z+clamp((player.vz||0)*.30,-1.9,1.9))*sign;
+   const advance=-(player.vz||0)*sign;
+   const sprinting=retreat&&advance>2.4&&player.z*sign<ballDepth+4;
+   const lookAhead=sprinting?.57:.30,reach=sprinting?3.4:1.9;
+   const x=player.x+clamp((player.vx||0)*lookAhead,-reach,reach);
+   const depth=(player.z+clamp((player.vz||0)*lookAhead,-reach,reach))*sign;
    if(depth< -50||Math.abs(x)>32)continue;
    const relativeDepth=depth-ballDepth,gap=Math.hypot(x-ballX,relativeDepth);
    if(depth<=Math.min(12,ballDepth+9)){
-    const danger=-depth*.24-Math.abs(x)*.19-Math.max(0,gap-22)*.19-Math.max(0,relativeDepth)*.28;
-    if(danger>-2.6)threats.push({id:player.id,x,depth,danger});
+    const urgency=sprinting?Math.min(2.2,advance*.34):0;
+    const danger=-depth*.24-Math.abs(x)*.19-Math.max(0,gap-22)*.19-Math.max(0,relativeDepth)*.28+urgency;
+    if(danger>-2.6)threats.push({id:player.id,x,depth,danger,sprinting});
    }
    if(guardOutlets&&player.id!==carrier.id&&relativeDepth>=-9&&relativeDepth<=26&&gap>=6&&gap<=33){
     // Meet a runner between their current lane and its projected receiving point.
@@ -58,9 +65,10 @@ export function defendingShape(field,team,system,sign,ball,owner,pressers){
   for(const candidate of markers){
    if(candidate.used)continue;
    const dx=Math.abs(targetX-candidate.x),dz=Math.abs(targetDepth-candidate.depth);
-   if(dx>13||dz>13||targetDepth>candidate.depth+9)continue;
+   if(dx>13||dz>(threat.sprinting?15:13)||targetDepth>candidate.depth+9)continue;
    const playerGap=Math.hypot(candidate.player.x-targetX,candidate.player.z*sign-targetDepth);
-   const score=dx+dz*.72+candidate.profile.mark+Math.min(20,playerGap)*.16;
+   const goalSideCost=threat.sprinting?clamp(candidate.player.z*sign-threat.depth,0,8)*.46:0;
+   const score=dx+dz*.72+candidate.profile.mark+Math.min(20,playerGap)*.16+goalSideCost;
    if(score<best){marker=candidate;best=score;}
   }
   if(!marker)continue;
@@ -70,6 +78,12 @@ export function defendingShape(field,team,system,sign,ball,owner,pressers){
   marker.point.z=Math.min(threat.depth-1.25,marker.point.z*sign+(depth-marker.depth)*shapeWeight)*sign;
   marker.used=true;markedIds.push(threat.id);
   marker.point.faceBall=true;
+  if(threat.sprinting&&marked<2){
+   const recoveryDepth=marker.point.z*sign;
+   marker.point.x+=(targetX-marker.point.x)*.22;
+   marker.point.z=Math.max(-49,Math.min(recoveryDepth,threat.depth-2.2))*sign;
+   marker.point.recovery=true;
+  }
   if(++marked===3)break;
  }
 
@@ -117,8 +131,19 @@ export function defendingShape(field,team,system,sign,ball,owner,pressers){
  for(const player of field){
   const target=shape.get(player.id);
   if(!target)continue;
+  const profile=roles[system.roles[player.index]];
+  // The spare defenders drop together while the markers follow separate runners.
+  if(retreat&&!target.faceBall&&profile?.backLine&&carrierSpeed>1.4){
+   const depth=target.z*sign;
+   const drop=clamp((carrierSpeed-1.4)*.56,0,2.6);
+   if(player.z*sign>depth-drop+1.2){
+    target.z=Math.max(-49,depth-drop)*sign;
+    target.recovery=true;
+   }
+  }
   const drop=(player.z-target.z)*sign,side=Math.abs(player.x-target.x);
   target.speed=5.1+clamp((drop-2)*.12,0,1.2)+clamp((side-7)*.065,0,.55);
+  if(target.recovery&&drop>1.1)target.speed=Math.max(target.speed,6.35);
  }
  return shape;
 }
