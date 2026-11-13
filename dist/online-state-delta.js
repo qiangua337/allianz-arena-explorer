@@ -1,4 +1,5 @@
 export const ONLINE_DELTA_CAPABILITY='state-delta-v1';
+export const ONLINE_FLOW_CAPABILITY='state-flow-v1';
 
 const playerCount=22,playerColumns=17,allColumns=(1<<playerColumns)-1;
 const snapshotKeys=new Set(['v','seq','players']);

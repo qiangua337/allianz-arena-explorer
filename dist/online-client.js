@@ -1,5 +1,5 @@
 import {ONLINE_PROTOCOL,roomCode,validRoomCode,safeOnlineInput,applyOnlineState} from './online-protocol.js';
-import {ONLINE_DELTA_CAPABILITY,decodeOnlineDelta} from './online-state-delta.js';
+import {ONLINE_DELTA_CAPABILITY,ONLINE_FLOW_CAPABILITY,decodeOnlineDelta} from './online-state-delta.js';
 import {safePenaltyAim} from './football-penalty.js';
 import {createFootballSimulation} from './football-simulation.js';
 import {createOnlinePrediction,createOnlineInterpolation} from './online-prediction.js';
@@ -8,9 +8,10 @@ export async function requestOnlineSeat(code,options={},fetcher=globalThis.fetch
 export function createOnlineSession(seat,{origin=globalThis.location?.origin,WebSocketClass=globalThis.WebSocket}={}){
  let socket=null,stopped=false,retry=null,heartbeat=null,socketTimer=null,attempt=0,firstResolve,firstReject,firstTimer,disconnectSince=null,desiredReady=false,inputSequence=0,lastSnapshotAt=0,lastMessageAt=0,lastPingAt=0,requestSequence=0;const listeners=new Set(),pendingRequests=new Map();
  let timedSnapshotAt=null,timedServerTime=0;
+ let receiptTimer=null;
  const session={...seat,connection:'connecting',error:'',room:null,packet:null,latency:0,jitter:0,request(message){if(session.connection!=='connected')return Promise.reject(Error('连接尚未就绪'));const id=++requestSequence;return new Promise((resolve,reject)=>{const timer=setTimeout(()=>{pendingRequests.delete(id);reject(Error('请求超时，请重试'));},8000);pendingRequests.set(id,{resolve,reject,timer});if(!session.send({...message,id})){clearTimeout(timer);pendingRequests.delete(id);reject(Error('连接中断'));}});},setReady(value){desiredReady=!!value;session.send({type:'ready',ready:desiredReady});},subscribe(fn){listeners.add(fn);return()=>listeners.delete(fn);},send(message){if(socket?.readyState!==1)return false;try{socket.send(JSON.stringify(message));return true;}catch{recover('连接中断，正在重连');return false;}},sendInput(input){const seq=++inputSequence;return session.send({type:'input',...safeOnlineInput(input),seq})?seq:0;},connect(){const promise=new Promise((resolve,reject)=>{firstResolve=resolve;firstReject=reject;});firstTimer=setTimeout(()=>{firstReject?.(Error('实时连接超时，请检查网络后重试'));session.close();},12000);open();return promise;},close(){stopped=true;const previous=socket;socket=null;clearTimeout(firstTimer);clearTimeout(socketTimer);clearTimeout(retry);clearInterval(heartbeat);firstTimer=socketTimer=retry=heartbeat=null;rejectPending('连接已关闭');try{previous?.close(1000,'离开页面');}catch{}session.connection='closed';firstReject?.(Error(session.error||'连接已关闭'));firstResolve=firstReject=null;emit();},leave(){session.send({type:'leave'});session.close();}};
  function emit(){for(const fn of listeners)fn(session);}
- function rejectPending(message){for(const request of pendingRequests.values()){clearTimeout(request.timer);request.reject(Error(message));}pendingRequests.clear();}
+ function rejectPending(message){clearTimeout(receiptTimer);receiptTimer=null;for(const request of pendingRequests.values()){clearTimeout(request.timer);request.reject(Error(message));}pendingRequests.clear();}
  function queueReconnect(message){if(stopped)return;clearInterval(heartbeat);clearTimeout(socketTimer);clearTimeout(retry);heartbeat=socketTimer=retry=null;socket=null;rejectPending('同步中断，请在恢复后核对设置');session.connection='reconnecting';session.error=message;emit();if(stopped)return;if(disconnectSince===null)disconnectSince=Date.now();if(Date.now()-disconnectSince>55000){session.error='未能重新连接，请退出后重新创建房间';session.close();return;}clearTimeout(retry);retry=setTimeout(open,Math.min(5000,500*2**attempt++));}
  function recover(message){const previous=socket;queueReconnect(message);try{previous?.close(4002,'同步中断，重新连接');}catch{}}
  function sampleJitter(snapshot,now){
@@ -38,9 +39,17 @@ export function createOnlineSession(seat,{origin=globalThis.location?.origin,Web
   if(now-lastMessageAt>=12000||active&&now-lastSnapshotAt>=6000){recover('比赛同步中断，正在恢复连接');return;}
   if(now-lastPingAt>=4000){lastPingAt=now;session.send({type:'ping',at:now});}
  }
- function open(){retry=null;if(stopped)return;lastSnapshotAt=0;timedSnapshotAt=null;session.connection=attempt?'reconnecting':'connecting';emit();const url=new URL('/api/online/rooms/'+seat.code+'/socket',origin);url.protocol=url.protocol==='https:'?'wss:':'ws:';socket=new WebSocketClass(url.href,['arena-v2','seat.'+seat.token,ONLINE_DELTA_CAPABILITY,...(desiredReady?['ready-v1']:[])]);const current=socket;let wireSnapshot=null;socketTimer=setTimeout(()=>{if(current===socket&&!stopped)recover('实时连接未响应，正在重试');},8000);
+ function open(){retry=null;if(stopped)return;lastSnapshotAt=0;timedSnapshotAt=null;session.connection=attempt?'reconnecting':'connecting';emit();const url=new URL('/api/online/rooms/'+seat.code+'/socket',origin);url.protocol=url.protocol==='https:'?'wss:':'ws:';socket=new WebSocketClass(url.href,['arena-v2','seat.'+seat.token,ONLINE_DELTA_CAPABILITY,ONLINE_FLOW_CAPABILITY,...(desiredReady?['ready-v1']:[])]);const current=socket;let wireSnapshot=null,stateFlow=false;socketTimer=setTimeout(()=>{if(current===socket&&!stopped)recover('实时连接未响应，正在重试');},8000);
+  function queueReceipt(){
+   if(!stateFlow||receiptTimer!==null||!Number.isSafeInteger(wireSnapshot?.seq))return;
+   // Acknowledge the newest decoded state once per 100 ms burst.
+   receiptTimer=setTimeout(()=>{
+    receiptTimer=null;
+    if(current===socket&&Number.isSafeInteger(wireSnapshot?.seq))session.send({type:'snapshot-receipt',seq:wireSnapshot.seq});
+   },100);
+  }
   socket.onmessage=event=>{if(current!==socket)return;let p;try{p=JSON.parse(event.data);}catch{return;}if(!p||typeof p!=='object'||Array.isArray(p))return;lastMessageAt=Date.now();
-   if(p.type==='welcome'){if(p.protocol!==ONLINE_PROTOCOL){session.error='联机版本已更新，请刷新网页';session.close();return;}clearTimeout(firstTimer);clearTimeout(socketTimer);firstTimer=socketTimer=null;attempt=0;disconnectSince=null;session.connection='connected';session.error='';session.room=p.room;firstResolve?.(session);firstResolve=firstReject=null;clearInterval(heartbeat);heartbeat=setInterval(maintain,1000);lastPingAt=Date.now();session.send({type:'ping',at:lastPingAt});session.send({type:'ready',ready:desiredReady});}
+   if(p.type==='welcome'){if(p.protocol!==ONLINE_PROTOCOL){session.error='联机版本已更新，请刷新网页';session.close();return;}stateFlow=p.stateFlow===true;clearTimeout(firstTimer);clearTimeout(socketTimer);firstTimer=socketTimer=null;attempt=0;disconnectSince=null;session.connection='connected';session.error='';session.room=p.room;firstResolve?.(session);firstResolve=firstReject=null;clearInterval(heartbeat);heartbeat=setInterval(maintain,1000);lastPingAt=Date.now();session.send({type:'ping',at:lastPingAt});session.send({type:'ready',ready:desiredReady});}
    if(p.type==='state'){
     if(p.room)session.room=p.room;
     if(session.room?.ended)session.error=session.room.reason||'房间已结束';
@@ -49,6 +58,7 @@ export function createOnlineSession(seat,{origin=globalThis.location?.origin,Web
      wireSnapshot=next;
      const now=Date.now(),previous=session.packet;sampleJitter(next,now);lastSnapshotAt=now;
      session.packet=next?{...next,teamSheets:next.teamSheets??previous?.teamSheets,discipline:next.discipline??previous?.discipline}:null;
+     queueReceipt();
     }
    }
    if(p.type==='result'){const request=pendingRequests.get(p.id);if(request){pendingRequests.delete(p.id);clearTimeout(request.timer);if(p.ok)request.resolve(p);else request.reject(Error(p.error||'设置未能保存'));}}
@@ -102,7 +112,9 @@ export function createOnlineSimulation(session,settings={}, {now=()=>performance
  }
  function normalize(input){
   if(state.paused)return idleInput;
-  const {x,z,sprint,defend,charging}=input??idleInput,power=state.chargePower;
+  const {x,z,sprint,defend,charging}=input??idleInput;
+  // Only the remote charging preview needs steps. The released kick carries exact power.
+  const power=charging?Math.round((state.chargePower||0)*20)/20:0;
   // Prediction retains prior input objects, so only replace a snapshot on change.
   if(!rawInput||x!==rawInput.x||z!==rawInput.z||sprint!==rawInput.sprint||defend!==rawInput.defend||charging!==rawInput.charging||power!==rawInput.power){
    rawInput={x,z,sprint,defend,charging,power};

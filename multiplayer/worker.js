@@ -1,11 +1,13 @@
 import {createFootballSimulation} from '../dist/football-simulation.js';
 import {safeOnlineInput,packOnlineState,validRoomCode,ONLINE_PROTOCOL} from '../dist/online-protocol.js';
-import {ONLINE_DELTA_CAPABILITY,encodeOnlineDelta} from '../dist/online-state-delta.js';
+import {ONLINE_DELTA_CAPABILITY,ONLINE_FLOW_CAPABILITY,encodeOnlineDelta} from '../dist/online-state-delta.js';
 import {safePenaltyAim} from '../dist/football-penalty.js';
 import {normalizeRules} from '../dist/football-rules.js';
 import {defaultSelection,normalizeSelection,validateSelection} from '../dist/football-squads.js';
 const TEAMS=['home','away'],TTL=30*60*1000,GRACE=60*1000,alphabet='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const DELTA_KEYFRAME_INTERVAL=20;
+const SNAPSHOT_WINDOW=10,RECEIPT_HISTORY=32,RECOVERY_INTERVAL=1500,RECEIPTS_PER_SECOND=16;
+const urgentEvents=new Set(['pass','through','shot','goal','foul','card','penalty-ready','penalty-result']);
 const token=()=>crypto.randomUUID().replace(/-/g,'')+crypto.randomUUID().replace(/-/g,'');
 const json=(data,status=200)=>Response.json(data,{status,headers:{'Cache-Control':'no-store'}});
 const error=(message,status=400)=>json({error:message},status);
@@ -26,48 +28,83 @@ export default {async fetch(request,env){
 
 export class FootballRoom {
  constructor(ctx){this.ctx=ctx;this.meta=null;this.sim=null;this.sockets=new Map();this.inputs={};this.inputSeq={};this.appliedSeq={};this.lastInput={};this.heartbeats={};this.pauses={home:false,away:false};this.seq=0;this.timer=null;this.timerEpoch=0;this.running=false;this.pendingTick=0;this.tickRecoveries=0;this.lastTick=0;this.lastSave=0;this.lastAction={};this.rates={};this.lastRoom='';this.lastRoster=-1;
-  this.deltaSeats=new Set();this.deltaBase=null;this.deltaKeyframeSeq=0;
-  ctx.blockConcurrencyWhile(async()=>{this.meta=await ctx.storage.get('room')||null;const saved=await ctx.storage.get('simulation');if(this.meta?.protocol===ONLINE_PROTOCOL&&saved){this.sim=this.makeSimulation();this.sim.restore(saved);}for(const ws of ctx.getWebSockets()){const attachment=ws.deserializeAttachment();if(attachment?.team){this.setSocket(attachment.team,ws,attachment.stateDelta===true);this.heartbeats[attachment.team]=Date.now();}}if(this.meta&&this.meta.protocol!==ONLINE_PROTOCOL){await this.end('联机版本已更新，请刷新网页后重建房间');return;}if(this.meta){this.pauses=this.meta.pauses||this.pauses;this.refresh();}});
+  this.snapshotSeats=new Map();
+  ctx.blockConcurrencyWhile(async()=>{this.meta=await ctx.storage.get('room')||null;const saved=await ctx.storage.get('simulation');if(this.meta?.protocol===ONLINE_PROTOCOL&&saved){this.sim=this.makeSimulation();this.sim.restore(saved);}for(const ws of ctx.getWebSockets()){const attachment=ws.deserializeAttachment();if(attachment?.team){this.setSocket(attachment.team,ws,attachment.stateDelta===true,attachment.stateFlow===true);this.heartbeats[attachment.team]=Date.now();}}if(this.meta&&this.meta.protocol!==ONLINE_PROTOCOL){await this.end('联机版本已更新，请刷新网页后重建房间');return;}if(this.meta){this.pauses=this.meta.pauses||this.pauses;this.refresh();}});
  }
- setSocket(team,ws,stateDelta){this.sockets.set(team,ws);if(stateDelta)this.deltaSeats.add(team);else this.deltaSeats.delete(team);}
+ setSocket(team,ws,stateDelta,stateFlow=false){
+  this.sockets.set(team,ws);
+  if(!stateDelta){this.snapshotSeats.delete(team);return;}
+  this.snapshotSeats.set(team,{stateFlow,base:null,framesSinceKeyframe:0,pending:[],lastProgressAt:Date.now(),lastRecoveryAt:0,receiptWindowAt:0,receiptCount:0});
+ }
  makeSimulation(){const sim=createFootballSimulation({duration:this.meta.rules.duration,rules:this.meta.rules,selections:this.meta.lineups,seed:this.meta.seed,opponent:this.meta.opponent,difficulty:'regular',humanTeams:TEAMS});for(const team of TEAMS){const preference=this.meta.preferences?.[team];if(preference){sim.setControlMode(preference.controlMode,team);sim.setShotKind(preference.shotKind,team);}}return sim;}
  publicRoom(){return{code:this.meta.code,protocol:ONLINE_PROTOCOL,opponent:this.meta.opponent,rules:this.meta.rules,lineups:this.meta.lineups,intervalReady:this.meta.intervalReady||{},expiresAt:this.meta.expiresAt,started:!!this.meta.started,ended:!!this.meta.ended,rematch:this.meta.rematch||{},reason:this.meta.reason||'',seats:TEAMS.map(team=>({team,connected:this.sockets.has(team),ready:!!this.meta.ready[team],paused:!!this.pauses[team]}))};}
- send(ws,message){try{ws.send(typeof message==='string'?message:JSON.stringify(message));}catch{}}
- broadcast(force=false){
+ send(ws,message){try{ws.send(typeof message==='string'?message:JSON.stringify(message));return true;}catch{return false;}}
+ broadcast(force=false,ordinary=false){
   if(!this.meta)return;
   const room=this.publicRoom(),roomText=JSON.stringify(room),changed=force||roomText!==this.lastRoom;
   const live=this.sim?.state,details=force||live?.rosterRevision!==this.lastRoster;
-  const hasDelta=this.deltaSeats.size>0,base=this.deltaBase;
-  const keyframe=hasDelta&&live&&(details||!base||this.seq+1-this.deltaKeyframeSeq>=DELTA_KEYFRAME_INTERVAL||
-   Math.round(live.time*1000)/1000<base.time||live.eventCount<base.eventCount||live.phase!==base.phase||live.paused!==base.paused);
-  const state=live?{...packOnlineState(live,++this.seq,this.appliedSeq,details||keyframe),
+  const now=Date.now(),targets=[];
+  for(const [team,ws] of this.sockets){
+   const lane=this.snapshotSeats.get(team),base=lane?.base;
+   const transition=live&&(!base||Math.round(live.time*1000)/1000<base.time||live.eventCount<base.eventCount||
+    live.phase!==base.phase||live.paused!==base.paused||live.competition?.period!==base.competition?.period||
+    live.setPiece?.stage!==base.setPiece?.stage||live.competition?.shootout?.stage!==base.competition?.shootout?.stage);
+   const urgent=transition||live&&base&&live.events.some(event=>event.id>base.eventCount&&urgentEvents.has(event.type));
+   const saturated=lane?.stateFlow&&lane.pending.length>=SNAPSHOT_WINDOW;
+   const recovery=saturated&&now-Math.max(lane.lastProgressAt,lane.lastRecoveryAt)>=RECOVERY_INTERVAL;
+   if(ordinary&&live&&saturated&&!changed&&!details&&!urgent&&!recovery)continue;
+   const keyframe=!!(lane&&live&&(details||transition||recovery||lane.framesSinceKeyframe>=DELTA_KEYFRAME_INTERVAL-1));
+   targets.push({ws,lane,keyframe,recovery});
+  }
+  if(!targets.length)return;
+  const detailed=details||targets.some(target=>target.keyframe);
+  const state=live?{...packOnlineState(live,++this.seq,this.appliedSeq,detailed),
    serverClock:{lagMs:Math.round(this.pendingTick*1000),recoveries:this.tickRecoveries}}:null;
   this.lastRoom=roomText;this.lastRoster=live?.rosterRevision??-1;
   const packet={type:'state',...(changed?{room}:{})};
-  let fullMessage,deltaMessage;
-  if(hasDelta&&state){
-   if(keyframe)this.deltaKeyframeSeq=state.seq;
+  let regularState=state;
+  if(state&&detailed&&!details){
+   const {teamSheets,discipline,...withoutDetails}=state;
+   regularState=withoutDetails;
+  }
+  let fullMessage,detailMessage,regularBase,detailBase;
+  const encodedByBase=new Map();
+  for(const {ws,lane,keyframe,recovery} of targets){
+   let message;
+   if(keyframe)message=detailMessage??=JSON.stringify({...packet,state});
    else{
-    const delta=encodeOnlineDelta(base,state);
-    if(delta){
-     const encoded=JSON.stringify({...packet,delta});
-     fullMessage=JSON.stringify({...packet,state});
-     if(encoded.length<fullMessage.length)deltaMessage=encoded;
+    fullMessage??=JSON.stringify({...packet,state:regularState});
+    message=fullMessage;
+    if(lane?.base&&regularState){
+     if(!encodedByBase.has(lane.base)){
+      const delta=encodeOnlineDelta(lane.base,regularState),encoded=delta&&JSON.stringify({...packet,delta});
+      encodedByBase.set(lane.base,encoded&&encoded.length<fullMessage.length?encoded:fullMessage);
+     }
+     message=encodedByBase.get(lane.base);
     }
    }
-   // A few packOnlineState fields alias the mutable simulation state.
-   this.deltaBase=structuredClone(state);
-  }else this.deltaBase=null;
-  // Periodic recovery frames include details for capable clients. Preserve
-  // the roster payload cadence of existing clients on mixed connections.
-  if(keyframe&&!details){
-   deltaMessage=JSON.stringify({...packet,state});
-   if(this.sockets.size>this.deltaSeats.size){
-    const {teamSheets,discipline,...legacyState}=state;
-    fullMessage=JSON.stringify({...packet,state:legacyState});
+   if(!this.send(ws,message)||!lane)continue;
+   // Retain exactly what this seat can decode. Mutable simulation fields are
+   // detached once per payload shape and shared by seats on that baseline.
+   if(!state){lane.base=null;lane.pending.length=0;lane.framesSinceKeyframe=0;continue;}
+   lane.base=keyframe?(detailBase??=structuredClone(state)):(regularBase??=structuredClone(regularState));
+   lane.framesSinceKeyframe=keyframe?0:lane.framesSinceKeyframe+1;
+   if(lane.stateFlow){
+    lane.pending.push(state.seq);
+    if(lane.pending.length>RECEIPT_HISTORY)lane.pending.shift();
+    if(recovery)lane.lastRecoveryAt=now;
    }
-  }else fullMessage??=JSON.stringify({...packet,state});
-  for(const [team,ws] of this.sockets)this.send(ws,this.deltaSeats.has(team)?deltaMessage??fullMessage:fullMessage);
+  }
+ }
+ receiveSnapshotReceipt(team,seq,now){
+  const lane=this.snapshotSeats.get(team);
+  if(!lane?.stateFlow||!Number.isSafeInteger(seq))return;
+  if(now-lane.receiptWindowAt>=1000){lane.receiptWindowAt=now;lane.receiptCount=0;}
+  if(++lane.receiptCount>RECEIPTS_PER_SECOND)return;
+  const index=lane.pending.indexOf(seq);
+  if(index<0)return;
+  lane.pending.splice(0,index+1);
+  lane.lastProgressAt=this.heartbeats[team]=now;
  }
  async persist(){if(!this.meta)return;this.meta.pauses=this.pauses;await this.ctx.storage.put({room:this.meta,...(this.sim?{simulation:this.sim.checkpoint()}:{})});}
  async fetch(request){
@@ -84,11 +121,13 @@ export class FootballRoom {
   }
   if(path!=='/socket'||request.headers.get('Upgrade')?.toLowerCase()!=='websocket')return error('需要实时连接',426);
   const protocols=(request.headers.get('Sec-WebSocket-Protocol')||'').split(',').map(v=>v.trim()),credential=protocols.find(p=>p.startsWith('seat.'))?.slice(5),team=TEAMS.find(t=>credential&&this.meta.tokens[t]===credential);if(!team||!protocols.includes('arena-v2'))return error('房间身份已失效，请重新加入',403);
-  const pair=new WebSocketPair(),client=pair[0],server=pair[1],previous=this.sockets.get(team),stateDelta=protocols.includes(ONLINE_DELTA_CAPABILITY);this.ctx.acceptWebSocket(server,[team]);server.serializeAttachment({team,stateDelta});this.setSocket(team,server,stateDelta);if(!protocols.includes('ready-v1'))this.meta.ready[team]=false;this.heartbeats[team]=now;this.inputs[team]=safeOnlineInput();this.inputSeq[team]=this.appliedSeq[team]=0;this.lastInput[team]=now;if(previous){try{previous.close(4001,'此席位已在另一个页面连接');}catch{}}
-  this.send(server,{type:'welcome',team,protocol:ONLINE_PROTOCOL,room:this.publicRoom()});this.refresh();this.broadcast(true);return new Response(null,{status:101,webSocket:client,headers:{'Sec-WebSocket-Protocol':'arena-v2'}});
+  const pair=new WebSocketPair(),client=pair[0],server=pair[1],previous=this.sockets.get(team),stateDelta=protocols.includes(ONLINE_DELTA_CAPABILITY),stateFlow=stateDelta&&protocols.includes(ONLINE_FLOW_CAPABILITY);this.ctx.acceptWebSocket(server,[team]);server.serializeAttachment({team,stateDelta,stateFlow});this.setSocket(team,server,stateDelta,stateFlow);if(!protocols.includes('ready-v1'))this.meta.ready[team]=false;this.heartbeats[team]=now;this.inputs[team]=safeOnlineInput();this.inputSeq[team]=this.appliedSeq[team]=0;this.lastInput[team]=now;if(previous){try{previous.close(4001,'此席位已在另一个页面连接');}catch{}}
+  this.send(server,{type:'welcome',team,protocol:ONLINE_PROTOCOL,room:this.publicRoom(),...(stateFlow&&{stateFlow})});this.refresh();this.broadcast(true);return new Response(null,{status:101,webSocket:client,headers:{'Sec-WebSocket-Protocol':'arena-v2'}});
  }
  async webSocketMessage(ws,message){
-  const team=ws.deserializeAttachment()?.team;if(!team||this.sockets.get(team)!==ws)return;if(typeof message!=='string'||message.length>1536){ws.close(1009,'消息过大');return;}let packet;try{packet=JSON.parse(message);}catch{return;}if(!packet||typeof packet!=='object'||Array.isArray(packet))return;const now=Date.now(),rate=this.rates[team];if(!rate||now-rate.at>1000)this.rates[team]={at:now,n:1};else if(++rate.n>90){ws.close(1008,'发送过于频繁，请重新加入');return;}this.heartbeats[team]=now;
+  const team=ws.deserializeAttachment()?.team;if(!team||this.sockets.get(team)!==ws)return;if(typeof message!=='string'||message.length>1536){ws.close(1009,'消息过大');return;}let packet;try{packet=JSON.parse(message);}catch{return;}if(!packet||typeof packet!=='object'||Array.isArray(packet))return;const now=Date.now();
+  if(packet.type==='snapshot-receipt'){this.receiveSnapshotReceipt(team,packet.seq,now);return;}
+  const rate=this.rates[team];if(!rate||now-rate.at>1000)this.rates[team]={at:now,n:1};else if(++rate.n>90){ws.close(1008,'发送过于频繁，请重新加入');return;}this.heartbeats[team]=now;
   if(packet.type==='ping'){this.refresh();this.send(ws,{type:'pong',at:packet.at});return;}
   if(packet.type==='input'){if(packet.seq!==undefined){if(!Number.isSafeInteger(packet.seq)||packet.seq<=0||packet.seq<=(this.inputSeq[team]||0))return;this.inputSeq[team]=packet.seq;}this.inputs[team]=safeOnlineInput(packet);this.lastInput[team]=now;return;}
   const reply=result=>this.send(ws,{type:'result',id:packet.id,...result});
@@ -108,7 +147,9 @@ export class FootballRoom {
   }
   if(!this.sim||this.sim.state.paused||!this.meta.started)return;
   if(packet.type==='action'&&['pass','through','shoot','switch','tackle','penalty-ready'].includes(packet.action)){
-   if(now-(this.lastAction[team]||0)<70)return;this.lastAction[team]=now;const direction=safeOnlineInput(packet.direction),penaltyAim=packet.penaltyAim&&safePenaltyAim(packet.penaltyAim);this.sim.action(packet.action,{direction,penaltyAim,power:Number.isFinite(packet.power)?Math.max(.15,Math.min(1,packet.power)):.5,kind:this.sim.state.shotKinds[team]},team);this.broadcast();
+   if(now-(this.lastAction[team]||0)<70)return;this.lastAction[team]=now;const direction=safeOnlineInput(packet.direction),penaltyAim=packet.penaltyAim&&safePenaltyAim(packet.penaltyAim),eventCount=this.sim.state.eventCount;
+   const accepted=this.sim.action(packet.action,{direction,penaltyAim,power:Number.isFinite(packet.power)?Math.max(.15,Math.min(1,packet.power)):.5,kind:this.sim.state.shotKinds[team]},team);
+   this.broadcast(false,!accepted&&this.sim.state.eventCount===eventCount);
   }
  }
  stopTimer(){if(this.timer!==null)clearInterval(this.timer);this.timer=null;this.timerEpoch++;}
@@ -127,11 +168,11 @@ export class FootballRoom {
   // time instead of permanently throwing away every interval above .15s, but
   // bound a callback to two updates so recovery cannot monopolise the room.
   let budget=Math.min(.5,this.pendingTick);while(budget>1e-8&&!this.sim.state.paused&&!['fulltime','interval'].includes(this.sim.state.phase)){const dt=Math.min(.25,budget);this.sim.update(dt,this.inputs);this.pendingTick=Math.max(0,this.pendingTick-dt);budget-=dt;}
-  if(['fulltime','interval'].includes(this.sim.state.phase)){this.refresh();this.persist();}else if(now-this.lastSave>30000){this.lastSave=now;this.persist();}this.broadcast();
+  if(['fulltime','interval'].includes(this.sim.state.phase)){this.refresh();this.persist();}else if(now-this.lastSave>30000){this.lastSave=now;this.persist();}this.broadcast(false,true);
  }
- async disconnected(ws){const team=ws.deserializeAttachment()?.team;if(this.sockets.get(team)!==ws)return;this.sockets.delete(team);this.deltaSeats.delete(team);this.inputs[team]=safeOnlineInput();this.refresh();await this.persist();this.broadcast();}
+ async disconnected(ws){const team=ws.deserializeAttachment()?.team;if(this.sockets.get(team)!==ws)return;this.sockets.delete(team);this.snapshotSeats.delete(team);this.inputs[team]=safeOnlineInput();this.refresh();await this.persist();this.broadcast();}
  webSocketClose(ws){return this.disconnected(ws);}
  webSocketError(ws){try{ws.close(1011,'连接中断');}catch{}return this.disconnected(ws);}
- async end(reason){if(!this.meta)return;this.meta.ended=true;this.meta.reason=reason;this.running=false;this.pendingTick=0;this.stopTimer();if(this.sim)this.sim.setPaused(true);this.broadcast(true);for(const ws of this.sockets.values()){try{ws.close(4004,reason);}catch{}}this.sockets.clear();this.deltaSeats.clear();this.deltaBase=null;await this.ctx.storage.deleteAll();}
+ async end(reason){if(!this.meta)return;this.meta.ended=true;this.meta.reason=reason;this.running=false;this.pendingTick=0;this.stopTimer();if(this.sim)this.sim.setPaused(true);this.broadcast(true);for(const ws of this.sockets.values()){try{ws.close(4004,reason);}catch{}}this.sockets.clear();this.snapshotSeats.clear();await this.ctx.storage.deleteAll();}
  async alarm(){if(!this.meta)return;const now=Date.now();if(now>=this.meta.expiresAt||this.meta.disconnectAt&&now>=this.meta.disconnectAt){await this.end(this.meta.disconnectAt?'朋友未能重连，房间已结束':'房间已到期');return;}await this.ctx.storage.setAlarm(Math.min(this.meta.expiresAt,this.meta.disconnectAt||Infinity));}
 }

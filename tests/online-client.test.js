@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {createOnlineSession,createOnlineSimulation,requestOnlineSeat} from '../dist/online-client.js';
 import {createFootballSimulation} from '../dist/football-simulation.js';
 import {packOnlineState} from '../dist/online-protocol.js';
-import {ONLINE_DELTA_CAPABILITY,encodeOnlineDelta} from '../dist/online-state-delta.js';
+import {ONLINE_DELTA_CAPABILITY,ONLINE_FLOW_CAPABILITY,encodeOnlineDelta} from '../dist/online-state-delta.js';
 class FakeSocket{static instances=[];constructor(url,protocols){this.url=url;this.protocols=protocols;this.readyState=1;this.messages=[];FakeSocket.instances.push(this);}send(data){this.messages.push(JSON.parse(data));}close(code=1000,reason=''){this.readyState=3;this.onclose?.({code,reason});}message(data){this.onmessage?.({data:JSON.stringify(data)});}}
 const seat={code:'ABCD2345',team:'away',token:'test-only-seat-credential',opponent:'madrid'};
 const room={code:seat.code,started:true,ended:false,seats:[{team:'home',connected:true,ready:true},{team:'away',connected:true,ready:true}]};
@@ -45,5 +45,94 @@ test('online sessions retain roster details and recover a lost delta base on the
   assert.equal(session.packet.seq,44,'a replacement socket has no delta base yet');
   replacement.message({type:'state',state:future});
   assert.equal(session.packet.seq,45);
+ }finally{session.close();}
+});
+
+test('negotiated flow sends a receipt for the newest successfully decoded snapshot in each burst',async t=>{
+ t.mock.timers.enable({apis:['setTimeout','setInterval','Date']});
+ FakeSocket.instances=[];
+ const session=createOnlineSession(seat,{origin:'https://arena.example',WebSocketClass:FakeSocket});
+ const simulation=createFootballSimulation({humanTeams:['home','away'],opponent:'madrid'});
+ const snapshot=seq=>JSON.parse(JSON.stringify(packOnlineState(simulation.state,seq)));
+ const first=snapshot(11);
+ simulation.update(.05);const second=snapshot(12);
+ simulation.update(.05);const missing=snapshot(13);
+ simulation.update(.05);const later=snapshot(14);
+ try{
+  const connected=session.connect(),socket=FakeSocket.instances[0];
+  const receipts=()=>socket.messages.filter(packet=>packet.type==='snapshot-receipt').map(packet=>packet.seq);
+  assert.ok(socket.protocols.includes(ONLINE_FLOW_CAPABILITY));
+  assert.ok(socket.protocols.includes(ONLINE_DELTA_CAPABILITY));
+  socket.message({type:'welcome',protocol:2,room,stateFlow:true});
+  await connected;
+  socket.message({type:'state',state:null});
+  assert.deepEqual(receipts(),[]);
+  socket.message({type:'state',state:first});
+  t.mock.timers.tick(40);
+  socket.message({type:'state',delta:encodeOnlineDelta(first,second)});
+  t.mock.timers.tick(40);
+  socket.message({type:'state',delta:encodeOnlineDelta(missing,later)});
+  assert.equal(session.packet.seq,12);
+  t.mock.timers.tick(19);
+  assert.deepEqual(receipts(),[]);
+  t.mock.timers.tick(1);
+  assert.deepEqual(receipts(),[12]);
+
+  socket.message({type:'state',delta:encodeOnlineDelta(missing,later)});
+  t.mock.timers.tick(100);
+  assert.deepEqual(receipts(),[12],'an invalid delta cannot start a new receipt burst');
+  socket.message({type:'state',state:later});
+  t.mock.timers.tick(100);
+  assert.deepEqual(receipts(),[12,14],'a full frame can restart receipts after a missing delta base');
+ }finally{session.close();}
+});
+
+test('pending flow receipts never leak into a reconnect and wait for its new baseline',async t=>{
+ t.mock.timers.enable({apis:['setTimeout','setInterval','Date']});
+ FakeSocket.instances=[];
+ const session=createOnlineSession(seat,{origin:'https://arena.example',WebSocketClass:FakeSocket});
+ const simulation=createFootballSimulation({humanTeams:['home','away'],opponent:'madrid'});
+ const receipts=socket=>socket.messages.filter(packet=>packet.type==='snapshot-receipt').map(packet=>packet.seq);
+ try{
+  const connected=session.connect(),old=FakeSocket.instances[0];
+  old.message({type:'welcome',protocol:2,room,stateFlow:true});
+  await connected;
+  old.message({type:'state',state:packOnlineState(simulation.state,41)});
+  t.mock.timers.tick(80);
+  old.close(1006);
+  t.mock.timers.tick(501);
+  const replacement=FakeSocket.instances[1];
+  replacement.message({type:'welcome',protocol:2,room,stateFlow:true});
+  old.message({type:'state',state:packOnlineState(simulation.state,42)});
+  t.mock.timers.tick(100);
+  assert.deepEqual(receipts(old),[]);
+  assert.deepEqual(receipts(replacement),[]);
+  replacement.message({type:'state',state:packOnlineState(simulation.state,1)});
+  t.mock.timers.tick(100);
+  assert.deepEqual(receipts(replacement),[1]);
+  replacement.message({type:'state',state:packOnlineState(simulation.state,2)});
+  session.close();
+  t.mock.timers.tick(100);
+  assert.deepEqual(receipts(replacement),[1]);
+ }finally{session.close();}
+});
+
+test('older servers receive no snapshot receipts without agreeing to flow control',async t=>{
+ t.mock.timers.enable({apis:['setTimeout','setInterval','Date']});
+ FakeSocket.instances=[];
+ const session=createOnlineSession(seat,{origin:'https://arena.example',WebSocketClass:FakeSocket});
+ const simulation=createFootballSimulation({humanTeams:['home','away'],opponent:'madrid'});
+ try{
+  const connected=session.connect(),socket=FakeSocket.instances[0];
+  assert.ok(socket.protocols.includes(ONLINE_FLOW_CAPABILITY));
+  socket.message({type:'welcome',protocol:2,room});
+  await connected;
+  const first=packOnlineState(simulation.state,41);
+  socket.message({type:'state',state:first});
+  simulation.update(.05);const second=packOnlineState(simulation.state,42);
+  socket.message({type:'state',delta:encodeOnlineDelta(first,second)});
+  t.mock.timers.tick(200);
+  assert.equal(session.packet.seq,42);
+  assert.ok(socket.messages.every(packet=>packet.type!=='snapshot-receipt'));
  }finally{session.close();}
 });

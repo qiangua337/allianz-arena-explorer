@@ -154,3 +154,22 @@ test('a stalled socket cannot keep predicting a player across the pitch indefini
 test('a 30 fps mobile budget stays at 30 on irregular 60 Hz, 59 Hz and 120 Hz displays',()=>{
  for(const hz of [59,60,120]){const pacer=createFramePacer();let count=0;for(let i=0;i<hz*5;i++){const jitter=Math.sin(i*1.7)*.0005;if(pacer.ready(i/hz+jitter,30))count++;}assert.ok(count>=149&&count<=151,`${hz} Hz produced ${count} frames`);}
 });
+
+test('network charge previews are coalesced without rounding the released shot',()=>{
+ let clock=0;
+ const {client,sent}=fixture('home',{now:()=>clock});
+ try{
+  for(let i=1;i<=51;i++){
+   clock=i*1000/60;
+   client.state.chargePower=.25+i*.0146;
+   client.update(1/60,{charging:true});
+  }
+  assert.ok(sent.length<=24,'stationary charge uses the normal heartbeat and 5% preview steps');
+  assert.ok(sent.every(p=>Math.abs(p.power*20-Math.round(p.power*20))<1e-10&&p.charging));
+  const exactPower=.25+51*.0146;
+  client.state.chargePower=0;
+  assert.equal(client.action('shoot',{power:exactPower}),true);
+  assert.equal(sent.at(-1).type,'action');
+  assert.equal(sent.at(-1).power,exactPower);
+ }finally{client.dispose();}
+});
