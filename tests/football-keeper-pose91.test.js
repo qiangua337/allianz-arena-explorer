@@ -33,6 +33,27 @@ test('both gloves reach the same side at chest height with a bent following arm 
  }
 });
 
+test('the penalty keeper visibly reaches higher for a high shot without putting the low glove through the pitch',()=>{
+ const f=fixture(),wrists=[8,14];
+ for(const clip of ['Idle_Loop','Walk_Loop','Jog_Fwd_Loop'])for(const phase of [0,.25,.5,.75])for(const direction of [-1,1]){
+  for(const elapsed of [.32,.43,.55]){
+   const pose=height=>{
+    f.clip(clip,phase);
+    applyFootballAction(f.bones,{type:'dive',elapsed,duration:1.23,direction,penaltyDive:true,saveWindow:.58,height});
+    f.group.updateMatrixWorld(true);
+    return {hands:wrists.map(index=>f.bones[index].getWorldPosition(new THREE.Vector3())),floor:f.lowest(true)};
+   };
+   const low=pose(.35),high=pose(1.95);
+   for(const [index,glove] of low.hands.entries()){
+    assert.ok(glove.y>.10,'a low glove remains above the grass');
+    assert.ok(high.hands[index].y>glove.y+.36,'the same glove visibly reaches higher');
+    assert.ok(high.hands[index].x*direction>.10,'the high glove extends in the selected direction');
+   }
+   assert.ok(Math.min(low.floor,high.floor)>.007,JSON.stringify({clip,phase,direction,elapsed,low:low.floor,high:high.floor}));
+  }
+ }
+});
+
 test('all real body surfaces remain grounded and continuous throughout the actual normal and penalty dive durations',()=>{
  const f=fixture(),mark=[0,5,7,8,13,14];let cases=0;
  for(const duration of[.9,1.04,1.105,1.16])for(const hz of[30,12])for(const clip of['Idle_Loop','Walk_Loop','Jog_Fwd_Loop','Sprint_Loop'])for(const phase of[0,.25,.5,.75])for(const direction of[-1,1]){
@@ -42,4 +63,22 @@ test('all real body surfaces remain grounded and continuous throughout the actua
    const current=mark.map(j=>f.bones[j].getWorldPosition(new THREE.Vector3()));if(previous)assert.ok(Math.max(...current.map((p,j)=>p.distanceTo(previous[j])))<(hz===12?.45:.19),JSON.stringify({duration,hz,clip,phase,direction,elapsed}));previous=current;cases++;
   }
  }assert.ok(cases>5500,'actual mesh was skinned at every sampled frame');
+});
+
+test('both penalty dive heights land and recover above the grass between mobile pose samples',()=>{
+ const f=fixture(),duration=1.23;
+ for(const clip of ['Idle_Loop','Jog_Fwd_Loop'])for(const phase of [0,.25,.5,.75])
+ for(const direction of [-1,1])for(const height of [.35,1.95]){
+  let previous=null;
+  for(let frame=0;frame<=Math.ceil(duration*12);frame++){
+   const elapsed=Math.min(duration,frame/12);
+   f.clip(clip,phase);
+   applyFootballAction(f.bones,{type:'dive',elapsed,duration,direction,penaltyDive:true,saveWindow:.58,height});
+   const floor=f.lowest(true),wrists=[8,14].map(index=>f.bones[index].getWorldPosition(new THREE.Vector3()));
+   assert.ok(floor>.001,JSON.stringify({clip,phase,direction,height,elapsed,floor}));
+   const step=previous?Math.max(...wrists.map((wrist,index)=>wrist.distanceTo(previous[index]))):0;
+   assert.ok(step<.55,JSON.stringify({clip,phase,direction,height,elapsed,step}));
+   previous=wrists;
+  }
+ }
 });

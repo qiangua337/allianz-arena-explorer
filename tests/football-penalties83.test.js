@@ -196,3 +196,30 @@ test('the simple keeper choice covers normal high and low shots on the selected 
   assert.ok(['saved','parried'].includes(f.g.state.lastShot.outcome));
  }
 });
+
+test('a shootout shot can deflect off a post and still cross the line',()=>{
+ const g=createFootballSimulation({rules:{mode:'shootout'},humanTeams:['home','away']}),k=g.state.competition.shootout;
+ assert.ok(g.action('penalty-ready',{},'away'));run(g,150);
+ assert.ok(g.action('shoot',{power:.68,penaltyAim:{x:.8,y:.4}},'home'));strike(g);
+ Object.assign(g.state.ball,{x:3.35,y:.9,z:-52.15,vx:10,vy:0,vz:-20});
+ run(g,1);
+ assert.equal(k.contactOutcome,'woodwork');
+ assert.equal(k.stage,'flight');
+ assert.deepEqual(k.home,[]);
+ run(g,6);
+ assert.equal(k.outcome,'goal');
+ assert.deepEqual(k.home,[true]);
+});
+
+test('a keeper parry travels visibly before counting as a missed shootout kick',()=>{
+ const g=createFootballSimulation({rules:{mode:'shootout'},humanTeams:['home','away']}),k=g.state.competition.shootout;
+ assert.ok(g.action('tackle',{direction:{x:1},penaltyAim:{y:0}},'away'));run(g,150);
+ assert.ok(g.action('shoot',{power:.62,penaltyAim:{x:.68,y:-.5}},'home'));strike(g);
+ for(let frame=0;frame<55&&!k.contactOutcome;frame++)run(g,1);
+ assert.equal(k.contactOutcome,'parried');
+ assert.equal(k.stage,'flight');
+ assert.deepEqual(k.home,[]);
+ const atContact=g.state.ball.z;
+ run(g,8);assert.ok(g.state.ball.z>atContact+.4);
+ run(g,32);assert.equal(k.outcome,'saved');assert.deepEqual(k.home,[false]);
+});

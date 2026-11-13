@@ -110,6 +110,7 @@ test('one goalkeeper tap confirms readiness and a later swipe can change the aut
  pad.fire('pointerup',{...touch,clientX:20,clientY:110,timeStamp:100});
  assert.equal(document.body.dataset.gamePenaltyAim,'-1.00,0.00');
  assert.equal(s.setPiece.keeperReady,true);assert.match(f.node('game-penalty-timing').textContent,/3 秒后可射门/);assert.equal(f.node('game-penalty-ready').hidden,true);
+ assert.equal(f.node('game-penalty-instruction').textContent,'已选方向 · 可以更改');
  assert.equal(s.setPiece.diveQueued,true,'the first tap confirms readiness and queues the save');
  assert.equal(f.node('game-penalty-dive-left')['aria-pressed'],'true');
  assert.equal(keeper.motion,null,'the queued save does not move the keeper early');
@@ -122,6 +123,8 @@ test('one goalkeeper tap confirms readiness and a later swipe can change the aut
  assert.equal(f.node('game-penalty-dive-right')['aria-pressed'],'true');
  for(let i=0;i<70&&!keeper.motion;i++)f.game.update(1/60,{},{});
  assert.equal(keeper.motion.type,'dive');assert.equal(keeper.keeperState.direction,-1);assert.ok(keeper.keeperState.targetY>1.9);assert.equal(s.competition.shootout,null);
+ run(f.game,.11);
+ assert.match(f.node('game-penalty-timing').textContent,/方向已锁定|正在扑救/);
 });
 
 test('one tap on a quick penalty direction shoots with standard power and no separate charge',()=>{
@@ -154,18 +157,54 @@ test('the online ordinary-penalty taker can charge and shoot once, then cannot r
  deliver(5);assert.equal(f.game.beginCharge(),false);assert.equal(s.competition.shootout,null);
 });
 
-test('a short mobile swipe on the penalty shoot button sends one directed shot',()=>{
+test('a mobile penalty swipe previews aim and power before release and kicks exactly the displayed shot',()=>{
  const f=fixture(true);f.game.start({rules:{mode:'shootout'}});f.game.ready();
  const shoot=f.node('game-shoot'),touch={pointerId:26,pointerType:'touch',button:0,preventDefault(){}};
+ const target=f.node('game-penalty-target');
+ target.getBoundingClientRect=()=>({left:0,top:0,width:200,height:100});
+ f.game.projectPenalty((x,y)=>({x:200+x*25,y:350-y*35,z:0}));
+ target.fire('pointerdown',{...touch,clientX:160,clientY:70,timeStamp:10});
+ target.fire('pointerup',{...touch,clientX:160,clientY:70,timeStamp:50});
+ assert.equal(document.body.dataset.gamePenaltyAim,'0.60,-0.40');
+ const tappedLeft=target.firstElementChild.style.left;
  shoot.fire('pointerdown',{...touch,clientX:350,clientY:730,timeStamp:200});
- shoot.fire('pointerup',{...touch,clientX:290,clientY:696,timeStamp:300});
- shoot.onclick({detail:1});
+ shoot.fire('pointermove',{...touch,clientX:290,clientY:696,timeStamp:300});
+ assert.equal(document.body.dataset.gamePenaltyAim,'-1.00,0.57');
+ assert.equal(target.dataset.swiping,'true');
+ assert.ok(parseInt(target.firstElementChild.style.left)<parseInt(tappedLeft));
+ const previewPower=f.node('game-penalty-power').value;
+ assert.ok(previewPower>.62);
  const s=f.game.state,round=s.competition.shootout;
+ assert.equal(round.stage,'ready');assert.equal(s.stats.home.shots,0);
+ run(f.game,.65);
+ assert.equal(f.node('game-penalty-power').value,previewPower);
+ shoot.fire('pointerup',{...touch,clientX:290,clientY:696,timeStamp:950});
+ shoot.onclick({detail:1});
  assert.equal(round.stage,'runup');
  assert.equal(document.body.dataset.gamePenaltyAim,'-1.00,0.57');
+ assert.equal(target.dataset.swiping,'false');
  assert.equal(f.node('game-shoot').disabled,true);
  run(f.game,round.runupDuration+.04);
- assert.equal(s.stats.home.shots,1);assert.ok(s.ball.vx<0);assert.ok(s.lastShot.power>.62);
+ assert.equal(s.stats.home.shots,1);assert.ok(s.ball.vx<0);assert.equal(s.lastShot.power,previewPower);
+});
+
+test('cancelling a mobile penalty swipe restores the previously tapped aim without kicking',()=>{
+ const f=fixture(true);f.game.start({rules:{mode:'shootout'}});f.game.ready();
+ const target=f.node('game-penalty-target'),shoot=f.node('game-shoot');
+ const touch={pointerId:27,pointerType:'touch',button:0,preventDefault(){}};
+ target.getBoundingClientRect=()=>({left:0,top:0,width:200,height:100});
+ target.fire('pointerdown',{...touch,clientX:160,clientY:70,timeStamp:10});
+ target.fire('pointerup',{...touch,clientX:160,clientY:70,timeStamp:50});
+ shoot.fire('pointerdown',{...touch,clientX:350,clientY:730,timeStamp:200});
+ shoot.fire('pointermove',{...touch,clientX:290,clientY:696,timeStamp:300});
+ shoot.fire('pointercancel',touch);
+ shoot.fire('pointerup',{...touch,clientX:290,clientY:696,timeStamp:400});
+ assert.equal(document.body.dataset.gamePenaltyAim,'0.60,-0.40');
+ assert.equal(target.dataset.swiping,'false');
+ assert.equal(f.node('game-penalty-meter').hidden,true);
+ assert.equal(f.node('game-penalty-shot-choices').hidden,false);
+ assert.equal(f.game.state.competition.shootout.stage,'ready');
+ assert.equal(f.game.state.stats.home.shots,0);
 });
 
 test('the shootout score shows five recent attempts and the next kicker in sudden death',()=>{

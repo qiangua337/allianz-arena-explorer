@@ -32,13 +32,27 @@ function looseKickAvailable(state,player){
  const x=player.x-ball.x,z=player.z-ball.z;
  return x*x+z*z<25&&!leavingPass(state,player);
 }
+function penaltyHaptic(duration,pointerType){
+ if(pointerType==='mouse'||pointerType!=='touch'&&document.body.dataset.touch!=='true')return;
+ const device=globalThis.navigator;
+ if(globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches||typeof device?.vibrate!=='function')return;
+ device.vibrate(duration);
+}
 
 export function buildPlayableMatch({scene,stadium,players,audio,onCamera,onView,onPause,onRestart,onExit,onChangeMatch,onCheer,onCrowdReaction,onReadGameInput,getRenderCamera,toast,mobile=false,now=()=>performance.now()}){
  let storage;try{storage=globalThis.localStorage;}catch{}
  const elements=Object.create(null),$=id=>elements[id]??=(document.getElementById(id));
  const penaltyControls=buildPenaltyControls($,{
-  onDive:aim=>action('tackle',{penaltyAim:aim}),
-  onQuickShot:aim=>action('shoot',{power:penaltyStandardPower,penaltyAim:aim})
+  onDive(aim,pointerType){
+   const accepted=action('tackle',{penaltyAim:aim});
+   if(accepted&&pointerType)penaltyHaptic(8,pointerType);
+   return accepted;
+  },
+  onQuickShot(aim,pointerType){
+   const accepted=action('shoot',{power:penaltyStandardPower,penaltyAim:aim});
+   if(accepted&&pointerType)penaltyHaptic(13,pointerType);
+   return accepted;
+  }
  });
  const settings=loadFootballSettings(storage),pressurePointers=new Set(),view=buildFootballView(scene,stadium.matchBall,players,{getRenderCamera}),radar=buildFootballRadar($('game-radar'));
  const actionButtons=[...document.querySelectorAll('[data-game-action]')];
@@ -182,17 +196,25 @@ export function buildPlayableMatch({scene,stadium,players,audio,onCamera,onView,
   if(success&&network&&penalty&&['shoot','tackle'].includes(type)){
    pendingPenalty={type,taker:penalty.taker,team:penalty.team,until:now()+Math.max(450,network.latency*1.5||0)};
   }
+  if(success&&type==='shoot'&&penalty&&charge)cancelCharge();
   const kick=simulation.state.kickPresentation;
   if(success&&kick?.status==='pending'&&kick.id!==before)audio.kick?.(kick.type==='shoot'?1:.6);
   render();return success;
  }
- function cancelCharge(){charge=null;shootPointer=null;simulation.state.chargePower=0;write('game-charge','hidden',true);writeHudAttribute($('game-shoot'),'aria-pressed','false');}
+ function cancelCharge(){
+  charge=null;shootPointer=null;
+  penaltyControls.previewSwipe(null);
+  simulation.state.chargePower=0;
+  write('game-charge','hidden',true);
+  writeHudAttribute($('game-shoot'),'aria-pressed','false');
+ }
  function beginCharge(){
   const s=simulation.state,penalty=penaltyContext(s,network?.team||'home');if(!active||pending||failed||s.paused||!['playing','penalties'].includes(s.phase)||charge||penalty&&(penalty.role!=='shooter'||!penaltyCanShoot(penalty)||pendingPenaltyAction('shoot',penalty)))return false;const receiving=s.receiveTarget,p=s.players.find(p=>p.id===(receiving?.playerId||s.controlledId));
   if(!receiving&&s.ball.ownerId!==p.id&&!looseKickAvailable(s,p)){s.message='没有控球 · 按住逼抢后择机抢断';render();return false;}
   charge={elapsed:0,startedAt:now(),playerId:p.id,receiving:!!receiving,penalty:!!penalty};s.chargePower=penalty?penaltyStandardPower:.25;flushInput();render();return true;
  }
  function shotPower(){
+  if(shootPointer?.preview)return shootPointer.preview.power;
   // A missed rendering frame cannot shorten the time a player held the button.
   const elapsed=network?Math.max(charge.elapsed,(now()-charge.startedAt)/1000):charge.elapsed;
   if(charge.penalty){
@@ -226,18 +248,35 @@ export function buildPlayableMatch({scene,stadium,players,audio,onCamera,onView,
   if(shootPointer!==null||e.pointerType==='mouse'&&e.button!==0)return;
   e.preventDefault();
   if(beginCharge()){
-   shootPointer={id:e.pointerId,x:e.clientX,y:e.clientY,at:e.timeStamp,allowFlick:charge.penalty&&e.pointerType!=='mouse'};
+   shootPointer={id:e.pointerId,x:e.clientX,y:e.clientY,at:e.timeStamp,allowFlick:charge.penalty&&e.pointerType!=='mouse',preview:null};
    shoot.setPointerCapture?.(e.pointerId);
   }
  });
+ function updateSwipe(pointer,event){
+  if(!pointer.allowFlick||!charge||!Number.isFinite(event.clientX)||!Number.isFinite(event.clientY)||
+     event.clientX===pointer.lastX&&event.clientY===pointer.lastY)return;
+  pointer.lastX=event.clientX;
+  pointer.lastY=event.clientY;
+  pointer.preview=penaltyFlick(pointer,event,Infinity);
+  simulation.state.chargePower=shotPower();
+  penaltyControls.previewSwipe(pointer.preview,simulation.state.chargePower);
+ }
+ shoot.addEventListener('pointermove',e=>{
+  if(e.pointerId===shootPointer?.id)updateSwipe(shootPointer,e);
+ });
  shoot.addEventListener('pointerup',e=>{
   if(e.pointerId!==shootPointer?.id)return;
-  const flick=shootPointer.allowFlick?penaltyFlick(shootPointer,e):null;
-  shootPointer=null;
-  releaseCharge(flick);
+  updateSwipe(shootPointer,e);
+  const flick=shootPointer.preview, isPenalty=charge?.penalty;
+  if(releaseCharge(flick)&&isPenalty)penaltyHaptic(13,e.pointerType);
   $('scene').focus({preventScroll:true});
  });
- for(const event of['pointercancel','lostpointercapture'])shoot.addEventListener(event,e=>{if(e.pointerId===shootPointer?.id){shootPointer=null;cancelCharge();}});
+ for(const event of['pointercancel','lostpointercapture'])shoot.addEventListener(event,e=>{
+  if(e.pointerId!==shootPointer?.id)return;
+  cancelCharge();
+  flushInput();
+  render();
+ });
  shoot.onclick=e=>{if(e.detail===0)action('shoot',{power:penaltyContext(simulation.state,network?.team||'home')?penaltyStandardPower:.45});};
  $('game-camera').onclick=cycleCamera;$('game-fullscreen').onclick=()=>$('fullscreen').click?.();$('game-cheer').onclick=()=>{if(active&&!pending&&!failed&&!simulation.state.paused)onCheer?.();};
  $('game-mute').onclick=()=>{if(audio.state==='unavailable')audio.start({ambience:!simulation.state.training});else audio.setMuted(!audio.muted);render();};$('game-pause').onclick=()=>onPause(!simulation.state.paused);$('game-resume').onclick=async()=>{try{if(network&&!network.room?.started){network.setReady(true);return;}if(simulation.state.phase==='interval'){await simulation.continuePeriod();if(!network)onPause(false);render();return;}onPause(false);}catch(error){toast?.(error.message);}};$('game-restart').onclick=()=>network&&simulation.state.phase==='fulltime'?network.send({type:'rematch'}):onRestart();$('game-online-copy').onclick=()=>network&&copyOnlineInvite(network);$('game-exit').onclick=$('game-overlay-exit').onclick=onExit;$('game-change-match').onclick=onChangeMatch||onExit;

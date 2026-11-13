@@ -1,4 +1,5 @@
 import {abilityFactor,playerAbilities} from './football-abilities.js';
+import {penaltyDiveReach} from './football-penalty.js';
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 export function goalkeeperProfile(difficulty='regular'){
  return difficulty==='casual'?{reaction:.31,shuffle:3.35,dive:5.2,window:.44,recovery:.72,error:.20}:difficulty==='challenge'?{reaction:.205,shuffle:3.95,dive:5.8,window:.47,recovery:.57,error:.09}:{reaction:.255,shuffle:3.65,dive:5.5,window:.455,recovery:.65,error:.14};
@@ -66,12 +67,15 @@ export function goalkeeperContact(p,ball,previous,time,difficulty,{openPlay=fals
  if(speed<5&&ball.y<.5&&Math.hypot(ball.x-p.x,ball.z-p.z)<.70&&k.phase!=='recover')return{kind:'catch',point:{x:ball.x,y:ball.y,z:ball.z}};
  const reacted=!ball.shot||k.committed||k.phase==='track',diving=k.phase==='dive',recovering=k.phase==='recover',smothering=k.phase==='smother';
  const closeShot=openPlay&&k.closeShot,progress=clamp((time-k.diveAt)/profile.window,0,1);
- const extension=diving?(closeShot?.21:.16)+(closeShot?.64:.58)*Math.sin(progress*Math.PI):0,closeBlock=closeShot&&!diving&&!recovering;
+ const penaltyDive=!openPlay&&k.penaltyDive;
+ const reach=penaltyDive?penaltyDiveReach(time-k.diveAt,k.diveUntil-k.diveAt):Math.sin(progress*Math.PI);
+ const extension=diving?(closeShot?.21:.16)+(closeShot?.64:penaltyDive?.38:.58)*reach:0;
+ const closeBlock=closeShot&&!diving&&!recovering;
  let point=null;
  if(reacted&&!recovering&&(!diving||progress>.08)){
-  const balancedSave=!openPlay&&k.penaltyDive&&k.balancedPenaltySave;
+  const balancedSave=penaltyDive&&k.balancedPenaltySave;
   const hands={x:p.x+k.direction*extension,y:smothering?.45:clamp(ball.shot?k.targetY:ball.y,.35,1.95),z:p.z+sign*.34};
-  const radii={x:diving?(k.penaltyDive&&!openPlay?.92:.43):closeBlock?.55:.49,y:balancedSave?.79:diving?.39:.48,z:.44};
+  const radii={x:diving?(penaltyDive?.87:.43):closeBlock?.55:.49,y:balancedSave?.79:diving?.39:.48,z:.44};
   point=contactOnSegment(previous,ball,hands,radii);
  }
  // A body can block the ball before the hands react, but it is not a 3 m

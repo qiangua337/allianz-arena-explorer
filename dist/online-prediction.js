@@ -194,7 +194,7 @@ export function createOnlinePrediction(team){
    const gesture={phase:direction?'dive':'set',committed:true,direction,diveAt:time,diveUntil:time+saveWindow,recoverUntil:time+saveWindow+profile.recovery,targetX,targetY:height};
    penaltyGesture={state:gesture,expiresAt:time+Math.min(.75,Math.max(.24,latency/1000+.16))};
    Object.assign(g,gesture);
-   motion={id:-1,type:direction?'dive':'save',elapsed:0,duration:direction?saveWindow+profile.recovery:.55,direction:direction*player.attackSign,height};
+   motion={id:-1,type:direction?'dive':'save',elapsed:0,duration:direction?saveWindow+profile.recovery:.55,direction:direction*player.attackSign,height,penaltyDive:true,saveWindow};
    return;
   }
   const duration=Math.min(.48,Math.max(.24,latency/1000+.08));

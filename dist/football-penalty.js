@@ -16,8 +16,14 @@ export const penaltyDiveLead=.13;
 export const penaltyPowerRisk=.76;
 export const penaltyStandardPower=.62;
 
+// Reach comes from the push off, then stays extended until the keeper lands.
+export function penaltyDiveReach(elapsed,window){
+ const rise=clamp(elapsed/.24,0,1),fall=clamp((window-elapsed)/.14,0,1);
+ return rise*rise*(3-2*rise)*fall*fall*(3-2*fall);
+}
+
 export function penaltyCanChooseDive(penalty){
- return penalty?.stage==='ready'||penalty?.stage==='runup'||penalty?.stage==='flight';
+ return penalty?.stage==='ready'||penalty?.stage==='runup'||penalty?.stage==='flight'&&!penalty.contactOutcome;
 }
 
 export function penaltyCanChangeDive(penalty){

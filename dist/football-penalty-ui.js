@@ -51,10 +51,10 @@ function penaltyPointerAim(element, event, keeper) {
   return safePenaltyAim(keeper ? {x:lane(x),y:0} : {x,y});
 }
 
-export function penaltyFlick(start, end) {
+export function penaltyFlick(start, end, maxDuration = 480) {
   const dx = end.clientX - start.x, dy = start.y - end.clientY;
   const distance = Math.hypot(dx,dy), elapsed = end.timeStamp - start.at;
-  if (!Number.isFinite(distance) || distance < 22 || !Number.isFinite(elapsed) || elapsed < 0 || elapsed > 480) return null;
+  if (!Number.isFinite(distance) || distance < 22 || !Number.isFinite(elapsed) || elapsed < 0 || elapsed > maxDuration) return null;
   const length = Math.max(34,Math.abs(dx),Math.abs(dy));
   const speed = distance / Math.max(65,elapsed);
   return {
@@ -87,7 +87,7 @@ function bindAimPointer(element, keeper, change, onDive, canDive) {
     start = null;
     if (!aim) return;
     change(aim);
-    if (commit) onDive?.(aim);
+    if (commit) onDive?.(aim,event.pointerType);
   });
   for (const name of ['pointercancel','lostpointercapture']) element.addEventListener(name, event => {
     if (event.pointerId === start?.id) start = null;
@@ -107,40 +107,60 @@ export function buildPenaltyControls(getElement, {onDive,onQuickShot} = {}) {
   const diveButtons = directions.map(direction=>getElement('game-penalty-dive-'+direction));
   const shotButtons = directions.map(direction=>getElement('game-penalty-shot-'+direction));
   let aim = {x:0,y:0}, selectedDive = null, showSelectedDive = false, round = '', context = null, enabled = false;
+  let swipeAim = null, reticleProjection = null;
 
   function updateAim(next) {
     aim = next;
-    writeHudData(document.body,'gamePenaltyAim',`${aim.x.toFixed(2)},${aim.y.toFixed(2)}`);
     refreshAim();
   }
 
   function refreshAim() {
     const queued = showSelectedDive && context?.role === 'keeper' ? selectedDive : null;
-    writeHudProperty(label,'textContent',penaltyAimLabel(queued ?? aim));
+    const displayedAim = swipeAim ?? aim;
+    writeHudData(document.body,'gamePenaltyAim',`${displayedAim.x.toFixed(2)},${displayedAim.y.toFixed(2)}`);
+    writeHudProperty(label,'textContent',penaltyAimLabel(queued ?? displayedAim));
     diveButtons.forEach((button,index)=>{
       const chosen = queued?.x === index-1;
       writeHudAttribute(button,'aria-pressed',String(chosen));
     });
+    drawReticle(displayedAim);
   }
 
-  function chooseDive(next) {
+  function drawReticle(displayedAim) {
+    if (!reticleProjection || !enabled || context?.role !== 'shooter') return;
+    const {project,left,top} = reticleProjection;
+    const landing = penaltyTarget(displayedAim,context.goalZ);
+    const projectedAim = project(landing.x,landing.y,landing.z);
+    writeHudProperty(shotDot.style,'left',`${Math.round(projectedAim.x-left)}px`);
+    writeHudProperty(shotDot.style,'top',`${Math.round(projectedAim.y-top)}px`);
+  }
+
+  function showPowerValue(power) {
+    writeHudProperty(powerBar,'value',power);
+    writeHudProperty(powerValue,'textContent',`${Math.round(power * 100)}%`);
+    writeHudData(meter,'tone',power > penaltyPowerRisk ? 'risk' : power >= .46 ? 'set' : 'base');
+  }
+
+  function chooseDive(next,pointerType) {
     if (!enabled || context?.role !== 'keeper' || !penaltyCanChooseDive(context)) return false;
-    return onDive?.(next) ?? false;
+    return onDive?.(next,pointerType) ?? false;
   }
 
-  function quickDirection(direction) {
+  function quickDirection(direction,pointerType) {
     if (!enabled) return false;
-    if (context.role === 'keeper') return chooseDive({x:direction,y:0});
+    if (context.role === 'keeper') return chooseDive({x:direction,y:0},pointerType);
     if (!penaltyCanShoot(context)) return false;
     const next = {x:direction*.84,y:-.25};
     updateAim(next);
-    return onQuickShot?.(next) ?? false;
+    return onQuickShot?.(next,pointerType) ?? false;
   }
 
   function clear() {
     context = null; enabled = false; round = ''; selectedDive = null; showSelectedDive = false;
+    swipeAim = null; reticleProjection = null;
     writeHudProperty(target,'hidden',true);
     writeHudProperty(panel,'hidden',true);
+    writeHudData(target,'swiping','false');
     writeHudData(document.body,'gamePenaltyAim','');
     writeHudData(document.body,'gamePenaltyStage','');
     writeHudData(document.body,'gamePenaltyReady','');
@@ -153,7 +173,10 @@ export function buildPenaltyControls(getElement, {onDive,onQuickShot} = {}) {
     button.addEventListener('click',event=>{ if (event.detail===0) quickDirection(index-1); });
   });
   shotButtons.forEach((button,index)=>{
-    button.addEventListener('click',()=>quickDirection(index-1));
+    button.addEventListener('click',event=>{
+      const pointer = event.pointerType || (event.detail > 0 && event.sourceCapabilities?.firesTouchEvents ? 'touch' : null);
+      quickDirection(index-1,pointer);
+    });
   });
 
   return {
@@ -167,13 +190,28 @@ export function buildPenaltyControls(getElement, {onDive,onQuickShot} = {}) {
       if (next !== aim && (next.x !== aim.x || next.y !== aim.y)) updateAim(next);
     },
     aimFlick(next) { if (enabled && context?.role === 'shooter') updateAim(next); },
+    previewSwipe(next,power) {
+      const preview = enabled && context?.role === 'shooter' ? next : null;
+      if (!preview && !swipeAim) return;
+      swipeAim = preview?.aim ?? null;
+      writeHudData(target,'swiping',!!swipeAim);
+      if (Number.isFinite(power)) showPowerValue(power);
+      refreshAim();
+    },
     center() { if (enabled) updateAim({x:0,y:0}); },
     render(penalty,{overlay,touch,stoppageId,power=0,committed=false,pendingDive=false}) {
       if (!penalty) { if (context) clear(); return; }
       context = penalty;
       const nextRound = [penalty.kind,penalty.team,penalty.taker,penalty.role,stoppageId,
         penalty.home?.length || 0,penalty.away?.length || 0].join('|');
-      if (round !== nextRound) { round = nextRound; selectedDive = null; updateAim({x:0,y:0}); }
+      if (round !== nextRound) {
+        round = nextRound;
+        selectedDive = null;
+        swipeAim = null;
+        reticleProjection = null;
+        writeHudData(target,'swiping','false');
+        updateAim({x:0,y:0});
+      }
       const keeper = penalty.role === 'keeper', waiting = penaltyKeeperWaiting(penalty);
       const shotReady = penaltyCanShoot(penalty), canDive = keeper && penaltyCanChooseDive(penalty);
       const showAim = keeper ? canDive : !committed && penalty.stage === 'ready';
@@ -185,7 +223,10 @@ export function buildPenaltyControls(getElement, {onDive,onQuickShot} = {}) {
       writeHudData(panel,'role',penalty.role);
       writeHudData(panel,'stage',penalty.stage);
       writeHudData(panel,'commit',String(committed));
-      if (overlay || keeper || penalty.stage !== 'ready') writeHudProperty(target,'hidden',true);
+      if (overlay || keeper || penalty.stage !== 'ready') {
+        reticleProjection = null;
+        writeHudProperty(target,'hidden',true);
+      }
       writeHudProperty(dive,'hidden',overlay || !keeper || !showAim);
       writeHudProperty(shots,'hidden',overlay || keeper || !shotReady || committed || showPower);
       writeHudAttribute(dive,'aria-disabled',String(!enabled));
@@ -196,36 +237,40 @@ export function buildPenaltyControls(getElement, {onDive,onQuickShot} = {}) {
       refreshAim();
       writeHudProperty(meter,'hidden',!showPower);
       writeHudProperty(timing,'hidden',!showRunup);
-      if (showPower) {
-        writeHudProperty(powerBar,'value',power);
-        writeHudProperty(powerValue,'textContent',power > 0 ? `${Math.round(power * 100)}%` : '');
-        writeHudData(meter,'tone',power > penaltyPowerRisk ? 'risk' : power >= .46 ? 'set' : 'base');
-      }
+      if (showPower) showPowerValue(power);
       if (showRunup) writeHudProperty(timing,'value',Math.min(1,penalty.time / penalty.runupDuration));
       writeHudData(document.body,'gamePenaltyStage',penalty.stage);
       writeHudData(document.body,'gamePenaltyReady',penalty.keeperReady ?? true);
       writeHudData(document.body,'gamePenaltyCanDive',canDive && !committed);
-      const result = {goal:'点球命中',saved:'门将扑救',parried:'门将挡出',woodwork:'击中门框',wide:'射偏'};
+      const result = {
+        goal:keeper ? '对手罚进' : '点球命中',
+        saved:keeper ? '你扑出了点球' : '点球被扑出',
+        parried:keeper ? '你挡出了点球' : '点球被挡出',
+        woodwork:'击中门框',
+        wide:'射偏'
+      };
       let title = keeper ? '你守门' : '你主罚', phase = '', hint = '';
       if (penalty.stage === 'setup') phase = '双方就位';
       else if (penalty.stage === 'result') title = result[penalty.outcome] || '点球未进';
       else if (waiting) {
-        phase = '选方向即可准备';
-        hint = touch ? '选好方向后，门将会在对手出脚时扑救' : '按 1 / 2 / 3 选扑救方向，或点「我准备好了」';
+        phase = pendingDive ? '已选方向 · 正在确认' : '选方向即可准备';
+        if (!pendingDive) hint = touch ? '选方向后，出脚时自动扑救' : '按 1 / 2 / 3 选扑救方向，或点「我准备好了」';
       } else if (penalty.stage === 'ready' && !shotReady) {
         const seconds = Math.max(1,Math.ceil((penalty.kickAllowedAt ?? 0) - (penalty.time ?? 0)));
         phase = penalty.keeperReady ? `${seconds} 秒后可射门` : '等待门将就位';
-        hint = keeper ? '可以随时改扑救方向' : '可以先选择落点';
+        hint = keeper ? showSelectedDive ? '已选方向 · 可以更改' : '可提前选择扑救方向' : '可以先选择落点';
+      } else if (penalty.stage === 'flight' && penalty.contactOutcome) {
+        phase = penalty.contactOutcome === 'woodwork' ? '击中门框 · 等待结果' : '扑到球 · 等待结果';
       } else if (keeper && canDive) {
         if (penalty.stage === 'ready') phase = showSelectedDive ? '扑救方向已选' : '等待对手助跑';
-        else if (penalty.stage === 'runup') phase = committed ? '已选择扑救' : '对手助跑';
-        else phase = committed ? '门将扑救' : '已经出脚';
-        if (!committed) hint = touch ? '点左、中、右扑救，也可划动选高低' : '1 / 2 / 3 扑救 · 方向键和空格可选高低';
+        else if (penalty.stage === 'runup') phase = committed ? '方向已锁定' : '对手助跑';
+        else phase = committed ? '正在扑救' : '对手出脚';
+        if (!committed) hint = touch ? '点方向扑救 · 划动可选高低' : '1 / 2 / 3 扑救 · 方向键和空格可选高低';
       } else if (penalty.stage === 'runup' || committed) phase = '主罚球员助跑';
       else if (penalty.stage === 'flight') phase = '射门已出脚';
       else if (shotReady) {
         phase = '可以射门';
-        hint = showPower ? '松手射门' : touch ? '点一下即可射门，也可点球门瞄准' : '1 / 2 / 3 快速射门 · 方向键瞄准，K 射门';
+        hint = showPower ? '松手射门' : touch ? '点方向射门 · 划动「射门」可瞄准' : '1 / 2 / 3 快速射门 · 方向键瞄准，K 射门';
       }
       writeHudProperty(status,'textContent',title);
       writeHudProperty(stageLabel,'textContent',phase);
@@ -235,6 +280,7 @@ export function buildPenaltyControls(getElement, {onDive,onQuickShot} = {}) {
     },
     project(project) {
       if (!enabled || context?.role !== 'shooter' || context.stage !== 'ready') {
+        reticleProjection = null;
         writeHudProperty(target,'hidden',true);
         return;
       }
@@ -245,14 +291,13 @@ export function buildPenaltyControls(getElement, {onDive,onQuickShot} = {}) {
       const width = bottomRight.x - x, height = bottomRight.y - y;
       const visible = z >= -1 && z <= 1 && width > 24 && height > 12;
       writeHudProperty(target,'hidden',!visible);
+      reticleProjection = visible ? {project,left:x,top:y} : null;
       if (!visible) return;
       writeHudProperty(target.style,'left',`${Math.round(x)}px`);
       writeHudProperty(target.style,'top',`${Math.round(y)}px`);
       writeHudProperty(target.style,'width',`${Math.round(width)}px`);
       writeHudProperty(target.style,'height',`${Math.round(height)}px`);
-      const landing = penaltyTarget(aim,goalZ), projectedAim = project(landing.x,landing.y,landing.z);
-      writeHudProperty(shotDot.style,'left',`${Math.round(projectedAim.x-x)}px`);
-      writeHudProperty(shotDot.style,'top',`${Math.round(projectedAim.y-y)}px`);
+      drawReticle(swipeAim ?? aim);
     }
   };
 }

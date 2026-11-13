@@ -51,8 +51,12 @@ export function footballCamera(player,{view='third',yaw=0,pitch=-.14,style='foll
   const fov=29+15*portrait;
   const goalFit=3.66/(.90*Math.max(.25,aspect)*Math.tan(fov*Math.PI/360));
   const depth=Math.max(22+1.5*portrait,goalFit+.35);
-  return{position:[0,1.9+.90*portrait,goalZ-sign*depth],
-   target:[0,.45,goalZ-sign*5.5],fov,controlYaw:sign<0?0:Math.PI};
+  const follow=typeof penalty==='object'&&(penalty.stage==='flight'||penalty.stage==='result');
+  const advance=follow?.95:0;
+  const lean=follow?clamp(ball.x,-3.7,3.7)*.12:0;
+  return{position:[lean*.4,1.9+.90*portrait,goalZ-sign*(depth-advance)],
+   target:[lean,.45+(follow?.13:0),goalZ-sign*(5.5-advance*1.5)],
+   fov:fov+(follow?1.5:0),smoothLens:typeof penalty==='object',controlYaw:sign<0?0:Math.PI};
  }
  if(training&&style==='close')return trainingCamera(player,ball,training,aspect);
  if(style==='broadcast'||style==='close'){

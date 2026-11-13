@@ -1,4 +1,5 @@
 import {applyFootballKick,applyFootballShotPreparation,keepFootballBootsAboveFloor,liftFootballBootsAboveFloor} from './football-kick-pose.js';
+const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 // Football strokes layer over the CC0 locomotion clips before the skeleton's
 // single world update. Kicks plant their support foot and begin at contact.
 export function applyFootballAction(bones,motion,{defending=false,speed=0,holdingBall=false}={},group){
@@ -26,19 +27,39 @@ export function applyFootballAction(bones,motion,{defending=false,speed=0,holdin
  const kick=motion?.type==='shoot'?.82:motion?.type==='pass'?.55:motion?.type==='tackle'?.48:0;
  const strike=motion?.type==='tackle'?pulse:t<.18?Math.sin(t/.18*Math.PI/2):Math.cos((t-.18)/.82*Math.PI/2);
  if(kick&&strike>0){bones[15].rotateX(-kick*strike);bones[16].rotateX(.24*strike);bones[17].rotateX(-.12*strike);bones[6].rotateZ(-.12*strike);bones[12].rotateZ(.15*strike);bones[2].rotateX(.06*strike);}
- if(motion?.type==='save'){bones[6].rotateX(-.85*pulse);bones[12].rotateX(-.85*pulse);bones[7].rotateZ(-.35*pulse);bones[13].rotateZ(.35*pulse);bones[2].rotateX(.14*pulse);}
+ const penaltyHeight=motion?.penaltyDive&&Number.isFinite(motion.height)?clamp((motion.height-1.16)/.81,-1,1):0;
+ if(motion?.type==='save'){
+  const reach=.85+penaltyHeight*.62;
+  bones[6].rotateX(-reach*pulse);bones[12].rotateX(-reach*pulse);
+  bones[7].rotateZ(-.35*pulse);bones[13].rotateZ(.35*pulse);
+  bones[2].rotateX((.14-penaltyHeight*.19)*pulse);
+ }
  if(motion?.type==='dive'){
   const fall=Math.min(1,motion.elapsed/.32),recoverAt=Math.min(.58,Math.max(.32,motion.duration-.42)),rise=motion.elapsed<recoverAt?1:Math.max(0,1-(motion.elapsed-recoverAt)/Math.max(.15,motion.duration-recoverAt)),lean=Math.sin(fall*Math.PI/2)*rise,side=motion.direction||1;
-  bones[0].rotateZ(-side*1.08*lean);bones[0].position.y-=.36*lean;bones[0].position.x+=side*.13*lean;
+  // A low penalty save drops the leading shoulder, while a high save keeps the torso
+  // upright for the same glove reach. The original open-play silhouette stays neutral.
+  const heightProgress=clamp((motion.elapsed-.04)/.32,0,1);
+  const heightBlend=heightProgress*heightProgress*(3-2*heightProgress);
+  const heightRoll=penaltyHeight*(penaltyHeight<0?.24:.58)*heightBlend;
+  const heightLift=penaltyHeight*(penaltyHeight<0?.03:.18)*heightBlend;
+  bones[0].rotateZ(side*(-1.08+heightRoll)*lean);
+  bones[0].position.y+=(-.36+heightLift)*lean;
+  bones[0].position.x+=side*.13*lean;
   // Original continuous key pose: lead with one glove while the other arm
   // folds across the chest toward the same side. Mirrored standing arm lifts
   // made the far glove point upward when the torso rolled. Fixed local axes
   // also avoid the elbow-plane flips of a target-driven two-bone solver.
-  const reach=Math.min(1,motion.elapsed/.46),recover=Math.min(rise,Math.max(0,(motion.duration-motion.elapsed)/.42)),arm=(reach*reach*(3-2*reach))*(recover*recover*(3-2*recover));
+  const reachTime=motion.penaltyDive?clamp((motion.saveWindow||.58)*.63,.34,.38):.46;
+  const reach=Math.min(1,motion.elapsed/reachTime),recover=Math.min(rise,Math.max(0,(motion.duration-motion.elapsed)/.42)),arm=(reach*reach*(3-2*reach))*(recover*recover*(3-2*recover));
   bones[6].rotateX(-.30*arm);bones[12].rotateX(-.30*arm);bones[6].rotateZ((side>0?2.60:-2.40)*arm);bones[12].rotateZ((side>0?2.40:-2.60)*arm);bones[7].rotateX(.78*arm);bones[13].rotateX(.78*arm);bones[7].rotateZ(.08*arm);bones[13].rotateZ(-.08*arm);bones[16].rotateX(.35*lean);
   // Dives have no fixed support foot. Keep the local skinned pose clear of
   // the turf without moving the authoritative player or changing save reach.
-  if(lean>0){bones[0].position.y=Math.max(.28,bones[0].position.y);liftFootballBootsAboveFloor(bones);bones[0].position.y+=.20*arm*(1-arm);}
+  if(lean>0){
+   bones[0].position.y=Math.max(.28,bones[0].position.y);
+   liftFootballBootsAboveFloor(bones);
+   const lowSaveClearance=Math.max(0,-penaltyHeight)*.07*lean;
+   bones[0].position.y+=.20*arm*(1-arm)+lowSaveClearance;
+  }
  }
  if(motion?.type==='trap'||motion?.type==='tackle')keepFootballBootsAboveFloor(bones);
  if(holdingBall&&motion?.type!=='dive'&&motion?.type!=='save'){

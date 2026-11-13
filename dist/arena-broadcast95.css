@@ -774,6 +774,11 @@ body.game-active #game-ui .game-actions button:active:not(:disabled) {
   background: #fff6e2;
 }
 
+#game-penalty-target[data-swiping="true"] i {
+  border-color: var(--match-gold);
+  background: #ffcc6760;
+}
+
 #game-ui .game-penalty-hint {
   top: auto;
   bottom: max(18px, calc(env(safe-area-inset-bottom, 0px) + 12px));
@@ -814,6 +819,10 @@ body.game-active #game-ui .game-actions button:active:not(:disabled) {
 #game-ui .game-penalty-hint[data-role="keeper"][data-stage="runup"] .penalty-timing,
 #game-ui .game-penalty-hint[data-role="shooter"][data-stage="ready"] .penalty-timing {
   color: var(--match-gold);
+}
+
+#game-ui .game-penalty-hint[data-role="keeper"][data-commit="true"] .penalty-timing {
+  color: #a9efc9;
 }
 
 #game-penalty-meter {
