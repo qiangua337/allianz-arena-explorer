@@ -162,3 +162,26 @@ test('a moving attack at the top of the box offers a check and a separate receiv
   assert.equal(ball.ownerId,receiver.id);
  }
 });
+
+test('a counter runner changes lane when a defender closes the original outlet',()=>{
+ const team='home';
+ const {game,sign,advance}=movingAttack(team,1,{tackle:true});
+ const route=()=>game.checkpoint().controllers[team].offBall?.routes.find(job=>job.kind==='channel');
+ advance(1);
+ const initial=route();
+ assert.ok(initial);
+ const marker=player(game,'away-3');
+ game.state.controlledIds.away=marker.id;
+ Object.assign(marker,{x:initial.x,z:initial.z,vx:0,vz:0,tackleAt:1e6});
+ let changed=false;
+ for(let frame=0;frame<78;frame++){
+  advance(1);
+  const current=route();
+  if(current&&Math.hypot(current.x-initial.x,current.z-initial.z)>2.5){
+   assert.ok(current.z*sign>game.state.ball.z*sign);
+   changed=true;
+   break;
+  }
+ }
+ assert.ok(changed,'the team creates another forward outlet during the same counter');
+});

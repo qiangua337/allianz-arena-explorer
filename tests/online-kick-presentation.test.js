@@ -69,13 +69,35 @@ test('online wide through balls use the latest runner and velocity before render
    Object.assign(actor(local,wideId),{x:10,z:sign*16,vx:0,vz:0});
    const right={x:1,z:0},power=.85;
    assert.ok(client.action('through',{direction:right,power}));
-   assert.ok(game.action('through',{direction:right,power},team));
+   const packet=f.sent.findLast(message=>message.type==='action');
+   assert.equal(packet.targetId,wideId);
+   assert.equal(packet.fromId,player.id);
+   assert.ok(game.action('through',packet,team));
    const display=local.kickPresentation;
    assert.equal(server.ball.targetId,wideId);
    assert.ok(display.vx>10&&display.vz*sign>2,'display leads the current winger in the running direction');
    for(const key of ['vx','vy','vz'])assert.ok(Math.abs(display[key]-server.ball[key])<.005,key);
    assert.equal(local.ball.ownerId,player.id,'visual launch does not change possession');
   }finally{client.dispose();}
+ }
+});
+
+test('only a fresh owned and directed through launch sends a receiver hint',()=>{
+ for(const {type,aim,stale} of [
+  {type:'pass',aim:direction},
+  {type:'shoot',aim:direction},
+  {type:'through',aim:{x:.1,z:0}},
+  {type:'through',aim:{x:0,z:-1}},
+  {type:'through',aim:direction,stale:true},
+ ]){
+  const f=fixture();
+  try{
+   if(stale)f.setClock(305);
+   assert.ok(f.client.action(type,{direction:aim,targetId:'home-9',fromId:f.player.id}));
+   const packet=f.sent.findLast(message=>message.type==='action');
+   assert.equal(packet.targetId,undefined);
+   assert.equal(packet.fromId,undefined);
+  }finally{f.client.dispose();}
  }
 });
 

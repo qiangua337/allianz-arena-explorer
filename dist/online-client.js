@@ -187,9 +187,12 @@ export function createOnlineSimulation(session,settings={}, {now=()=>performance
  function action(type,options={}){
   if(!canSendIntent())return false;
   const direction=safeOnlineInput(options.direction),penaltyAim=options.penaltyAim&&safePenaltyAim(options.penaltyAim);
-  const sent=session.send({type:'action',action:type,direction,power:options.power,...(penaltyAim?{penaltyAim}:{})});
   const power=Number.isFinite(options.power)?Math.max(.15,Math.min(1,options.power)):.5;
-  if(sent&&!kick.begin(state,type,direction,power,Math.max(frameClock,now()),session.latency)){
+  const at=Math.max(frameClock,now()),plan=kick.prepare(state,type,direction,power,at);
+  const targetId=plan?.flight.directed?plan.flight.targetId:null;
+  const sent=session.send({type:'action',action:type,direction,power:options.power,...(penaltyAim?{penaltyAim}:{}),
+   ...(targetId?{fromId:plan.player.id,targetId}:{})});
+  if(sent&&!kick.begin(state,type,power,at,session.latency,plan)){
    prediction.animate(type,session.latency,{...options,direction,penaltyAim},state.shotKind);
   }
   return sent;

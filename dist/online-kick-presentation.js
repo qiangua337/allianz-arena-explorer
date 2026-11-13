@@ -22,7 +22,7 @@ function launchFor(state,latest,player,index,origin,type,direction,power,pressur
  const option=passOption(field,passer,ball,{direction,type,power});
  if(!option)return null;
  const flight=passFlight(ball,option,{type,lane:option.lane,player:passer,power});
- return{...flight,targetId:option.player.id,stroke:flight.lofted?'lofted':type==='through'&&!option.delivery?'through':'short'};
+ return{...flight,targetId:option.player.id,directed:!!option.directed,stroke:flight.lofted?'lofted':type==='through'&&!option.delivery?'through':'short'};
 }
 
 // This is a short presentation lead, not another simulation. It uses the
@@ -41,12 +41,12 @@ export function createOnlineKickPresentation(team){
   if(resetEventIds){state.kickAudioEventIds=[];playedMotions.length=0;}
  }
 
- function begin(state,type,direction,power,at,latency){
-  if(!Object.hasOwn(kickEvent,type)||active||!openPlay(state)||!latest||!openPlay(latest)||at-latestAt>300)return false;
+ function prepare(state,type,direction,power,at){
+  if(!Object.hasOwn(kickEvent,type)||active||!openPlay(state)||!latest||!openPlay(latest)||at-latestAt>300)return null;
   const player=state.players.find(p=>p.id===state.controlledId);
   if(!player||player.dismissed||latest.controlledIds?.[team]!==player.id||
-     latest.ball.ownerId!==player.id||state.ball.ownerId!==player.id)return false;
-  if(candidates.some(attempt=>attempt.playerId===player.id&&attempt.eventType===kickEvent[type]&&at<=attempt.soundUntil))return false;
+     latest.ball.ownerId!==player.id||state.ball.ownerId!==player.id)return null;
+  if(candidates.some(attempt=>attempt.playerId===player.id&&attempt.eventType===kickEvent[type]&&at<=attempt.soundUntil))return null;
   const ball=state.ball,origin={x:ball.x,y:Math.max(.11,ball.y),z:ball.z};
   const controlledIndex=state.players.indexOf(player),wirePlayer=latest.players[controlledIndex];
   let pressure=Infinity;
@@ -55,10 +55,16 @@ export function createOnlineKickPresentation(team){
    if(foe.team===team||foe.dismissed)continue;
    pressure=Math.min(pressure,Math.hypot(foe.x-player.x,foe.z-player.z),Math.hypot(wireFoe[0]-wirePlayer[0],wireFoe[1]-wirePlayer[1]));
   }
-  if(pressure<1.45||Math.hypot(origin.x-player.x,origin.z-player.z)>1.35)return false;
+  if(pressure<1.45||Math.hypot(origin.x-player.x,origin.z-player.z)>1.35)return null;
   const flight=launchFor(state,latest,player,controlledIndex,origin,type,direction,power,pressure);
   const speed=flight&&Math.hypot(flight.vx,flight.vz);
-  if(!Number.isFinite(speed)||speed<1)return false;
+  if(!Number.isFinite(speed)||speed<1)return null;
+  return{player,origin,flight,speed,controlledIndex};
+ }
+
+ function begin(state,type,power,at,latency,plan){
+  if(!plan)return false;
+  const {player,origin,flight,speed,controlledIndex}=plan;
   const id=++serial,shot=type==='shoot',rtt=Number.isFinite(latency)&&latency>0?latency:220;
   const display={id,type,playerId:player.id,status:'pending',...origin,vx:flight.vx,vy:flight.vy,vz:flight.vz};
   const motion={id:-id-1,type:shot?'shoot':'pass',elapsed:0,duration:shot ? .46 : .32,predicted:true,
@@ -171,5 +177,5 @@ export function createOnlineKickPresentation(team){
   display.vx=b.vx;display.vy=b.vy;display.vz=b.vz;
  }
 
- return{begin,receive,update,clear};
+ return{prepare,begin,receive,update,clear};
 }

@@ -2,6 +2,9 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {createFootballSimulation} from '../dist/football-simulation.js';
 import {defaultSelection} from '../dist/football-squads.js';
+import {passOption} from '../dist/football-tactics.js';
+import {createOnlineSimulation} from '../dist/online-client.js';
+import {packOnlineState} from '../dist/online-protocol.js';
 import {decodeOnlineDelta} from '../dist/online-state-delta.js';
 import {FootballRoom} from '../multiplayer/worker.js';
 
@@ -86,6 +89,80 @@ test('an accepted kick bypasses a saturated window and an invalid kick cannot fl
  assert.ok(state.events.some(event=>event.id>count&&event.team==='home'&&event.type==='shot'));
  assert.equal(seq(f.home.frames.at(-1)),seq(f.away.frames.at(-1)));
  assert.ok(f.away.frames.every(frame=>Object.hasOwn(frame,'state')));
+});
+
+test('Worker passes only aimed through hints from the seat’s current possessor to an active teammate',async t=>{
+ const f=await fixture(t),simulation=f.room.sim,{state}=simulation;
+ const action=t.mock.method(simulation,'action',()=>false);
+ const home=state.controlledIds.home,away=state.controlledIds.away;
+ const homeTarget=state.players.find(p=>p.team==='home'&&!p.keeper&&p.id!==home);
+ const awayTarget=state.players.find(p=>p.team==='away'&&!p.keeper&&p.id!==away);
+ const homeKeeper=state.players.find(p=>p.team==='home'&&p.keeper);
+ const directed={type:'action',action:'through',direction:{x:1,z:0},fromId:home,targetId:homeTarget.id};
+ async function sent(socket,packet,owner=home){
+  f.tick();f.tick();
+  state.ball.ownerId=owner;
+  const count=action.mock.callCount();
+  await f.message(socket,packet);
+  assert.equal(action.mock.callCount(),count+1,'the action still reaches the simulation if its hint is discarded');
+  const [type,options,team]=action.mock.calls.at(-1).arguments;
+  assert.equal(type,packet.action);
+  assert.equal(team,socket.team);
+  return options.targetId;
+ }
+ assert.equal(await sent(f.home,directed),homeTarget.id);
+ assert.equal(await sent(f.away,{...directed,fromId:away,targetId:awayTarget.id},away),awayTarget.id);
+ for(const packet of [
+  {...directed,targetId:awayTarget.id},
+  {...directed,targetId:home},
+  {...directed,targetId:homeKeeper.id},
+  {...directed,targetId:'home-100'},
+  {...directed,targetId:{id:homeTarget.id}},
+  {...directed,fromId:homeTarget.id},
+  {...directed,direction:{x:.15,z:0}},
+  {...directed,action:'pass'},
+ ])assert.equal(await sent(f.home,packet),undefined);
+ assert.equal(await sent(f.home,directed,away),undefined);
+ homeTarget.dismissed=true;
+ assert.equal(await sent(f.home,directed),undefined);
+});
+
+test('both online seats retain an open winger who eases off during a 300 ms round trip',async t=>{
+ const f=await fixture(t),{state}=f.room.sim;
+ for(const team of ['home','away']){
+  const passer=state.players.find(p=>p.id===state.controlledIds[team]),sign=passer.attackSign;
+  const inside=state.players.find(p=>p.id===team+'-8'),winger=state.players.find(p=>p.id===team+'-9');
+  for(const p of state.players)Object.assign(p,{x:-32,z:-sign*43,vx:0,vz:0});
+  Object.assign(passer,{x:0,z:0});
+  Object.assign(inside,{x:22,z:sign});
+  Object.assign(winger,{x:24,z:sign*3.5,vx:3.7,vz:sign*2.5});
+  Object.assign(state.ball,{x:.6,y:.11,z:0,vx:0,vy:0,vz:0,ownerId:passer.id,targetId:null});
+  let now=0,packet,receive;
+  const session={team,opponent:'madrid',connection:'connected',latency:300,room:{started:true,ended:false},
+   packet:structuredClone(packOnlineState(state,1)),subscribe(listener){receive=listener;return()=>{};},sendInput:()=>1,leave(){},
+   send(message){packet=message;return true;}};
+  const client=createOnlineSimulation(session,{}, {now:()=>now});
+  const oneWay=()=>{for(let frame=0;frame<9;frame++){now+=1000/60;client.update(1/60,{});}};
+  try{
+   const input={direction:{x:1,z:0},power:.85};
+   assert.ok(client.action('through',input));
+   assert.equal(packet.targetId,winger.id);
+   oneWay();
+   assert.ok(client.state.kickPresentation.x>state.ball.x+.5);
+   assert.equal(client.state.ball.ownerId,passer.id);
+   winger.vz=sign*.05;
+   const unhinted=passOption(state.players,passer,state.ball,{...input,type:'through'});
+   assert.equal(unhinted.player.id,inside.id,'choosing again after the runner slows would send it inside');
+   await f.message(f[team],packet);
+   assert.equal(state.ball.ownerId,null);
+   assert.equal(state.ball.targetId,winger.id);
+   session.packet=structuredClone(packOnlineState(state,2));
+   oneWay();
+   receive();
+   assert.equal(client.state.kickPresentation.status,'confirmed');
+   assert.equal(client.state.ball.targetId,winger.id);
+  }finally{client.dispose();}
+ }
 });
 
 test('recovery sends a bounded full snapshot when the client cannot decode the delta chain',async t=>{

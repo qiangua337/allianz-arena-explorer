@@ -101,6 +101,35 @@ test('a defender can still intercept an explicitly selected through ball',()=>{
  assert.equal(ball.ownerId,blocker.id);
 });
 
+test('a through-pass intent survives a slowing runner but cannot select a marked or retreating teammate',()=>{
+ for(const flank of [-1,1])for(const sign of [-1,1]){
+  const {game,actor,runner,direction}=switchOfPlay(flank,sign);
+  const {ball,players}=game.state;
+  const action={type:'through',direction,power:.52};
+  assert.equal(passOption(players,actor,ball,action).player.id,runner.id);
+  Object.assign(runner,{vx:0,vz:0});
+  const held=passOption(players,actor,ball,{...action,targetId:runner.id});
+  assert.equal(held.player.id,runner.id);
+  assert.ok(held.directed);
+  assert.equal(game.action('through',{...action,targetId:runner.id}),true);
+  assert.equal(ball.targetId,runner.id);
+  const aimSize=Math.hypot(direction.x,direction.z),input={x:direction.x/aimSize,z:direction.z/aimSize};
+  for(let frame=0;frame<160&&!ball.ownerId;frame++)game.update(1/60,{home:input});
+  assert.equal(ball.ownerId,runner.id,'holding the aim allows the receiver to run to the ball');
+  assert.equal(game.state.controlledId,runner.id);
+
+  const blocked=switchOfPlay(flank,sign);
+  const field=blocked.game.state.players,origin=blocked.game.state.ball;
+  Object.assign(blocked.runner,{vx:0,vz:0});
+  const marker=field.find(p=>p.id==='away-2');
+  Object.assign(marker,{x:(origin.x+blocked.runner.x)*.5,z:(origin.z+blocked.runner.z+sign)*.5});
+  assert.notEqual(passOption(field,blocked.actor,origin,{...action,targetId:blocked.runner.id}).player.id,blocked.runner.id);
+  Object.assign(marker,{x:0,z:47*sign});
+  blocked.runner.vz=-2.2*sign;
+  assert.notEqual(passOption(field,blocked.actor,origin,{...action,targetId:blocked.runner.id}).player.id,blocked.runner.id);
+ }
+});
+
 test('the holding midfielder steps beside a defender cutting the lane in either attacking direction',()=>{
  const outlet={id:'home-2',team:'home',index:2,x:-8,z:6};
  for(const sign of [-1,1]){

@@ -17,17 +17,17 @@ export function moveControlledFootballer(p,b,owner,input,dt,time){
   // this assistance immediately; no minimum lock time is imposed.
   else input={...input,x:0,z:0,sprint:false};
  }
- let x=input.x,z=input.z,jockey=0;const chasing=input.defend&&owner?.team!==p.team;p.defending=!!input.defend;
+ let x=input.x,z=input.z,jockey=0,runningOntoPass=false;const chasing=input.defend&&owner?.team!==p.team;p.defending=!!input.defend;
  if(chasing){
   const target=pressureTarget(p,owner,b),dx=target.x-p.x,dz=target.z-p.z,d=Math.hypot(dx,dz);
   jockey=owner?clamp((5.4-Math.hypot(owner.x-p.x,owner.z-p.z))/3,0,1):0;
   const steering=clamp(Math.hypot(x,z)/.65,0,1),assist=clamp((d-target.standOff)/2,0,1)*.88*(1-.88*jockey*steering),manual=.4+.6*jockey;
   x=dx/(d||1)*assist+x*manual;z=dz/(d||1)*assist+z*manual;
  }
- else if(!b.ownerId&&b.targetId===p.id&&Math.hypot(x,z)<.18){const target=receivingPoint(p,b),dx=target.x-p.x,dz=target.z-p.z,d=Math.hypot(dx,dz);x=dx/Math.max(1,d);z=dz/Math.max(1,d);}
+ else if(!b.ownerId&&b.targetId===p.id&&Math.hypot(x,z)<.18){const target=receivingPoint(p,b),dx=target.x-p.x,dz=target.z-p.z,d=Math.hypot(dx,dz);x=dx/Math.max(1,d);z=dz/Math.max(1,d);runningOntoPass=!!b.receivePoint?.directed;}
  else if(time<(p.lungeUntil||0)&&Math.hypot(x,z)<.2){const dx=b.x-p.x,dz=b.z-p.z,d=Math.hypot(dx,dz);x=dx/(d||1)*.7;z=dz/(d||1)*.7;}
  const abilities=playerAbilities(p),sprint=!!input.sprint&&p.stamina>.04;
- let speed=(sprint?7.6:chasing?6-jockey*1.35:5.5)*abilityFactor(abilities.pace,sprint?.006:.003)*(b.ownerId===p.id?(input.defend?.62:input.charging?.65:.91*abilityFactor(abilities.dribbling,.0025)):1),turn=null;
+ let speed=(sprint?7.6:chasing?6-jockey*1.35:runningOntoPass?6.65:5.5)*abilityFactor(abilities.pace,sprint?.006:.003)*(b.ownerId===p.id?(input.defend?.62:input.charging?.65:.91*abilityFactor(abilities.dribbling,.0025)):1),turn=null;
  if(chasing&&owner)turn={heading:Math.atan2(b.x-p.x,b.z-p.z),rate:10,response:12+jockey*4};
  if(b.ownerId===p.id&&!input.defend&&!input.charging&&Math.hypot(input.x,input.z)>.18){
   const heading=Math.atan2(input.x,input.z),gap=Math.abs(Math.atan2(Math.sin(heading-p.yaw),Math.cos(heading-p.yaw)));

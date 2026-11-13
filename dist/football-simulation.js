@@ -3,7 +3,7 @@ import {goalkeeperState,planGoalkeeper,goalkeeperContact,goalkeeperProfile} from
 import {validControlMode,turnFootballer,cursorCandidate,tackleWindow,pressureTarget,sweptBallContact} from './football-assist.js';
 import {homeXI,awayXI} from './matchday-roster.js';
 import {footballTeam,opponentSquad,difficulties} from './football-teams.js';
-import {attackingShape,deliveryLabels,forwardSupportRun,movingAttackRuns,passingSupportRun,passOption,shotOption,shotPreparation,receivingPoint,shotKinds,passFlight,passSupportRun,supportPosition,possessionTeam} from './football-tactics.js';
+import {attackingShape,canSupportRunContinue,deliveryLabels,forwardSupportRun,movingAttackRuns,passingSupportRun,passOption,shotOption,shotPreparation,receivingPoint,shotKinds,passFlight,passSupportRun,supportPosition,possessionTeam} from './football-tactics.js';
 import {goalFrameCollision} from './goal-frame.js';
 import {footballFormations,squadDefinition} from './football-squads.js';
 import {createFootballRegulations} from './football-regulations.js';
@@ -102,8 +102,8 @@ export function createFootballSimulation({duration=180,seed=73417,controlMode='s
   release(player,vx,vz,vy);
   emit('clearance',player.team,player.name+'解围',player.id);
  }
- function pass(player,{direction=null,type='pass',power=.45}={},decision=null){
-  const b=state.ball,option=decision?.option??passOption(available(),player,b,{direction,type,power}),tactic=decision?.tactic;
+ function pass(player,{direction=null,type='pass',power=.45,targetId=null}={},decision=null){
+  const b=state.ball,option=decision?.option??passOption(available(),player,b,{direction,type,power,targetId}),tactic=decision?.tactic;
   if(!option){state.message='这个方向没有接应球员';return false;}
   const dx=option.x-b.x,dz=option.z-b.z,flight=passFlight(b,option,{type,lane:option.lane,player}),human=isHuman(player);
   const delivery=option.delivery,stroke=flight.lofted?'lofted':type==='through'&&!delivery?'through':'short';
@@ -111,14 +111,14 @@ export function createFootballSimulation({duration=180,seed=73417,controlMode='s
   release(player,flight.vx,flight.vz,flight.vy);
   controllers[player.team].autoReceive=human;
   const intent=direction||controllers[player.team].lastInput;
-  controllers[player.team].receiveIntent=human&&type==='pass'&&Math.hypot(intent.x,intent.z)>.18?{x:intent.x,z:intent.z,sprint:!!controllers[player.team].lastInput.sprint,passId:actionSerial}:null;
+  controllers[player.team].receiveIntent=human&&(type==='pass'||option.directed)&&Math.hypot(intent.x,intent.z)>.18?{x:intent.x,z:intent.z,sprint:!!intent.sprint,passId:actionSerial}:null;
   const diagonalRun=human&&type==='pass'&&direction?.sprint===true&&!option.player.keeper&&state.controlModes[player.team]!=='manual';
   const role=footballFormations[state.teamSheets[player.team].formation].roles[player.index];
   player.passRun=!practice&&!state.setPiece?passSupportRun(player,option,available(),role,diagonalRun,worldTime):null;
   b.targetId=option.player.id;b.receivePoint={x:option.x,z:option.z,until:worldTime+4,...(option.directed?{directed:true}:{})};
   player.yaw=face(dx,dz);state.stats[player.team].passes++;
   if(diagonalRun&&player.passRun)takePassControl(option.player,controllers[player.team].receiveIntent);
-  const label=diagonalRun&&player.passRun?' · 斜插接应':tactic==='switch'?' · 换边':tactic==='recycle'?' · 回传重组':'';
+  const label=diagonalRun&&player.passRun?' · 斜插接应':tactic==='switch'?' · 换边':tactic==='recycle'?' · 回传重组':tactic==='counter'?' · 反击':'';
   const kickLabel=deliveryLabels[delivery]??(flight.lofted?'挑传直塞':type==='through'?'直塞':'');
   const details={};
   if(practice)details.targetId=option.player.id;
@@ -205,17 +205,24 @@ export function createFootballSimulation({duration=180,seed=73417,controlMode='s
   const attackMode=mode??(!owner&&b.targetId?plan.mode:null);
   if(attackMode!==plan.mode){
    plan.mode=attackMode;plan.run=plan.support=null;plan.nextAt=plan.supportAt=0;
-   plan.routes=[];plan.routeAt=0;
+   plan.routes=[];plan.routeAt=0;plan.reviewAt=0;
   }
   if(attackMode){
+   const review=owner&&worldTime>=(plan.reviewAt??0);
    for(let i=plan.routes.length-1;i>=0;i--){
     const job=plan.routes[i];
-    if(!available(job)||job.kind!=='check'&&job.z*sign>shape.runLine+1.5)plan.routes.splice(i,1);
+    const player=review&&field.find(p=>p.id===job.id);
+    if(!available(job)||job.kind!=='check'&&job.z*sign>shape.runLine+1.5||
+       player&&worldTime>=(job.reviewAfter??0)&&!canSupportRunContinue(field,player,shape.anchor,job)){
+     plan.routes.splice(i,1);
+     plan.routeAt=Math.min(plan.routeAt,worldTime);
+    }
    }
+   if(review)plan.reviewAt=worldTime+.34;
    if(owner&&worldTime>=(plan.routeAt??0)&&plan.routes.length<2){
     const reserved=plan.routes.map(job=>job.id);
     const additions=movingAttackRuns(field,team,system,shape,sign,[...assigned,...reserved],attackMode,plan.lastRoutes,plan.routes);
-    for(const job of additions)plan.routes.push({...job,until:worldTime+(attackMode==='counter'?2.4:1.95)});
+    for(const job of additions)plan.routes.push({...job,reviewAfter:worldTime+.52,until:worldTime+(attackMode==='counter'?2.4:1.95)});
     if(additions.length)plan.lastRoutes=additions;
     plan.routeAt=worldTime+(additions.length?.55:.24);
    }
@@ -291,20 +298,21 @@ export function createFootballSimulation({duration=180,seed=73417,controlMode='s
    if(p.keeper){const plan=planGoalkeeper(p,b,owner,worldTime,state.difficulty,{openPlay:true});targetX=plan.x;targetZ=plan.z;speed=plan.speed;
     if(plan.commit){motion(p,'dive',goalkeeperProfile(state.difficulty).window+goalkeeperProfile(state.difficulty).recovery);p.motion.direction=plan.direction*attackSign(p.team);p.motion.height=plan.height;}
     if(b.ownerId===p.id)distributeFromGoal(p,field,sign);
-   }else if(!b.ownerId&&b.targetId===p.id){const target=receivingPoint(p,b);targetX=target.x;targetZ=target.z;speed=5.7;
+   }else if(!b.ownerId&&b.targetId===p.id){const target=receivingPoint(p,b);targetX=target.x;targetZ=target.z;speed=b.receivePoint?.directed?6.65:5.7;
    }else if(b.ownerId===p.id){
     let carry=p.cpuCarry;const decide=worldTime>=p.decisionAt;
     if(decide||!carry||carry.possession!==p.possessionSince||worldTime>=carry.until){
      const controller=controllers[p.team],recent=controller.lastCpuPass;
      const avoidId=recent?.to===p.id&&recent.stoppage===state.stoppageId&&worldTime-recent.at<3.15?recent.from:null;
      const possessionStyle=p.team==='away'&&(club.id==='barcelona'||club.id==='city'),shotRange=p.team==='away'&&state.difficulty==='casual'?17.5:19;
-     const plan=planCpuAttack(p,b,field,{sign,decide,avoidId,possessionStyle,shotRange});
+     const transition=worldTime-(controller.regainedAt??-Infinity)<3.05;
+     const plan=planCpuAttack(p,b,field,{sign,decide,avoidId,possessionStyle,shotRange,transition});
      carry=p.cpuCarry={...plan.carry,possession:p.possessionSince,until:worldTime+.22};
      if(decide){
       p.decisionAt=worldTime+(.72+random()*.53)*(p.team==='away'?tuning.reaction:1);
       const action=plan.action;
       if(action?.type==='shoot')shoot(p,{power:.47+random()*.24,direction:action.direction});
-      if(action?.type==='pass'&&pass(p,undefined,action))controller.lastCpuPass={from:p.id,to:action.option.player.id,at:worldTime,stoppage:state.stoppageId};
+      if(action?.type==='pass'&&pass(p,{type:action.stroke??'pass'},action))controller.lastCpuPass={from:p.id,to:action.option.player.id,at:worldTime,stoppage:state.stoppageId};
      }
     }
     targetX=carry.x;targetZ=carry.z;speed=carry.speed;p.defending=carry.shield&&b.ownerId===p.id;
@@ -418,7 +426,8 @@ export function createFootballSimulation({duration=180,seed=73417,controlMode='s
   const rebound=b.rebound;
   if(rebound&&clearRebound(p))return;
   setOwner(p,true);
-  p.decisionAt=worldTime+(rebound?.team===p.team?.27:rebound?.35:1.05);
+  const counter=controllers[p.team].regainedAt===worldTime;
+  p.decisionAt=worldTime+(rebound?.team===p.team?.27:rebound?.35:counter?.65:1.05);
  }
  function assistCursor(input,team='home'){
   const c=controllers[team],b=state.ball,p=controlled(team),mode=state.controlModes[team],next=cursorCandidate(available(),b,{exclude:p.id,team});state.previews[team].nextPlayerId=next?.id||null;if(team==='home')state.nextPlayerId=next?.id||null;
@@ -490,7 +499,7 @@ export function createFootballSimulation({duration=180,seed=73417,controlMode='s
     const opportunity=receivingOpportunity(team),receiver=opportunity?byId(opportunity.playerId):null,awaitReceiver=!!opportunity,target=receiver||p,gap=distance(target,b);
     if(!b.ownerId&&(awaitReceiver||gap<5&&!(p.id===claimBlockId&&worldTime<claimBlockUntil))){
      const window=awaitReceiver?Math.max(.45,opportunity.arrivalIn+.35):.45;
-     c.queuedAction={type,playerId:target.id,awaitReceiver:!!awaitReceiver,options:{...options,direction:options.direction||c.lastInput},until:worldTime+window};
+     c.queuedAction={type,playerId:target.id,awaitReceiver:!!awaitReceiver,options:{...options,targetId:null,direction:options.direction||c.lastInput},until:worldTime+window};
      state.message='已准备 '+target.name+' 接球后'+(type==='shoot'?'射门':'传球');preview(c.lastInput,team);return true;
     }
     state.message='先靠近足球；防守时按住逼抢';return false;

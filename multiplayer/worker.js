@@ -148,7 +148,15 @@ export class FootballRoom {
   if(!this.sim||this.sim.state.paused||!this.meta.started)return;
   if(packet.type==='action'&&['pass','through','shoot','switch','tackle','penalty-ready'].includes(packet.action)){
    if(now-(this.lastAction[team]||0)<70)return;this.lastAction[team]=now;const direction=safeOnlineInput(packet.direction),penaltyAim=packet.penaltyAim&&safePenaltyAim(packet.penaltyAim),eventCount=this.sim.state.eventCount;
-   const accepted=this.sim.action(packet.action,{direction,penaltyAim,power:Number.isFinite(packet.power)?Math.max(.15,Math.min(1,packet.power)):.5,kind:this.sim.state.shotKinds[team]},team);
+   const state=this.sim.state;
+   let targetId;
+   if(packet.action==='through'&&state.phase==='playing'&&!state.setPiece&&Math.hypot(direction.x,direction.z)>.18&&
+      typeof packet.fromId==='string'&&packet.fromId===state.controlledIds[team]&&packet.fromId===state.ball.ownerId&&
+      typeof packet.targetId==='string'&&packet.targetId!==packet.fromId){
+    const target=state.players.find(player=>player.id===packet.targetId&&player.team===team&&!player.dismissed&&!player.keeper&&!player.trainingInactive);
+    targetId=target?.id;
+   }
+   const accepted=this.sim.action(packet.action,{direction,penaltyAim,targetId,power:Number.isFinite(packet.power)?Math.max(.15,Math.min(1,packet.power)):.5,kind:state.shotKinds[team]},team);
    this.broadcast(false,!accepted&&this.sim.state.eventCount===eventCount);
   }
  }
