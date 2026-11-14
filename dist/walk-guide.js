@@ -54,7 +54,7 @@ export function buildWalkGuide(scene,geometry,{obstacles={},onChoose,onSelect,on
   let other=null;
   if(arrived){
    const [id,alternateGoal]=suggestions();other=walking?alternateGoal:null;
-   action='已到达 · '+tourGoals[goal];hint='靠近开放门、展品或座位即可互动。';subline=floorLabel(p.y,p);symbol='✓';
+   action='已到达 · '+(goal==='entrance'?destinationName(goal):tourGoals[goal]);hint='靠近开放门、展品或座位即可互动。';subline=floorLabel(p.y,p);symbol='✓';
    writeText(next,id?destinationName(id)+' →':'完成导览');
    writeHudProperty(next,'title',id?'步行前往'+destinationName(id):'完成当前步行导览');
    writeHudAttribute(next,'aria-label',next.title);

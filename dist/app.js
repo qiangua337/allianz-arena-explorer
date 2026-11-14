@@ -66,7 +66,7 @@ const frameBudget=buildFrameBudget(),gameDrawBudget=createFramePacer(),visitDraw
 const matchFrameRate=createMatchFrameRate({cap:matchFps,quality:qualityMode});let matchBudgetActive=false,matchSampling=false,pendingMatchScale,matchSampleTime=0,matchSampleFrames=0,matchSampleDraws=0,matchSampleWork=0,matchSampleGameWork=0;
 const walkFrameRate=createWalkFrameRate();
 const matchRafGaps=new Uint16Array(101),matchDrawGaps=new Uint16Array(101);let previousRaf=0,previousDraw=0;
-let building,lightBudget,interactions,serviceRooms,serviceDoorColliders,staticWalkCollision,matchday,setExplorationMatchMode,matchSnapshot=null,matchStarting=false,qualityScale=1,recoveryFrames=0;
+let building,lightBudget,interactions,serviceRooms,serviceDoorColliders,staticWalkCollision,walkGeometry,matchday,setExplorationMatchMode,matchSnapshot=null,matchStarting=false,qualityScale=1,recoveryFrames=0;
 let visualAssets,renderer,scene,camera,controls,stadium,world,interiors,walkGuide,sky,stars,dayLight,arenaFill,hemi,ambient;
 let active='exterior',mode='orbit',night=false,transition=null,tourOn=false,tourElapsed=0,tourIndex=0,toastTimer;
 let yaw=0,pitch=0,dragging=false,lastPointer=null,walkReady=false,clock={time:performance.now(),getDelta(){const now=performance.now(),d=(now-this.time)/1000;this.time=now;return d;}},elapsed=0,frames=0,lastPerf=0,frameMs=0;
@@ -78,7 +78,6 @@ const walker={position:v(...places.exterior.walk),yaw:0,pitch:0,visited:false};
 let walkStorage;
 try{walkStorage=window.sessionStorage;}catch{}
 const walkCheckpoint=createWalkCheckpoint(walkStorage);
-const walkGeometry=()=>({tiers:stadium.tiers,rooms:roomSpecs});
 const navigationPosition=()=>mode==='walk'?walkPosition.set(camera.position.x,(walkFeet??camera.position.y-desiredEye)+desiredEye,camera.position.z):walker.position;
 const toast=text=>{clearTimeout(toastTimer);$('toast').textContent=text;$('toast').classList.add('visible');toastTimer=setTimeout(()=>$('toast').classList.remove('visible'),3500);};
 
@@ -95,13 +94,13 @@ export async function startArena({hub, initial, nightAtStart}){
  arenaFill=new THREE.DirectionalLight(0xdce7f5,.25);arenaFill.position.set(130,110,-150);scene.add(arenaFill);buildSky();
  $('load-status').textContent='正在加载材质与环境光…';const assetResults=await Promise.all([loadBrandAssets(),loadVisualAssets(renderer,{progress:(n,total)=>{$('load-status').textContent='正在加载材质与环境光 '+n+' / '+total;}})]);visualAssets=assetResults[1];if(visualAssets.environments.indoor)setMaterialEnvironment(visualAssets.environments.indoor);else prepareMaterialLighting(renderer);document.body.dataset.surfaceResolution=visualAssets.resolution;document.body.dataset.assetFailures=visualAssets.failed.length;
  world=buildWorld(scene);stadium=buildStadium(scene);interiors=buildInteriors(scene,stadium.circulation);
- building=buildWalkBuilding(scene);serviceRooms=buildServiceRooms(scene);walkGuide=buildWalkGuide(scene,walkGeometry(),{obstacles:{world:world.colliders,building:building.colliders,interiors:interiors.colliders,circulation:stadium.circulation.colliders,service:serviceRooms.walls},onChoose:()=>setNavOpen(true),onSelect:id=>{stopTour();goPlace(id,false);},onWalk:followDestination,onTeleport:teleportToDestination,onContinue:advanceWalkingTourFromGuide,onOrient:faceWalkWaypoint,nextDestination:upcomingWalkDestination});interactions=buildInteractions(scene,interiors,{toast,serviceRooms,navigate:id=>goPlace(id),setEye:y=>desiredEye=y,seats:stadium.seatPositions,onSit:seatIntoView,onStand:standFromSeat,onFocusSeat:focusArenaSeat,showInfo:showInteractiveInfo});lightBudget=buildLightBudget(scene);matchday=buildMatchdayExperience({scene,stadium,reducedMotion:mediaReduced,mobile:innerWidth<=1024,toast,onBegin:beginMatchday,onPose:applyEntrancePose,onFinish:finishMatchdayEntrance,onVisitBench:visitMatchdayBench,onGameCamera:applyGameCamera,onGameView:updateGameView,onReadGameInput:()=>gameInput(0),getGameRenderCamera:()=>qualityMode==='high'?null:camera,onExit:restoreFromMatchday,onPrepare:root=>{applySurfaceQuality(root,qualityMode);return renderer.compileAsync(root,camera,scene);},onPause:value=>{clearWalkInput();setWalkReady(!value);}});
+ walkGeometry={tiers:stadium.tiers,rooms:roomSpecs};building=buildWalkBuilding(scene);serviceRooms=buildServiceRooms(scene);walkGuide=buildWalkGuide(scene,walkGeometry,{obstacles:{world:world.colliders,building:building.colliders,interiors:interiors.colliders,circulation:stadium.circulation.colliders,service:serviceRooms.walls},onChoose:()=>setNavOpen(true),onSelect:id=>{stopTour();goPlace(id,false);},onWalk:followDestination,onTeleport:teleportToDestination,onContinue:advanceWalkingTourFromGuide,onOrient:faceWalkWaypoint,nextDestination:upcomingWalkDestination});interactions=buildInteractions(scene,interiors,{toast,serviceRooms,navigate:id=>goPlace(id),setEye:y=>desiredEye=y,seats:stadium.seatPositions,onSit:seatIntoView,onStand:standFromSeat,onFocusSeat:focusArenaSeat,showInfo:showInteractiveInfo});lightBudget=buildLightBudget(scene);matchday=buildMatchdayExperience({scene,stadium,reducedMotion:mediaReduced,mobile:innerWidth<=1024,toast,onBegin:beginMatchday,onPose:applyEntrancePose,onFinish:finishMatchdayEntrance,onVisitBench:visitMatchdayBench,onGameCamera:applyGameCamera,onGameView:updateGameView,onReadGameInput:()=>gameInput(0),getGameRenderCamera:()=>qualityMode==='high'?null:camera,onExit:restoreFromMatchday,onPrepare:root=>{applySurfaceQuality(root,qualityMode);return renderer.compileAsync(root,camera,scene);},onPause:value=>{clearWalkInput();setWalkReady(!value);}});
  matchday.setQuality(qualityMode,qualityScale);visualAssets.registerOutdoor(world.group,stadium.root);applyArchitecturalUV(stadium.root);applyArchitecturalUV(stadium.circulation.root);applyArchitecturalUV(interiors.root);applyArchitecturalUV(building.root);applyArchitecturalUV(world.group);installInteriorShading(interiors.root);
  staticWalkCollision=indexWalkWalls([...serviceRooms.walls,...building.colliders,...interiors.colliders,...world.colliders,...stadium.circulation.colliders]);
  serviceDoorColliders=serviceRooms.colliders.filter(collider=>collider.dynamicDoor);
  spatializeArchitecture(stadium.circulation.root);spatializeArchitecture(interiors.rooms.concourse);
  setExplorationMatchMode=suspendExplorationDuringMatch([world.group,building.root,interiors.root,serviceRooms.root,stadium.circulation.root]);
- freezeArchitecture(world.group,[world.rotor]);freezeArchitecture(stadium.root,[stadium.matchBall]);freezeArchitecture(stadium.circulation.root);freezeArchitecture(interiors.root);freezeArchitecture(building.root);destinationMenu=buildDestinationMenu({onDismiss:()=>setNavOpen(false)});buildHotspots();bindUI();setNavOpen(false);document.body.dataset.mode=mode;setDayNight(nightAtStart);applySurfaceQuality(scene,qualityMode);clock.time=performance.now();document.body.dataset.version='10.7.2';document.body.dataset.seats=stadium.seatCount;document.body.dataset.panels=stadium.panelCount;
+ freezeArchitecture(world.group,[world.rotor]);freezeArchitecture(stadium.root,[stadium.matchBall]);freezeArchitecture(stadium.circulation.root);freezeArchitecture(interiors.root);freezeArchitecture(building.root);destinationMenu=buildDestinationMenu({onDismiss:()=>setNavOpen(false)});buildHotspots();bindUI();setNavOpen(false);document.body.dataset.mode=mode;setDayNight(nightAtStart);applySurfaceQuality(scene,qualityMode);clock.time=performance.now();document.body.dataset.version='10.7.3';document.body.dataset.seats=stadium.seatCount;document.body.dataset.panels=stadium.panelCount;
  const requestedPlace=initial.get('place');
  if(initial.get('view')==='walk'){
   const place=requestedPlace&&(places[requestedPlace]||tourGoals[requestedPlace])?requestedPlace:'arcade';
@@ -123,7 +122,7 @@ function restoreWalkCheckpoint(initial,place){
  if(initial.has('room')||initial.has('experience')||performance.getEntriesByType('navigation')[0]?.type!=='reload')return null;
  const saved=walkCheckpoint.load(place);
  if(!saved)return null;
- const feet=safeCheckpointFloor(saved,walkGeometry(),blocked);
+ const feet=safeCheckpointFloor(saved,walkGeometry,blocked);
  if(feet===null)return null;
  walker.position.set(saved.x,feet+EYE_HEIGHT,saved.z);
  Object.assign(walker,{yaw:saved.yaw,pitch:saved.pitch,visited:true});
@@ -292,7 +291,7 @@ function faceWalkWaypoint(target){
 }
 function teleportToDestination(id=walkGuide.getGoal()){
  if(matchday?.playing)return;
- const arrival=destinationArrival(id,walkGeometry());stopTour();if(mode!=='walk')setMode('walk',{place:arrival.goal});
+ const arrival=destinationArrival(id,walkGeometry);stopTour();if(mode!=='walk')setMode('walk',{place:arrival.goal});
  clearWalkInput();interactions.stand();desiredEye=EYE_HEIGHT;transition=null;camera.position.fromArray(arrival.position);walkFeet=arrival.feet;camera.lookAt(v(...arrival.look));syncAngles();
  goPlace(arrival.goal,false);walkGuide.arrive(arrival.goal,camera.position);walker.position.copy(camera.position);walker.yaw=yaw;walker.pitch=pitch;walker.visited=true;
  beginWalk();toast('已传送到：'+tourGoals[arrival.goal]);
@@ -307,10 +306,11 @@ function turn(dx,dy,sensitivity=.003){yaw-=dx*sensitivity;pitch=THREE.MathUtils.
 function keyCode(event){const aliases={w:'KeyW',a:'KeyA',s:'KeyS',d:'KeyD',q:'KeyQ',e:'KeyE',p:'KeyP',n:'KeyN',h:'KeyH',f:'KeyF',t:'KeyT',j:'KeyJ',k:'KeyK',l:'KeyL',c:'KeyC',g:'KeyG',v:'KeyV',r:'KeyR',x:'KeyX',z:'KeyZ',' ':'Space',space:'Space',up:'ArrowUp',down:'ArrowDown',left:'ArrowLeft',right:'ArrowRight',escape:'Escape',esc:'Escape',shift:'ShiftLeft'};return event.code&&event.code!=='Unidentified'?event.code:(aliases[(event.key||'').toLowerCase()]||event.key);}
 
 function inside(x,z,spec,margin=0){return x>spec.x-spec.w/2-margin&&x<spec.x+spec.w/2+margin&&z>spec.z-spec.d/2-margin&&z<spec.z+spec.d/2+margin;}
-function floorAt(x,z,feetY=walkFeet??camera.position.y-desiredEye){return floorHeight(x,z,feetY,{tiers:stadium.tiers,rooms:roomSpecs});}
+function floorAt(x,z,feetY=walkFeet??camera.position.y-desiredEye){return floorHeight(x,z,feetY,walkGeometry);}
 function blocked(x,z,y){
  return hitsWall(x,z,y,interactions.colliders)||hitsWall(x,z,y,serviceDoorColliders)||staticWalkCollision(x,z,y);
 }
+let supportedX,supportedZ,supportedFeet;
 
 function moveWalk(dt){
  if(mode!=='walk'||!walkReady||!$('explore').hidden||document.querySelector('dialog[open]'))return;
@@ -320,9 +320,16 @@ function moveWalk(dt){
  smoothWalkInput(smoothInput,s,f,dt);forward.set(-Math.sin(yaw),0,-Math.cos(yaw));right.set(Math.cos(yaw),0,-Math.sin(yaw));step.set(0,0,0).addScaledVector(forward,smoothInput.z).addScaledVector(right,smoothInput.x);
  if(step.lengthSq()){interactions.stand();
   const duration=Math.min(dt,.25),speed=touchSprint||keys.has('ShiftLeft')||keys.has('ShiftRight')?10:4.5;step.normalize().multiplyScalar(speed*duration*Math.min(1,Math.hypot(smoothInput.x,smoothInput.z)));
-  walkFeet=advanceWalker(camera.position,walkFeet??camera.position.y-desiredEye,step.x,step.z,walkGeometry(),blocked);
+  walkFeet=advanceWalker(camera.position,walkFeet??camera.position.y-desiredEye,step.x,step.z,walkGeometry,blocked);
  }
- walkFeet=floorAt(camera.position.x,camera.position.z);const y=walkFeet+desiredEye;camera.position.y=THREE.MathUtils.lerp(camera.position.y,y,1-Math.exp(-Math.min(dt,.25)*15));camera.rotation.set(pitch,yaw,0,'YXZ');
+ const {x,z}=camera.position;
+ if(x!==supportedX||z!==supportedZ||walkFeet!==supportedFeet||walkFeet===null){
+  const feet=floorAt(x,z);
+  // A planted foot has the same support while the visitor looks around.
+  supportedX=x;supportedZ=z;supportedFeet=feet===walkFeet?feet:undefined;
+  walkFeet=feet;
+ }
+ const y=walkFeet+desiredEye;camera.position.y=THREE.MathUtils.lerp(camera.position.y,y,1-Math.exp(-Math.min(dt,.25)*15));camera.rotation.set(pitch,yaw,0,'YXZ');
 }
 
 const hotspotDefs=[{name:'探索球场内部',id:'stands',p:[0,52,0],outside:true},{name:'南广场',id:'esplanade',p:[0,2,190],outside:true},{name:'草坪与看台',id:'pitch',p:[0,2,0],inside:true},{name:'球员通道',id:'tunnel',p:[-39,3,0],inside:true},{name:'主队更衣室',id:'homeRoom',p:[-78,3,-2],inside:true}];

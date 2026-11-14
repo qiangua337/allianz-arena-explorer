@@ -1,7 +1,7 @@
 import {architecturalMaterials} from './surface-finishes.js';
 import {positionStateChanged} from './position-state.js';
 import {THREE,v,mat,mesh,box,beam,sign,Batches,compactGroup,floorTexture,repeatTex} from './kit.js';
-import {core,coreFlights,coreLevels,platforms,bridges,upperTierThreshold} from './building-layout.js';
+import {core,coreFlights,coreLevels,platforms,bridges,upperTierThreshold,upperGalleryRooms} from './building-layout.js';
 import {orientedCollider} from './access-layout.js';
 import {rectilinearBoundary} from './player-area-layout.js';
 export function buildWalkBuilding(scene){
@@ -33,7 +33,7 @@ export function buildWalkBuilding(scene){
  // segments are the exposed boundary of the floor union, open at both ends.
  for(const[y,rects,exit]of[
   [23.6,[{minX:100.25,maxX:102.75,minZ:-31.35,maxZ:-12},{minX:82.55,maxX:102.75,minZ:-31.35,maxZ:-28.85}],e=>e.axis==='x'&&Math.abs(e.fixed-82.55)<.01],
-  [40,[{minX:100.25,maxX:102.75,minZ:-16.75,maxZ:-12},{minX:100.25,maxX:107.25,minZ:-16.75,maxZ:-14.25},{minX:104.75,maxX:107.25,minZ:-37.75,maxZ:-14.25},{minX:102.75,maxX:107.25,minZ:-37.75,maxZ:-35.25}],e=>e.axis==='x'&&Math.abs(e.fixed-102.75)<.01&&e.a<-35]
+  [40,Object.values(upperGalleryRooms),e=>e.axis==='x'&&Math.abs(e.fixed-upperGalleryRooms.bridge.minX)<.01&&e.a<upperGalleryRooms.bridge.maxZ]
  ]){
   for(const r of rects)b.add(r.maxX-r.minX,.16,r.maxZ-r.minZ,(r.minX+r.maxX)/2,y+3.22,(r.minZ+r.maxZ)/2,concrete);
   for(const edge of rectilinearBoundary(rects)){

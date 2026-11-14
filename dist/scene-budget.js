@@ -1,6 +1,6 @@
 import {THREE,compactGroup} from './kit.js';
 import {tunnelHasBowlView,enclosedPlayerPosition} from './player-area-layout.js';
-import {core,coreLevels} from './building-layout.js';
+import {core,coreLevels,upperGalleryRooms,upperTierThreshold} from './building-layout.js';
 
 // Keep hardware instances and independently controlled subtrees intact while
 // combining small static meshes that otherwise each cost a draw submission.
@@ -39,19 +39,59 @@ export function bowlIsVisible(position,mode){
 }
 export function buildStairwellOcclusion(){
  const frustum=new THREE.Frustum(),projection=new THREE.Matrix4();
- const portal=(min,max)=>new THREE.Box3(new THREE.Vector3(...min),new THREE.Vector3(...max)).expandByScalar(.28);
- // Match the full-width openings in the front wall and the first three
- // western openings. Their slight padding keeps edge views conservative.
- const openings=coreLevels.flatMap((floor,i)=>[
-  portal([core.minX-.2,floor,-13.35],[core.maxX+.2,floor+3.25,-13.15]),
-  ...(i<3?[portal([core.minX-.22,floor,-11.95],[core.minX-.02,floor+3.25,-9.05])]:[]),
+ const portal=(min,max)=>new THREE.Box3(new THREE.Vector3(...min),new THREE.Vector3(...max)).expandByScalar(.16);
+ const {front,cross,aisle,bridge}=upperGalleryRooms,level=upperTierThreshold.top,height=3.25,frontZ=-13.25;
+ const acrossX=(x,z0,z1)=>portal([x,level,z0],[x,level+height,z1]);
+ const acrossZ=(z,x0,x1)=>portal([x0,level,z],[x1,level+height,z]);
+ const galleryPortals=[
+  acrossZ(frontZ,front.minX,front.maxX),
+  acrossX(front.maxX,cross.minZ,cross.maxZ),
+  acrossZ(cross.minZ,aisle.minX,aisle.maxX),
+  acrossX(aisle.minX,bridge.minZ,bridge.maxZ),
+  acrossX(bridge.minX,bridge.minZ,bridge.maxZ)
+ ];
+ const openings=coreLevels.slice(0,-1).flatMap((floor,i)=>[
+  portal([i===2?front.minX:core.minX-.2,floor,frontZ],[i===2?front.maxX:core.maxX+.2,floor+height,frontZ]),
+  portal([core.minX-.12,floor,-11.95],[core.minX-.12,floor+height,-9.05])
  ]);
+ const corePaths=openings.map(opening=>[opening]).concat([galleryPortals]);
+ const galleryPaths=galleryPortals.slice(1).map((_,i)=>{
+  const towardCore=galleryPortals.slice(0,i+1).reverse();
+  return [...openings.map(opening=>[...towardCore,opening]),galleryPortals.slice(i+1)];
+ });
+ const hasLineOfSight=(path,position)=>{
+  const {x,z}=position,first=path[0],dx=(first.min.x+first.max.x)*.5-x,dz=(first.min.z+first.max.z)*.5-z;
+  let lo=-Infinity,hi=Infinity;
+  // The frustum must be able to see every doorway along the corridor, and
+  // those doorways must overlap in direction for an unbroken sightline.
+  for(const opening of path){
+   const {min,max}=opening;
+   if(x>=min.x&&x<=max.x&&z>=min.z&&z<=max.z)continue;
+   if(!frustum.intersectsBox(opening))return false;
+   if(path.length===1)continue;
+   const a=min.x-x,b=max.x-x,c=min.z-z,d=max.z-z;
+   const ac=a*dx+c*dz,ad=a*dx+d*dz,bc=b*dx+c*dz,bd=b*dx+d*dz;
+   if(Math.min(ac,ad,bc,bd)<=0)continue;
+   const l=(a*dz-c*dx)/ac,m=(a*dz-d*dx)/ad,n=(b*dz-c*dx)/bc,o=(b*dz-d*dx)/bd;
+   lo=Math.max(lo,Math.min(l,m,n,o));hi=Math.min(hi,Math.max(l,m,n,o));
+   if(lo>hi)return false;
+  }
+  return true;
+ };
  return camera=>{
   const {x,y,z}=camera.position;
-  if(x<=core.minX+.23||x>=core.maxX-.23||z<=-13||z>=9.8||y<=-1.5||y>=43.12)return false;
+  let paths;
+  if(x>core.minX+.23&&x<core.maxX-.23&&z>frontZ&&z<9.8&&y>-1.5&&y<43.12)paths=corePaths;
+  else if(y>level+.15&&y<level+3.05&&z<frontZ){
+   if(x>front.minX&&x<front.maxX&&z>front.minZ)paths=galleryPaths[0];
+   else if(x>=front.maxX&&x<cross.maxX&&z>cross.minZ&&z<cross.maxZ)paths=galleryPaths[1];
+   else if(x>aisle.minX&&x<aisle.maxX&&z>aisle.minZ&&z<=cross.minZ)paths=galleryPaths[2];
+   else if(x>bridge.minX&&x<=aisle.minX&&z>bridge.minZ&&z<bridge.maxZ)paths=galleryPaths[3];
+  }
+  if(!paths)return false;
   camera.updateMatrixWorld();
   frustum.setFromProjectionMatrix(projection.multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse));
-  return !openings.some(opening=>frustum.intersectsBox(opening));
+  return !paths.some(path=>hasLineOfSight(path,camera.position));
  };
 }
 export function buildFrameBudget(){

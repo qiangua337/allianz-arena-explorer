@@ -1,16 +1,26 @@
 import {THREE,v,mat,mesh,box,beam,cylinder,addCrest} from './kit.js';
 import {cushionGeometry,pipingGeometry} from './upholstery.js';
-const backMaterials=new WeakMap();let cameraMaterials,backGeometry;
+const backMaterials=new WeakMap();let cameraMaterials,backGeometry,compactBackGeometry;
 
 // Human-scale interpretations from venue photos. Not manufacturer CAD.
-export function bucketSeatBackGeometry(){
- const sections=[[.12,.24],[.25,.255],[.52,.285],[.68,.27],[.79,.21],[.97,.18],[1.02,.15]],positions=[],indices=[],segments=12;
+export function bucketSeatBackGeometry(segments=12){
+ const sections=[[.12,.24],[.25,.255],[.52,.285],[.68,.27],[.79,.21],[.97,.18],[1.02,.15]],positions=[],indices=[];
  for(const[y,half]of sections)for(let j=0;j<=segments;j++){const x=(j/segments*2-1)*half,z=-.22-.09*y+.10*(x/half)**2;positions.push(x,y,z);}
  for(let i=0;i<sections.length-1;i++)for(let j=0;j<segments;j++){const a=i*(segments+1)+j,b=a+segments+1;indices.push(a,a+1,b,a+1,b+1,b);}const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));g.setIndex(indices);g.computeVertexNormals();return g;
 }
-export function buildBucketSeat(parent,{x=0,y=0,z=0,yaw=0,red,metal,dark,crest=true}){
+export function buildBucketSeat(parent,{x=0,y=0,z=0,yaw=0,red,metal,dark,crest=true,compact=false}){
  const g=new THREE.Group();g.name='Contoured dugout seat';g.position.set(x,y,z);g.rotation.y=yaw;parent.add(g);
- let leather=backMaterials.get(red);if(!leather){leather=red.clone();leather.side=THREE.DoubleSide;backMaterials.set(red,leather);}backGeometry||=bucketSeatBackGeometry();mesh(backGeometry,leather,g);mesh(new THREE.PlaneGeometry(.22,.12),leather,g,0,.91,-.29);
+ let leather=backMaterials.get(red);if(!leather){leather=red.clone();leather.side=THREE.DoubleSide;backMaterials.set(red,leather);}
+ if(compact){
+  compactBackGeometry||=bucketSeatBackGeometry(4);mesh(compactBackGeometry,leather,g);
+  box(g,.53,.105,.55,0,.10,0,red);box(g,.48,.08,.48,0,-.025,-.01,dark);
+  for(const side of[-1,1]){
+   box(g,.065,.075,.36,side*.34,.30,.02,dark);
+   box(g,.045,.32,.045,side*.19,-.14,-.14,metal);
+  }
+  return g;
+ }
+ backGeometry||=bucketSeatBackGeometry();mesh(backGeometry,leather,g);mesh(new THREE.PlaneGeometry(.22,.12),leather,g,0,.91,-.29);
  const pan=mesh(cushionGeometry(.56,.58,.11),red,g,0,.10,0);pan.rotation.x=-Math.PI/2;mesh(pipingGeometry(.56,.58,.11),dark,pan);
  const insert=mesh(cushionGeometry(.34,.55,.07),red,g,0,.47,-.22);insert.rotation.x=-.1;mesh(pipingGeometry(.34,.55,.07),dark,insert);
  for(const side of[-1,1]){const bolster=mesh(cushionGeometry(.075,.62,.12),red,g,side*.25,.45,-.19);bolster.rotation.z=-side*.16;const arm=mesh(cushionGeometry(.065,.36,.08),dark,g,side*.34,.30,.02);arm.rotation.x=-Math.PI/2;beam(g,v(side*.29,.0,-.17),v(side*.34,.28,-.10),.015,metal,6);}

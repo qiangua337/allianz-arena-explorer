@@ -57,10 +57,12 @@ test('phone stairwell occlusion restores the full stadium at an opening or immed
   camera.position.set(100,29.8,-1.2);
   face(100,30.1,2);
   assert.equal(stadium.bowl.visible,false);
+  assert.equal(stadium.circulation.root.visible,false,'paving and lower access flights are behind the stairwell walls');
   assert.equal(lining.visible,false);
   assert.ok(upper.every(mesh=>!mesh.visible));
   face(101.5,25.3,-13.25);
   assert.equal(stadium.bowl.visible,true,'turning in place restores portal views');
+  assert.equal(stadium.circulation.root.visible,true);
   assert.equal(lining.visible,true);
   assert.ok(upper.every(mesh=>mesh.visible));
   face(100,30.1,2,'walk',true);
@@ -69,7 +71,17 @@ test('phone stairwell occlusion restores the full stadium at an opening or immed
   assert.equal(stadium.bowl.visible,true);
   face(100,30.1,2,'walk',false,true);
   assert.equal(stadium.bowl.visible,true);
-  camera.position.set(106,41.7,-36.5);face(0,15,0);
+  camera.position.set(106,41.7,-25);face(106,41.7,-37.6);
+  assert.equal(stadium.bowl.visible,false,'the first corridor cannot see around the far corner');
+  assert.equal(stadium.circulation.root.visible,false);
+  camera.position.set(103.3,41.7,-36.5);face(90,38,-36.5);
+  assert.equal(stadium.bowl.visible,true,'the open seating entrance is visible before crossing it');
+  assert.equal(stadium.circulation.root.visible,true);
+  face(90,38,-32);
+  assert.equal(stadium.bowl.visible,true,'a grazing view keeps the padded opening visible');
+  face(105,41.7,-36.5);
+  assert.equal(stadium.bowl.visible,false,'turning to return hides the exterior again');
+  camera.position.set(101,40.2,-36.5);face(0,15,0);
   assert.equal(stadium.bowl.visible,true,'the upper stands panorama remains visible');
  }finally{if(width===undefined)delete globalThis.innerWidth;else globalThis.innerWidth=width;}
 });

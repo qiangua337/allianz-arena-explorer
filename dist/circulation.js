@@ -55,7 +55,9 @@ function architecturalTexture(type){
 }
 
 export function accessRingGeometry(a,b,aa,bb,y,holes=true){
- const points=[],uv=[],segments=384,bands=16;
+ // A flat ring uses linear position and metre UVs between its two edges.
+ // Keep interior bands only on the soffit where they let us cut stair holes.
+ const points=[],uv=[],segments=384,bands=holes?16:1;
  for(let r=0;r<bands;r++)for(let i=0;i<segments;i++){
   const t=i/segments*TAU,u=(i+1)/segments*TAU,f=r/bands,ff=(r+1)/bands;
   const p=perimeterPoint(a+(aa-a)*f,b+(bb-b)*f,t),q=perimeterPoint(a+(aa-a)*ff,b+(bb-b)*ff,t),s=perimeterPoint(a+(aa-a)*ff,b+(bb-b)*ff,u),v0=perimeterPoint(a+(aa-a)*f,b+(bb-b)*f,u);
@@ -343,7 +345,7 @@ export function buildCirculation(parent){
  function update(position,privateEnclosed=false){
   if(!visibilityChanged(position,lightingNight))return;
   const nearby=position.y<9&&((Math.abs(position.x)/122)**2.8+(Math.abs(position.z)/140)**2.8<1.2);
-  root.visible=true;for(const light of lamps)light.visible=lightingNight&&nearby&&light.position.distanceTo(position)<32;
+  for(const light of lamps)light.visible=lightingNight&&nearby&&light.position.distanceTo(position)<32;
  }
  return{root,roof,colliders,decorateConcourse,update,night(on){lightingNight=on;glow.color.set(on?0xffe0ad:0xfff3dd);lamps.forEach(l=>l.intensity=on?68:28);},setRoof(on){roof.visible=on;},stats:{entranceBays:66,accessStairs:8,sharedSignTextures:1}};
 }

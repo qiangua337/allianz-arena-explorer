@@ -137,10 +137,16 @@ export function buildStadium(scene){
  for(const side of[-1,1])for(let j=0;j<8;j++){const[label,color]=adDefs[j%6],x=-33+j*9.45;if(side>0&&Math.abs(x-visitorPassage.x)<6)continue;const ad=sign(closeLabels,label,9.2,.95,x,.6,side*59.7,{bg:'#'+color.toString(16).padStart(6,'0'),fg:label==='Audi'?'#202632':'#ffffff',font:100});ad.rotation.y=side>0?Math.PI:0;}
  const {surface:pitchSurface,ball:matchBall,feedback}=buildPitch(bowl,batch,{white,dark,red,steel});
  // Double bank of dugouts with individual seats and transparent shelters.
+ const dugouts=[];
  for(const z0 of[-18,18]){
-  const g=new THREE.Group();g.position.set(-38.1,0,z0);bowl.add(g);const gb=new Batches(g);gb.add(3.2,.04,17,0,.02,0,dark);gb.add(1.6,.45,17,-.8,.265,0,dark);
-  for(let row=0;row<2;row++)for(let j=0;j<12;j++)buildBucketSeat(g,{x:.65-row*1.15,y:.4+row*.45,z:-7.1+j*1.28,yaw:Math.PI/2,red,metal:steel,dark});gb.flush();
+  const g=new THREE.Group();g.name='Pitchside dugout shelter';g.position.set(-38.1,0,z0);bowl.add(g);const gb=new Batches(g);gb.add(3.2,.04,17,0,.02,0,dark);gb.add(1.6,.45,17,-.8,.265,0,dark);gb.flush();
   const glass=mat(0xa5c6d9,{transparent:true,opacity:.21,metalness:.2,roughness:.2,side:THREE.DoubleSide,depthWrite:false});box(g,.08,2.5,17,-1.6,1.55,0,glass);box(g,3.3,.08,17,0,2.8,0,glass);for(let j=0;j<7;j++){const z=-8.5+j*17/6;beam(g,v(-1.65,.2,z),v(-1.65,2.8,z),.035,steel);beam(g,v(-1.65,2.8,z),v(1.65,2.8,z),.035,steel);}const a=sign(g,'FC BAYERN MÜNCHEN',15,.36,-1.71,2.65,0,{font:65,h:128});a.rotation.y=-Math.PI/2;compactGroup(g);
+  const detailed=new THREE.Group(),distant=new THREE.Group();detailed.name='Dugout upholstery and fittings';distant.name='Dugout seats at a distance';g.add(detailed,distant);distant.visible=false;
+  for(let row=0;row<2;row++)for(let j=0;j<12;j++){
+   const seat={x:.65-row*1.15,y:.4+row*.45,z:-7.1+j*1.28,yaw:Math.PI/2,red,metal:steel,dark};
+   buildBucketSeat(detailed,seat);buildBucketSeat(distant,{...seat,compact:true});
+  }
+  compactGroup(detailed);compactGroup(distant);dugouts.push({position:g.position,detailed,distant});
  }
  batch.flush({sectors:12});compactGroup(closeLabels);const pitchside=buildPitchsideDetails(bowl);const bowlLighting=buildBowlLighting(bowl),visibilityChanged=positionStateChanged(),stairwellOccluded=buildStairwellOcclusion();
  return {root,roof,circulation,bowl,matchBall,updateMatchEffects:feedback.update,resetMatchEffects:feedback.reset,get detailSeatCount(){return nearSeats.count;},setMatchday:screens.setMatchday,setMatchScore:screens.setMatchScore,seatCount:seats.length,seatPositions:seats,panelCount,tiers,
@@ -149,14 +155,28 @@ export function buildStadium(scene){
   const small=width<=760,compactWalk=small&&walking&&!high&&!low&&!playing;
   const hiddenByStairwell=width<=1024&&walking&&!high&&!playing&&stairwellOccluded(camera);
   const state=(walking?1:0)|(high?2:0)|(low?4:0)|(playing?8:0)|(small?16:0)|(filled?32:0)|(hiddenByStairwell?64:0);
+  const showArcade=!hiddenByStairwell||position.y<=5;
+  if(!playing&&circulation.root.visible!==showArcade)circulation.root.visible=showArcade;
   if(!visibilityChanged(position,state))return;
+  if(hiddenByStairwell){
+   if(roofLining.visible){
+    if(bowl.visible)nearSeats.update(position,false);
+    bowl.visible=roofDetails.visible=roofLining.visible=false;
+    for(const shell of shellMeshes)shell.visible=false;
+   }
+   return;
+  }
   const enclosedPlayer=enclosedPlayerPosition(position);
   pitchSurface.update(camera,high,low,small);pitchside.update(position,low);
-  roofLining.visible=!hiddenByStairwell;
-  for(const shell of shellMeshes)shell.visible=!hiddenByStairwell&&!enclosedPlayer&&(shell.userData.shellSection===1||facadeSectorVisible(position,shell.userData.sectorCenter));
-  bowl.visible=!hiddenByStairwell&&bowlIsVisible(position,mode);
-  nearSeats.update(position,!playing&&bowl.visible&&(!low||walking),low?32:high?384:small?128:192);
-  roofDetails.visible=!hiddenByStairwell&&(bowl.visible||position.y>30);closeLabels.visible=position.length()<180;
+  roofLining.visible=true;
+  for(const shell of shellMeshes)shell.visible=!enclosedPlayer&&(shell.userData.shellSection===1||facadeSectorVisible(position,shell.userData.sectorCenter));
+  bowl.visible=bowlIsVisible(position,mode);
+  nearSeats.update(position,!playing&&bowl.visible&&(!low||walking),low?32:high?384:small?128:192,small&&walking&&!high);
+  roofDetails.visible=bowl.visible||position.y>30;closeLabels.visible=position.length()<180;
+  for(const {position:location,detailed,distant} of dugouts){
+   const compact=compactWalk&&position.distanceToSquared(location)>42**2;
+   detailed.visible=!compact;distant.visible=compact;
+  }
   const tunnel=position.x>-70&&position.x<-41&&Math.abs(position.z)<3.5&&position.y<3.5;
   for(const {inst,emptyCount,totalCount} of seatInstances){
    inst.count=filled&&!high?emptyCount:totalCount;

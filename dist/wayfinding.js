@@ -28,8 +28,14 @@ export function movementInstruction(position,yaw,target,next){
  else if(target.id==='upperThreshold'){const entering=next?.id==='upperStands';action=entering?'进入上层看台':'返回上层连廊';hint=entering?'穿过门口，沿台阶进入座席过道。':'沿台阶上行，从门口回到连廊。';}
  else if(target.id==='upperStands'&&position.y-target.y>1){action='沿台阶进入上层看台';hint='走到台阶后的座席过道。';}
  else if(target.id.includes('Bridge'))hint='沿带扶手的连廊通行，到转角后继续跟随地线。';
+ else if(target.id==='coreFront'&&next?.id==='coreApproach'){action='走出楼梯间';hint='穿过开放门洞，在入口环廊继续跟随地线。';}
+ else if(target.id==='coreApproach'&&/^lower\d+$/.test(next?.id??'')){action='返回入口环廊';hint='转入环廊，沿地线前往接待大厅。';}
+ else if(target.id.startsWith('landing')&&next?.level==='core'){action='前往楼梯平台';hint='在平台转弯，继续沿下一段楼梯走。';}
  else if(target.id.startsWith('core'))hint='沿楼梯与大厅之间的开放平台通行，跟随地线前往下一段走廊。';
- else if(target.level==='core'||target.level==='stairs'||/^T\d+(Top|Middle|Bottom)$/.test(target.id)){const rise=(next?.y??target.y)-position.y;action=Math.abs(rise)>.45?rise>0?'沿楼梯上行':'沿楼梯下行':'前往楼梯平台';hint='沿扶手与踏步到达平台，再跟随地线转弯。';}
+ else if(target.level==='core'||target.level==='stairs'||/^T\d+(Top|Middle|Bottom)$/.test(target.id)){
+  action=Math.abs(height)>.45?height>0?'沿楼梯上行':'沿楼梯下行':'前往楼梯平台';
+  hint=Math.abs(height)>.45?'沿扶手与踏步到达平台，再跟随地线转弯。':'沿地线穿过平台，在下一段踏步前转弯。';
+ }
  else if(Object.values(doorRooms).some(([id])=>id===target.id))hint='沿门内过道前往目的地，留意桌台、座椅与展柜。';
  if(target.id==='tunnel'&&!next){action=target.label;hint='前方台阶通往草坪，通道另一端连接更衣区。';}
  if(Math.abs(angle)>2.35)action='转身，'+action;else if(angle>.65)action='右转，'+action;else if(angle<-.65)action='左转，'+action;

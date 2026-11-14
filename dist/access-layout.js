@@ -17,7 +17,8 @@ export const accessStairs=Array.from({length:8},(_,i)=>{
 });
 export function stairCoordinates(stair,x,z){const dx=x-stair.x,dz=z-stair.z;return{along:-(dx*stair.nx+dz*stair.nz),side:dx*stair.nz-dz*stair.nx};}
 export function accessAt(x,z,margin=0){for(const stair of accessStairs){const p=stairCoordinates(stair,x,z);if(Math.abs(p.side)<stair.width/2+margin&&p.along>=-.2&&p.along<=stair.run+2)return{stair,...p};}return null;}
-export function accessHeight(x,z){const hit=accessAt(x,z);if(!hit)return null;return Math.min(ACCESS_TOP,ACCESS_BASE+Math.max(0,Math.floor(hit.along/(hit.stair.run/hit.stair.steps))+1)*hit.stair.rise);}
+export function accessHeightAt(hit){return hit?Math.min(ACCESS_TOP,ACCESS_BASE+Math.max(0,Math.floor(hit.along/(hit.stair.run/hit.stair.steps))+1)*hit.stair.rise):null;}
+export function accessHeight(x,z){return accessHeightAt(accessAt(x,z));}
 export function stairwellAt(x,z,level){const hit=accessAt(x,z,.55);if(!hit)return false;const floor=ACCESS_BASE+hit.along/ACCESS_RUN*(ACCESS_TOP-ACCESS_BASE);return hit.along<ACCESS_RUN-.45&&floor>level-3.3;}
 export function facadeOpening(x,y,z){const hit=accessAt(x,z,1.05);if(!hit)return false;const floor=ACCESS_BASE+hit.along/ACCESS_RUN*(ACCESS_TOP-ACCESS_BASE);return y>floor-.8&&y<floor+4.0;}
 

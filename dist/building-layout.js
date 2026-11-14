@@ -7,6 +7,14 @@ export const core={left:100,right:103,width:2.45,start:-8,front:-13,minX:98.45,m
 export const coreLevels=[-2.9,12.2,23.6,40];
 export const seatingTiers=[{a:43,b:61,y:.7,rows:30,depth:.76,angle:24},{a:66,b:84,y:13.2,rows:24,depth:.76,angle:30},{a:85,b:103,y:27.1,rows:26,depth:.73,angle:34}];
 export const upperTierThreshold={x:102.75,z:-36.5,top:40,bottom:seatingTiers[2].y+24*seatingTiers[2].depth*Math.tan(seatingTiers[2].angle*Math.PI/180),steps:6,depth:.24,width:2.3};
+// The enclosed gallery turns twice between the stairs and the open stand.
+// Shared by the gallery walls and their visibility boundaries.
+export const upperGalleryRooms={
+ front:{minX:100.25,maxX:102.75,minZ:-16.75,maxZ:-12},
+ cross:{minX:100.25,maxX:107.25,minZ:-16.75,maxZ:-14.25},
+ aisle:{minX:104.75,maxX:107.25,minZ:-37.75,maxZ:-14.25},
+ bridge:{minX:102.75,maxX:107.25,minZ:-37.75,maxZ:-35.25}
+};
 export const coreFlights=[];
 for(let i=0;i<coreLevels.length-1;i++){
  const bottom=coreLevels[i],top=coreLevels[i+1],steps=Math.ceil((top-bottom)/.36),run=steps*.34,middle=(top+bottom)/2;

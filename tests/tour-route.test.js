@@ -5,6 +5,7 @@ import {floorHeight,MAX_STEP,hitsWall} from '../dist/navigation.js';
 import {orientedCollider} from '../dist/access-layout.js';
 import {planWalkPath,walkSegmentClear} from '../dist/walk-path.js';
 import {roomSpecs} from '../dist/building-layout.js';
+import {movementInstruction} from '../dist/wayfinding.js';
 
 const geometry={tiers:[{a:43,b:61,y:.7,rows:30,depth:.76,angle:24},{a:66,b:84,y:13.2,rows:24,depth:.76,angle:30},{a:85,b:103,y:27.1,rows:26,depth:.73,angle:34}]};
 
@@ -39,6 +40,27 @@ test('all advertised walking destinations connect to reception and back',()=>{
 test('upper concourse routes descend a real staircase rather than crossing levels',()=>{
  const route=planTour({x:94,y:12.2,z:-47},'pitch');
  assert.ok(route.some(n=>n.level==='stairs'||n.level==='core'));assert.ok(route.some(n=>n.id.endsWith('Bottom')||n.id==='landing0'));assert.ok(route.some(n=>n.id==='visitorGate'));
+});
+
+test('upper stand route describes level hairpins in both directions',()=>{
+ for(let flight=0;flight<3;flight++){
+  const out=tourNodes[`flight${flight}Out`],turn=tourNodes[`flight${flight}Turn`];
+  for(const [start,end,next] of [[out,turn,tourNodes[`flight${flight}End`]],[turn,out,tourNodes[`flight${flight}Start`]]]){
+   const yaw=Math.atan2(start.x-end.x,start.z-end.z);
+   assert.equal(movementInstruction(start,yaw,end,next).action,'前往楼梯平台');
+  }
+ }
+});
+
+test('the return to the south gate distinguishes passing a landing from leaving the stairwell',()=>{
+ const action=(from,at,next)=>{
+  const start=tourNodes[from],target=tourNodes[at];
+  return movementInstruction(start,Math.atan2(start.x-target.x,start.z-target.z),target,tourNodes[next]).action;
+ };
+ assert.equal(action('flight2Start','landing2','flight1End'),'前往楼梯平台');
+ assert.equal(action('landing0','coreFront','coreApproach'),'走出楼梯间');
+ assert.equal(action('coreFront','coreApproach','lower0'),'返回入口环廊');
+ assert.equal(action('coreApproach','coreFront','landing0'),'公共楼梯入口');
 });
 
 test('a lost visitor in the lower hall follows the ring instead of crossing staff walls',()=>{
