@@ -10,6 +10,7 @@ import {destinationName} from './destinations.js';
 import {ribbonPoints} from './ribbon-path.js';
 import {playerLinks,containsFloor} from './player-area-layout.js';
 import {alternateWalkDestination,nextWalkDestination} from './walk-continuation.js';
+import {writeHudAttribute,writeHudData,writeHudProperty} from './hud-write.js';
 
 export function floorLabel(y,position){if(position){const{x,z}=position;if(inCoreShaft(x,z)&&!coreLevels.some(level=>Math.abs(level-y)<.5))return'楼梯间';if(y<3&&(x>-95&&x<-40&&z>-43&&z<49||playerLinks.some(r=>containsFloor(r,x,z))))return'球员层';if(y>=-.3&&Math.abs(x)<42&&Math.abs(z)<60)return'球场层';}return y<2?'入口层':y<18?'公共大厅层':y<32?'包厢 / 中层':'上层看台';}
 export function buildWalkGuide(scene,geometry,{obstacles={},onChoose,onSelect,onWalk,onTeleport,onContinue,onOrient,nextDestination}={}){
@@ -36,26 +37,32 @@ export function buildWalkGuide(scene,geometry,{obstacles={},onChoose,onSelect,on
  next.onclick=()=>{if(!arrived)return;if(onContinue?.())return;const [id]=suggestions();if(id)choose(id);};
  alternate.onclick=()=>{const [,id]=suggestions();if(arrived&&id)choose(id);};
  orient.onclick=()=>{if(lastMode==='walk'&&!arrived&&!blocked&&path[0])onOrient?.(path[0]);};
- const writeText=(element,value)=>{if(element.textContent!==value)element.textContent=value;};
+ const writeText=(element,value)=>writeHudProperty(element,'textContent',value);
+ const setHint=(key,value)=>writeHudData(document.body,key,value);
  function refresh(yaw=lastYaw){
   lastYaw=yaw;
-  panel.hidden=suppressed||lastMode!=='walk'&&!selected;group.visible=!suppressed&&lastMode==='walk'&&!blocked&&!arrived;
-  const p=feet(lastPosition);document.body.dataset.destination=goal;document.body.dataset.guideState=arrived?'arrived':blocked?'blocked':'routing';
+  writeHudProperty(panel,'hidden',suppressed||lastMode!=='walk'&&!selected);
+  group.visible=!suppressed&&lastMode==='walk'&&!blocked&&!arrived;
+  const p=feet(lastPosition);setHint('destination',goal);setHint('guideState',arrived?'arrived':blocked?'blocked':'routing');
   const walking=lastMode==='walk';
   panel.classList.toggle('arrived',arrived&&walking);
-  walkButton.hidden=walking;teleportButton.title='传送到'+tourGoals[goal]+'（T）';next.hidden=!arrived||!walking;alternate.hidden=true;
-  orient.hidden=collapsed||!walking||arrived||blocked||!path.length;
+  writeHudProperty(walkButton,'hidden',walking);
+  writeHudProperty(teleportButton,'title','传送到'+tourGoals[goal]+'（T）');
+  writeHudProperty(next,'hidden',!arrived||!walking);
+  writeHudProperty(orient,'hidden',collapsed||!walking||arrived||blocked||!path.length);
   let action,hint,subline,symbol,angle=0;
+  let other=null;
   if(arrived){
-   const [id,other]=suggestions();
+   const [id,alternateGoal]=suggestions();other=walking?alternateGoal:null;
    action='已到达 · '+tourGoals[goal];hint='靠近开放门、展品或座位即可互动。';subline=floorLabel(p.y,p);symbol='✓';
    writeText(next,id?destinationName(id)+' →':'完成导览');
-   next.title=id?'步行前往'+destinationName(id):'完成当前步行导览';next.setAttribute('aria-label',next.title);
-   if(other&&walking){alternate.hidden=false;writeText(alternate,destinationName(other)+' →');alternate.setAttribute('aria-label','步行前往'+destinationName(other));}
-   document.body.dataset.routeMetres=0;document.body.dataset.guideTarget=goal;delete document.body.dataset.guidePoint;
+   writeHudProperty(next,'title',id?'步行前往'+destinationName(id):'完成当前步行导览');
+   writeHudAttribute(next,'aria-label',next.title);
+   if(other){writeText(alternate,destinationName(other)+' →');writeHudAttribute(alternate,'aria-label','步行前往'+destinationName(other));}
+   setHint('routeMetres',0);setHint('guideTarget',goal);delete document.body.dataset.guidePoint;
   }else if(blocked&&walking){
    action='附近没有找到通路';hint='先退回开放过道，路线会重新计算。也可直接传送。';subline=floorLabel(p.y,p);symbol='!';
-   delete document.body.dataset.routeMetres;document.body.dataset.guideTarget='';delete document.body.dataset.guidePoint;
+   delete document.body.dataset.routeMetres;setHint('guideTarget','');delete document.body.dataset.guidePoint;
   }else if(!walking){
    action='已选择 · '+tourGoals[goal];hint='从上次步行位置出发，或直接传送到目的地。';subline='步行 / 直接传送';symbol='↗';
   }else if(path.length){
@@ -63,10 +70,11 @@ export function buildWalkGuide(scene,geometry,{obstacles={},onChoose,onSelect,on
    action=instruction.action;symbol='↑';angle=instruction.angle;
    subline='还有 '+summary.metres+' 米 · '+floorLabel(p.y,p);
    hint=instruction.hint+' 下一转向点约 '+Math.round(instruction.distance)+' 米。';
-   document.body.dataset.routeMetres=summary.metres;document.body.dataset.guideTarget=target.id;document.body.dataset.guidePoint=[target.x,target.y,target.z].join(',');
+   setHint('routeMetres',summary.metres);setHint('guideTarget',target.id);setHint('guidePoint',target.x+','+target.y+','+target.z);
   }
+  writeHudProperty(alternate,'hidden',!other);
   if(action){
-   writeText(title,action);title.title=action;writeText(detail,hint);writeText(distanceText,subline);writeText(arrow,symbol);
+   writeText(title,action);writeHudProperty(title,'title',action);writeText(detail,hint);writeText(distanceText,subline);writeText(arrow,symbol);
    const transform=angle?`rotate(${angle}rad)`:'none';if(arrow.style.transform!==transform)arrow.style.transform=transform;
   }
  }
@@ -102,12 +110,13 @@ export function buildWalkGuide(scene,geometry,{obstacles={},onChoose,onSelect,on
   eyeHeight=currentEyeHeight;lastPosition.copy(position);lastMode=mode;lastYaw=yaw;if(suppressed){panel.hidden=true;group.visible=false;return;}timer+=dt;planClock+=dt;if(timer<.12)return;timer=0;const p=feet(position);
   if(!anchor)reset(position);
   if(mode!=='walk'){refresh(yaw);return;}
-  const walls=navigationObstacles(p,obstacles);
+  let walls;
+  const getWalls=()=>walls??=navigationObstacles(p,obstacles);
   // A visitor may take another open aisle instead of visiting every old node.
   // Arrival still requires the same floor and an unobstructed final segment.
   const destination=tourNodes[goal],remaining=Math.hypot(p.x-destination.x,p.z-destination.z);
   if(!arrived&&remaining<8&&Math.abs(p.y-destination.y)<1){
-   if(walkSegmentClear(p,destination,geometry,walls)){
+   if(walkSegmentClear(p,destination,geometry,getWalls())){
     blocked=false;
     if(remaining<2.3){path=[];arrived=true;lastDraw=null;}
     else if(path.length!==1||path[0].id!==goal){anchor={...p};path=[destination];lastDraw=null;}
@@ -117,14 +126,14 @@ export function buildWalkGuide(scene,geometry,{obstacles={},onChoose,onSelect,on
   }
   // Advance intermediate waypoints only. The final destination uses the
   // clear-segment check above, even when it is just on the other side of a wall.
-  while(path.length>1&&waypointReached(p,path[0],anchor,path[1])&&walkSegmentClear(p,path[1],geometry,walls)){anchor=path.shift();lastDraw=null;}
+  while(path.length>1&&waypointReached(p,path[0],anchor,path[1])&&walkSegmentClear(p,path[1],geometry,getWalls())){anchor=path.shift();lastDraw=null;}
   if(!path.length&&!blocked&&!arrived)reset(position);
   if(planClock>1.2&&!arrived){
    planClock=0;
    const target=path[0],distance=Math.hypot(p.x-anchor.x,p.z-anchor.z);
-   if(path.length>1&&distance>.7&&directWalkDestination(p,goal,geometry,walls)){
+   if(path.length>1&&distance>.7&&directWalkDestination(p,goal,geometry,getWalls())){
     anchor=p;path=[destination];lastDraw=null;
-   }else if(blocked?distance>.7:target&&(!walkSegmentClear(p,target,geometry,walls)||distance>55))reset(position);
+   }else if(blocked?distance>.7:target&&(!walkSegmentClear(p,target,geometry,getWalls())||distance>55))reset(position);
   }
   refresh(yaw);
   if(mode==='walk'&&!blocked&&!arrived&&(!lastDraw||Math.hypot(p.x-lastDraw.x,p.y-lastDraw.y,p.z-lastDraw.z)>.15))draw(p);

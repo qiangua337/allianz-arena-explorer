@@ -47,6 +47,33 @@ test('the real phone follow view submits fewer static-ring triangles without red
  stadium.roof.visible=false;assert.ok(ringMeshes.filter(o=>upper.includes(o)||meshes(lining).includes(o)||meshes(trusses).includes(o)).every(o=>{for(let p=o;p;p=p.parent)if(p===stadium.roof)return !p.visible;return false;}));stadium.roof.visible=true;stadium.night(false);
 });
 
+test('phone stairwell occlusion restores the full stadium at an opening or immediately on turning toward it',()=>{
+ const width=globalThis.innerWidth;globalThis.innerWidth=390;
+ const camera=new THREE.PerspectiveCamera(66,390/844,.1,2500);
+ const face=(x,y,z,mode='walk',high=false,playing=false)=>{
+  camera.lookAt(x,y,z);stadium.update(camera,mode,high,false,playing);
+ };
+ try{
+  camera.position.set(100,29.8,-1.2);
+  face(100,30.1,2);
+  assert.equal(stadium.bowl.visible,false);
+  assert.equal(lining.visible,false);
+  assert.ok(upper.every(mesh=>!mesh.visible));
+  face(101.5,25.3,-13.25);
+  assert.equal(stadium.bowl.visible,true,'turning in place restores portal views');
+  assert.equal(lining.visible,true);
+  assert.ok(upper.every(mesh=>mesh.visible));
+  face(100,30.1,2,'walk',true);
+  assert.equal(stadium.bowl.visible,true);
+  face(100,30.1,2,'orbit');
+  assert.equal(stadium.bowl.visible,true);
+  face(100,30.1,2,'walk',false,true);
+  assert.equal(stadium.bowl.visible,true);
+  camera.position.set(106,41.7,-36.5);face(0,15,0);
+  assert.equal(stadium.bowl.visible,true,'the upper stands panorama remains visible');
+ }finally{if(width===undefined)delete globalThis.innerWidth;else globalThis.innerWidth=width;}
+});
+
 test('bowl fittings retain every box and cull the opposite stand from match cameras',()=>{
  const fittings=meshes(stadium.bowl.getObjectByName('Bowl concrete steps and metal fittings'));
  assert.ok(fittings.every(o=>o.isInstancedMesh&&o.castShadow&&o.receiveShadow));

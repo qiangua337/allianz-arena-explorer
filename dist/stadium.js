@@ -9,7 +9,7 @@ import {buildNearSeatDetails,seatShellGeometry} from './near-seat-details.js';
 import {buildBowlLighting} from './stadium-lighting.js';
 import {positionStateChanged} from './position-state.js';
 import {THREE,TAU,v,mat,mesh,box,beam,sign,cylinder,canvasTexture,textTexture,superpoint,supernormal,ringGeometry,curveLine,mergeGeometry,compactGroup,Batches,addCrest,seeded} from './kit.js';
-import {bowlIsVisible} from './scene-budget.js';
+import {bowlIsVisible,buildStairwellOcclusion} from './scene-budget.js';
 import {enclosedPlayerPosition} from './player-area-layout.js';
 import {buildCirculation} from './circulation.js';
 import {accessStairs,ACCESS_BASE,ACCESS_TOP} from './access-layout.js';
@@ -63,7 +63,8 @@ export function buildStadium(scene){
  const shellMeshes=[];buffers.forEach((b,i)=>{const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(b.p,3));g.setAttribute('color',new THREE.Float32BufferAttribute(b.c,3));g.setIndex(b.i);g.computeVertexNormals();g.computeBoundingSphere();for(const part of partitionGeometry(g)){const o=mesh(part.geometry,shellMaterials[i===2?0:i],i?roof:root);o.name=(i?'ETFE upper roof section '+i:'ETFE exterior facade')+' · sector '+part.sector;o.customDepthMaterial=shellDepth;o.castShadow=true;o.userData.shellSection=i?1:0;o.userData.sectorCenter=part.geometry.boundingSphere.center.clone();shellMeshes.push(o);}g.dispose();});
  // The pedestrian level stays present when the outer bowl is culled indoors.
  const circulation=buildCirculation(scene);
- partitionStaticMesh(buildRoofLining(roof,surface));
+ const roofSurface=buildRoofLining(roof,surface);
+ const roofLining=partitionStaticMesh(roofSurface)??roofSurface;
  // A three-tier bowl. Angles follow the published 24 / 30 / 34 degree sections.
  const tiers=seatingTiers;
  const rowGeometries=[];const seats=[];const aisleRails=new THREE.Group();aisleRails.name='Continuous stair handrails beside clear walking aisles';bowl.add(aisleRails);const closeLabels=new THREE.Group();bowl.add(closeLabels);const textCanvas=document.createElement('canvas');textCanvas.width=1200;textCanvas.height=260;const tx=textCanvas.getContext('2d');tx.fillStyle='#000';tx.fillRect(0,0,1200,260);tx.fillStyle='#fff';tx.textAlign='center';tx.textBaseline='middle';tx.font='bold 165px Arial';tx.fillText('FC BAYERN MÜNCHEN',600,130,1170);const textPixels=tx.getImageData(0,0,1200,260).data;
@@ -141,8 +142,29 @@ export function buildStadium(scene){
   for(let row=0;row<2;row++)for(let j=0;j<12;j++)buildBucketSeat(g,{x:.65-row*1.15,y:.4+row*.45,z:-7.1+j*1.28,yaw:Math.PI/2,red,metal:steel,dark});gb.flush();
   const glass=mat(0xa5c6d9,{transparent:true,opacity:.21,metalness:.2,roughness:.2,side:THREE.DoubleSide,depthWrite:false});box(g,.08,2.5,17,-1.6,1.55,0,glass);box(g,3.3,.08,17,0,2.8,0,glass);for(let j=0;j<7;j++){const z=-8.5+j*17/6;beam(g,v(-1.65,.2,z),v(-1.65,2.8,z),.035,steel);beam(g,v(-1.65,2.8,z),v(1.65,2.8,z),.035,steel);}const a=sign(g,'FC BAYERN MÜNCHEN',15,.36,-1.71,2.65,0,{font:65,h:128});a.rotation.y=-Math.PI/2;compactGroup(g);
  }
- batch.flush({sectors:12});compactGroup(closeLabels);const pitchside=buildPitchsideDetails(bowl);const bowlLighting=buildBowlLighting(bowl),visibilityChanged=positionStateChanged();
- return {root,roof,circulation,bowl,matchBall,updateMatchEffects:feedback.update,resetMatchEffects:feedback.reset,get detailSeatCount(){return nearSeats.count;},setMatchday:screens.setMatchday,setMatchScore:screens.setMatchScore,seatCount:seats.length,seatPositions:seats,panelCount,tiers,update(camera,mode='orbit',high=false,low=false,playing=false,filled=false){const small=typeof innerWidth==='number'&&innerWidth<=760,compactWalk=small&&mode==='walk'&&!high&&!low&&!playing,state=(mode==='walk'?1:0)|(high?2:0)|(low?4:0)|(playing?8:0)|(small?16:0)|(filled?32:0);if(!visibilityChanged(camera.position,state))return;pitchSurface.update(camera,high,low,small);pitchside.update(camera.position,low);for(const shell of shellMeshes)shell.visible=!enclosedPlayerPosition(camera.position)&&(shell.userData.shellSection===1||facadeSectorVisible(camera.position,shell.userData.sectorCenter));bowl.visible=bowlIsVisible(camera.position,mode);nearSeats.update(camera.position,!playing&&bowl.visible&&(!low||mode==='walk'),low?32:high?384:small?128:192);roofDetails.visible=bowl.visible||camera.position.y>30;closeLabels.visible=camera.position.length()<180;for(const {inst,emptyCount,totalCount} of seatInstances){inst.count=filled&&!high?emptyCount:totalCount;const center=inst.boundingSphere.center;const distance=camera.position.distanceTo(center);const detail=seatingDetail({distance,high,low,playing,tunnel:camera.position.x> -70&&camera.position.x< -41&&Math.abs(camera.position.z)<3.5&&camera.position.y<3.5});inst.geometry=detail==='far'?farSeat:detail==='coarse'?coarseSeat:compactWalk?compactSeat:seatGeom;}},night(n){bowlLighting.night(n);circulation.night(n);shellMaterials[0].color.set(n?0xe52a49:0xe5e8e4);shellMaterials[0].emissive.set(n?0xd7082c:0x000000);shellMaterials[0].emissiveIntensity=n?.72:0;shellMaterials[0].roughness=n?.76:.58;shellMaterials[1].color.set(n?0xcfc0c4:0xf4f4ed);shellMaterials[1].emissive.set(n?0x9d1736:0x000000);shellMaterials[1].emissiveIntensity=n?.22:0;lightMaterial.color.set(n?0xf7fbff:0xb9c6cb);logo.material.map=logoBack.material.map=n?logoNightMap:logoDayMap;}};
+ batch.flush({sectors:12});compactGroup(closeLabels);const pitchside=buildPitchsideDetails(bowl);const bowlLighting=buildBowlLighting(bowl),visibilityChanged=positionStateChanged(),stairwellOccluded=buildStairwellOcclusion();
+ return {root,roof,circulation,bowl,matchBall,updateMatchEffects:feedback.update,resetMatchEffects:feedback.reset,get detailSeatCount(){return nearSeats.count;},setMatchday:screens.setMatchday,setMatchScore:screens.setMatchScore,seatCount:seats.length,seatPositions:seats,panelCount,tiers,
+ update(camera,mode='orbit',high=false,low=false,playing=false,filled=false){
+  const position=camera.position,walking=mode==='walk',width=typeof innerWidth==='number'?innerWidth:Infinity;
+  const small=width<=760,compactWalk=small&&walking&&!high&&!low&&!playing;
+  const hiddenByStairwell=width<=1024&&walking&&!high&&!playing&&stairwellOccluded(camera);
+  const state=(walking?1:0)|(high?2:0)|(low?4:0)|(playing?8:0)|(small?16:0)|(filled?32:0)|(hiddenByStairwell?64:0);
+  if(!visibilityChanged(position,state))return;
+  const enclosedPlayer=enclosedPlayerPosition(position);
+  pitchSurface.update(camera,high,low,small);pitchside.update(position,low);
+  roofLining.visible=!hiddenByStairwell;
+  for(const shell of shellMeshes)shell.visible=!hiddenByStairwell&&!enclosedPlayer&&(shell.userData.shellSection===1||facadeSectorVisible(position,shell.userData.sectorCenter));
+  bowl.visible=!hiddenByStairwell&&bowlIsVisible(position,mode);
+  nearSeats.update(position,!playing&&bowl.visible&&(!low||walking),low?32:high?384:small?128:192);
+  roofDetails.visible=!hiddenByStairwell&&(bowl.visible||position.y>30);closeLabels.visible=position.length()<180;
+  const tunnel=position.x>-70&&position.x<-41&&Math.abs(position.z)<3.5&&position.y<3.5;
+  for(const {inst,emptyCount,totalCount} of seatInstances){
+   inst.count=filled&&!high?emptyCount:totalCount;
+   const distance=position.distanceTo(inst.boundingSphere.center);
+   const detail=seatingDetail({distance,high,low,playing,tunnel});
+   inst.geometry=detail==='far'?farSeat:detail==='coarse'?coarseSeat:compactWalk?compactSeat:seatGeom;
+  }
+ },night(n){bowlLighting.night(n);circulation.night(n);shellMaterials[0].color.set(n?0xe52a49:0xe5e8e4);shellMaterials[0].emissive.set(n?0xd7082c:0x000000);shellMaterials[0].emissiveIntensity=n?.72:0;shellMaterials[0].roughness=n?.76:.58;shellMaterials[1].color.set(n?0xcfc0c4:0xf4f4ed);shellMaterials[1].emissive.set(n?0x9d1736:0x000000);shellMaterials[1].emissiveIntensity=n?.22:0;lightMaterial.color.set(n?0xf7fbff:0xb9c6cb);logo.material.map=logoBack.material.map=n?logoNightMap:logoDayMap;}};
 }
 
 function buildPitch(root,batch,{white,dark,red,steel}){

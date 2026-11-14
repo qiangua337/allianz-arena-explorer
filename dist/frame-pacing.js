@@ -1,4 +1,5 @@
 export const MOBILE_ONLINE_FRAME_SLACK = .003;
+export const WALK_FRAME_SLACK = .0015;
 
 // Keep the fractional frame budget. Resetting it to zero turns a nominal
 // 30 Hz limit into 20 Hz on a slightly irregular 60 Hz display.

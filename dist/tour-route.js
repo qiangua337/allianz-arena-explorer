@@ -82,7 +82,14 @@ for(let i=0;i<coreLevels.length;i++){
 }
 node('loungeDoor',95.5,23.6,-10.5,'贵宾包厢入口','靠近自动门后步行进入','gallery');node('lounge',93,23.6,-10.5,'贵宾包厢','可以沿窗边欣赏球场','gallery');join('landing2','loungeDoor');join('loungeDoor','lounge');
 node('middleBridgeStart',101.5,23.6,-30.1,'中层看台连廊','沿带扶手的连廊前往看台','gallery');node('stands',82.55,23.6,-30.1,'中层看台','沿座椅间过道上下，也可按 F 坐下','gallery');join('landing2','middleBridgeStart');join('middleBridgeStart','stands');
-node('upperGalleryFront',101.5,40,-15.5,'上层连廊入口','沿连廊前往看台入口','gallery');node('upperGalleryOuter',106,40,-15.5,'上层连廊转角','沿连廊前往看台入口','gallery');node('upperBridgeStart',106,40,-36.5,'上层看台连廊','沿连廊进入上层看台','gallery');node('upperStands',102.75,40,-36.5,'上层看台','沿过道自由探索','gallery');join('landing3','upperGalleryFront');join('upperGalleryFront','upperGalleryOuter');join('upperGalleryOuter','upperBridgeStart');join('upperBridgeStart','upperStands');
+node('upperGalleryFront',101.5,40,-15.5,'上层连廊入口','沿连廊前往看台入口','gallery');node('upperGalleryOuter',106,40,-15.5,'上层连廊转角','沿连廊前往看台入口','gallery');node('upperBridgeStart',106,40,-36.5,'上层看台连廊','沿连廊进入上层看台','gallery');
+node('upperThreshold',102.75,40,-36.5,'上层看台入口','沿门口的台阶进入看台','gallery');
+const upperTier=seatingTiers[2];
+// Finish inside the seating aisle past the gallery threshold and its steps.
+const upperArrivalRow=21,upperArrivalOffset=upperArrivalRow*upperTier.depth;
+const upperArrival=perimeterPoint(upperTier.a+upperArrivalOffset+.25,upperTier.b+upperArrivalOffset+.25,47/48*Math.PI*2,3.35);
+node('upperStands',upperArrival.x,upperTier.y+upperArrivalOffset*Math.tan(upperTier.angle*Math.PI/180),upperArrival.z,'上层看台','沿过道自由探索','seat2');
+join('landing3','upperGalleryFront');join('upperGalleryFront','upperGalleryOuter');join('upperGalleryOuter','upperBridgeStart');join('upperBridgeStart','upperThreshold');join('upperThreshold','upperStands');
 node('lowerEntry',0,12.2,-104,'下层看台入口','沿缓坡步行进入下层看台','upper');node('lowerStands',0,10.512,-83.2,'下层看台','沿阶梯过道上下探索','stands');join('upper24','lowerEntry');join('lowerEntry','lowerStands');
 for(const[id,from,x,y,z,label]of[['arcade','reception',0,-2.9,113,'接待大厅'],['visitorEntry','turn',22,-2.9,111,'参观通道入口'],['concourse','upper31',94,12.2,-47,'公共大厅'],['access','coreFront',101.5,-2.9,-14,'室内公共楼梯'],['esplanade','entrance',-32,-5.14,280,'南侧广场']]){node(id,x,y,z,label,'沿地线继续步行',y>9?'upper':'lower');join(id,from);}
 node('exterior',0,-4.103,214,'南侧正门','正门外的出发位置');join('exterior','entrance');
@@ -130,7 +137,7 @@ export function tourStarts(position){
  else if(position.y>-.25&&position.y<.5&&Math.abs(position.x)<41.5&&Math.abs(position.z)<60)candidates=candidates.filter(n=>['pitch','westField','tunnelMouth','pitchEdge','pitchExit'].includes(n.id));
  else if(inCoreShaft(position.x,position.z)||position.x>97&&Math.abs(position.z+10.5)<4)candidates=candidates.filter(n=>n.id.startsWith('flight')||n.id.startsWith('landing')).filter(n=>Math.abs(n.y-position.y)<10);
  else if(bridges.some(b=>onBridge(position.x,position.z,b)!==null&&Math.abs(position.y-(b.a[1]+(b.b[1]-b.a[1])*(onBridge(position.x,position.z,b)??0)))<.75)){
-  const link=bridges.find(b=>onBridge(position.x,position.z,b)!==null&&Math.abs(position.y-(b.a[1]+(b.b[1]-b.a[1])*(onBridge(position.x,position.z,b)??0)))<.75),ids=link.id==='lowerPassage'?['lowerEntry','lowerStands']:position.y>30?['landing3','upperGalleryFront','upperGalleryOuter','upperBridgeStart','upperStands']:['landing2','loungeDoor','lounge','middleBridgeStart','stands'];candidates=candidates.filter(n=>ids.includes(n.id));
+  const link=bridges.find(b=>onBridge(position.x,position.z,b)!==null&&Math.abs(position.y-(b.a[1]+(b.b[1]-b.a[1])*(onBridge(position.x,position.z,b)??0)))<.75),ids=link.id==='lowerPassage'?['lowerEntry','lowerStands']:position.y>30?['landing3','upperGalleryFront','upperGalleryOuter','upperBridgeStart','upperThreshold','upperStands']:['landing2','loungeDoor','lounge','middleBridgeStart','stands'];candidates=candidates.filter(n=>ids.includes(n.id));
  }
  else if(seatingTiers.some(t=>position.y>=t.y-.15&&position.y<t.y+(t.rows-1)*t.depth*Math.tan(t.angle*Math.PI/180)+.85&&(Math.abs(position.x)/(t.a+t.rows*t.depth+.3))**3.35+(Math.abs(position.z)/(t.b+t.rows*t.depth+.3))**3.35<1&&(Math.abs(position.x)/(t.a-.2))**3.35+(Math.abs(position.z)/(t.b-.2))**3.35>1)){
   const ti=seatingTiers.findIndex(t=>position.y>=t.y-.15&&position.y<t.y+(t.rows-1)*t.depth*Math.tan(t.angle*Math.PI/180)+.85&&(Math.abs(position.x)/(t.a+t.rows*t.depth+.3))**3.35+(Math.abs(position.z)/(t.b+t.rows*t.depth+.3))**3.35<1&&(Math.abs(position.x)/(t.a-.2))**3.35+(Math.abs(position.z)/(t.b-.2))**3.35>1);candidates=candidates.filter(n=>n.level===`seat${ti}`||n.id===['lowerStands','stands','upperStands'][ti]);

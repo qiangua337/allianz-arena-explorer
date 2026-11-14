@@ -25,6 +25,8 @@ export function movementInstruction(position,yaw,target,next){
  else if(target.id==='pitch'&&next?.id==='pitchEdge'){action='穿过草坪前往参观通道';hint='南侧场边的开放通道通往接待大厅与正门。';}
  else if(target.id==='westField'&&next?.id==='pitch'){action='返回草坪';hint='走出球员通道，沿地线前往南侧的参观通道。';}
  else if(target.id==='lowerEntry'){const leaving=next?.id==='upper24';action=leaving?'返回公共大厅':'进入下层看台';hint=leaving?'沿北侧缓坡前往公共大厅，继续跟随地线。':'沿北侧缓坡进入看台，留意座椅之间的过道。';}
+ else if(target.id==='upperThreshold'){const entering=next?.id==='upperStands';action=entering?'进入上层看台':'返回上层连廊';hint=entering?'穿过门口，沿台阶进入座席过道。':'沿台阶上行，从门口回到连廊。';}
+ else if(target.id==='upperStands'&&position.y-target.y>1){action='沿台阶进入上层看台';hint='走到台阶后的座席过道。';}
  else if(target.id.includes('Bridge'))hint='沿带扶手的连廊通行，到转角后继续跟随地线。';
  else if(target.id.startsWith('core'))hint='沿楼梯与大厅之间的开放平台通行，跟随地线前往下一段走廊。';
  else if(target.level==='core'||target.level==='stairs'||/^T\d+(Top|Middle|Bottom)$/.test(target.id)){const rise=(next?.y??target.y)-position.y;action=Math.abs(rise)>.45?rise>0?'沿楼梯上行':'沿楼梯下行':'前往楼梯平台';hint='沿扶手与踏步到达平台，再跟随地线转弯。';}

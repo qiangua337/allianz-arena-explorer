@@ -15,8 +15,9 @@ import {spatializeArchitecture,updateArchitectureSectors} from './spatial-batche
 import {buildDestinationMenu} from './destinations.js';
 import {buildMatchdayExperience} from './matchday.js';
 import {buildFrameBudget,freezeArchitecture,suspendExplorationDuringMatch} from './scene-budget.js';
-import {createFramePacer,MOBILE_ONLINE_FRAME_SLACK} from './frame-pacing.js';
+import {createFramePacer,MOBILE_ONLINE_FRAME_SLACK,WALK_FRAME_SLACK} from './frame-pacing.js';
 import {createMatchFrameRate} from './match-frame-rate.js';
+import {createWalkFrameRate} from './walk-frame-rate.js';
 import {writeHudProperty} from './hud-write.js';
 import {buildWalkBuilding} from './walk-building.js';
 import {buildLightBudget} from './performance.js';
@@ -36,6 +37,7 @@ import {buildWalkGuide,floorLabel} from './walk-guide.js';
 import {routeOnCurrentLevel} from './walk-path.js';
 import {normalizeDestination,destinationArrival} from './arrivals.js';
 import {advanceWalker} from './walk-motion.js';
+import {indexWalkWalls} from './walk-collision-index.js';
 import {buildServiceRooms} from './service-rooms.js';
 import {serviceRoomAt} from './service-layout.js';
 
@@ -62,8 +64,9 @@ const places={
 };
 const frameBudget=buildFrameBudget(),gameDrawBudget=createFramePacer(),visitDrawBudget=createFramePacer(),telemetryBudget=createFramePacer();let drawnFrames=0,sceneTime=0,gameCameraInstant=true;let gameCameraLook=null,gameCameraPeriod=null,gameCameraPlayer=null,gameCameraStoppage=null,gameCameraPhase=null;
 const matchFrameRate=createMatchFrameRate({cap:matchFps,quality:qualityMode});let matchBudgetActive=false,matchSampling=false,pendingMatchScale,matchSampleTime=0,matchSampleFrames=0,matchSampleDraws=0,matchSampleWork=0,matchSampleGameWork=0;
+const walkFrameRate=createWalkFrameRate();
 const matchRafGaps=new Uint16Array(101),matchDrawGaps=new Uint16Array(101);let previousRaf=0,previousDraw=0;
-let building,lightBudget,interactions,serviceRooms,matchday,setExplorationMatchMode,matchSnapshot=null,matchStarting=false,qualityScale=1,recoveryFrames=0;
+let building,lightBudget,interactions,serviceRooms,serviceDoorColliders,staticWalkCollision,matchday,setExplorationMatchMode,matchSnapshot=null,matchStarting=false,qualityScale=1,recoveryFrames=0;
 let visualAssets,renderer,scene,camera,controls,stadium,world,interiors,walkGuide,sky,stars,dayLight,arenaFill,hemi,ambient;
 let active='exterior',mode='orbit',night=false,transition=null,tourOn=false,tourElapsed=0,tourIndex=0,toastTimer;
 let yaw=0,pitch=0,dragging=false,lastPointer=null,walkReady=false,clock={time:performance.now(),getDelta(){const now=performance.now(),d=(now-this.time)/1000;this.time=now;return d;}},elapsed=0,frames=0,lastPerf=0,frameMs=0;
@@ -94,15 +97,22 @@ export async function startArena({hub, initial, nightAtStart}){
  world=buildWorld(scene);stadium=buildStadium(scene);interiors=buildInteriors(scene,stadium.circulation);
  building=buildWalkBuilding(scene);serviceRooms=buildServiceRooms(scene);walkGuide=buildWalkGuide(scene,walkGeometry(),{obstacles:{world:world.colliders,building:building.colliders,interiors:interiors.colliders,circulation:stadium.circulation.colliders,service:serviceRooms.walls},onChoose:()=>setNavOpen(true),onSelect:id=>{stopTour();goPlace(id,false);},onWalk:followDestination,onTeleport:teleportToDestination,onContinue:advanceWalkingTourFromGuide,onOrient:faceWalkWaypoint,nextDestination:upcomingWalkDestination});interactions=buildInteractions(scene,interiors,{toast,serviceRooms,navigate:id=>goPlace(id),setEye:y=>desiredEye=y,seats:stadium.seatPositions,onSit:seatIntoView,onStand:standFromSeat,onFocusSeat:focusArenaSeat,showInfo:showInteractiveInfo});lightBudget=buildLightBudget(scene);matchday=buildMatchdayExperience({scene,stadium,reducedMotion:mediaReduced,mobile:innerWidth<=1024,toast,onBegin:beginMatchday,onPose:applyEntrancePose,onFinish:finishMatchdayEntrance,onVisitBench:visitMatchdayBench,onGameCamera:applyGameCamera,onGameView:updateGameView,onReadGameInput:()=>gameInput(0),getGameRenderCamera:()=>qualityMode==='high'?null:camera,onExit:restoreFromMatchday,onPrepare:root=>{applySurfaceQuality(root,qualityMode);return renderer.compileAsync(root,camera,scene);},onPause:value=>{clearWalkInput();setWalkReady(!value);}});
  matchday.setQuality(qualityMode,qualityScale);visualAssets.registerOutdoor(world.group,stadium.root);applyArchitecturalUV(stadium.root);applyArchitecturalUV(stadium.circulation.root);applyArchitecturalUV(interiors.root);applyArchitecturalUV(building.root);applyArchitecturalUV(world.group);installInteriorShading(interiors.root);
+ staticWalkCollision=indexWalkWalls([...serviceRooms.walls,...building.colliders,...interiors.colliders,...world.colliders,...stadium.circulation.colliders]);
+ serviceDoorColliders=serviceRooms.colliders.filter(collider=>collider.dynamicDoor);
  spatializeArchitecture(stadium.circulation.root);spatializeArchitecture(interiors.rooms.concourse);
  setExplorationMatchMode=suspendExplorationDuringMatch([world.group,building.root,interiors.root,serviceRooms.root,stadium.circulation.root]);
- freezeArchitecture(world.group,[world.rotor]);freezeArchitecture(stadium.root,[stadium.matchBall]);freezeArchitecture(stadium.circulation.root);freezeArchitecture(interiors.root);freezeArchitecture(building.root);destinationMenu=buildDestinationMenu({onDismiss:()=>setNavOpen(false)});buildHotspots();bindUI();setNavOpen(false);document.body.dataset.mode=mode;setDayNight(nightAtStart);applySurfaceQuality(scene,qualityMode);clock.time=performance.now();document.body.dataset.version='10.7.1';document.body.dataset.seats=stadium.seatCount;document.body.dataset.panels=stadium.panelCount;
+ freezeArchitecture(world.group,[world.rotor]);freezeArchitecture(stadium.root,[stadium.matchBall]);freezeArchitecture(stadium.circulation.root);freezeArchitecture(interiors.root);freezeArchitecture(building.root);destinationMenu=buildDestinationMenu({onDismiss:()=>setNavOpen(false)});buildHotspots();bindUI();setNavOpen(false);document.body.dataset.mode=mode;setDayNight(nightAtStart);applySurfaceQuality(scene,qualityMode);clock.time=performance.now();document.body.dataset.version='10.7.2';document.body.dataset.seats=stadium.seatCount;document.body.dataset.panels=stadium.panelCount;
  const requestedPlace=initial.get('place');
  if(initial.get('view')==='walk'){
   const place=requestedPlace&&(places[requestedPlace]||tourGoals[requestedPlace])?requestedPlace:'arcade';
   const saved=restoreWalkCheckpoint(initial,place);
   setMode('walk',{place});
-  if(saved)walkGuide.restoreState({goal:normalizeDestination(place),selected:true,collapsed:saved.collapsed,arrived:saved.arrived},navigationPosition());
+  if(saved){
+   const goal=normalizeDestination(place),threshold=tourNodes.upperThreshold;
+   const stoppedOnBridge=goal==='upperStands'&&Math.abs(saved.feet-threshold.y)<.9&&
+    Math.hypot(saved.x-threshold.x,saved.z-threshold.z)<2.4;
+   walkGuide.restoreState({goal,selected:true,collapsed:saved.collapsed,arrived:saved.arrived&&!stoppedOnBridge},navigationPosition());
+  }
  }else if(requestedPlace&&(places[requestedPlace]||tourGoals[requestedPlace]))goPlace(requestedPlace,false);
  $('load-status').textContent='正在准备室内与室外画面…';await renderer.compileAsync(scene,camera);document.body.dataset.ready='true';clock.time=performance.now();renderer.setAnimationLoop(render);
  window.addEventListener('resize',resize);canvas.addEventListener('webglcontextlost',e=>{e.preventDefault();toast('图形上下文已暂停，请重新加载页面恢复。');});
@@ -299,7 +309,7 @@ function keyCode(event){const aliases={w:'KeyW',a:'KeyA',s:'KeyS',d:'KeyD',q:'Ke
 function inside(x,z,spec,margin=0){return x>spec.x-spec.w/2-margin&&x<spec.x+spec.w/2+margin&&z>spec.z-spec.d/2-margin&&z<spec.z+spec.d/2+margin;}
 function floorAt(x,z,feetY=walkFeet??camera.position.y-desiredEye){return floorHeight(x,z,feetY,{tiers:stadium.tiers,rooms:roomSpecs});}
 function blocked(x,z,y){
- return hitsWall(x,z,y,interactions.colliders)||hitsWall(x,z,y,serviceRooms.colliders)||hitsWall(x,z,y,building.colliders)||hitsWall(x,z,y,interiors.colliders)||hitsWall(x,z,y,world.colliders)||hitsWall(x,z,y,stadium.circulation.colliders);
+ return hitsWall(x,z,y,interactions.colliders)||hitsWall(x,z,y,serviceDoorColliders)||staticWalkCollision(x,z,y);
 }
 
 function moveWalk(dt){
@@ -367,7 +377,7 @@ function render(timestamp){
  if(playing!==matchBudgetActive){
   matchBudgetActive=playing;setExplorationMatchMode(playing);
   if(playing)$('interact').hidden=true;
-  resetMatchBudget();applyAdaptiveScale(playing?matchFrameRate.state.scale:1);
+  resetMatchBudget();applyAdaptiveScale(playing?matchFrameRate.state.scale:walkFrameRate.reset());
  }
  elapsed+=raw;sceneTime+=raw;frames++;
  if(transition){
@@ -386,7 +396,9 @@ function render(timestamp){
  // camera and match overlay only need occasional visual updates.
  const drawRate=matchPaused&&!replay?24:matchFrameRate.state.rate;
  const drawSlack=sample&&phone&&matchday.online?MOBILE_ONLINE_FRAME_SLACK:.0007;
- const drawFrame=playing?gameDrawBudget.ready(timestamp/1000,drawRate,drawSlack):visitDrawBudget.ready(elapsed,phone?60:90);
+ const walkAdaptive=!playing&&phone&&mode==='walk'&&qualityMode==='standard'&&!matchday?.cinematic;
+ const visitSlack=phone?WALK_FRAME_SLACK:undefined;
+ const drawFrame=playing?gameDrawBudget.ready(timestamp/1000,drawRate,drawSlack):visitDrawBudget.ready(timestamp/1000,phone?60:90,visitSlack);
  const measureStart=sample?performance.now():0;
  let rendered=false;
  if(!playing){
@@ -408,6 +420,10 @@ function render(timestamp){
    pendingMatchScale=undefined;
   }
   const modalOpen=!!document.querySelector('dialog[open]')||!!playing&&!$('game-overlay').hidden;
+  if(walkAdaptive){
+   const moving=walkReady&&!modalOpen&&(dragging||joystickPointer!==null||keys.size>0||movementPointers.size>0);
+   applyAdaptiveScale(walkFrameRate.update(sceneTime,moving));
+  }
   if(modalWasOpen!==modalOpen)frameBudget.invalidate();
   modalWasOpen=modalOpen;
   const renderDelta=sceneTime;sceneTime=0;
@@ -461,7 +477,7 @@ function render(timestamp){
   document.body.dataset.camera=camera.position.toArray().map(x=>x.toFixed(3)).join(',');
   document.body.dataset.heading=[yaw,pitch].map(x=>x.toFixed(4)).join(',');
  }
- if(elapsed-lastPerf>1.5){saveWalkCheckpoint();const fps=Math.round(frames/(elapsed-lastPerf)),renderRate=Math.round(drawnFrames/(elapsed-lastPerf));$('performance').textContent=`THREE.JS r${THREE.REVISION}  /  ${stadium.seatCount.toLocaleString()} 个座位模型  /  ${stadium.panelCount.toLocaleString()} 个气枕  /  ${renderRate} FPS`;document.body.dataset.fps=fps;document.body.dataset.renderfps=renderRate;drawnFrames=0;if(!playing&&qualityMode==='standard'){if(elapsed>6&&fps<28&&qualityScale>.82&&(keys.size>0||dragging||joystickPointer!==null||transition||tourOn||matchday?.cinematic)){applyAdaptiveScale(Math.max(.82,qualityScale*.92));recoveryFrames=0;}else if(fps>48&&qualityScale<1){if(++recoveryFrames>=4){applyAdaptiveScale(Math.min(1,qualityScale+.08));recoveryFrames=0;}}else recoveryFrames=0;}document.body.dataset.camera=camera.position.toArray().map(x=>x.toFixed(2)).join(',');document.body.dataset.nearSeats=stadium.detailSeatCount;document.body.dataset.drawcalls=renderer.info.render.calls;document.body.dataset.triangles=renderer.info.render.triangles;document.body.dataset.matchCrowdSubmitted=matchday?.crowdSubmitted??0;document.body.dataset.matchCrowdBatches=matchday?.crowdBatches??0;frames=0;lastPerf=elapsed;}
+ if(elapsed-lastPerf>1.5){saveWalkCheckpoint();const fps=Math.round(frames/(elapsed-lastPerf)),renderRate=Math.round(drawnFrames/(elapsed-lastPerf));$('performance').textContent=`THREE.JS r${THREE.REVISION}  /  ${stadium.seatCount.toLocaleString()} 个座位模型  /  ${stadium.panelCount.toLocaleString()} 个气枕  /  ${renderRate} FPS`;document.body.dataset.fps=fps;document.body.dataset.renderfps=renderRate;drawnFrames=0;if(!playing&&!walkAdaptive&&qualityMode==='standard'){if(elapsed>6&&fps<28&&qualityScale>.82&&(keys.size>0||dragging||joystickPointer!==null||transition||tourOn||matchday?.cinematic)){applyAdaptiveScale(Math.max(.82,qualityScale*.92));recoveryFrames=0;}else if(fps>48&&qualityScale<1){if(++recoveryFrames>=4){applyAdaptiveScale(Math.min(1,qualityScale+.08));recoveryFrames=0;}}else recoveryFrames=0;}document.body.dataset.camera=camera.position.toArray().map(x=>x.toFixed(2)).join(',');document.body.dataset.nearSeats=stadium.detailSeatCount;document.body.dataset.drawcalls=renderer.info.render.calls;document.body.dataset.triangles=renderer.info.render.triangles;document.body.dataset.matchCrowdSubmitted=matchday?.crowdSubmitted??0;document.body.dataset.matchCrowdBatches=matchday?.crowdBatches??0;frames=0;lastPerf=elapsed;}
 }
 function recordFrameGap(histogram,ms){if(ms>0)histogram[Math.min(histogram.length-1,Math.ceil(ms))]++;}
 function frameGap95(histogram,count){if(count<2)return undefined;const limit=Math.ceil(count*.95);let sum=0;for(let ms=1;ms<histogram.length;ms++){sum+=histogram[ms];if(sum>=limit)return ms;}}
@@ -487,7 +503,7 @@ function syncDrawingBuffer(){
 function applyAdaptiveScale(scale){if(qualityScale===scale)return;qualityScale=scale;syncDrawingBuffer();matchday?.setQuality(qualityMode,scale);}
 function setQuality(){
  frameBudget.invalidate();const next=$('quality').value,modeChanged=next!==qualityMode;qualityMode=next;
- resetMatchBudget();qualityScale=matchday?.playing?matchFrameRate.state.scale:1;syncDrawingBuffer();
+ resetMatchBudget();qualityScale=matchday?.playing?matchFrameRate.state.scale:walkFrameRate.reset();syncDrawingBuffer();
  const shadow=qualityMode==='high';if(renderer.shadowMap.enabled!==shadow){renderer.shadowMap.enabled=shadow;renderer.shadowMap.needsUpdate=shadow;}
  document.body.dataset.quality=qualityMode;if(scene&&modeChanged)applySurfaceQuality(scene,qualityMode);matchday?.setQuality(qualityMode,qualityScale);
 }
@@ -587,6 +603,7 @@ function bindUI(){
  window.addEventListener('pagehide',saveWalkCheckpoint);
  document.addEventListener('visibilitychange',()=>{
   clearMatchSample();
+  walkFrameRate.interrupt();
   if(matchSampling)matchFrameRate.interrupt();
   matchSampling=false;
   if(document.hidden){

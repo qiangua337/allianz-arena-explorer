@@ -11,6 +11,8 @@ const {floorHeight}=await import('../dist/navigation.js');
 const {loadVisitorSettings,saveVisitorSettings,qualityProfile}=await import('../dist/visitor-settings.js');
 const {smoothWalkInput}=await import('../dist/walk-smoothing.js');
 const {tourGoals}=await import('../dist/tour-route.js');
+const {createWalkFrameRate}=await import('../dist/walk-frame-rate.js');
+const {createFramePacer,WALK_FRAME_SLACK}=await import('../dist/frame-pacing.js');
 
 test('sector batching preserves every triangle, secondary UVs and indexed vertex reuse',()=>{
  const geometry=new THREE.TorusGeometry(110,2,8,128);geometry.rotateX(Math.PI/2);geometry.setAttribute('uv1',geometry.attributes.uv.clone());const chunks=partitionGeometry(geometry);
@@ -79,4 +81,26 @@ test('match frame preference keeps the previous quality and defaults older saves
  saveVisitorSettings(storage,{...loadVisitorSettings(storage),matchFps:120});
  saveVisitorSettings(storage,{...loadVisitorSettings(storage),quality:'low'});
  assert.deepEqual(loadVisitorSettings(storage),{quality:'low',matchFps:120});
+});
+
+test('walk rendering follows ordinary mobile display jitter and adapts only during sustained motion',()=>{
+ const pacer=createFramePacer();
+ const draws=[];
+ for(let i=0;i<600;i++){
+  const time=i/60+(i%2===0?.0007:-.0007);
+  if(pacer.ready(time,60,WALK_FRAME_SLACK))draws.push(time);
+ }
+ assert.equal(draws.length,600);
+ const budget=createWalkFrameRate();
+ const sample=(fps,seconds,active=true)=>{
+  let scale;
+  for(let i=0;i<fps*seconds;i++)scale=budget.update(1/fps,active);
+  return scale;
+ };
+ assert.equal(sample(30,4,false),1,'an idle view must keep its pixel budget');
+ assert.equal(sample(60,2),1);
+ assert.equal(sample(30,4),.70,'sustained slow frames reduce pixel work even if callback rate halves');
+ assert.equal(sample(60,2),.70,'short recovery does not immediately raise the pixel load');
+ assert.ok(sample(60,7)>.70);
+ assert.equal(budget.reset(),1);
 });

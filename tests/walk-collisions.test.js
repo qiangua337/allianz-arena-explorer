@@ -20,6 +20,7 @@ const {planWalkPath,navigationObstacles,walkSegmentClear,routeOnCurrentLevel,seg
 const {destinationArrival}=await import('../dist/arrivals.js');
 const {canStandAt}=await import('../dist/navigation.js');
 const {advanceWalker}=await import('../dist/walk-motion.js');
+const {indexWalkWalls}=await import('../dist/walk-collision-index.js');
 const {accessStairs,accessHeight}=await import('../dist/access-layout.js');
 const {buildServiceRooms}=await import('../dist/service-rooms.js');
 const {serviceRooms:serviceLayout,serviceWorld}=await import('../dist/service-layout.js');
@@ -31,6 +32,21 @@ const {playerCorridor,playerShower}=await import('../dist/player-area-layout.js'
 await loadBrandAssets();const scene=new THREE.Scene(),world=buildWorld(scene),stadium=buildStadium(scene),interiors=buildInteriors(scene,stadium.circulation),building=buildWalkBuilding(scene),geometry={rooms:roomSpecs,tiers:stadium.tiers};
 const obstacleGroups={world:world.colliders,building:building.colliders,interiors:interiors.colliders,circulation:stadium.circulation.colliders};
 const service=buildServiceRooms(scene);obstacleGroups.service=service.walls;
+
+test('fixed collision bins preserve actual walls across entrance, gallery and stairs',()=>{
+ const fixed=Object.values(obstacleGroups).flat();
+ const blocked=indexWalkWalls(fixed);
+ for(const {x,y,z} of Object.values(tourNodes)){
+  for(const dx of [-.85,-.23,0,.23,.85])for(const dz of [-.85,-.23,0,.23,.85]){
+   assert.equal(blocked(x+dx,z+dz,y+1.7),hitsWall(x+dx,z+dz,y+1.7,fixed));
+  }
+ }
+ for(const {x,y,z} of platforms){
+  for(let dx=-3.3;dx<=3.3;dx+=.37)for(let dz=-2.7;dz<=2.7;dz+=.41){
+   assert.equal(blocked(x+dx,z+dz,y+1.7),hitsWall(x+dx,z+dz,y+1.7,fixed));
+  }
+ }
+});
 
 function visibleEnvelopeMeshes(){const list=[];for(const group of [interiors.rooms.corridor,interiors.rooms.shower,...Object.values(interiors.shells)])group.traverseVisible(o=>{if(o.isMesh)list.push(o);});scene.updateMatrixWorld(true);return list;}
 function envelopeRay(origin,direction){return new THREE.Raycaster(new THREE.Vector3(...origin),new THREE.Vector3(...direction),0,100).intersectObjects(visibleEnvelopeMeshes(),false)[0];}
@@ -124,6 +140,38 @@ test('a descending route passes beneath an upper wall only where the body is act
 
 test('visitors can step from the upper gallery into the seating aisle without an invisible drop barrier',()=>{
  const p={x:102.75,z:-36.5},feet=advanceWalker(p,40,-3,0,geometry,(x,z,y)=>hitsWall(x,z,y,[...building.colliders,...interiors.colliders,...stadium.circulation.colliders]));assert.ok(p.x<100,'stopped at '+JSON.stringify(p)+' floor '+feet);assert.ok(feet<40);
+});
+
+test('upper stand navigation continues past the gallery before marking arrival on a seating tread',()=>{
+ const guide=buildWalkGuide(scene,geometry,{obstacles:obstacleGroups});
+ const gallery=new THREE.Vector3(104.475,41.7,-36.884);
+ guide.setGoal('upperStands',gallery);
+ guide.update(gallery,0,.2,'walk');
+ assert.equal(guide.isArrived(),false);
+ assert.equal(guide.getRoute().at(-1).id,'upperStands');
+ const walls=[...world.colliders,...building.colliders,...interiors.colliders,...stadium.circulation.colliders];
+ const blocked=(x,z,eye)=>hitsWall(x,z,eye,walls);
+ // Two approaches near opposite sides of the real threshold stay on
+ // supported treads and regain the same aisle after steering back to the line.
+ for(const offset of [-.7,.7]){
+  const position={x:104.475,z:-36.5+offset};
+  let feet=40;
+  const route=planWalkPath({...position,y:feet},'upperStands',geometry,obstacleGroups);
+  assert.equal(route.blocked,false);
+  for(const target of route.path){
+   for(let step=0;step<80;step++){
+    const dx=target.x-position.x,dz=target.z-position.z,d=Math.hypot(dx,dz);
+    if(d<.02)break;
+    const stride=Math.min(d,.3);
+    feet=advanceWalker(position,feet,dx/d*stride,dz/d*stride,geometry,blocked);
+   }
+   assert.ok(Math.hypot(target.x-position.x,target.z-position.z)<.03,target.id);
+   assert.ok(Math.abs(feet-target.y)<.15,target.id);
+  }
+  assert.ok(position.x<102.75&&feet<39);
+  guide.update(new THREE.Vector3(position.x,feet+1.7,position.z),0,.2,'walk');
+  assert.equal(guide.isArrived(),true);
+ }
 });
 
 test('changing destination midway through any tier gallery stays on that gallery rather than jumping to seat aisles',()=>{

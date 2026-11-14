@@ -21,7 +21,18 @@ export function segmentHitsObstacle(a,b,wall){
 }
 export function walkSegmentClear(a,b,geometry,obstacles){
  const room=roomAt(a)||roomAt(b);if(room&&furnitureBlocksSegment(a,b,room))return false;
- if(obstacles.some(w=>segmentHitsObstacle(a,b,w)))return false;
+ const minX=Math.min(a.x,b.x),maxX=Math.max(a.x,b.x),minZ=Math.min(a.z,b.z),maxZ=Math.max(a.z,b.z);
+ for(const wall of obstacles){
+  if(wall.cx===undefined){
+   if(wall.x1<=minX||wall.x0>=maxX||wall.z1<=minZ||wall.z0>=maxZ)continue;
+  }else{
+   // Each horizontal axis of the rotated box fits inside the sum of
+   // its half widths. Remote walls can skip exact segment clipping.
+   const reach=wall.halfW+wall.halfD;
+   if(wall.cx+reach<=minX||wall.cx-reach>=maxX||wall.cz+reach<=minZ||wall.cz-reach>=maxZ)continue;
+  }
+  if(segmentHitsObstacle(a,b,wall))return false;
+ }
  const steps=Math.max(1,Math.ceil(Math.hypot(a.x-b.x,a.z-b.z)/.4));let feet=a.y;
  for(let i=1;i<=steps;i++){const t=i/steps,x=a.x+(b.x-a.x)*t,z=a.z+(b.z-a.z)*t,next=floorHeight(x,z,feet,geometry);if(next-feet>MAX_STEP+.01||feet-next>1||!canStandAt(x,z,next,geometry))return false;feet=next;}
  return Math.abs(feet-b.y)<1;
