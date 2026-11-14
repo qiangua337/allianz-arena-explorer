@@ -9,7 +9,7 @@ import {buildNearSeatDetails,seatShellGeometry} from './near-seat-details.js';
 import {buildBowlLighting} from './stadium-lighting.js';
 import {positionStateChanged} from './position-state.js';
 import {THREE,TAU,v,mat,mesh,box,beam,sign,cylinder,canvasTexture,textTexture,superpoint,supernormal,ringGeometry,curveLine,mergeGeometry,compactGroup,Batches,addCrest,seeded} from './kit.js';
-import {bowlIsVisible,buildStairwellOcclusion,buildWalkFrustum,buildStaticBatchCulling} from './scene-budget.js';
+import {bowlIsVisible,buildStairwellOcclusion,buildWalkFrustum,buildStaticBatchCulling,suspendMatrixTraversal} from './scene-budget.js';
 import {enclosedPlayerPosition} from './player-area-layout.js';
 import {buildCirculation} from './circulation.js';
 import {accessStairs,ACCESS_BASE,ACCESS_TOP} from './access-layout.js';
@@ -155,6 +155,7 @@ export function buildStadium(scene){
  // These fixed instances otherwise use only Three's loose bounding spheres.
  // Other mesh visibility (including circulation sectors and lamps) stays with its owner.
  const cameraFrustum=buildWalkFrustum(),cullStaticBatches=buildStaticBatchCulling([...structural.children,...circulation.root.children,...seatInstances.map(({inst})=>inst)]);
+ const suspendBowl=suspendMatrixTraversal(bowl),suspendRoof=suspendMatrixTraversal(roof);
  return {root,roof,circulation,bowl,matchBall,updateMatchEffects:feedback.update,resetMatchEffects:feedback.reset,get detailSeatCount(){return nearSeats.count;},setMatchday:screens.setMatchday,setMatchScore:screens.setMatchScore,seatCount:seats.length,seatPositions:seats,panelCount,tiers,
  update(camera,mode='orbit',high=false,low=false,playing=false,filled=false){
   const position=camera.position,walking=mode==='walk',width=typeof innerWidth==='number'?innerWidth:Infinity;
@@ -166,6 +167,7 @@ export function buildStadium(scene){
   const state=(walking?1:0)|(high?2:0)|(low?4:0)|(playing?8:0)|(small?16:0)|(filled?32:0)|(hiddenByStairwell?64:0);
   const showArcade=!hiddenByStairwell||position.y<=5;
   if(!playing&&circulation.root.visible!==showArcade)circulation.root.visible=showArcade;
+  suspendBowl(hiddenByStairwell);suspendRoof(hiddenByStairwell);
   cullStaticBatches(upperWalking&&!hiddenByStairwell,view);
   if(!visibilityChanged(position,state))return;
   if(hiddenByStairwell){

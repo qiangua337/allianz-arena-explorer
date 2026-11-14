@@ -149,6 +149,36 @@ test('phone walking rejects offscreen batch boxes and restores ordinary visibili
   assert.ok(candidates.every(o=>o.visible),'desktop retains its original batch visibility');
  }finally{if(width===undefined)delete globalThis.innerWidth;else globalThis.innerWidth=width;}
 });
+test('phone stairwell matrix traversal skips the obscured roof and seats and resumes through an opening',()=>{
+ const width=globalThis.innerWidth;globalThis.innerWidth=390;
+ const camera=new THREE.PerspectiveCamera(66,390/844,.06,2500);
+ const seatProbe=new THREE.Object3D(),roofProbe=new THREE.Object3D();
+ stadium.bowl.add(seatProbe);stadium.roof.add(roofProbe);
+ const originalBall=stadium.matchBall.position.clone();
+ const face=(position,target,playing=false)=>{
+  camera.position.fromArray(position);camera.lookAt(...target);stadium.update(camera,'walk',false,false,playing);
+  scene.updateMatrixWorld(true);
+ };
+ try{
+  seatProbe.position.x=2;roofProbe.position.z=3;
+  face([100,29.8,-1.2],[100,30.1,2]);
+  assert.equal(stadium.bowl.visible,false);
+  assert.equal(seatProbe.matrixWorld.elements[12],0);
+  assert.equal(roofProbe.matrixWorld.elements[14],0);
+  face([100,29.8,-1.2],[101.5,25.3,-13.25]);
+  assert.equal(stadium.bowl.visible,true);
+  assert.equal(seatProbe.matrixWorld.elements[12],2);
+  assert.equal(roofProbe.matrixWorld.elements[14],3);
+  face([106,41.7,-25],[106,41.7,-37.6]);
+  assert.equal(stadium.bowl.visible,false);
+  stadium.matchBall.position.x+=6;
+  face([106,41.7,-25],[106,41.7,-37.6],true);
+  assert.equal(stadium.matchBall.matrixWorld.elements[12],originalBall.x+6,'match ball resumes on the first match frame');
+ }finally{
+  seatProbe.removeFromParent();roofProbe.removeFromParent();stadium.matchBall.position.copy(originalBall);
+  if(width===undefined)delete globalThis.innerWidth;else globalThis.innerWidth=width;
+ }
+});
 
 test('bowl fittings retain every box and cull the opposite stand from match cameras',()=>{
  const fittings=meshes(stadium.bowl.getObjectByName('Bowl concrete steps and metal fittings'));

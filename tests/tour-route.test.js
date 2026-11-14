@@ -79,6 +79,30 @@ test('upper seating and its bridge use the right-angle landing in both direction
  assert.equal(waypointReached(upperThresholdFoot,upperThresholdFoot,upperAisleEntry,upperThreshold),true);
 });
 
+test('returning from the fast upper-seat stop climbs the radial aisle before turning',()=>{
+ const {upperThresholdFoot,upperAisleEntry,upperThreshold}=tourNodes;
+ const x=100.683,z=-35.287,position={x,y:floorHeight(x,z,37.93,geometry),z};
+ assert.equal(walkSegmentClear(position,upperThresholdFoot,geometry,[]),false);
+ const returning=planWalkPath(position,'entrance',geometry);
+ assert.equal(returning.blocked,false);
+ assert.deepEqual(returning.path.slice(0,3),[upperAisleEntry,upperThresholdFoot,upperThreshold]);
+ assert.equal(walkSegmentClear({...upperAisleEntry,z:upperAisleEntry.z-.12},upperThresholdFoot,geometry,[]),true,'an aligned visitor on the landing can continue from their actual location');
+});
+
+test('touch guidance retains the doorway waypoint while the visitor is on threshold steps',()=>{
+ const {upperThresholdFoot,upperThreshold,upperBridgeStart}=tourNodes;
+ const x=102.301,z=-36.546,position={x,y:floorHeight(x,z,39.36,geometry),z};
+ assert.equal(waypointReached(position,upperThreshold,upperThresholdFoot,upperBridgeStart),false);
+ const restarting=planWalkPath(position,'entrance',geometry);
+ assert.equal(restarting.blocked,false);
+ assert.deepEqual(restarting.path.slice(0,2),[upperThreshold,upperBridgeStart]);
+ const inbound=planWalkPath(position,'upperStands',geometry);
+ assert.equal(inbound.blocked,false);
+ assert.equal(inbound.path[0],upperThresholdFoot);
+ const past={...upperThreshold,x:upperThreshold.x+.86,z:upperThreshold.z+.12};
+ assert.equal(waypointReached(past,upperThreshold,upperThresholdFoot,upperBridgeStart),true);
+});
+
 test('a lost visitor in the lower hall follows the ring instead of crossing staff walls',()=>{
  const route=planTour({x:-96,y:-2.9,z:0},'pitch');
  assert.ok(route[0].id.startsWith('lower'));assert.ok(route.some(n=>n.id==='visitorGate'||n.id==='playerSouthLobby'||n.id==='playerNorthLobby'));assert.ok(!route.some(n=>n.id==='homeRoom'));

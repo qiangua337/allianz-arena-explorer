@@ -23,11 +23,16 @@ export function segmentHitsObstacle(a,b,wall){
 // accepts a diagonal across the corner and guides visitors over the chairs.
 function crossesUpperLanding(a,b){
  const low=Math.min(a.y,b.y),high=Math.max(a.y,b.y),landing=upperThresholdLanding;
- if(low<landing.y-2||high>upperTierThreshold.top+.8)return false;
- for(const [x,center]of [[landing.x0,upperAisleEntry.z],[landing.x1,upperTierThreshold.z]]){
+ if(low<landing.y-2||high>upperTierThreshold.top+.8||a.x===b.x)return false;
+ for(const [x,center,aisleSide]of [[landing.x0,upperAisleEntry.z,true],[landing.x1,upperTierThreshold.z,false]]){
   if(!((a.x<x&&b.x>=x)||(b.x<x&&a.x>=x)))continue;
-  const z=a.z+(b.z-a.z)*(x-a.x)/(b.x-a.x);
-  if(z>landing.z0-.15&&z<landing.z1+.2&&Math.abs(z-center)>.34)return true;
+  const t=(x-a.x)/(b.x-a.x),z=a.z+(b.z-a.z)*t;
+  if(z<=landing.z0-.15||z>=landing.z1+.2)continue;
+  if(Math.abs(z-center)>.34)return true;
+  // Stay in the radial aisle until the visitor is on the turning landing.
+  // Points low on its nearest tread can otherwise cut to the far stair.
+  const landingEnd=a.x>b.x?a:b;
+  if(aisleSide&&low<landing.y-.30&&Math.abs(landingEnd.z-center)>.39)return true;
  }
  return false;
 }
@@ -102,9 +107,29 @@ function routeFromBridge(position,goal,geometry,groups,obstacles){
  }
  return best;
 }
+function routeFromUpperThresholdStairs(position,goal,geometry,groups,obstacles){
+ const {x,z,top,bottom,depth,steps,width}=upperTierThreshold;
+ if(position.x<=x-depth*steps||position.x>=x||position.y<bottom-.1||position.y>top+.05||Math.abs(position.z-z)>=width/2)return null;
+ // A new destination selected mid-flight still uses a physical stair end.
+ // Consider both ends, as somebody on the stairs may turn back to their seat.
+ const first=tourNodes.upperThresholdFoot,last=tourNodes.upperThreshold;
+ let best=null,bestDistance=Infinity;
+ for(const start of [first,last]){
+  const path=planTour(position,goal,start.id);
+  if(!path.length)continue;
+  const result=validatePath(position,path,geometry,groups,obstacles);
+  if(result.blocked)continue;
+  let length=0,previous=position;
+  for(const next of result.path){length+=distance(previous,next);previous=next;}
+  if(length<bestDistance){bestDistance=length;best=result;}
+ }
+ return best;
+}
 export function planWalkPath(position,goal,geometry,groups={}){
  const service=serviceRoomAt(position);if(service){const door={...serviceWorld(service,0,.45),y:service.y},outside=serviceWorld(service,0,3.1),node=(p,id,label)=>({...p,y:service.y,id,level:'upper',label,hint:'按 F 或点击互动按钮打开服务间双门，再回到公共大厅。'}),obstacles=navigationObstacles(position,groups),prefix=walkSegmentClear(position,door,geometry,obstacles)?[]:detour(position,door,geometry,obstacles),tail=planWalkPath({...outside,y:service.y},goal,geometry,groups);if(!prefix)return{path:[],blocked:true};return{path:[...prefix,node(door,service.id+'Exit','走出服务间'),node(outside,service.id+'Outside','返回公共大厅'),...tail.path],blocked:tail.blocked};}
  const obstacles=navigationObstacles(position,groups);
+ const thresholdRoute=routeFromUpperThresholdStairs(position,goal,geometry,groups,obstacles);
+ if(thresholdRoute)return thresholdRoute;
  const direct=directWalkDestination(position,goal,geometry,obstacles);
  if(direct)return{path:[direct],blocked:false};
  const bridgeRoute=routeFromBridge(position,goal,geometry,groups,obstacles);

@@ -15,20 +15,24 @@ export function freezeArchitecture(group,exclude=[]){
  // multiply every world matrix on every rendered frame.
  group.updateWorldMatrix(true,true);for(const o of fixed){o.matrixAutoUpdate=false;o.matrixWorldAutoUpdate=false;}
 }
+// Three's matrix traversal can skip a hidden render subtree. Its objects and
+// cached world matrices stay available to explicit queries and material tools.
+export function suspendMatrixTraversal(root){
+ const update=root.updateMatrixWorld;let suspended=false;
+ root.updateMatrixWorld=function(force){if(!suspended)return update.call(this,force);};
+ return value=>{suspended=value;};
+}
 // Three skips invisible groups when drawing, but still walks their transforms.
 // Suspend only the exploration roots for matches; they stay in the scene so
 // material settings, queries, and the existing room state still find them.
 export function suspendExplorationDuringMatch(roots){
  let suspended=false;
  const previous=roots.map(root=>root.visible);
- for(const root of roots){
-  const update=root.updateMatrixWorld;
-  root.updateMatrixWorld=function(force){if(!suspended)update.call(this,force);};
- }
+ const setTraversal=roots.map(suspendMatrixTraversal);
  return function setMatchActive(active){
   if(active===suspended)return;
   suspended=active;
-  roots.forEach((root,i)=>{if(active){previous[i]=root.visible;root.visible=false;}else root.visible=previous[i];});
+  roots.forEach((root,i)=>{setTraversal[i](active);if(active){previous[i]=root.visible;root.visible=false;}else root.visible=previous[i];});
  };
 }
 export function bowlIsVisible(position,mode){

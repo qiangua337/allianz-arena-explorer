@@ -100,7 +100,7 @@ export async function startArena({hub, initial, nightAtStart}){
  serviceDoorColliders=serviceRooms.colliders.filter(collider=>collider.dynamicDoor);
  spatializeArchitecture(stadium.circulation.root);spatializeArchitecture(interiors.rooms.concourse);
  setExplorationMatchMode=suspendExplorationDuringMatch([world.group,building.root,interiors.root,serviceRooms.root,stadium.circulation.root]);
- freezeArchitecture(world.group,[world.rotor]);freezeArchitecture(stadium.root,[stadium.matchBall]);freezeArchitecture(stadium.circulation.root);freezeArchitecture(interiors.root);freezeArchitecture(building.root);destinationMenu=buildDestinationMenu({onDismiss:()=>setNavOpen(false)});buildHotspots();bindUI();setNavOpen(false);document.body.dataset.mode=mode;setDayNight(nightAtStart);applySurfaceQuality(scene,qualityMode);clock.time=performance.now();document.body.dataset.version='10.7.5';document.body.dataset.seats=stadium.seatCount;document.body.dataset.panels=stadium.panelCount;
+ freezeArchitecture(world.group,[world.rotor]);freezeArchitecture(stadium.root,[stadium.matchBall]);freezeArchitecture(stadium.circulation.root);freezeArchitecture(interiors.root);freezeArchitecture(building.root);destinationMenu=buildDestinationMenu({onDismiss:()=>setNavOpen(false)});buildHotspots();bindUI();setNavOpen(false);document.body.dataset.mode=mode;setDayNight(nightAtStart);applySurfaceQuality(scene,qualityMode);clock.time=performance.now();document.body.dataset.version='10.7.6';document.body.dataset.seats=stadium.seatCount;document.body.dataset.panels=stadium.panelCount;
  const requestedPlace=initial.get('place');
  if(initial.get('view')==='walk'){
   const place=requestedPlace&&(places[requestedPlace]||tourGoals[requestedPlace])?requestedPlace:'arcade';
@@ -430,7 +430,7 @@ function render(timestamp){
   }
   const modalOpen=!!document.querySelector('dialog[open]')||!!playing&&!$('game-overlay').hidden;
   if(walkAdaptive){
-   const moving=walkReady&&!modalOpen&&(dragging||joystickPointer!==null||keys.size>0||movementPointers.size>0);
+   const moving=walkReady&&!modalOpen&&(dragging||touchAxes.x!==0||touchAxes.y!==0||keys.size>0||movementPointers.size>0);
    applyAdaptiveScale(walkFrameRate.update(sceneTime,moving));
   }
   if(modalWasOpen!==modalOpen)frameBudget.invalidate();

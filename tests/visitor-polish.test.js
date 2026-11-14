@@ -114,3 +114,16 @@ test('walk rendering follows ordinary mobile display jitter and adapts only duri
  assert.ok(sample(60,7)>.70);
  assert.equal(budget.reset(),1);
 });
+
+test('short gesture gaps preserve the mobile walk budget and recurring long frames lower it early',()=>{
+ const budget=createWalkFrameRate();
+ assert.equal(budget.update(1/20,true),1);
+ assert.equal(budget.update(1/60,true),1,'a single spike does not lower resolution');
+ for(let i=0;i<3;i++)assert.equal(budget.update(1/24,true),1);
+ for(let i=0;i<12;i++)assert.equal(budget.update(1/60,false),1);
+ assert.equal(budget.update(1/24,true),.88,'responds to four slow draws before the whole sample window');
+ assert.equal(budget.reset(),1);
+ for(let i=0;i<3;i++)assert.equal(budget.update(1/24,true),1);
+ for(let i=0;i<24;i++)assert.equal(budget.update(1/60,false),1);
+ assert.equal(budget.update(1/24,true),1,'a long rest discards the previous sample');
+});

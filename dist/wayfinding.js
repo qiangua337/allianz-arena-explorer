@@ -18,6 +18,9 @@ export function waypointReached(position,target,anchor,next,isFinal=false){
  if(upperLandingTurn(target.id)){
   return vertical<.25&&(distance<=.25||passedCorner(position,target,anchor,.18,.42));
  }
+ if(target.id==='upperThreshold'){
+  return vertical<.24&&(distance<=.65||passedCorner(position,target,anchor,.42,1.1));
+ }
  const controlledTurn=coreTurn(target.id)||galleryTurn(target.id);
  const tight=target.level==='core'||target.level==='clearance'||controlledTurn||/^landing|Door|Start|Out|Turn|End/.test(target.id),radius=tight?.65:/^(lower|upper)\d+$/.test(target.id)?3:1.4;
  if(distance<=radius)return true;
