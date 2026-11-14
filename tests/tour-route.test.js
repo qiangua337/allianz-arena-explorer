@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import {visitorPassage,visitorFloor,inVisitorPassage,visitorWallOpening,visitorBowlOpening,planTour,tourNodes,tourGoals,tourLinks} from '../dist/tour-route.js';
 import {floorHeight,MAX_STEP,hitsWall} from '../dist/navigation.js';
 import {orientedCollider} from '../dist/access-layout.js';
+import {planWalkPath,walkSegmentClear} from '../dist/walk-path.js';
+import {roomSpecs} from '../dist/building-layout.js';
 
 const geometry={tiers:[{a:43,b:61,y:.7,rows:30,depth:.76,angle:24},{a:66,b:84,y:13.2,rows:24,depth:.76,angle:30},{a:85,b:103,y:27.1,rows:26,depth:.73,angle:34}]};
 
@@ -43,4 +45,23 @@ test('a lost visitor in the lower hall follows the ring instead of crossing staf
  const route=planTour({x:-96,y:-2.9,z:0},'pitch');
  assert.ok(route[0].id.startsWith('lower'));assert.ok(route.some(n=>n.id==='visitorGate'||n.id==='playerSouthLobby'||n.id==='playerNorthLobby'));assert.ok(!route.some(n=>n.id==='homeRoom'));
  for(const n of route.filter(n=>n.id.startsWith('lower')))assert.ok((Math.abs(n.x)/86)**2.8+(Math.abs(n.z)/104)**2.8>1);
+});
+
+test('walkers on a connector head towards the exit that shortens the rest of the route',()=>{
+ const middle={x:102,y:23.6,z:-20};
+ const northRamp={x:0,y:floorHeight(0,-94,11.4,geometry),z:-94};
+ const cases=[
+  [middle,'stands','middleBridgeStart'],
+  [middle,'lounge','landing2'],
+  [northRamp,'lowerStands','lowerStands'],
+  [{x:0,y:floorHeight(0,-87,10.9,geometry),z:-87},'concourse','lowerEntry'],
+ ];
+ for(const [position,destination,first] of cases){
+  const walkGeometry={...geometry,rooms:roomSpecs};
+  const result=planWalkPath(position,destination,walkGeometry);
+  assert.equal(result.blocked,false,destination);
+  assert.equal(result.path[0].id,first,destination);
+  assert.equal(result.path.at(-1).id,destination);
+  assert.ok(walkSegmentClear(position,result.path[0],walkGeometry,[]));
+ }
 });

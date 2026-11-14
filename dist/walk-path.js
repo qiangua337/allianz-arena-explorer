@@ -1,5 +1,5 @@
 import {planTour,tourNodes,tourStarts} from './tour-route.js';
-import {roomAt} from './building-layout.js';
+import {bridges,onBridge,roomAt} from './building-layout.js';
 import {furnitureBlocksSegment} from './furniture-layout.js';
 import {serviceRoomAt,serviceWorld} from './service-layout.js';
 import {floorHeight,canStandAt,EYE_HEIGHT,MAX_STEP} from './navigation.js';
@@ -57,11 +57,34 @@ function validatePath(position,path,geometry,groups,obstacles){
   if(corners===null)return{path:[],blocked:true};complete.push(...corners,next);previous=next;
  }return{path:complete,blocked:false};
 }
+function routeFromBridge(position,goal,geometry,groups,obstacles){
+ const onThisFloor=bridges.some(bridge=>{
+  const fraction=onBridge(position.x,position.z,bridge);
+  return fraction!==null&&Math.abs(position.y-(bridge.a[1]+(bridge.b[1]-bridge.a[1])*fraction))<.75;
+ });
+ if(!onThisFloor)return null;
+ // Include the route beyond each reachable exit to avoid turning back onto
+ // the same connector when the destination is ahead.
+ let best=null,bestDistance=Infinity;
+ for(const start of tourStarts(position)){
+  if(!walkSegmentClear(position,start,geometry,obstacles))continue;
+  const route=planTour(position,goal,start.id);
+  if(!route.length)continue;
+  const result=validatePath(start,route.slice(1),geometry,groups,obstacles);
+  if(result.blocked)continue;
+  let length=distance(position,start),previous=start;
+  for(const next of result.path){length+=distance(previous,next);previous=next;}
+  if(length<bestDistance){bestDistance=length;best={path:[start,...result.path],blocked:false};}
+ }
+ return best;
+}
 export function planWalkPath(position,goal,geometry,groups={}){
  const service=serviceRoomAt(position);if(service){const door={...serviceWorld(service,0,.45),y:service.y},outside=serviceWorld(service,0,3.1),node=(p,id,label)=>({...p,y:service.y,id,level:'upper',label,hint:'按 F 或点击互动按钮打开服务间双门，再回到公共大厅。'}),obstacles=navigationObstacles(position,groups),prefix=walkSegmentClear(position,door,geometry,obstacles)?[]:detour(position,door,geometry,obstacles),tail=planWalkPath({...outside,y:service.y},goal,geometry,groups);if(!prefix)return{path:[],blocked:true};return{path:[...prefix,node(door,service.id+'Exit','走出服务间'),node(outside,service.id+'Outside','返回公共大厅'),...tail.path],blocked:tail.blocked};}
  const obstacles=navigationObstacles(position,groups);
  const direct=directWalkDestination(position,goal,geometry,obstacles);
  if(direct)return{path:[direct],blocked:false};
+ const bridgeRoute=routeFromBridge(position,goal,geometry,groups,obstacles);
+ if(bridgeRoute)return bridgeRoute;
  const route=planTour(position,goal);if(!route.length)return{path:[],blocked:true};
  const remaining=route.map(()=>0);for(let i=route.length-2;i>=0;i--)remaining[i]=remaining[i+1]+distance(route[i],route[i+1]);
  let best=null;for(let i=0;i<Math.min(route.length,5);i++){const target=route[i];if(i&&Math.abs(target.y-position.y)>.85)break;if(i&&distance(position,target)>45)break;

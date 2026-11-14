@@ -9,39 +9,99 @@ import {normalizeDestination} from './arrivals.js';
 import {destinationName} from './destinations.js';
 import {ribbonPoints} from './ribbon-path.js';
 import {playerLinks,containsFloor} from './player-area-layout.js';
-import {nextWalkDestination} from './walk-continuation.js';
+import {alternateWalkDestination,nextWalkDestination} from './walk-continuation.js';
 
 export function floorLabel(y,position){if(position){const{x,z}=position;if(inCoreShaft(x,z)&&!coreLevels.some(level=>Math.abs(level-y)<.5))return'楼梯间';if(y<3&&(x>-95&&x<-40&&z>-43&&z<49||playerLinks.some(r=>containsFloor(r,x,z))))return'球员层';if(y>=-.3&&Math.abs(x)<42&&Math.abs(z)<60)return'球场层';}return y<2?'入口层':y<18?'公共大厅层':y<32?'包厢 / 中层':'上层看台';}
-export function buildWalkGuide(scene,geometry,{obstacles={},onChoose,onSelect,onWalk,onTeleport,onContinue,nextDestination}={}){
+export function buildWalkGuide(scene,geometry,{obstacles={},onChoose,onSelect,onWalk,onTeleport,onContinue,onOrient,nextDestination}={}){
  const $=id=>document.getElementById(id),panel=$('walk-guide'),select=$('guide-goal'),arrow=$('guide-arrow'),title=$('guide-title'),detail=$('guide-detail'),next=$('guide-next');
  const walkButton=$('guide-walk'),teleportButton=$('guide-teleport'),goalName=$('guide-goal-name'),distanceText=$('guide-distance');
- const group=new THREE.Group();scene.add(group);const positions=new Float32Array(4096*6*3),geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.BufferAttribute(positions,3).setUsage(THREE.DynamicDrawUsage));
- const line=new THREE.Mesh(geo,new THREE.MeshBasicMaterial({color:0xffd36b,side:THREE.DoubleSide,depthTest:true,depthWrite:false,transparent:true,opacity:.85,toneMapped:false}));line.frustumCulled=false;line.renderOrder=2;group.add(line);
+ const alternate=$('guide-alternate'),orient=$('guide-orient'),collapse=$('guide-collapse');
+ const group=new THREE.Group();scene.add(group);const positions=new Float32Array(2048*3),geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.BufferAttribute(positions,3).setUsage(THREE.DynamicDrawUsage));
+ const line=new THREE.Mesh(geo,new THREE.MeshBasicMaterial({color:0xffd36b,side:THREE.DoubleSide,depthTest:true,depthWrite:false,transparent:true,opacity:.85,toneMapped:false,forceSinglePass:true}));line.frustumCulled=false;line.renderOrder=2;group.add(line);
  let path=[],goal='arcade',arrived=false,blocked=false,selected=false,collapsed=true,suppressed=false,timer=0,planClock=0,anchor=null,eyeHeight=EYE_HEIGHT,lastMode='orbit';
- const lastPosition=v(0,-2.4,214);let lastDraw=null;
+ const lastPosition=v(0,-2.4,214);let lastDraw=null,lastYaw=0;
  const feet=p=>({x:p.x,y:p.y-eyeHeight,z:p.z});
- function expand(){collapsed=true;panel.classList.toggle('collapsed',true);$('guide-collapse').textContent='详情';}
+ function setCollapsed(value){
+  collapsed=value;panel.classList.toggle('collapsed',value);
+  collapse.textContent=value?'详情':'收起';
+  collapse.setAttribute('aria-expanded',String(!value));
+ }
  function reset(position=lastPosition){lastPosition.copy(position);anchor=feet(position);const result=planWalkPath(anchor,goal,geometry,obstacles);path=result.path;blocked=result.blocked;arrived=false;planClock=0;lastDraw=null;geo.setDrawRange(0,0);}
  function choose(id){if(onSelect)onSelect(id);else setGoal(id);$('scene').focus({preventScroll:true});}
- function setGoal(id,position=lastPosition,currentEyeHeight=EYE_HEIGHT){eyeHeight=currentEyeHeight;goal=normalizeDestination(id);select.value=goal;goalName.textContent=destinationName(goal);selected=true;expand();reset(position);refresh();return goal;}
+ function setGoal(id,position=lastPosition,currentEyeHeight=EYE_HEIGHT){eyeHeight=currentEyeHeight;goal=normalizeDestination(id);select.value=goal;goalName.textContent=destinationName(goal);selected=true;setCollapsed(true);reset(position);refresh();return goal;}
  select.onclick=()=>onChoose?.();
- $('guide-collapse').onclick=()=>{collapsed=!collapsed;panel.classList.toggle('collapsed',collapsed);$('guide-collapse').textContent=collapsed?'详情':'收起';};
- walkButton.onclick=()=>{expand();onWalk?.();};teleportButton.onclick=()=>onTeleport?.(goal);
- const following=()=>{const id=nextDestination?.();return id===undefined?nextWalkDestination(goal):id;};
- next.onclick=()=>{if(!arrived)return;if(onContinue?.())return;const id=following();if(id)choose(id);};
- function refresh(yaw=0){
+ collapse.onclick=()=>{setCollapsed(!collapsed);refresh();};
+ walkButton.onclick=()=>{setCollapsed(true);onWalk?.();};teleportButton.onclick=()=>onTeleport?.(goal);
+ const suggestions=()=>{const id=nextDestination?.();return id===undefined?[nextWalkDestination(goal),alternateWalkDestination(goal)]:[id,null];};
+ next.onclick=()=>{if(!arrived)return;if(onContinue?.())return;const [id]=suggestions();if(id)choose(id);};
+ alternate.onclick=()=>{const [,id]=suggestions();if(arrived&&id)choose(id);};
+ orient.onclick=()=>{if(lastMode==='walk'&&!arrived&&!blocked&&path[0])onOrient?.(path[0]);};
+ const writeText=(element,value)=>{if(element.textContent!==value)element.textContent=value;};
+ function refresh(yaw=lastYaw){
+  lastYaw=yaw;
   panel.hidden=suppressed||lastMode!=='walk'&&!selected;group.visible=!suppressed&&lastMode==='walk'&&!blocked&&!arrived;
   const p=feet(lastPosition);document.body.dataset.destination=goal;document.body.dataset.guideState=arrived?'arrived':blocked?'blocked':'routing';
-  panel.classList.toggle('arrived',arrived&&lastMode==='walk');walkButton.hidden=lastMode==='walk';teleportButton.title='传送到'+tourGoals[goal]+'（T）';next.hidden=!arrived||lastMode!=='walk';distanceText.textContent=arrived?floorLabel(p.y,p):lastMode==='walk'?'沿地面指引前行':'步行 / 直接传送';
-  if(arrived){const id=following();document.body.dataset.routeMetres=0;title.textContent='已到达 · '+tourGoals[goal];detail.textContent='自由探索，靠近门、展品与设施可按 F 互动。';arrow.textContent='✓';arrow.style.transform='none';next.textContent=id?destinationName(id)+' →':'完成导览';next.setAttribute('aria-label',id?'步行前往'+destinationName(id):'完成当前步行导览');next.title=id?'步行前往'+destinationName(id):'完成当前步行导览';document.body.dataset.guideTarget=goal;delete document.body.dataset.guidePoint;}
-  else if(blocked){title.textContent='当前位置暂未找到可通行路线';detail.textContent='回到开放过道后会重新规划，也可直接传送。';arrow.textContent='!';arrow.style.transform='none';document.body.dataset.guideTarget='';delete document.body.dataset.guidePoint;}
-  else if(lastMode!=='walk'){title.textContent='已选择 · '+tourGoals[goal];detail.textContent='从上次步行位置出发，或直接传送到目的地。';arrow.textContent='↗';arrow.style.transform='none';}
-  else if(path.length){const target=path[0],instruction=movementInstruction(p,yaw,target,path[1]);arrow.textContent='↑';arrow.style.transform=`rotate(${instruction.angle}rad)`;title.textContent=instruction.action;distanceText.textContent=Math.round(instruction.distance)+' m · '+floorLabel(p.y,p);const summary=routeSummary(p,path);distanceText.textContent=Math.round(instruction.distance)+' m · 余 '+summary.metres+' m';detail.textContent=floorLabel(p.y,p)+' · '+instruction.hint+' 距离目的地约 '+summary.metres+' 米，步行约 '+Math.max(1,Math.ceil(summary.seconds/60))+' 分钟。';document.body.dataset.routeMetres=summary.metres;document.body.dataset.guideTarget=target.id;document.body.dataset.guidePoint=[target.x,target.y,target.z].join(',');}
+  const walking=lastMode==='walk';
+  panel.classList.toggle('arrived',arrived&&walking);
+  walkButton.hidden=walking;teleportButton.title='传送到'+tourGoals[goal]+'（T）';next.hidden=!arrived||!walking;alternate.hidden=true;
+  orient.hidden=collapsed||!walking||arrived||blocked||!path.length;
+  let action,hint,subline,symbol,angle=0;
+  if(arrived){
+   const [id,other]=suggestions();
+   action='已到达 · '+tourGoals[goal];hint='靠近开放门、展品或座位即可互动。';subline=floorLabel(p.y,p);symbol='✓';
+   writeText(next,id?destinationName(id)+' →':'完成导览');
+   next.title=id?'步行前往'+destinationName(id):'完成当前步行导览';next.setAttribute('aria-label',next.title);
+   if(other&&walking){alternate.hidden=false;writeText(alternate,destinationName(other)+' →');alternate.setAttribute('aria-label','步行前往'+destinationName(other));}
+   document.body.dataset.routeMetres=0;document.body.dataset.guideTarget=goal;delete document.body.dataset.guidePoint;
+  }else if(blocked&&walking){
+   action='附近没有找到通路';hint='先退回开放过道，路线会重新计算。也可直接传送。';subline=floorLabel(p.y,p);symbol='!';
+   delete document.body.dataset.routeMetres;document.body.dataset.guideTarget='';delete document.body.dataset.guidePoint;
+  }else if(!walking){
+   action='已选择 · '+tourGoals[goal];hint='从上次步行位置出发，或直接传送到目的地。';subline='步行 / 直接传送';symbol='↗';
+  }else if(path.length){
+   const target=path[0],instruction=movementInstruction(p,yaw,target,path[1]),summary=routeSummary(p,path);
+   action=instruction.action;symbol='↑';angle=instruction.angle;
+   subline='还有 '+summary.metres+' 米 · '+floorLabel(p.y,p);
+   hint=instruction.hint+' 下一转向点约 '+Math.round(instruction.distance)+' 米。';
+   document.body.dataset.routeMetres=summary.metres;document.body.dataset.guideTarget=target.id;document.body.dataset.guidePoint=[target.x,target.y,target.z].join(',');
+  }
+  if(action){
+   writeText(title,action);title.title=action;writeText(detail,hint);writeText(distanceText,subline);writeText(arrow,symbol);
+   const transform=angle?`rotate(${angle}rad)`:'none';if(arrow.style.transform!==transform)arrow.style.transform=transform;
+  }
  }
- function draw(p){let count=0;const points=ribbonPoints(p,path,geometry);for(let i=1;i<points.length&&count+6<4096*6;i++){const a=points[i-1],b=points[i],dx=b.x-a.x,dz=b.z-a.z,length=Math.hypot(dx,dz)||1,nx=dz/length*.075,nz=-dx/length*.075;for(const [point,side]of[[a,1],[a,-1],[b,1],[b,1],[a,-1],[b,-1]]){positions[count*3]=point.x+nx*side;positions[count*3+1]=point.y;positions[count*3+2]=point.z+nz*side;count++;}}geo.setDrawRange(0,count);geo.attributes.position.needsUpdate=true;lastDraw={...p};}
+ function draw(p){
+  let count=0,spacing=0;
+  function vertex(x,y,z){positions[count*3]=x;positions[count*3+1]=y;positions[count*3+2]=z;count++;}
+  const points=ribbonPoints(p,path,geometry);
+  for(let i=1;i<points.length&&count+9<positions.length/3;i++){
+   const a=points[i-1],b=points[i],dx=b.x-a.x,dz=b.z-a.z,length=Math.hypot(dx,dz);
+   if(length<.001)continue;
+   const ux=dx/length,uz=dz/length,nx=uz*.055,nz=-ux*.055;
+   vertex(a.x+nx,a.y,a.z+nz);vertex(a.x-nx,a.y,a.z-nz);vertex(b.x+nx,b.y,b.z+nz);
+   vertex(b.x+nx,b.y,b.z+nz);vertex(a.x-nx,a.y,a.z-nz);vertex(b.x-nx,b.y,b.z-nz);
+   spacing+=length;
+   // Widen the line into arrowheads only on flat runs, clear of stair edges and turns.
+   if(spacing>=3.2&&i>=2&&i+2<points.length){
+    const before=points[i-2],after=points[i+2],straight=(after.x-before.x)*ux+(after.z-before.z)*uz;
+    if(Math.abs(after.y-b.y)<.015&&Math.abs(before.y-b.y)<.015&&straight>.68){
+     vertex(b.x+uz*.24-ux*.24,b.y,b.z-ux*.24-uz*.24);
+     vertex(b.x-uz*.24-ux*.24,b.y,b.z+ux*.24-uz*.24);
+     vertex(b.x+ux*.34,b.y,b.z+uz*.34);
+     spacing=0;
+    }
+   }
+  }
+  geo.setDrawRange(0,count);
+  if(count){
+   const attribute=geo.attributes.position;attribute.clearUpdateRanges();attribute.addUpdateRange(0,count*3);attribute.needsUpdate=true;
+  }
+  lastDraw={...p};
+ }
  function update(position,yaw,dt,mode,currentEyeHeight=EYE_HEIGHT){
-  eyeHeight=currentEyeHeight;lastPosition.copy(position);lastMode=mode;if(suppressed){panel.hidden=true;group.visible=false;return;}timer+=dt;planClock+=dt;if(timer<.12)return;timer=0;const p=feet(position);
+  eyeHeight=currentEyeHeight;lastPosition.copy(position);lastMode=mode;lastYaw=yaw;if(suppressed){panel.hidden=true;group.visible=false;return;}timer+=dt;planClock+=dt;if(timer<.12)return;timer=0;const p=feet(position);
   if(!anchor)reset(position);
+  if(mode!=='walk'){refresh(yaw);return;}
   const walls=navigationObstacles(p,obstacles);
   // A visitor may take another open aisle instead of visiting every old node.
   // Arrival still requires the same floor and an unobstructed final segment.
@@ -70,6 +130,6 @@ export function buildWalkGuide(scene,geometry,{obstacles={},onChoose,onSelect,on
   if(mode==='walk'&&!blocked&&!arrived&&(!lastDraw||Math.hypot(p.x-lastDraw.x,p.y-lastDraw.y,p.z-lastDraw.z)>.15))draw(p);
  }
  function arrive(id,position){setGoal(id,position);path=[];blocked=false;arrived=true;geo.setDrawRange(0,0);refresh();}
- function restoreState(saved,position,currentEyeHeight=EYE_HEIGHT){setGoal(saved.goal,position,currentEyeHeight);selected=saved.selected;collapsed=saved.collapsed;if(saved.arrived){arrived=true;blocked=false;path=[];geo.setDrawRange(0,0);}panel.classList.toggle('collapsed',collapsed);$('guide-collapse').textContent=collapsed?'详情':'收起';refresh();}
+ function restoreState(saved,position,currentEyeHeight=EYE_HEIGHT){setGoal(saved.goal,position,currentEyeHeight);selected=saved.selected;if(saved.arrived){arrived=true;blocked=false;path=[];geo.setDrawRange(0,0);}setCollapsed(saved.collapsed);refresh();}
  return{update,reset,setGoal,arrive,isArrived:()=>arrived,setSuppressed(value){suppressed=value;refresh();},captureState:()=>({goal,selected,collapsed,arrived}),restoreState,getGoal:()=>goal,getRoute:()=>path};
 }

@@ -30,3 +30,28 @@ test('playing or low-quality orbit disables the patch and restoring quality rest
   stadium.update(camera,'walk',false,true,false);assert.ok(stadium.detailSeatCount>0&&stadium.detailSeatCount<=32);assert.equal(stadium.bowl.getObjectByName('Nearby moulded seating shells'),patch[0]);
  }finally{if(saved===undefined)delete globalThis.innerWidth;else globalThis.innerWidth=saved;}
 });
+
+test('a phone walking view uses solid lighter seat sectors and keeps the detailed seats at the camera',()=>{
+ const saved=globalThis.innerWidth;globalThis.innerWidth=390;
+ try{
+  const phoneCamera=new THREE.PerspectiveCamera(68,390/844,.1,2500);
+  phoneCamera.position.set(82.55,25.3,-30.1);phoneCamera.lookAt(0,9,0);phoneCamera.updateMatrixWorld(true);
+  scene.updateMatrixWorld(true);
+  const view=new THREE.Frustum().setFromProjectionMatrix(new THREE.Matrix4().multiplyMatrices(phoneCamera.projectionMatrix,phoneCamera.matrixWorldInverse));
+  const visibleSectors=base.filter(mesh=>view.intersectsObject(mesh));
+  stadium.update(phoneCamera,'orbit',false,false,false);
+  const desktopTriangles=visibleSectors.reduce((sum,mesh)=>sum+triangles(mesh),0),count=base.reduce((sum,mesh)=>sum+mesh.count,0);
+  stadium.update(phoneCamera,'walk',false,false,false);
+  const phoneTriangles=visibleSectors.reduce((sum,mesh)=>sum+triangles(mesh),0);
+  const lighterSectors=visibleSectors.filter(mesh=>triangles(mesh)===mesh.count*24);
+  assert.ok(lighterSectors.length>=1);
+  assert.ok(phoneTriangles<desktopTriangles*.65,`${phoneTriangles}/${desktopTriangles} seat triangles`);
+  assert.equal(base.reduce((sum,mesh)=>sum+mesh.count,0),count);
+  assert.ok(stadium.detailSeatCount>0);
+  assert.ok(patch.every(mesh=>mesh.visible&&mesh.count===stadium.detailSeatCount));
+  stadium.update(phoneCamera,'walk',true,false,false);
+  assert.ok(lighterSectors.every(mesh=>triangles(mesh)===mesh.count*64));
+  stadium.update(phoneCamera,'walk',false,false,true);
+  assert.ok(lighterSectors.every(mesh=>triangles(mesh)===mesh.count*2));
+ }finally{if(saved===undefined)delete globalThis.innerWidth;else globalThis.innerWidth=saved;}
+});

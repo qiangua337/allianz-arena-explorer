@@ -205,6 +205,25 @@ test('the compact arrival action names the next place and starts a real walk fro
  }finally{document.getElementById=original;}
 });
 
+test('free visit can choose the pitch in reception and look toward the first waypoint without moving',()=>{
+ const original=document.getElementById,nodes=new Map();
+ document.getElementById=id=>{if(!nodes.has(id))nodes.set(id,{hidden:true,style:{},setAttribute(k,value){this[k]=value;},classList:{toggle(){}},focus(){}});return nodes.get(id);};
+ try{
+  let oriented=null;
+  const guide=buildWalkGuide(scene,geometry,{obstacles:obstacleGroups,onOrient:target=>{oriented=target;}});
+  const position=new THREE.Vector3(0,-1.2,113),before=position.clone();
+  guide.update(position,0,.2,'walk');guide.arrive('arcade',position);
+  const alternate=nodes.get('guide-alternate');
+  assert.equal(alternate.hidden,false);assert.equal(alternate['aria-label'],'步行前往草坪');
+  alternate.onclick();
+  assert.equal(guide.getGoal(),'pitch');assert.equal(guide.isArrived(),false);
+  assert.equal(guide.getRoute().at(-1).id,'pitch');assert.equal(alternate.hidden,true);
+  const orient=nodes.get('guide-orient');assert.equal(orient.hidden,true);
+  nodes.get('guide-collapse').onclick();assert.equal(orient.hidden,false);
+  orient.onclick();assert.equal(oriented,guide.getRoute()[0]);assert.deepEqual(position,before);
+ }finally{document.getElementById=original;}
+});
+
 test('arrival follows the selected guided itinerary and completes its last stop instead of falling back to reception',async()=>{
  const{createWalkingTour}=await import('../dist/walk-tours.js'),tour=createWalkingTour(),original=document.getElementById,nodes=new Map();
  document.getElementById=id=>{if(!nodes.has(id))nodes.set(id,{hidden:true,style:{},setAttribute(k,value){this[k]=value;},classList:{toggle(){}},focus(){}});return nodes.get(id);};

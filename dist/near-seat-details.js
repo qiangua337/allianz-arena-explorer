@@ -8,10 +8,13 @@ function solidGrid(surface,axis,thickness,steps=6){
  for(let i=0;i<boundary.length;i++){const a=boundary[i],b=boundary[(i+1)%boundary.length];index.push(a,b,a+layer,b,b+layer,a+layer);}
  const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));geometry.setIndex(index);geometry.computeVertexNormals();return geometry;
 }
-export function detailedSeatGeometry(steps=6){
+export function seatShellGeometry(steps){
  const pan=solidGrid((u,v)=>{const x=u*2-1,z=v*2-1;return{x:x*.2175*(1-.09*v),y:.23+.018*x*x+.012*z*z,z:z*.2};},'y',-.028,steps);
  const back=solidGrid((u,v)=>{const x=u*2-1;return{x:x*.2175*(.88+.12*v),y:.27+.49*v-.022*Math.abs(x)**6*v**5,z:.17+.05*v-.045*x*x};},'z',.026,steps);
- const shell=mergeGeometry([pan,back]),parts=[];for(const[w,h,d,x,y,z]of[[.34,.025,.12,0,-.17,.13],[.06,.38,.06,0,.025,.13],[.38,.035,.055,0,.19,.13],[.028,.2,.03,-.18,.34,.20],[.028,.2,.03,.18,.34,.20]])parts.push(new THREE.BoxGeometry(w,h,d).translate(x,y,z));
+ return mergeGeometry([pan,back]);
+}
+export function detailedSeatGeometry(steps=6){
+ const shell=seatShellGeometry(steps),parts=[];for(const[w,h,d,x,y,z]of[[.34,.025,.12,0,-.17,.13],[.06,.38,.06,0,.025,.13],[.38,.035,.055,0,.19,.13],[.028,.2,.03,-.18,.34,.20],[.028,.2,.03,.18,.34,.20]])parts.push(new THREE.BoxGeometry(w,h,d).translate(x,y,z));
  return{shell,frame:mergeGeometry(parts)};
 }
 export function createSeatIndex(seats){

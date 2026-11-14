@@ -99,6 +99,14 @@ body:not(.game-active) :is(#explore, #walk-guide, #walk-prompt) {
 #guide-teleport { color: var(--ink) }
 #guide-collapse { border-radius: 4px }
 #guide-collapse:hover { background: var(--subtle) }
+#guide-orient { color: var(--ink) }
+#walk-guide.arrived :is(#guide-next, #guide-alternate) {
+  max-width: 138px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#guide-alternate { color: var(--ink) }
 #walking-tour-dialog {
   --subtle: #263742;
   --rule: #b8cdd344;
@@ -187,6 +195,16 @@ body:not(.game-active) :is(#explore, #walk-guide, #walk-prompt) {
     visibility: hidden;
     pointer-events: none;
   }
+}
+@media (max-width: 560px) {
+  body[data-mode=walk]:not(.game-active) #walk-guide.arrived.collapsed:has(#guide-alternate:not([hidden])) {
+    grid-template-columns: minmax(0, 1fr) auto minmax(44px, auto);
+    grid-template-areas: 'goal actions fold';
+  }
+  #walk-guide.arrived.collapsed:has(#guide-alternate:not([hidden])) .guide-instruction { display: none }
+  #walk-guide.arrived :is(#guide-next, #guide-alternate) { max-width: 24vw }
+  #walk-guide:not(.collapsed) .guide-actions { flex-wrap: wrap; justify-content: flex-end }
+  #walk-guide:not(.collapsed) .guide-actions button { padding-inline: 6px }
 }
 @media (max-width: 1024px) and (orientation: portrait) {
   #explore[data-search-active=true] {
