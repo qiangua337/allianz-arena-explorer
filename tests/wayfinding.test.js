@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {relativeBearing,waypointReached,movementInstruction} from '../dist/wayfinding.js';
+import {tourNodes} from '../dist/tour-route.js';
 
 test('navigation arrows point right and left relative to the current view',()=>{
  const p={x:0,y:0,z:0};
@@ -23,6 +24,29 @@ test('stair turns and door thresholds retain their required clearance',()=>{
  assert.equal(waypointReached({x:4,y:0,z:.6},b,a,c),false);
  assert.equal(waypointReached({x:.4,y:0,z:.4},b,a,c),true);
  assert.equal(waypointReached({x:0,y:2,z:0},b,a,c),false);
+});
+
+test('a hurried visitor can pass a stair or corridor corner only on its actual approach',()=>{
+ const {flight2Start,flight2Out,flight2Turn,upperGalleryOuter,upperBridgeStart,upperThreshold,upperAisleEntry,upperThresholdFoot}=tourNodes;
+ const belowStairCorner={...flight2Out,y:flight2Out.y-.492};
+ assert.equal(waypointReached({...flight2Out,z:flight2Out.z+.82},flight2Out,flight2Start,flight2Turn),true);
+ assert.equal(waypointReached({...belowStairCorner,z:flight2Out.z+.82},flight2Out,flight2Start,flight2Turn),false);
+ assert.equal(waypointReached({...upperBridgeStart,x:upperBridgeStart.x-.9},upperBridgeStart,upperGalleryOuter,upperThreshold),false);
+ assert.equal(waypointReached({...upperBridgeStart,z:upperBridgeStart.z-.8},upperBridgeStart,upperGalleryOuter,upperThreshold),true);
+ assert.equal(waypointReached({...upperThresholdFoot,z:upperThresholdFoot.z-.33},upperThresholdFoot,upperAisleEntry,upperThreshold),true);
+ assert.equal(waypointReached({...upperThresholdFoot,x:upperThresholdFoot.x-.26,z:upperThresholdFoot.z-.33},upperThresholdFoot,upperAisleEntry,upperThreshold),false);
+});
+
+test('arms the next turn from the current stair or gallery approach without redirecting the arrow',()=>{
+ const {flight2Out,flight2Turn,upperBridgeStart,upperThreshold,upperAisleEntry,upperThresholdFoot}=tourNodes;
+ const core=movementInstruction({...flight2Out,z:flight2Out.z-1.8,y:flight2Out.y-.7},Math.PI,flight2Out,flight2Turn);
+ assert.equal(core.action,'到平台后左转');assert.ok(Math.abs(core.angle)<.01);
+ const gallery=movementInstruction({...upperBridgeStart,z:upperBridgeStart.z+2},0,upperBridgeStart,upperThreshold);
+ assert.equal(gallery.action,'到连廊转角后左转');assert.equal(gallery.angle,0);
+ const landing=movementInstruction({...upperThresholdFoot,z:upperThresholdFoot.z+.68},0,upperThresholdFoot,upperThreshold);
+ assert.equal(landing.action,'到平台后右转');assert.equal(landing.angle,0);
+ const offAxis=movementInstruction({...upperAisleEntry,z:upperAisleEntry.z+.68},Math.PI/2,upperAisleEntry,upperThresholdFoot);
+ assert.match(offAxis.action,/^右转，沿座席台阶上行$/);
 });
 
 test('a final destination cannot be reached by projecting an old path across the stadium',()=>{

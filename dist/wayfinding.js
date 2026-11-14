@@ -1,12 +1,27 @@
 export function relativeBearing(position,yaw,target){const targetYaw=Math.atan2(position.x-target.x,position.z-target.z),angle=yaw-targetYaw;return Math.atan2(Math.sin(angle),Math.cos(angle));}
+const upperLandingTurn=id=>id==='upperThresholdFoot'||id==='upperAisleEntry';
+const galleryTurn=id=>id==='upperGalleryFront'||id==='upperGalleryOuter'||id==='upperBridgeStart';
+const coreTurn=id=>/^flight\d+(?:Out|Turn)$/.test(id)||/^landing\d+$/.test(id);
+function passedCorner(position,target,anchor,lateralLimit,overshootLimit){
+ if(!anchor)return false;
+ const dx=target.x-anchor.x,dz=target.z-anchor.z,length=Math.hypot(dx,dz);
+ if(length<.4)return false;
+ const x=position.x-target.x,z=position.z-target.z;
+ const ahead=(x*dx+z*dz)/length,cross=(x*dz-z*dx)/length;
+ return ahead>0&&ahead<=overshootLimit&&Math.abs(cross)<=lateralLimit;
+}
 export function waypointReached(position,target,anchor,next,isFinal=false){
- if(Math.abs(position.y-target.y)>.9)return false;
+ const vertical=Math.abs(position.y-target.y);
+ if(vertical>.9)return false;
  if(isFinal)return Math.hypot(position.x-target.x,position.z-target.z)<=1.7;
- if(target.id==='upperThresholdFoot'||target.id==='upperAisleEntry'){
-  return Math.abs(position.y-target.y)<.25&&Math.hypot(position.x-target.x,position.z-target.z)<=.25;
+ const distance=Math.hypot(position.x-target.x,position.z-target.z);
+ if(upperLandingTurn(target.id)){
+  return vertical<.25&&(distance<=.25||passedCorner(position,target,anchor,.18,.42));
  }
- const tight=target.level==='core'||target.level==='clearance'||/^landing|Door|Start|Out|Turn|End/.test(target.id),radius=isFinal?1.7:tight?.65:/^(lower|upper)\d+$/.test(target.id)?3:1.4;
- if(Math.hypot(position.x-target.x,position.z-target.z)<=radius)return true;
+ const controlledTurn=coreTurn(target.id)||galleryTurn(target.id);
+ const tight=target.level==='core'||target.level==='clearance'||controlledTurn||/^landing|Door|Start|Out|Turn|End/.test(target.id),radius=tight?.65:/^(lower|upper)\d+$/.test(target.id)?3:1.4;
+ if(distance<=radius)return true;
+ if(controlledTurn)return vertical<.35&&passedCorner(position,target,anchor,.44,1.08);
  if(anchor&&Math.abs(anchor.y-target.y)<.45){const dx=target.x-anchor.x,dz=target.z-anchor.z,length=Math.hypot(dx,dz);if(length>2){const along=((position.x-anchor.x)*dx+(position.z-anchor.z)*dz)/(length*length),cross=Math.abs((position.x-anchor.x)*dz-(position.z-anchor.z)*dx)/length;if(along>1&&cross<(tight?.55:1.7))return true;}}
  // A visitor already following the next corridor need not return to its exact corner.
  if(!tight&&next&&Math.abs(next.y-target.y)<.45){const dx=next.x-target.x,dz=next.z-target.z,length=Math.hypot(dx,dz);if(length>4){const along=((position.x-target.x)*dx+(position.z-target.z)*dz)/length,cross=Math.abs((position.x-target.x)*dz-(position.z-target.z)*dx)/length;if(along>1&&along<length&&cross<1.4)return true;}}
@@ -43,6 +58,15 @@ export function movementInstruction(position,yaw,target,next){
  }
  else if(Object.values(doorRooms).some(([id])=>id===target.id))hint='沿门内过道前往目的地，留意桌台、座椅与展柜。';
  if(target.id==='tunnel'&&!next){action=target.label;hint='前方台阶通往草坪，通道另一端连接更衣区。';}
+ const upperLanding=upperLandingTurn(target.id),gallery=galleryTurn(target.id);
+ if(next&&distance>.43&&distance<3&&Math.abs(angle)<.48&&(upperLanding||gallery||coreTurn(target.id))){
+  const towardTarget=Math.atan2(position.x-target.x,position.z-target.z),turn=relativeBearing(target,towardTarget,next);
+  if(Math.abs(turn)>.88&&Math.abs(turn)<2.45){
+   const direction=turn>0?'右转':'左转';
+   action=(gallery?'到连廊转角后':'到平台后')+direction;
+   hint=(gallery?'沿地线走到转角':'沿地线走到平台')+'，再'+direction+'。'+(hint??'');
+  }
+ }
  if(Math.abs(angle)>2.35)action='转身，'+action;else if(angle>.65)action='右转，'+action;else if(angle<-.65)action='左转，'+action;
  return{angle,distance,action,hint};
 }

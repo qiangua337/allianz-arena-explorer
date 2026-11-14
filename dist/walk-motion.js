@@ -1,4 +1,19 @@
 import {floorHeight,MAX_STEP,EYE_HEIGHT,canStandAt} from './navigation.js';
+import {core,coreLevels,upperGalleryRooms,upperThresholdLanding} from './building-layout.js';
+
+const upperGallery=Object.values(upperGalleryRooms);
+
+export function inTightWalkSpace(x,y,z){
+ if(y<coreLevels[0]-.2||y>coreLevels.at(-1)+.4)return false;
+ if(x>core.minX&&x<core.maxX&&z>core.front-1&&z<10)return true;
+ if(y<upperThresholdLanding.y-1.7)return false;
+ if(x>=upperThresholdLanding.x0-2&&x<=upperGalleryRooms.bridge.maxX&&z>=upperThresholdLanding.z0&&z<=upperThresholdLanding.z1+.8)return true;
+ return upperGallery.some(room=>x>=room.minX&&x<=room.maxX&&z>=room.minZ&&z<=room.maxZ);
+}
+
+export function walkSpeed(running,touching,x,feet,z){
+ return running?touching&&inTightWalkSpace(x,feet,z)?6:10:4.5;
+}
 
 // Physical floor height advances at every short movement step. Camera easing
 // must not determine which storey a visitor can stand on during a slow frame.

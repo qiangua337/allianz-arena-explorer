@@ -57,7 +57,7 @@ test('the return to the south gate distinguishes passing a landing from leaving 
   const start=tourNodes[from],target=tourNodes[at];
   return movementInstruction(start,Math.atan2(start.x-target.x,start.z-target.z),target,tourNodes[next]).action;
  };
- assert.equal(action('flight2Start','landing2','flight1End'),'前往楼梯平台');
+ assert.equal(action('flight2Start','landing2','flight1End'),'到平台后右转');
  assert.equal(action('landing0','coreFront','coreApproach'),'走出楼梯间');
  assert.equal(action('coreFront','coreApproach','lower0'),'返回入口环廊');
  assert.equal(action('coreApproach','coreFront','landing0'),'公共楼梯入口');

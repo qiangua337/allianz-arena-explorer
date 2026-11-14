@@ -8,6 +8,7 @@ import {directWalkDestination,planWalkPath,navigationObstacles,walkSegmentClear}
 import {normalizeDestination} from './arrivals.js';
 import {destinationName} from './destinations.js';
 import {ribbonPoints} from './ribbon-path.js';
+import {inTightWalkSpace} from './walk-motion.js';
 import {playerLinks,containsFloor} from './player-area-layout.js';
 import {alternateWalkDestination,nextWalkDestination} from './walk-continuation.js';
 import {writeHudAttribute,writeHudData,writeHudProperty} from './hud-write.js';
@@ -81,7 +82,9 @@ export function buildWalkGuide(scene,geometry,{obstacles={},onChoose,onSelect,on
  function draw(p){
   let count=0,spacing=0;
   function vertex(x,y,z){positions[count*3]=x;positions[count*3+1]=y;positions[count*3+2]=z;count++;}
-  const points=ribbonPoints(p,path,geometry);
+  // The route around a solid corner has no use until the visitor reaches it.
+  // Keep the next stair flight in view without sampling the whole gallery.
+  const points=ribbonPoints(p,path,geometry,inTightWalkSpace(p.x,p.y,p.z)?14:28);
   for(let i=1;i<points.length&&count+9<positions.length/3;i++){
    const a=points[i-1],b=points[i],dx=b.x-a.x,dz=b.z-a.z,length=Math.hypot(dx,dz);
    if(b.breakBefore){spacing=0;continue;}

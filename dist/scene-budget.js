@@ -37,8 +37,37 @@ export function bowlIsVisible(position,mode){
  // At pedestrian height the opaque exterior and lower arcade hide the bowl.
  return tunnelHasBowlView(position)||position.y>18||inner<.98&&!passage;
 }
-export function buildStairwellOcclusion(){
+export function buildWalkFrustum(){
  const frustum=new THREE.Frustum(),projection=new THREE.Matrix4();
+ const lastProjection=new THREE.Matrix4(),view={frustum,changed:false};let previousCamera;
+ return camera=>{
+  camera.updateMatrixWorld();
+  projection.multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse);
+  view.changed=camera!==previousCamera||!projection.equals(lastProjection);
+  if(view.changed){previousCamera=camera;lastProjection.copy(projection);frustum.setFromProjectionMatrix(projection);}
+  return view;
+ };
+}
+export function buildStaticBatchCulling(meshes){
+ const entries=[];
+ for(const mesh of meshes){
+  if(!mesh.isInstancedMesh||mesh.count<150||!mesh.frustumCulled)continue;
+  mesh.computeBoundingBox();
+  // The boxes are static world bounds. Padding accounts for alternate seat
+  // meshes and keeps edge objects visible while the camera turns.
+  entries.push({mesh,visible:mesh.visible,bounds:mesh.boundingBox.clone().applyMatrix4(mesh.matrixWorld).expandByScalar(.18)});
+ }
+ let previous=false;
+ return (active,view)=>{
+  if(!active){if(previous)for(const {mesh,visible} of entries)if(mesh.visible!==visible)mesh.visible=visible;previous=false;return;}
+  if(previous&&!view.changed)return;
+  previous=true;
+  for(const {mesh,visible,bounds} of entries){
+   const shown=visible&&view.frustum.intersectsBox(bounds);if(mesh.visible!==shown)mesh.visible=shown;
+  }
+ };
+}
+export function buildStairwellOcclusion(walkFrustum=buildWalkFrustum()){
  const portal=(min,max)=>new THREE.Box3(new THREE.Vector3(...min),new THREE.Vector3(...max)).expandByScalar(.16);
  const {front,cross,aisle,bridge}=upperGalleryRooms,level=upperTierThreshold.top,height=3.25,frontZ=-13.25;
  const acrossX=(x,z0,z1)=>portal([x,level,z0],[x,level+height,z1]);
@@ -59,7 +88,7 @@ export function buildStairwellOcclusion(){
   const towardCore=galleryPortals.slice(0,i+1).reverse();
   return [...openings.map(opening=>[...towardCore,opening]),galleryPortals.slice(i+1)];
  });
- const hasLineOfSight=(path,position)=>{
+ const hasLineOfSight=(frustum,path,position)=>{
   const {x,z}=position,first=path[0],dx=(first.min.x+first.max.x)*.5-x,dz=(first.min.z+first.max.z)*.5-z;
   let lo=-Infinity,hi=Infinity;
   // The frustum must be able to see every doorway along the corridor, and
@@ -78,7 +107,7 @@ export function buildStairwellOcclusion(){
   }
   return true;
  };
- return camera=>{
+ return (camera,view)=>{
   const {x,y,z}=camera.position;
   let paths;
   if(x>core.minX+.23&&x<core.maxX-.23&&z>frontZ&&z<9.8&&y>-1.5&&y<43.12)paths=corePaths;
@@ -89,9 +118,8 @@ export function buildStairwellOcclusion(){
    else if(x>bridge.minX&&x<=aisle.minX&&z>bridge.minZ&&z<bridge.maxZ)paths=galleryPaths[3];
   }
   if(!paths)return false;
-  camera.updateMatrixWorld();
-  frustum.setFromProjectionMatrix(projection.multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse));
-  return !paths.some(path=>hasLineOfSight(path,camera.position));
+  const {frustum}=view??walkFrustum(camera);
+  return !paths.some(path=>hasLineOfSight(frustum,path,camera.position));
  };
 }
 export function buildFrameBudget(){

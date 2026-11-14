@@ -120,6 +120,35 @@ test('phone stairwell occlusion restores the full stadium at an opening or immed
   assert.equal(stadium.bowl.visible,true,'the upper stands panorama remains visible');
  }finally{if(width===undefined)delete globalThis.innerWidth;else globalThis.innerWidth=width;}
 });
+test('phone walking rejects offscreen batch boxes and restores ordinary visibility on turning or changing view',()=>{
+ const width=globalThis.innerWidth;globalThis.innerWidth=390;
+ const camera=new THREE.PerspectiveCamera(66,390/844,.06,2500);
+ const batches=[...meshes(stadium.bowl.getObjectByName('Bowl concrete steps and metal fittings')),
+  ...stadium.circulation.root.children,...stadium.bowl.children];
+ const candidates=batches.filter(o=>o.isInstancedMesh&&o.count>=150);
+ const frustum=new THREE.Frustum(),projection=new THREE.Matrix4();
+ const visiblePool=new Set();
+ try{
+  for(const [position,target] of [[[106,41.7,-36.5],[0,10,0]],[[103.3,41.7,-36.5],[90,38,-32]],[[100,29.8,-1.2],[101.5,25.3,-13.25]]]){
+   camera.position.fromArray(position);camera.lookAt(...target);stadium.update(camera,'walk');
+   frustum.setFromProjectionMatrix(projection.multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse));
+   assert.equal(stadium.bowl.visible,true,'open or grazing threshold keeps the bowl');
+   const hidden=candidates.filter(o=>!o.visible&&frustum.intersectsObject(o));
+   for(const mesh of hidden){
+    assert.equal(frustum.intersectsBox(mesh.boundingBox.clone().applyMatrix4(mesh.matrixWorld)),false,'even conservative world bounds miss the view');
+    visiblePool.add(mesh);
+   }
+  }
+  assert.ok(visiblePool.size>3,'tight bounds reject otherwise accepted spheres');
+  camera.rotateY(Math.PI);stadium.update(camera,'walk');
+  assert.ok([...visiblePool].some(mesh=>mesh.visible),'rotation in place must update the visible batches');
+  stadium.update(camera,'walk',true);
+  assert.ok(candidates.every(o=>o.visible),'high quality restores the default bounds');
+  stadium.update(camera,'walk');
+  globalThis.innerWidth=1280;stadium.update(camera,'walk');
+  assert.ok(candidates.every(o=>o.visible),'desktop retains its original batch visibility');
+ }finally{if(width===undefined)delete globalThis.innerWidth;else globalThis.innerWidth=width;}
+});
 
 test('bowl fittings retain every box and cull the opposite stand from match cameras',()=>{
  const fittings=meshes(stadium.bowl.getObjectByName('Bowl concrete steps and metal fittings'));

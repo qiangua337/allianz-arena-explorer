@@ -36,7 +36,7 @@ import {buildInteriors,roomSpecs} from './interiors.js';
 import {buildWalkGuide,floorLabel} from './walk-guide.js';
 import {routeOnCurrentLevel} from './walk-path.js';
 import {normalizeDestination,destinationArrival} from './arrivals.js';
-import {advanceWalker} from './walk-motion.js';
+import {advanceWalker,walkSpeed} from './walk-motion.js';
 import {indexWalkWalls} from './walk-collision-index.js';
 import {buildServiceRooms} from './service-rooms.js';
 import {serviceRoomAt} from './service-layout.js';
@@ -100,7 +100,7 @@ export async function startArena({hub, initial, nightAtStart}){
  serviceDoorColliders=serviceRooms.colliders.filter(collider=>collider.dynamicDoor);
  spatializeArchitecture(stadium.circulation.root);spatializeArchitecture(interiors.rooms.concourse);
  setExplorationMatchMode=suspendExplorationDuringMatch([world.group,building.root,interiors.root,serviceRooms.root,stadium.circulation.root]);
- freezeArchitecture(world.group,[world.rotor]);freezeArchitecture(stadium.root,[stadium.matchBall]);freezeArchitecture(stadium.circulation.root);freezeArchitecture(interiors.root);freezeArchitecture(building.root);destinationMenu=buildDestinationMenu({onDismiss:()=>setNavOpen(false)});buildHotspots();bindUI();setNavOpen(false);document.body.dataset.mode=mode;setDayNight(nightAtStart);applySurfaceQuality(scene,qualityMode);clock.time=performance.now();document.body.dataset.version='10.7.4';document.body.dataset.seats=stadium.seatCount;document.body.dataset.panels=stadium.panelCount;
+ freezeArchitecture(world.group,[world.rotor]);freezeArchitecture(stadium.root,[stadium.matchBall]);freezeArchitecture(stadium.circulation.root);freezeArchitecture(interiors.root);freezeArchitecture(building.root);destinationMenu=buildDestinationMenu({onDismiss:()=>setNavOpen(false)});buildHotspots();bindUI();setNavOpen(false);document.body.dataset.mode=mode;setDayNight(nightAtStart);applySurfaceQuality(scene,qualityMode);clock.time=performance.now();document.body.dataset.version='10.7.5';document.body.dataset.seats=stadium.seatCount;document.body.dataset.panels=stadium.panelCount;
  const requestedPlace=initial.get('place');
  if(initial.get('view')==='walk'){
   const place=requestedPlace&&(places[requestedPlace]||tourGoals[requestedPlace])?requestedPlace:'arcade';
@@ -319,8 +319,10 @@ function moveWalk(dt){
  if(interactions.seated&&Math.hypot(f,s)<.01){camera.rotation.set(pitch,yaw,0,'YXZ');return;}
  smoothWalkInput(smoothInput,s,f,dt);forward.set(-Math.sin(yaw),0,-Math.cos(yaw));right.set(Math.cos(yaw),0,-Math.sin(yaw));step.set(0,0,0).addScaledVector(forward,smoothInput.z).addScaledVector(right,smoothInput.x);
  if(step.lengthSq()){interactions.stand();
-  const duration=Math.min(dt,.25),speed=touchSprint||keys.has('ShiftLeft')||keys.has('ShiftRight')?10:4.5;step.normalize().multiplyScalar(speed*duration*Math.min(1,Math.hypot(smoothInput.x,smoothInput.z)));
-  walkFeet=advanceWalker(camera.position,walkFeet??camera.position.y-desiredEye,step.x,step.z,walkGeometry,blocked);
+  const feet=walkFeet??camera.position.y-desiredEye;
+  const duration=Math.min(dt,.25),speed=walkSpeed(touchSprint||keys.has('ShiftLeft')||keys.has('ShiftRight'),joystickPointer!==null||movementPointers.size>0,camera.position.x,feet,camera.position.z);
+  step.normalize().multiplyScalar(speed*duration*Math.min(1,Math.hypot(smoothInput.x,smoothInput.z)));
+  walkFeet=advanceWalker(camera.position,feet,step.x,step.z,walkGeometry,blocked);
  }
  const {x,z}=camera.position;
  if(x!==supportedX||z!==supportedZ||walkFeet!==supportedFeet||walkFeet===null){

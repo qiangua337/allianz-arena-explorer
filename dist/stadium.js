@@ -9,7 +9,7 @@ import {buildNearSeatDetails,seatShellGeometry} from './near-seat-details.js';
 import {buildBowlLighting} from './stadium-lighting.js';
 import {positionStateChanged} from './position-state.js';
 import {THREE,TAU,v,mat,mesh,box,beam,sign,cylinder,canvasTexture,textTexture,superpoint,supernormal,ringGeometry,curveLine,mergeGeometry,compactGroup,Batches,addCrest,seeded} from './kit.js';
-import {bowlIsVisible,buildStairwellOcclusion} from './scene-budget.js';
+import {bowlIsVisible,buildStairwellOcclusion,buildWalkFrustum,buildStaticBatchCulling} from './scene-budget.js';
 import {enclosedPlayerPosition} from './player-area-layout.js';
 import {buildCirculation} from './circulation.js';
 import {accessStairs,ACCESS_BASE,ACCESS_TOP} from './access-layout.js';
@@ -151,14 +151,22 @@ export function buildStadium(scene){
   compactGroup(detailed);compactGroup(distant);dugouts.push({position:g.position,detailed,distant});
  }
  batch.flush({sectors:12});compactGroup(closeLabels);const pitchside=buildPitchsideDetails(bowl);const bowlLighting=buildBowlLighting(bowl),visibilityChanged=positionStateChanged(),stairwellOccluded=buildStairwellOcclusion();
+ root.updateWorldMatrix(true,true);circulation.root.updateWorldMatrix(true,true);
+ // These fixed instances otherwise use only Three's loose bounding spheres.
+ // Other mesh visibility (including circulation sectors and lamps) stays with its owner.
+ const cameraFrustum=buildWalkFrustum(),cullStaticBatches=buildStaticBatchCulling([...structural.children,...circulation.root.children,...seatInstances.map(({inst})=>inst)]);
  return {root,roof,circulation,bowl,matchBall,updateMatchEffects:feedback.update,resetMatchEffects:feedback.reset,get detailSeatCount(){return nearSeats.count;},setMatchday:screens.setMatchday,setMatchScore:screens.setMatchScore,seatCount:seats.length,seatPositions:seats,panelCount,tiers,
  update(camera,mode='orbit',high=false,low=false,playing=false,filled=false){
   const position=camera.position,walking=mode==='walk',width=typeof innerWidth==='number'?innerWidth:Infinity;
   const small=width<=760,compactWalk=small&&walking&&!high&&!low&&!playing;
-  const hiddenByStairwell=width<=1024&&walking&&!high&&!playing&&stairwellOccluded(camera);
+  const mobileWalking=width<=1024&&walking&&!high&&!playing;
+  const upperWalking=mobileWalking&&position.y>13&&Math.abs(position.x)<115&&Math.abs(position.z)<130;
+  const view=upperWalking?cameraFrustum(camera):null;
+  const hiddenByStairwell=mobileWalking&&stairwellOccluded(camera,view);
   const state=(walking?1:0)|(high?2:0)|(low?4:0)|(playing?8:0)|(small?16:0)|(filled?32:0)|(hiddenByStairwell?64:0);
   const showArcade=!hiddenByStairwell||position.y<=5;
   if(!playing&&circulation.root.visible!==showArcade)circulation.root.visible=showArcade;
+  cullStaticBatches(upperWalking&&!hiddenByStairwell,view);
   if(!visibilityChanged(position,state))return;
   if(hiddenByStairwell){
    if(roofLining.visible){

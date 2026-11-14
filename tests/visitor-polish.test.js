@@ -10,6 +10,7 @@ const {createWalkCheckpoint,safeCheckpointFloor}=await import('../dist/walk-chec
 const {floorHeight}=await import('../dist/navigation.js');
 const {loadVisitorSettings,saveVisitorSettings,qualityProfile}=await import('../dist/visitor-settings.js');
 const {smoothWalkInput}=await import('../dist/walk-smoothing.js');
+const {walkSpeed}=await import('../dist/walk-motion.js');
 const {tourGoals}=await import('../dist/tour-route.js');
 const {createWalkFrameRate}=await import('../dist/walk-frame-rate.js');
 const {createFramePacer,WALK_FRAME_SLACK}=await import('../dist/frame-pacing.js');
@@ -70,6 +71,15 @@ test('remaining distance includes vertical stairs and an empty route is zero',()
 });
 test('movement easing is independent of frame rate and releases without sliding',()=>{
  const a={x:0,z:0},b={x:0,z:0};for(let i=0;i<10;i++)smoothWalkInput(a,1,1,.01);smoothWalkInput(b,1,1,.1);assert.ok(Math.abs(a.x-b.x)<1e-10);assert.ok(Math.hypot(a.x,a.z)<=1);smoothWalkInput(a,0,0,.016);assert.deepEqual(a,{x:0,z:0});
+});
+test('touch sprint slows for the interior stairs and tight gallery, then returns to plaza pace',()=>{
+ for(const [x,y,z] of [[100,4.65,7],[103,31.8,8],[101.2,38.42,-36.5],[106,40,-24],[100,37.44,-35.16]]){
+  assert.equal(walkSpeed(true,true,x,y,z),6);
+  assert.equal(walkSpeed(false,true,x,y,z),4.5);
+  assert.equal(walkSpeed(true,false,x,y,z),10);
+ }
+ assert.equal(walkSpeed(true,true,0,-4.1,214),10);
+ assert.equal(walkSpeed(true,true,106,12.2,-24),10);
 });
 test('quality preferences tolerate unavailable storage and cap mobile rendering work',()=>{
  assert.equal(loadVisitorSettings({getItem(){throw Error();}}).quality,'standard');assert.equal(loadVisitorSettings({getItem:()=>'{bad'}).quality,'standard');let saved;saveVisitorSettings({setItem:(k,v)=>saved=v},{quality:'low'});assert.equal(loadVisitorSettings({getItem:()=>saved}).quality,'low');assert.equal(qualityProfile('low',390,844,3).shadows,false);assert.equal(qualityProfile('low',390,844,3).grass,0);assert.ok(qualityProfile('standard',390,844,3).pixelRatio<=1);assert.equal(qualityProfile('high',1280,720,2).shadows,true);
