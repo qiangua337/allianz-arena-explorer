@@ -84,6 +84,7 @@ export function buildWalkGuide(scene,geometry,{obstacles={},onChoose,onSelect,on
   const points=ribbonPoints(p,path,geometry);
   for(let i=1;i<points.length&&count+9<positions.length/3;i++){
    const a=points[i-1],b=points[i],dx=b.x-a.x,dz=b.z-a.z,length=Math.hypot(dx,dz);
+   if(b.breakBefore){spacing=0;continue;}
    if(length<.001)continue;
    const ux=dx/length,uz=dz/length,nx=uz*.055,nz=-ux*.055;
    vertex(a.x+nx,a.y,a.z+nz);vertex(a.x-nx,a.y,a.z-nz);vertex(b.x+nx,b.y,b.z+nz);
@@ -115,10 +116,11 @@ export function buildWalkGuide(scene,geometry,{obstacles={},onChoose,onSelect,on
   // A visitor may take another open aisle instead of visiting every old node.
   // Arrival still requires the same floor and an unobstructed final segment.
   const destination=tourNodes[goal],remaining=Math.hypot(p.x-destination.x,p.z-destination.z);
-  if(!arrived&&remaining<8&&Math.abs(p.y-destination.y)<1){
+  const approachPending=goal==='upperStands'&&path.some(node=>node.id==='upperThresholdFoot'||node.id==='upperAisleEntry');
+  if(!arrived&&!approachPending&&remaining<8&&Math.abs(p.y-destination.y)<(goal==='upperStands'?.65:1)){
    if(walkSegmentClear(p,destination,geometry,getWalls())){
     blocked=false;
-    if(remaining<2.3){path=[];arrived=true;lastDraw=null;}
+    if(remaining<(goal==='upperStands'?1.45:2.3)){path=[];arrived=true;lastDraw=null;}
     else if(path.length!==1||path[0].id!==goal){anchor={...p};path=[destination];lastDraw=null;}
    }else if(path.length===1&&path[0].id===goal){
     reset(position);
@@ -131,7 +133,7 @@ export function buildWalkGuide(scene,geometry,{obstacles={},onChoose,onSelect,on
   if(planClock>1.2&&!arrived){
    planClock=0;
    const target=path[0],distance=Math.hypot(p.x-anchor.x,p.z-anchor.z);
-   if(path.length>1&&distance>.7&&directWalkDestination(p,goal,geometry,getWalls())){
+   if(!approachPending&&path.length>1&&distance>.7&&directWalkDestination(p,goal,geometry,getWalls())){
     anchor=p;path=[destination];lastDraw=null;
    }else if(blocked?distance>.7:target&&(!walkSegmentClear(p,target,geometry,getWalls())||distance>55))reset(position);
   }

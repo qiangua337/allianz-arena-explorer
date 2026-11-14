@@ -1,5 +1,5 @@
 import {ACCESS_BASE,ACCESS_TOP,accessStairs,accessAt,perimeterPoint} from './access-layout.js';
-import {coreFlights,coreLevels,inCoreShaft,seatingTiers,onBridge,bridges,roomSpecs,roomAt} from './building-layout.js';
+import {coreFlights,coreLevels,inCoreShaft,seatingTiers,onBridge,bridges,roomSpecs,roomAt,upperTierThreshold,upperAislePoint,upperAisleEntry,upperThresholdFoot} from './building-layout.js';
 import {furnitureBlocksSegment} from './furniture-layout.js';
 import {playerCorridor,playerLinks,containsFloor} from './player-area-layout.js';
 
@@ -83,13 +83,16 @@ for(let i=0;i<coreLevels.length;i++){
 node('loungeDoor',95.5,23.6,-10.5,'贵宾包厢入口','靠近自动门后步行进入','gallery');node('lounge',93,23.6,-10.5,'贵宾包厢','可以沿窗边欣赏球场','gallery');join('landing2','loungeDoor');join('loungeDoor','lounge');
 node('middleBridgeStart',101.5,23.6,-30.1,'中层看台连廊','沿带扶手的连廊前往看台','gallery');node('stands',82.55,23.6,-30.1,'中层看台','沿座椅间过道上下，也可按 F 坐下','gallery');join('landing2','middleBridgeStart');join('middleBridgeStart','stands');
 node('upperGalleryFront',101.5,40,-15.5,'上层连廊入口','沿连廊前往看台入口','gallery');node('upperGalleryOuter',106,40,-15.5,'上层连廊转角','沿连廊前往看台入口','gallery');node('upperBridgeStart',106,40,-36.5,'上层看台连廊','沿连廊进入上层看台','gallery');
-node('upperThreshold',102.75,40,-36.5,'上层看台入口','沿门口的台阶进入看台','gallery');
-const upperTier=seatingTiers[2];
-// Finish inside the seating aisle past the gallery threshold and its steps.
-const upperArrivalRow=21,upperArrivalOffset=upperArrivalRow*upperTier.depth;
-const upperArrival=perimeterPoint(upperTier.a+upperArrivalOffset+.25,upperTier.b+upperArrivalOffset+.25,47/48*Math.PI*2,3.35);
-node('upperStands',upperArrival.x,upperTier.y+upperArrivalOffset*Math.tan(upperTier.angle*Math.PI/180),upperArrival.z,'上层看台','沿过道自由探索','seat2');
-join('landing3','upperGalleryFront');join('upperGalleryFront','upperGalleryOuter');join('upperGalleryOuter','upperBridgeStart');join('upperBridgeStart','upperThreshold');join('upperThreshold','upperStands');
+const upperConnection=['upperBridgeStart','upperThreshold','upperThresholdFoot','upperAisleEntry','upperStands'];
+const {x:upperDoorX,z:upperDoorZ,top:upperDoorY}=upperTierThreshold;
+node('upperThreshold',upperDoorX,upperDoorY,upperDoorZ,'上层看台入口','沿门口的台阶进入看台','gallery');
+for(const [id,point,label,hint,level] of [
+ ['upperThresholdFoot',upperThresholdFoot,'看台入口平台','沿平台转向下一段台阶','seat2'],
+ ['upperAisleEntry',upperAisleEntry,'座席过道平台','在平台转入座席过道','seat2'],
+ ['upperStands',upperAislePoint(21),'上层看台','沿过道自由探索','seat2']
+])node(id,point.x,point.y,point.z,label,hint,level);
+join('landing3','upperGalleryFront');join('upperGalleryFront','upperGalleryOuter');join('upperGalleryOuter','upperBridgeStart');
+for(let i=1;i<upperConnection.length;i++)join(upperConnection[i-1],upperConnection[i]);
 node('lowerEntry',0,12.2,-104,'下层看台入口','沿缓坡步行进入下层看台','upper');node('lowerStands',0,10.512,-83.2,'下层看台','沿阶梯过道上下探索','stands');join('upper24','lowerEntry');join('lowerEntry','lowerStands');
 for(const[id,from,x,y,z,label]of[['arcade','reception',0,-2.9,113,'接待大厅'],['visitorEntry','turn',22,-2.9,111,'参观通道入口'],['concourse','upper31',94,12.2,-47,'公共大厅'],['access','coreFront',101.5,-2.9,-14,'室内公共楼梯'],['esplanade','entrance',-32,-5.14,280,'南侧广场']]){node(id,x,y,z,label,'沿地线继续步行',y>9?'upper':'lower');join(id,from);}
 node('exterior',0,-4.103,214,'南侧正门','正门外的出发位置');join('exterior','entrance');
@@ -109,7 +112,7 @@ seatingTiers.forEach((tier,ti)=>{
   node(id,p.x,tier.y+row*tier.depth*Math.tan(tier.angle*Math.PI/180),p.z,['下层','中层','上层'][ti]+'看台过道','沿过道返回本层出口',`seat${ti}`);
  }
  for(let aisle=0;aisle<48;aisle++){const prefix=`seat${ti}-${aisle}-`;for(const [a,b]of[['front','mid'],['mid','rear']])if(nodes[prefix+a]&&nodes[prefix+b])join(prefix+a,prefix+b);for(const part of['rear','mid']){const a=prefix+part,b=`seat${ti}-${(aisle+1)%48}-${part}`;if(nodes[a]&&nodes[b])join(a,b);}}
- join(['lowerStands','stands','upperStands'][ti],`seat${ti}-${ti===0?36:47}-rear`);
+ join(['lowerStands','stands','upperStands'][ti],`seat${ti}-${ti===0?36:47}-${ti===2?'mid':'rear'}`);
 });
 // Indoor starts use room aisles and their actual door, not the ring behind a wall.
 for(const key of ['homeRoom','guestRoom']){const room=roomSpecs[key],west=room.x-room.w/2+3,east=room.x+room.w/2-2;for(const[name,x,z]of[['NW',west,room.z-3.2],['NE',east,room.z-3.2],['SW',west,room.z+3.2],['SE',east,room.z+3.2]])node(key+'Walk'+name,x,room.y,z,'更衣室通行过道','绕过备战台，从东侧房门离开','room');for(const[a,b]of[['NW','NE'],['NE','SE'],['SE','SW'],['SW','NW']])join(key+'Walk'+a,key+'Walk'+b);join(key+'WalkNE',key);join(key+'WalkSE',key);const door=key==='homeRoom'?'homeDoor':key+'Door';join(key+'WalkNE',door);join(key+'WalkSE',door);}
@@ -136,8 +139,9 @@ export function tourStarts(position){
  else if(position.y<0&&(containsFloor(playerCorridor,position.x,position.z)||playerLinks.some(r=>containsFloor(r,position.x,position.z))))candidates=candidates.filter(n=>n.level==='player'||['corridor','pressCorridor','guestRoomCorridor'].includes(n.id));
  else if(position.y>-.25&&position.y<.5&&Math.abs(position.x)<41.5&&Math.abs(position.z)<60)candidates=candidates.filter(n=>['pitch','westField','tunnelMouth','pitchEdge','pitchExit'].includes(n.id));
  else if(inCoreShaft(position.x,position.z)||position.x>97&&Math.abs(position.z+10.5)<4)candidates=candidates.filter(n=>n.id.startsWith('flight')||n.id.startsWith('landing')).filter(n=>Math.abs(n.y-position.y)<10);
+ else if(position.y>=upperAisleEntry.y-.6&&position.y<=upperDoorY+.35&&position.x>=upperAisleEntry.x-.25&&position.x<=upperDoorX+.14&&Math.abs(position.z-upperDoorZ)<upperTierThreshold.width/2+.5)candidates=upperConnection.map(id=>nodes[id]);
  else if(bridges.some(b=>onBridge(position.x,position.z,b)!==null&&Math.abs(position.y-(b.a[1]+(b.b[1]-b.a[1])*(onBridge(position.x,position.z,b)??0)))<.75)){
-  const link=bridges.find(b=>onBridge(position.x,position.z,b)!==null&&Math.abs(position.y-(b.a[1]+(b.b[1]-b.a[1])*(onBridge(position.x,position.z,b)??0)))<.75),ids=link.id==='lowerPassage'?['lowerEntry','lowerStands']:position.y>30?['landing3','upperGalleryFront','upperGalleryOuter','upperBridgeStart','upperThreshold','upperStands']:['landing2','loungeDoor','lounge','middleBridgeStart','stands'];candidates=candidates.filter(n=>ids.includes(n.id));
+  const link=bridges.find(b=>onBridge(position.x,position.z,b)!==null&&Math.abs(position.y-(b.a[1]+(b.b[1]-b.a[1])*(onBridge(position.x,position.z,b)??0)))<.75),ids=link.id==='lowerPassage'?['lowerEntry','lowerStands']:position.y>30?['landing3','upperGalleryFront','upperGalleryOuter',...upperConnection]:['landing2','loungeDoor','lounge','middleBridgeStart','stands'];candidates=candidates.filter(n=>ids.includes(n.id));
  }
  else if(seatingTiers.some(t=>position.y>=t.y-.15&&position.y<t.y+(t.rows-1)*t.depth*Math.tan(t.angle*Math.PI/180)+.85&&(Math.abs(position.x)/(t.a+t.rows*t.depth+.3))**3.35+(Math.abs(position.z)/(t.b+t.rows*t.depth+.3))**3.35<1&&(Math.abs(position.x)/(t.a-.2))**3.35+(Math.abs(position.z)/(t.b-.2))**3.35>1)){
   const ti=seatingTiers.findIndex(t=>position.y>=t.y-.15&&position.y<t.y+(t.rows-1)*t.depth*Math.tan(t.angle*Math.PI/180)+.85&&(Math.abs(position.x)/(t.a+t.rows*t.depth+.3))**3.35+(Math.abs(position.z)/(t.b+t.rows*t.depth+.3))**3.35<1&&(Math.abs(position.x)/(t.a-.2))**3.35+(Math.abs(position.z)/(t.b-.2))**3.35>1);candidates=candidates.filter(n=>n.level===`seat${ti}`||n.id===['lowerStands','stands','upperStands'][ti]);

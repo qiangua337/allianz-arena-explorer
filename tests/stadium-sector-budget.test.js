@@ -10,16 +10,18 @@ const {partitionStaticMesh}=await import('../dist/spatial-batches.js');
 const {freezeArchitecture}=await import('../dist/scene-budget.js');
 const {bowlOpening}=await import('../dist/tour-route.js');
 const {createCrowdLayout}=await import('../dist/crowd-layout.js');
+const {buildWalkBuilding}=await import('../dist/walk-building.js');
+const {upperAislePoint,upperAisleEntry,upperThresholdFoot,upperTierThreshold,upperAisleTreadHeight}=await import('../dist/building-layout.js');
 const scene=new THREE.Scene(),stadium=buildStadium(scene),triangles=o=>(o.geometry.index?.count??o.geometry.attributes.position.count)/3;
 function meshes(root){const result=[];root.traverse(o=>{if(o.isMesh)result.push(o);});return result;}
 const upper=meshes(stadium.roof).filter(o=>o.name.startsWith('ETFE upper roof section'));
 const decks=stadium.bowl.getObjectByName('Seating decks and risers'),lining=stadium.roof.getObjectByName('Continuous ribbed inner roof canopy'),trusses=stadium.roof.getObjectByName('Radial roof trusses and compression rings'),rails=stadium.bowl.getObjectByName('Continuous stair handrails beside clear walking aisles');
 const ringMeshes=[...upper,...meshes(decks),...meshes(lining),...meshes(trusses),...meshes(rails)];
 
-test('only the six intended static rings are divided; every original triangle and ETFE depth material remains',()=>{
+test('only the six intended static rings are divided; the ring and depth material budgets remain stable',()=>{
  assert.equal(upper.length,32);assert.equal(upper.reduce((n,o)=>n+triangles(o),0),111360);
- for(const [group,count]of [[decks,67750],[lining,10208],[trusses,23904],[rails,48144]]){assert.ok(group);assert.equal(meshes(group).length,16);assert.equal(meshes(group).reduce((n,o)=>n+triangles(o),0),count);}
- assert.equal(ringMeshes.reduce((n,o)=>n+triangles(o),0),261366);
+ for(const [group,count]of [[decks,67750],[lining,10208],[trusses,23904],[rails,48096]]){assert.ok(group);assert.equal(meshes(group).length,16);assert.equal(meshes(group).reduce((n,o)=>n+triangles(o),0),count);}
+ assert.equal(ringMeshes.reduce((n,o)=>n+triangles(o),0),261318);
  assert.ok(upper.every(o=>o.castShadow&&o.customDepthMaterial===upper[0].customDepthMaterial));assert.ok(meshes(lining).every(o=>o.castShadow&&o.receiveShadow));
  const plainSeats=stadium.bowl.children.filter(o=>o.isInstancedMesh&&o.instanceColor&&o.count>384);assert.equal(plainSeats.length,24,'the existing seat sectors are untouched');
  assert.equal(stadium.matchBall.isMesh,true);assert.ok(stadium.matchBall.geometry.attributes.position.count>1000,'dynamic ball is not spatially divided');
@@ -36,6 +38,39 @@ test('sector boundaries keep real seating floors and a complete roof around all 
   assert.ok(new THREE.Raycaster(new THREE.Vector3(0,1.7,0),direction,0,200).intersectObject(stadium.roof,true).length>0,'canopy exists at each sector seam');roofHits++;
  }
  assert.ok(floorHits>170);assert.equal(roofHits,32);
+});
+test('upper entrance turns on a real tread with the selected aisle clear of seat backs',()=>{
+ const route=[upperAislePoint(20),upperAislePoint(21),upperAislePoint(22),upperAisleEntry,upperThresholdFoot];
+ const routeFoot=route.slice(1).flatMap((b,index)=>{
+  const a=route[index];
+  return Array.from({length:9},(_,i)=>({x:a.x+(b.x-a.x)*i/8,y:a.y+(b.y-a.y)*i/8,z:a.z+(b.z-a.z)*i/8}));
+ });
+ const seats=stadium.seatPositions.filter(s=>s.y>36&&s.y<40&&s.x>98&&s.x<103&&s.z>-39&&s.z<-33);
+ assert.ok(seats.length>5,'adjacent seating survives the local correction');
+ for(const p of routeFoot){
+  for(const s of seats){
+   if(Math.abs(s.y-p.y)>.9)continue;
+   const c=Math.cos(s.yaw),sn=Math.sin(s.yaw),dx=p.x-s.x,dz=p.z-s.z;
+   assert.ok(Math.abs(dx*c-dz*sn)>.37||Math.abs(dx*sn+dz*c)>.38,'a body-width route clears the seat footprint');
+  }
+ }
+ const building=buildWalkBuilding(scene);scene.updateMatrixWorld(true);
+ const downward=(root,p,above=.18)=>new THREE.Raycaster(new THREE.Vector3(p.x,p.y+above,p.z),new THREE.Vector3(0,-1,0),0,above+.02).intersectObject(root,true)[0];
+ for(const row of [20,21,22]){
+  const p=upperAislePoint(row),hit=downward(stadium.bowl,p);
+  assert.ok(hit,'has visible stair tread');
+  assert.ok(Math.abs(hit.point.y-upperAisleTreadHeight(p.x,p.z,p.y))<.002);
+ }
+ for(const z of [-36.95,-36.5,-36,-35.53]){
+  const p={...upperAisleEntry,z},hit=downward(building.root,p);
+  assert.ok(hit&&Math.abs(hit.point.y-p.y)<.002,'the physical connector turn has a visible landing');
+ }
+ for(let i=0;i<upperTierThreshold.steps;i++){
+  const t=upperTierThreshold,x=t.x-(i+.5)*t.depth,y=t.top-(t.top-t.bottom)*(i+1)/t.steps;
+  const hit=downward(building.root,{x,y,z:t.z},.06);
+  assert.ok(hit&&Math.abs(hit.point.y-y)<.002,`upper connector tread ${i+1} is visibly supported`);
+ }
+ building.root.removeFromParent();
 });
 test('the real phone follow view submits fewer static-ring triangles without reducing geometry or losing visibility controls',()=>{
  const camera=new THREE.PerspectiveCamera(66,390/844,.1,2500);camera.position.set(0,5.2,8.3);camera.lookAt(0,.92,-3);camera.updateMatrixWorld(true);stadium.update(camera,'walk',false,false,true);scene.updateMatrixWorld(true);

@@ -158,6 +158,7 @@ test('upper stand navigation continues past the gallery before marking arrival o
   let feet=40;
   const route=planWalkPath({...position,y:feet},'upperStands',geometry,obstacleGroups);
   assert.equal(route.blocked,false);
+  guide.setGoal('upperStands',new THREE.Vector3(position.x,feet+1.7,position.z));
   for(const target of route.path){
    for(let step=0;step<80;step++){
     const dx=target.x-position.x,dz=target.z-position.z,d=Math.hypot(dx,dz);
@@ -167,6 +168,8 @@ test('upper stand navigation continues past the gallery before marking arrival o
    }
    assert.ok(Math.hypot(target.x-position.x,target.z-position.z)<.03,target.id);
    assert.ok(Math.abs(feet-target.y)<.15,target.id);
+   guide.update(new THREE.Vector3(position.x,feet+1.7,position.z),0,.2,'walk');
+   if(target.id!=='upperStands')assert.equal(guide.isArrived(),false,target.id);
   }
   assert.ok(position.x<102.75&&feet<39);
   guide.update(new THREE.Vector3(position.x,feet+1.7,position.z),0,.2,'walk');
@@ -421,6 +424,19 @@ test('navigation ribbon stays on supported floors and stops before a false store
  const points=ribbonPoints(tourNodes.flight0Start,['flight0Out','flight0Turn','flight0End'].map(id=>tourNodes[id]),geometry,40);
  assert.ok(points.length>30);for(let i=1;i<points.length;i++)assert.ok(Math.abs(points[i].y-points[i-1].y)<.81,'no vertical strip between storeys');
  const sky=ribbonPoints({x:0,y:0,z:0},[{x:0,y:20,z:12}],geometry,30);assert.ok(sky.every(p=>Math.abs(p.y-.055)<.001),'future waypoint height cannot pull the line into mid-air');assert.ok(sky.at(-1).z<12);
+});
+
+test('the gold ribbon follows the upper aisle and landing in both directions and breaks at the risers',()=>{
+ const route=['upperStands','upperAisleEntry','upperThresholdFoot','upperThreshold'].map(id=>tourNodes[id]);
+ for(const nodes of [route,[...route].reverse()]){
+  const points=ribbonPoints(nodes[0],nodes.slice(1),geometry);
+  const atLanding=points.filter(p=>p.x>101.17&&p.x<101.23&&p.z< -35.6&&p.z> -36.49);
+  assert.ok(atLanding.length>=2,'ribbon turns on the physical landing');
+  assert.ok(atLanding.every(p=>Math.abs(p.y-(tourNodes.upperThresholdFoot.y+.018))<.004));
+  assert.ok(points.filter(p=>p.breakBefore).length>=6,'separate marks on the gallery steps');
+  for(let i=1;i<points.length;i++)if(!points[i].breakBefore)assert.ok(Math.abs(points[i].y-points[i-1].y)<.075);
+  assert.ok(Math.hypot(points.at(-1).x-nodes.at(-1).x,points.at(-1).z-nodes.at(-1).z)<.001);
+ }
 });
 
 test('floor names distinguish the pitch, player rooms and intermediate stair landings',()=>{

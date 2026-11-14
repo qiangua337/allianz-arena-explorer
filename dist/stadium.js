@@ -14,7 +14,7 @@ import {enclosedPlayerPosition} from './player-area-layout.js';
 import {buildCirculation} from './circulation.js';
 import {accessStairs,ACCESS_BASE,ACCESS_TOP} from './access-layout.js';
 import {visitorPassage,bowlOpening} from './tour-route.js';
-import {tierEntryOpening,inCoreShaft,seatingTiers} from './building-layout.js';
+import {tierEntryOpening,inCoreShaft,seatingTiers,upperAisleIndex,upperAislePoint,upperAisleSeatClearance} from './building-layout.js';
 import {buildPitchSurface} from './pitch-surface.js';
 import {buildArenaScreens} from './arena-screens.js';
 import {finishedBox} from './finishes.js';
@@ -81,7 +81,7 @@ export function buildStadium(scene){
     const d=j/count*length;while(idx<path.length-2&&path[idx+1].d<d)idx++;const f=(d-path[idx].d)/(path[idx+1].d-path[idx].d),t=THREE.MathUtils.lerp(path[idx].t,path[idx+1].t,f);const p=path[idx].p.clone().lerp(path[idx+1].p,f);const block=(j/count*48)%1;
     if(block<.055||block>.945)continue;
     // Keep the player entrance open through the lowest western rows.
-    if(ti===0&&bowlOpening(p.x,p.z,r)||tierEntryOpening(p.x,p.z,ti,r)||ti===2&&inCoreShaft(p.x,p.z,.5))continue;
+    if(ti===0&&bowlOpening(p.x,p.z,r)||tierEntryOpening(p.x,p.z,ti,r)||ti===2&&(inCoreShaft(p.x,p.z,.5)||upperAisleSeatClearance(p.x,p.z,r)))continue;
     const n=supernormal(a,b,t,3.35);let color=0xc91c36;
     if(ti===1&&p.x>0&&Math.abs(p.z)<64){const px=Math.floor((p.z+64)/128*1199),py=Math.floor((tier.rows-1-r)/(tier.rows-1)*259);if(textPixels[(py*1200+px)*4]>100)color=0xefefea;}
     if(ti===2&&p.z<-80&&r>3&&r<10&&Math.abs(p.x)<46){if((Math.floor((p.x+46)/4)+r)%5<2)color=0xe9e9e4;}
@@ -95,11 +95,13 @@ export function buildStadium(scene){
   for(let j=0;j<48;j++){const t=(j+.5)/48*TAU,p=superpoint(innerA,innerB,t,3.35),n=supernormal(innerA,innerB,t,3.35),yaw=Math.atan2(n.x,n.z);if(ti===0&&bowlOpening(p.x,p.z,0))continue;batch.add(.04,1,.04,p.x,tier.y+.45,p.z,steel);const lab=sign(closeLabels,String(100+ti*100+j+1),1.8,.58,p.x-n.x*.06,tier.y-.66,p.z-n.z*.06,{w:128,h:64,font:38,fg:'#ffffff',bg:'#b51632'});lab.rotation.y=yaw+Math.PI;}
   // Radial stair aisles with intermediate handrail posts.
   for(let j=0;j<48;j++){
+   const upperEntrance=ti===2&&j===upperAisleIndex;
    const previous=[null,null];for(let r=0;r<tier.rows;r++){
-    const t=j/48*TAU,p=superpoint(tier.a+r*tier.depth+.25,tier.b+r*tier.depth+.25,t,3.35),n=supernormal(tier.a,tier.b,t,3.35),yaw=Math.atan2(n.x,n.z),y=tier.y+r*rise;
+    if(upperEntrance&&r>22)break;
+    const t=j/48*TAU,p=upperEntrance?upperAislePoint(r):superpoint(tier.a+r*tier.depth+.25,tier.b+r*tier.depth+.25,t,3.35),n=supernormal(tier.a,tier.b,t,3.35),yaw=Math.atan2(n.x,n.z),y=tier.y+r*rise;
     if(ti===0&&bowlOpening(p.x,p.z,r)){previous.fill(null);continue;}
     batch.add(1.05,.08,tier.depth+.1,p.x,y+.045,p.z,concrete,yaw);batch.add(.96,.012,.035,p.x-n.x*(tier.depth/2-.03),y+.093,p.z-n.z*(tier.depth/2-.03),steel,yaw);
-    if(r%4===0||r===tier.rows-1)for(let side=0;side<2;side++){
+    if(r%4===0||r===(upperEntrance?22:tier.rows-1))for(let side=0;side<2;side++){
      const offset=side?.43:-.43,x=p.x+n.z*offset,z=p.z-n.x*offset,point=v(x,y+.96,z);batch.add(.028,.90,.028,x,y+.48,z,steel);if(previous[side])beam(aisleRails,previous[side],point,.025,steel,6);previous[side]=point;
     }
    }

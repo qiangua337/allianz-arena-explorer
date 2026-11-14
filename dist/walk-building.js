@@ -1,7 +1,7 @@
 import {architecturalMaterials} from './surface-finishes.js';
 import {positionStateChanged} from './position-state.js';
 import {THREE,v,mat,mesh,box,beam,sign,Batches,compactGroup,floorTexture,repeatTex} from './kit.js';
-import {core,coreFlights,coreLevels,platforms,bridges,upperTierThreshold,upperGalleryRooms} from './building-layout.js';
+import {core,coreFlights,coreLevels,platforms,bridges,upperTierThreshold,upperThresholdLanding,upperGalleryRooms} from './building-layout.js';
 import {orientedCollider} from './access-layout.js';
 import {rectilinearBoundary} from './player-area-layout.js';
 export function buildWalkBuilding(scene){
@@ -53,5 +53,7 @@ export function buildWalkBuilding(scene){
   ['← 中层看台',101.5,25.8,-31.26,0],['公共楼梯 →',102.66,25.8,-30.1,-Math.PI/2]
  ]){const board=sign(root,text,2,.4,x,y,z,{bg:'#354e57',font:78,sub:'TRIBÜNE · TREPPEN'});board.rotation.y=yaw;}
  const threshold=upperTierThreshold;for(let i=0;i<threshold.steps;i++){const y=threshold.top-(i+1)*(threshold.top-threshold.bottom)/threshold.steps,x=threshold.x-(i+.5)*threshold.depth,h=y-38.3;b.add(threshold.depth,h,threshold.width,x,38.3+h/2,threshold.z,concrete);b.add(.035,.012,threshold.width-.08,x-threshold.depth*.4,y+.006,threshold.z,pale);}
+ const landing=upperThresholdLanding;
+ b.add(landing.x1-landing.x0,.18,landing.z1-landing.z0,(landing.x0+landing.x1)/2,landing.y-.09,(landing.z0+landing.z1)/2,concrete);
  b.flush();compactGroup(root);const visibilityChanged=positionStateChanged(),center=v(90,15,-5);let visible=true;return {root,colliders,update(position,mode){if(visibilityChanged(position,mode))visible=mode==='orbit'||position.distanceToSquared(center)<32400;if(root.visible!==visible)root.visible=visible;}};
 }

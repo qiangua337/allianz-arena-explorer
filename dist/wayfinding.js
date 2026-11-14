@@ -2,6 +2,9 @@ export function relativeBearing(position,yaw,target){const targetYaw=Math.atan2(
 export function waypointReached(position,target,anchor,next,isFinal=false){
  if(Math.abs(position.y-target.y)>.9)return false;
  if(isFinal)return Math.hypot(position.x-target.x,position.z-target.z)<=1.7;
+ if(target.id==='upperThresholdFoot'||target.id==='upperAisleEntry'){
+  return Math.abs(position.y-target.y)<.25&&Math.hypot(position.x-target.x,position.z-target.z)<=.25;
+ }
  const tight=target.level==='core'||target.level==='clearance'||/^landing|Door|Start|Out|Turn|End/.test(target.id),radius=isFinal?1.7:tight?.65:/^(lower|upper)\d+$/.test(target.id)?3:1.4;
  if(Math.hypot(position.x-target.x,position.z-target.z)<=radius)return true;
  if(anchor&&Math.abs(anchor.y-target.y)<.45){const dx=target.x-anchor.x,dz=target.z-anchor.z,length=Math.hypot(dx,dz);if(length>2){const along=((position.x-anchor.x)*dx+(position.z-anchor.z)*dz)/(length*length),cross=Math.abs((position.x-anchor.x)*dz-(position.z-anchor.z)*dx)/length;if(along>1&&cross<(tight?.55:1.7))return true;}}
@@ -25,7 +28,9 @@ export function movementInstruction(position,yaw,target,next){
  else if(target.id==='pitch'&&next?.id==='pitchEdge'){action='穿过草坪前往参观通道';hint='南侧场边的开放通道通往接待大厅与正门。';}
  else if(target.id==='westField'&&next?.id==='pitch'){action='返回草坪';hint='走出球员通道，沿地线前往南侧的参观通道。';}
  else if(target.id==='lowerEntry'){const leaving=next?.id==='upper24';action=leaving?'返回公共大厅':'进入下层看台';hint=leaving?'沿北侧缓坡前往公共大厅，继续跟随地线。':'沿北侧缓坡进入看台，留意座椅之间的过道。';}
- else if(target.id==='upperThreshold'){const entering=next?.id==='upperStands';action=entering?'进入上层看台':'返回上层连廊';hint=entering?'穿过门口，沿台阶进入座席过道。':'沿台阶上行，从门口回到连廊。';}
+ else if(target.id==='upperThreshold'){const entering=next?.id==='upperThresholdFoot';action=entering?'进入上层看台':'返回上层连廊';hint=entering?'穿过门口，在台阶底部沿平台转弯。':'沿台阶上行，从门口回到连廊。';}
+ else if(target.id==='upperThresholdFoot'){const entering=next?.id==='upperAisleEntry';action=entering?'下到看台入口平台':'沿平台前往连廊台阶';hint=entering?'到台阶底部后沿地线转入座席过道。':'沿地线走到台阶正前方，再上楼返回连廊。';}
+ else if(target.id==='upperAisleEntry'){const leaving=next?.id==='upperThresholdFoot';action=leaving?'沿座席台阶上行':'前往座席过道';hint=leaving?'沿座席之间的台阶上行，在平台转向连廊入口。':'在平台转弯，沿座席之间的台阶下行。';}
  else if(target.id==='upperStands'&&position.y-target.y>1){action='沿台阶进入上层看台';hint='走到台阶后的座席过道。';}
  else if(target.id.includes('Bridge'))hint='沿带扶手的连廊通行，到转角后继续跟随地线。';
  else if(target.id==='coreFront'&&next?.id==='coreApproach'){action='走出楼梯间';hint='穿过开放门洞，在入口环廊继续跟随地线。';}

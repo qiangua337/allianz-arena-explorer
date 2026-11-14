@@ -1,5 +1,5 @@
 import {planTour,tourNodes,tourStarts} from './tour-route.js';
-import {bridges,onBridge,roomAt} from './building-layout.js';
+import {bridges,onBridge,roomAt,upperAisleEntry,upperThresholdLanding,upperTierThreshold} from './building-layout.js';
 import {furnitureBlocksSegment} from './furniture-layout.js';
 import {serviceRoomAt,serviceWorld} from './service-layout.js';
 import {floorHeight,canStandAt,EYE_HEIGHT,MAX_STEP} from './navigation.js';
@@ -19,7 +19,20 @@ export function segmentHitsObstacle(a,b,wall){
  if(wall.cx!==undefined){const c=Math.cos(wall.yaw),s=Math.sin(wall.yaw),transform=p=>[(p.x-wall.cx)*c-(p.z-wall.cz)*s,(p.x-wall.cx)*s+(p.z-wall.cz)*c];[ax,az]=transform(a);[bx,bz]=transform(b);x0=-wall.halfW;x1=wall.halfW;z0=-wall.halfD;z1=wall.halfD;}
  let lo=0,hi=1;for(const[start,end,min,max]of[[ax,bx,x0,x1],[az,bz,z0,z1],[a.y,b.y,wall.y0+.2-EYE_HEIGHT,wall.y1]]){const delta=end-start;if(Math.abs(delta)<1e-9){if(start<=min||start>=max)return false;}else{let t0=(min-start)/delta,t1=(max-start)/delta;if(t0>t1)[t0,t1]=[t1,t0];lo=Math.max(lo,t0);hi=Math.min(hi,t1);if(lo>=hi)return false;}}return lo<hi;
 }
+// The aisle meets the threshold stairs sideways. A floor-height check alone
+// accepts a diagonal across the corner and guides visitors over the chairs.
+function crossesUpperLanding(a,b){
+ const low=Math.min(a.y,b.y),high=Math.max(a.y,b.y),landing=upperThresholdLanding;
+ if(low<landing.y-2||high>upperTierThreshold.top+.8)return false;
+ for(const [x,center]of [[landing.x0,upperAisleEntry.z],[landing.x1,upperTierThreshold.z]]){
+  if(!((a.x<x&&b.x>=x)||(b.x<x&&a.x>=x)))continue;
+  const z=a.z+(b.z-a.z)*(x-a.x)/(b.x-a.x);
+  if(z>landing.z0-.15&&z<landing.z1+.2&&Math.abs(z-center)>.34)return true;
+ }
+ return false;
+}
 export function walkSegmentClear(a,b,geometry,obstacles){
+ if(crossesUpperLanding(a,b))return false;
  const room=roomAt(a)||roomAt(b);if(room&&furnitureBlocksSegment(a,b,room))return false;
  const minX=Math.min(a.x,b.x),maxX=Math.max(a.x,b.x),minZ=Math.min(a.z,b.z),maxZ=Math.max(a.z,b.z);
  for(const wall of obstacles){

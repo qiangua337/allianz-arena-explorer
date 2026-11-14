@@ -5,7 +5,7 @@ import {floorHeight,MAX_STEP,hitsWall} from '../dist/navigation.js';
 import {orientedCollider} from '../dist/access-layout.js';
 import {planWalkPath,walkSegmentClear} from '../dist/walk-path.js';
 import {roomSpecs} from '../dist/building-layout.js';
-import {movementInstruction} from '../dist/wayfinding.js';
+import {movementInstruction,waypointReached} from '../dist/wayfinding.js';
 
 const geometry={tiers:[{a:43,b:61,y:.7,rows:30,depth:.76,angle:24},{a:66,b:84,y:13.2,rows:24,depth:.76,angle:30},{a:85,b:103,y:27.1,rows:26,depth:.73,angle:34}]};
 
@@ -61,6 +61,22 @@ test('the return to the south gate distinguishes passing a landing from leaving 
  assert.equal(action('landing0','coreFront','coreApproach'),'走出楼梯间');
  assert.equal(action('coreFront','coreApproach','lower0'),'返回入口环廊');
  assert.equal(action('coreApproach','coreFront','landing0'),'公共楼梯入口');
+});
+
+test('upper seating and its bridge use the right-angle landing in both directions',()=>{
+ const {upperBridgeStart,upperGalleryOuter,upperStands,upperThreshold,upperThresholdFoot,upperAisleEntry}=tourNodes;
+ const outbound=planWalkPath(upperGalleryOuter,'upperStands',geometry);
+ assert.equal(outbound.blocked,false);
+ assert.deepEqual(outbound.path.slice(-4),[upperThreshold,upperThresholdFoot,upperAisleEntry,upperStands]);
+ const via=planWalkPath(upperStands,'entrance',geometry);
+ assert.equal(via.blocked,false);
+ assert.deepEqual(via.path.slice(0,5),[upperStands,upperAisleEntry,upperThresholdFoot,upperThreshold,upperBridgeStart]);
+ for(const [from,to] of [[upperStands,upperThreshold],[upperAisleEntry,upperThreshold],[upperStands,upperThresholdFoot]]){
+  assert.equal(walkSegmentClear(from,to,geometry,[]),false);
+  assert.equal(walkSegmentClear(to,from,geometry,[]),false);
+ }
+ assert.equal(waypointReached({...upperThresholdFoot,z:upperThresholdFoot.z+.46},upperThresholdFoot,upperAisleEntry,upperThreshold),false);
+ assert.equal(waypointReached(upperThresholdFoot,upperThresholdFoot,upperAisleEntry,upperThreshold),true);
 });
 
 test('a lost visitor in the lower hall follows the ring instead of crossing staff walls',()=>{

@@ -1,12 +1,43 @@
 // Shared by the visible building, walking floors and route graph. Metres.
 // These connections are an explorable interpretation, not a surveyed plan.
 import {serviceRoomAt,serviceDoorOpening} from './service-layout.js';
+import {perimeterPoint} from './access-layout.js';
 export const roomSpecs={homeRoom:{x:-82,z:0,y:-2.7,w:19,d:20},guestRoom:{x:-82,z:28,y:-2.7,w:19,d:18},press:{x:-82,z:-31,y:-2.7,w:21,d:18},lounge:{x:90,z:0,y:23.6,w:10,d:28},museum:{x:-96,z:58,y:12,w:15,d:25},store:{x:0,z:118,y:12.2,w:29,d:14}};
 export const roomAt=position=>Object.entries(roomSpecs).find(([,s])=>Math.abs(position.y-s.y)<1.2&&Math.abs(position.x-s.x)<s.w/2-.12&&Math.abs(position.z-s.z)<s.d/2-.12)?.[0];
 export const core={left:100,right:103,width:2.45,start:-8,front:-13,minX:98.45,maxX:104.55};
 export const coreLevels=[-2.9,12.2,23.6,40];
 export const seatingTiers=[{a:43,b:61,y:.7,rows:30,depth:.76,angle:24},{a:66,b:84,y:13.2,rows:24,depth:.76,angle:30},{a:85,b:103,y:27.1,rows:26,depth:.73,angle:34}];
 export const upperTierThreshold={x:102.75,z:-36.5,top:40,bottom:seatingTiers[2].y+24*seatingTiers[2].depth*Math.tan(seatingTiers[2].angle*Math.PI/180),steps:6,depth:.24,width:2.3};
+export const upperAisleIndex=47;
+const upperTier=seatingTiers[2],upperAisleAngle=upperAisleIndex/48*Math.PI*2;
+const upperRise=upperTier.depth*Math.tan(upperTier.angle*Math.PI/180);
+const upperAisleRows=Array.from({length:upperTier.rows},(_,row)=>({
+ ...perimeterPoint(upperTier.a+row*upperTier.depth+.25,upperTier.b+row*upperTier.depth+.25,upperAisleAngle,3.35),y:upperTier.y+row*upperRise
+}));
+export const upperAislePoint=row=>upperAisleRows[row];
+export const upperThresholdLanding={x0:100.93,x1:101.31,z0:-37.65,z1:-34.94,y:upperAislePoint(23).y};
+export const upperAisleEntry={x:101.2,y:upperThresholdLanding.y,z:-35.53};
+export const upperThresholdFoot={x:upperAisleEntry.x,y:upperThresholdLanding.y,z:upperTierThreshold.z};
+const inThresholdLanding=(x,z,padding=0)=>x>upperThresholdLanding.x0-padding&&x<upperThresholdLanding.x1+padding&&z>upperThresholdLanding.z0-padding&&z<upperThresholdLanding.z1+padding;
+const shellUnit=perimeterPoint(upperTier.a,upperTier.b,upperAisleAngle,3.35);
+const shellNext=perimeterPoint(upperTier.a,upperTier.b,upperAisleAngle+.0001,3.35);
+const upperAisleYaw=Math.atan2(shellNext.z-shellUnit.z,shellUnit.x-shellNext.x);
+const aisleSine=Math.sin(upperAisleYaw),aisleCosine=Math.cos(upperAisleYaw);
+export function upperAisleSeatClearance(x,z,row){
+ const p=upperAislePoint(row);
+ if(Math.abs(x-p.x)<1.1&&Math.abs((x-p.x)*aisleCosine-(z-p.z)*aisleSine)<.86)return true;
+ return row>=22&&inThresholdLanding(x,z,.36);
+}
+export function upperAisleTreadHeight(x,z,feetY){
+ const row=Math.round((feetY-upperTier.y)/upperRise),p=upperAislePoint(row);
+ if(inThresholdLanding(x,z)&&Math.abs(upperThresholdLanding.y-feetY)<.045)return upperThresholdLanding.y;
+ if(!p||row>22||Math.abs(p.y-feetY)>.045||Math.abs(x-p.x)>.66||Math.abs(z-p.z)>.66)return null;
+ const localX=(x-p.x)*aisleCosine-(z-p.z)*aisleSine;
+ const localZ=(x-p.x)*aisleSine+(z-p.z)*aisleCosine;
+ if(Math.abs(localX)>.525||Math.abs(localZ)>(upperTier.depth+.1)/2)return null;
+ const edge=upperTier.depth/2-.03;
+ return p.y+(Math.abs(localX)<.48&&Math.abs(localZ+edge)<.0175?.099:.085);
+}
 // The enclosed gallery turns twice between the stairs and the open stand.
 // Shared by the gallery walls and their visibility boundaries.
 export const upperGalleryRooms={
@@ -38,6 +69,7 @@ export function onBridge(x,z,b,margin=0){const dx=b.b[0]-b.a[0],dz=b.b[2]-b.a[2]
 export function inCoreShaft(x,z,margin=0){return x>core.minX-margin&&x<core.maxX+margin&&z>core.start-.01&&z<10+margin;}
 export function buildingFloors(x,z){const out=[];if(serviceRoomAt({x,y:12.2,z}))out.push(12.2);
  const threshold=upperTierThreshold,along=threshold.x-x;if(along>=0&&along<threshold.steps*threshold.depth&&Math.abs(z-threshold.z)<threshold.width/2)out.push(threshold.top-(threshold.top-threshold.bottom)*Math.min(threshold.steps,Math.floor(along/threshold.depth)+1)/threshold.steps);
+ if(inThresholdLanding(x,z))out.push(upperThresholdLanding.y);
  for(const p of platforms)if(Math.abs(x-p.x)<p.w/2&&Math.abs(z-p.z)<p.d/2+.01)out.push(p.y);
  for(const f of coreFlights){const a=(z-f.z)*f.dir;if(Math.abs(x-f.x)<f.width/2&&a>=-.01&&a<=f.run+.01)out.push(f.base+(f.top-f.base)*Math.min(f.steps,Math.max(1,Math.floor(a/.34)+1))/f.steps);}
  for(const b of bridges){const t=onBridge(x,z,b);if(t!==null)out.push(b.a[1]+(b.b[1]-b.a[1])*Math.max(0,Math.min(1,t)));}return out;
