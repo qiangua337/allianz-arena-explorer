@@ -103,14 +103,23 @@ test('touch guidance retains the doorway waypoint while the visitor is on thresh
  assert.equal(waypointReached(past,upperThreshold,upperThresholdFoot,upperBridgeStart),true);
 });
 
-test('an off-centre return overstep rejoins the bottom stair and describes the one step down',()=>{
+test('an off-centre return overstep rejoins the same tread before climbing the stair',()=>{
  const {upperThreshold,upperThresholdFoot}=tourNodes;
- const x=101.512,z=-35.617,position={x,y:floorHeight(x,z,38.917,geometry),z};
- const returning=planWalkPath(position,'entrance',geometry);
- assert.equal(returning.blocked,false);
- assert.deepEqual(returning.path.slice(0,2),[upperThresholdFoot,upperThreshold]);
- const yaw=Math.atan2(x-upperThresholdFoot.x,z-upperThresholdFoot.z);
- assert.equal(movementInstruction(position,yaw,upperThresholdFoot,upperThreshold).action,'退回连廊楼梯底部');
+ for(const [x,z]of [[101.512,-35.617],[101.466,-35.565],[101.443,-35.67]]){
+  const position={x,y:floorHeight(x,z,38.917,geometry),z};
+  for(const [destination,end]of [['entrance',upperThreshold],['upperStands',upperThresholdFoot]]){
+   const route=planWalkPath(position,destination,geometry);
+   assert.equal(route.blocked,false);
+   const [align,target]=route.path;
+   assert.equal(align.id,'upperStairAlign');
+   assert.deepEqual([align.x,align.y,align.z],[x,position.y,upperThreshold.z]);
+   assert.equal(target,end);
+   assert.equal(walkSegmentClear(position,align,geometry,[]),true);
+   assert.equal(walkSegmentClear(align,target,geometry,[]),true);
+   assert.equal(waypointReached({...align,z:align.z+.35},align,position,target),false);
+  }
+ }
+ const x=101.512;
  const onStairs={x,y:floorHeight(x,upperThreshold.z,38.917,geometry),z:upperThreshold.z};
  assert.equal(planWalkPath(onStairs,'entrance',geometry).path[0],upperThreshold);
 });

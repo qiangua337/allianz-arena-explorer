@@ -93,13 +93,15 @@ export function buildStairwellOcclusion(walkFrustum=buildWalkFrustum()){
   return [...openings.map(opening=>[...towardCore,opening]),galleryPortals.slice(i+1)];
  });
  const hasLineOfSight=(frustum,path,position)=>{
-  const {x,z}=position,first=path[0],dx=(first.min.x+first.max.x)*.5-x,dz=(first.min.z+first.max.z)*.5-z;
+  const {x,y,z}=position,first=path[0],dx=(first.min.x+first.max.x)*.5-x,dz=(first.min.z+first.max.z)*.5-z;
   let lo=-Infinity,hi=Infinity;
   // The frustum must be able to see every doorway along the corridor, and
   // those doorways must overlap in direction for an unbroken sightline.
   for(const opening of path){
    const {min,max}=opening;
-   if(x>=min.x&&x<=max.x&&z>=min.z&&z<=max.z)continue;
+   // Openings on other floors share the same plan coordinates, but only the
+   // opening that actually contains the camera may bypass the frustum test.
+   if(x>=min.x&&x<=max.x&&y>=min.y&&y<=max.y&&z>=min.z&&z<=max.z)continue;
    if(!frustum.intersectsBox(opening))return false;
    if(path.length===1)continue;
    const a=min.x-x,b=max.x-x,c=min.z-z,d=max.z-z;
@@ -114,7 +116,7 @@ export function buildStairwellOcclusion(walkFrustum=buildWalkFrustum()){
  return (camera,view)=>{
   const {x,y,z}=camera.position;
   let paths;
-  if(x>core.minX+.23&&x<core.maxX-.23&&z>frontZ&&z<9.8&&y>-1.5&&y<43.12)paths=corePaths;
+  if(x>core.minX+.23&&x<core.maxX-.23&&z>=frontZ&&z<9.8&&y>-1.5&&y<43.12)paths=corePaths;
   else if(y>level+.15&&y<level+3.05&&z<frontZ){
    if(x>front.minX&&x<front.maxX&&z>front.minZ)paths=galleryPaths[0];
    else if(x>=front.maxX&&x<cross.maxX&&z>cross.minZ&&z<cross.maxZ)paths=galleryPaths[1];

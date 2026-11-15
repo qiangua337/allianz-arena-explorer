@@ -18,6 +18,7 @@ export function waypointReached(position,target,anchor,next,isFinal=false){
  if(upperLandingTurn(target.id)){
   return vertical<.25&&(distance<=.25||passedCorner(position,target,anchor,.18,.42));
  }
+ if(target.id==='upperStairAlign')return vertical<.24&&distance<=.23;
  if(target.id==='upperThreshold'){
   return vertical<.24&&(distance<=.65||passedCorner(position,target,anchor,.42,1.1));
  }

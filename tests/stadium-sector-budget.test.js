@@ -120,6 +120,27 @@ test('phone stairwell occlusion restores the full stadium at an opening or immed
   assert.equal(stadium.bowl.visible,true,'the upper stands panorama remains visible');
  }finally{if(width===undefined)delete globalThis.innerWidth;else globalThis.innerWidth=width;}
 });
+test('crossing the upper stairwell doorway never reveals a lower floor opening',()=>{
+ const width=globalThis.innerWidth;globalThis.innerWidth=390;
+ const camera=new THREE.PerspectiveCamera(66,390/844,.06,2500);
+ const face=(x,y,z,yaw)=>{
+  camera.position.set(x,y,z);camera.rotation.set(0,yaw,0,'YXZ');stadium.update(camera,'walk');
+ };
+ try{
+  for(const yaw of [0,Math.PI])for(const z of [-13.08,-13.1,-13.25,-13.4,-13.43]){
+   face(101.5,41.7,z,yaw);
+   assert.equal(stadium.bowl.visible,false,`same-plan lower-floor doors stay hidden at ${z}`);
+   assert.equal(stadium.circulation.root.visible,false);
+   assert.equal(lining.visible,false);
+  }
+  face(101.5,25.3,-13.1,0);
+  assert.equal(stadium.bowl.visible,true,'actual lower-floor doorway still opens its view');
+  assert.equal(stadium.circulation.root.visible,true);
+  face(103.3,41.7,-36.5,Math.PI/2);
+  assert.equal(stadium.bowl.visible,true,'the actual upper seating doorway still opens its view');
+  assert.equal(lining.visible,true);
+ }finally{if(width===undefined)delete globalThis.innerWidth;else globalThis.innerWidth=width;}
+});
 test('phone walking rejects offscreen batch boxes and restores ordinary visibility on turning or changing view',()=>{
  const width=globalThis.innerWidth;globalThis.innerWidth=390;
  const camera=new THREE.PerspectiveCamera(66,390/844,.06,2500);

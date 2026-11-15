@@ -113,20 +113,18 @@ function routeFromUpperThresholdStairs(position,goal,geometry,groups,obstacles){
  // A new destination selected mid-flight still uses a physical stair end.
  // Consider both ends, as somebody on the stairs may turn back to their seat.
  const first=tourNodes.upperThresholdFoot,last=tourNodes.upperThreshold;
- // After a small overrun from the radial aisle, rejoin the landing before
- // climbing the stair at an angle from the very edge of the bottom tread.
- if(position.x<x-depth*(steps-2)&&Math.abs(position.z-z)>.65){
-  for(const start of [first,tourNodes.upperAisleEntry]){
-   if(!walkSegmentClear(position,start,geometry,obstacles))continue;
-   const recovery=validatePath(position,planTour(position,goal,start.id),geometry,groups,obstacles);
-   if(!recovery.blocked&&recovery.path.length)return recovery;
-  }
+ // A visitor coming in from the aisle can end up on the edge of the bottom
+ // tread. Move across that tread before following the staircase lengthwise.
+ let aligned=position;
+ if(position.x<x-depth*(steps-2)&&Math.abs(position.z-z)>.45){
+  const center={id:'upperStairAlign',level:'clearance',label:'对准连廊台阶',hint:'沿当前一级横向走到台阶中间，再沿楼梯走。',x:position.x,y:position.y,z};
+  if(walkSegmentClear(position,center,geometry,obstacles))aligned=center;
  }
  let best=null,bestDistance=Infinity;
  for(const start of [first,last]){
   const path=planTour(position,goal,start.id);
   if(!path.length)continue;
-  const result=validatePath(position,path,geometry,groups,obstacles);
+  const result=validatePath(position,aligned===position?path:[aligned,...path],geometry,groups,obstacles);
   if(result.blocked)continue;
   let length=0,previous=position;
   for(const next of result.path){length+=distance(previous,next);previous=next;}
