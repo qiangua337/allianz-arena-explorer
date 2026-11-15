@@ -15,6 +15,12 @@ export function walkSpeed(running,touching,x,feet,z){
  return running?touching&&inTightWalkSpace(x,feet,z)?6:10:4.5;
 }
 
+// A newly sampled touch direction cannot account for the whole time spent
+// blocked in a slow draw. Limit catch-up to one short movement interval.
+export function walkMotionSeconds(delta,touching){
+ return Math.min(delta,touching?1/12:.25);
+}
+
 // Physical floor height advances at every short movement step. Camera easing
 // must not determine which storey a visitor can stand on during a slow frame.
 export function advanceWalker(position,feet,dx,dz,geometry,blocked){

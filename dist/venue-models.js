@@ -21,8 +21,11 @@ if(!gl_FrontFacing){
   shader.fragmentShader=shader.fragmentShader.replace('#include <roughnessmap_fragment>','#include <roughnessmap_fragment>\nif(!gl_FrontFacing)roughnessFactor=.86;');
  };material.customProgramCacheKey=()=>key+'|etfe-neutral-inner-membrane-v1';return material;
 }
+const farSeating={curved:0,coarse:0},highSeating={curved:90,coarse:Infinity},standardSeating={curved:32,coarse:100};
+export function seatingDetailLimits(high,low,playing,tunnel){return low||!high&&(playing||tunnel)?farSeating:high?highSeating:standardSeating;}
 export function seatingDetail({distance,high=false,low=false,playing=false,tunnel=false}){
- if(low||!high&&(playing||tunnel))return'far';return high?(distance>90?'coarse':'curved'):distance>100?'far':distance>32?'coarse':'curved';
+ const {curved,coarse}=seatingDetailLimits(high,low,playing,tunnel);
+ return !curved||distance>coarse?'far':distance>curved?'coarse':'curved';
 }
 // The publicly visible inner canopy reads as a continuous, finely ribbed
 // lining. Exterior inflated diamonds should not become the interior ceiling.

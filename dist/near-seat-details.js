@@ -51,15 +51,25 @@ export function buildNearSeatDetails(root,seats,baseMaterial){
  }));
  plastic.boundingSphere=frame.boundingSphere=new THREE.Sphere();
  baseMaterial.onBeforeCompile=function(shader,...args){before.call(this,shader,...args);shader.uniforms.nearSeatFocus=focus;shader.uniforms.nearSeatRadius=radius;shader.vertexShader='varying vec3 vNearSeatOrigin;\n'+shader.vertexShader;shader.vertexShader=shader.vertexShader.replace('#include <project_vertex>','#include <project_vertex>\nvNearSeatOrigin=(modelMatrix*instanceMatrix*vec4(0.,0.,0.,1.)).xyz;');shader.fragmentShader='varying vec3 vNearSeatOrigin;uniform vec3 nearSeatFocus;uniform float nearSeatRadius;\n'+shader.fragmentShader;shader.fragmentShader=shader.fragmentShader.replace('#include <clipping_planes_fragment>','#include <clipping_planes_fragment>\nif(nearSeatRadius>0.&&distance(vNearSeatOrigin,nearSeatFocus)<nearSeatRadius)discard;');};baseMaterial.customProgramCacheKey=()=>key+'|near-seat-replacement-v1';
- const last=new THREE.Vector3(Infinity,0,0);let lastCapacity=0,lastSeats=[];
+ const last=new THREE.Vector3(Infinity,0,0);let lastCapacity=0,lastSeats=[],lastRadius=0;
+ function showPatch(count,clipRadius){
+  plastic.count=frame.count=count;
+  const visible=count>0;
+  if(plastic.visible!==visible)plastic.visible=frame.visible=visible;
+  radius.value=clipRadius;
+ }
  return{get count(){return plastic.count;},update(position,enabled=true,capacity=192,compact=false){
-  if(!enabled){plastic.visible=frame.visible=false;plastic.count=frame.count=0;radius.value=0;last.x=Infinity;return;}
-  plastic.geometry=compact?compactShell:geometry.shell;
-  if(last.distanceToSquared(position)<.09&&lastCapacity===capacity)return;
+  if(!enabled){if(plastic.count||radius.value)showPatch(0,0);return;}
+  const shell=compact?compactShell:geometry.shell;
+  if(plastic.geometry!==shell)plastic.geometry=shell;
+  if(last.distanceToSquared(position)<.09&&lastCapacity===capacity){
+   if(!plastic.count&&lastSeats.length)showPatch(lastSeats.length,lastRadius);
+   return;
+  }
   last.copy(position);lastCapacity=capacity;
   const result=index.query(position,6,Math.min(384,capacity));
-  focus.value.copy(position);radius.value=result.radius;
-  plastic.count=frame.count=result.seats.length;plastic.visible=frame.visible=plastic.count>0;
+  focus.value.copy(position);lastRadius=result.radius;
+  showPatch(result.seats.length,lastRadius);
   plastic.boundingSphere.center.copy(position);plastic.boundingSphere.radius=result.radius+maxGeometryReach;
   if(result.seats.length===lastSeats.length&&result.seats.every((seat,i)=>lastSeats[i]===seat))return;
   lastSeats=result.seats;

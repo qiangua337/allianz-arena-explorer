@@ -47,6 +47,23 @@ test('the phone seat patch keeps its occupied seats and culling bounds while usi
  patch.update(p,false);patch.update(p);
  assert.equal(shell.geometry,original);assert.equal(shell.instanceMatrix.version,version);assert.equal(patch.count,1);
 });
+test('reopening a doorway reuses the same nearby seat patch and retains the correct clip',()=>{
+ let reads=0;
+ const root=new THREE.Group(),material=new THREE.MeshStandardMaterial(),seats=Array.from({length:20},(_,i)=>({get x(){reads++;return i*.5;},y:.19,z:0,yaw:0,color:0xff0000}));
+ const position=new THREE.Vector3(0,1.7,0),patch=buildNearSeatDetails(root,seats,material);
+ const shader={uniforms:{},vertexShader:'',fragmentShader:''};material.onBeforeCompile(shader);
+ patch.update(position,true,8,true);
+ const originalCount=patch.count,originalRadius=shader.uniforms.nearSeatRadius.value;
+ assert.ok(originalCount>0&&originalRadius>0);
+ reads=0;
+ for(let i=0;i<40;i++){
+  patch.update(position,false);assert.equal(shader.uniforms.nearSeatRadius.value,0);
+  patch.update(position,true,8,true);assert.equal(patch.count,originalCount);assert.equal(shader.uniforms.nearSeatRadius.value,originalRadius);
+ }
+ assert.equal(reads,0,'changing the view must not read seat positions again');
+ patch.update(position,false);position.x+=1.2;patch.update(position,true,8,true);
+ assert.ok(reads>0,'a visitor who moves must still get a fresh patch');
+});
 test('distant dugout seats preserve the contour, arm arrangement and placement at lower cost',()=>{
  const parent=new THREE.Group(),materials=Object.fromEntries(['red','metal','dark'].map(name=>[name,new THREE.MeshStandardMaterial()]));
  const options={...materials,x:2,y:.4,z:4.5,yaw:Math.PI/2,crest:false};

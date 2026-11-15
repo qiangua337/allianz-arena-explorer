@@ -61,8 +61,12 @@ export function movementInstruction(position,yaw,target,next){
  }
  else if(Object.values(doorRooms).some(([id])=>id===target.id))hint='沿门内过道前往目的地，留意桌台、座椅与展柜。';
  if(target.id==='tunnel'&&!next){action=target.label;hint='前方台阶通往草坪，通道另一端连接更衣区。';}
+ const returningToLanding=target.id==='upperThresholdFoot'&&next?.id==='upperThreshold'&&height<-.28;
+ if(returningToLanding){
+  action='退回连廊楼梯底部';hint='先下一级回到平台，沿地线走到连廊台阶正前方。';
+ }
  const upperLanding=upperLandingTurn(target.id),gallery=galleryTurn(target.id);
- if(next&&distance>.43&&distance<3&&Math.abs(angle)<.48&&(upperLanding||gallery||coreTurn(target.id))){
+ if(!returningToLanding&&next&&distance>.43&&distance<3&&Math.abs(angle)<.48&&(upperLanding||gallery||coreTurn(target.id))){
   const towardTarget=Math.atan2(position.x-target.x,position.z-target.z),turn=relativeBearing(target,towardTarget,next);
   if(Math.abs(turn)>.88&&Math.abs(turn)<2.45){
    const direction=turn>0?'右转':'左转';

@@ -36,7 +36,7 @@ import {buildInteriors,roomSpecs} from './interiors.js';
 import {buildWalkGuide,floorLabel} from './walk-guide.js';
 import {routeOnCurrentLevel} from './walk-path.js';
 import {normalizeDestination,destinationArrival} from './arrivals.js';
-import {advanceWalker,walkSpeed} from './walk-motion.js';
+import {advanceWalker,walkMotionSeconds,walkSpeed} from './walk-motion.js';
 import {indexWalkWalls} from './walk-collision-index.js';
 import {buildServiceRooms} from './service-rooms.js';
 import {serviceRoomAt} from './service-layout.js';
@@ -100,7 +100,7 @@ export async function startArena({hub, initial, nightAtStart}){
  serviceDoorColliders=serviceRooms.colliders.filter(collider=>collider.dynamicDoor);
  spatializeArchitecture(stadium.circulation.root);spatializeArchitecture(interiors.rooms.concourse);
  setExplorationMatchMode=suspendExplorationDuringMatch([world.group,building.root,interiors.root,serviceRooms.root,stadium.circulation.root]);
- freezeArchitecture(world.group,[world.rotor]);freezeArchitecture(stadium.root,[stadium.matchBall]);freezeArchitecture(stadium.circulation.root);freezeArchitecture(interiors.root);freezeArchitecture(building.root);destinationMenu=buildDestinationMenu({onDismiss:()=>setNavOpen(false)});buildHotspots();bindUI();setNavOpen(false);document.body.dataset.mode=mode;setDayNight(nightAtStart);applySurfaceQuality(scene,qualityMode);clock.time=performance.now();document.body.dataset.version='10.7.6';document.body.dataset.seats=stadium.seatCount;document.body.dataset.panels=stadium.panelCount;
+ freezeArchitecture(world.group,[world.rotor]);freezeArchitecture(stadium.root,[stadium.matchBall]);freezeArchitecture(stadium.circulation.root);freezeArchitecture(interiors.root);freezeArchitecture(building.root);destinationMenu=buildDestinationMenu({onDismiss:()=>setNavOpen(false)});buildHotspots();bindUI();setNavOpen(false);document.body.dataset.mode=mode;setDayNight(nightAtStart);applySurfaceQuality(scene,qualityMode);clock.time=performance.now();document.body.dataset.version='10.7.7';document.body.dataset.seats=stadium.seatCount;document.body.dataset.panels=stadium.panelCount;
  const requestedPlace=initial.get('place');
  if(initial.get('view')==='walk'){
   const place=requestedPlace&&(places[requestedPlace]||tourGoals[requestedPlace])?requestedPlace:'arcade';
@@ -317,10 +317,11 @@ function moveWalk(dt){
  yaw+=((keys.has('KeyQ')?1:0)-(keys.has('KeyE')?1:0))*Math.min(dt,.25)*1.5;
  const f=(keys.has('KeyW')||keys.has('ArrowUp')||moveFlags.has('forward')?1:0)-(keys.has('KeyS')||keys.has('ArrowDown')||moveFlags.has('back')?1:0)+touchAxes.y,s=(keys.has('KeyD')||keys.has('ArrowRight')||moveFlags.has('right')?1:0)-(keys.has('KeyA')||keys.has('ArrowLeft')||moveFlags.has('left')?1:0)+touchAxes.x;
  if(interactions.seated&&Math.hypot(f,s)<.01){camera.rotation.set(pitch,yaw,0,'YXZ');return;}
- smoothWalkInput(smoothInput,s,f,dt);forward.set(-Math.sin(yaw),0,-Math.cos(yaw));right.set(Math.cos(yaw),0,-Math.sin(yaw));step.set(0,0,0).addScaledVector(forward,smoothInput.z).addScaledVector(right,smoothInput.x);
+ const touching=joystickPointer!==null||movementPointers.size>0,duration=walkMotionSeconds(dt,touching);
+ smoothWalkInput(smoothInput,s,f,duration);forward.set(-Math.sin(yaw),0,-Math.cos(yaw));right.set(Math.cos(yaw),0,-Math.sin(yaw));step.set(0,0,0).addScaledVector(forward,smoothInput.z).addScaledVector(right,smoothInput.x);
  if(step.lengthSq()){interactions.stand();
   const feet=walkFeet??camera.position.y-desiredEye;
-  const duration=Math.min(dt,.25),speed=walkSpeed(touchSprint||keys.has('ShiftLeft')||keys.has('ShiftRight'),joystickPointer!==null||movementPointers.size>0,camera.position.x,feet,camera.position.z);
+  const speed=walkSpeed(touchSprint||keys.has('ShiftLeft')||keys.has('ShiftRight'),touching,camera.position.x,feet,camera.position.z);
   step.normalize().multiplyScalar(speed*duration*Math.min(1,Math.hypot(smoothInput.x,smoothInput.z)));
   walkFeet=advanceWalker(camera.position,feet,step.x,step.z,walkGeometry,blocked);
  }
@@ -552,22 +553,28 @@ function bindUI(){
  $('map-close').onclick=()=>{setMapOpen(false);$('map-toggle').focus({preventScroll:true});};
  $('map-floor').onchange=()=>drawMap(true);
  const joystick=$('joystick'),thumb=$('joystick-thumb');
- let joystickBounds;
+ let joystickBounds,thumbX=0,thumbY=0;
  const steer=e=>{
   const r=joystickBounds??=joystick.getBoundingClientRect();
   const axes=joystickAxes(e.clientX-r.left-r.width/2,e.clientY-r.top-r.height/2);
-  touchAxes.x=axes.x;touchAxes.y=axes.y;thumb.style.transform=`translate(${axes.thumbX}px,${axes.thumbY}px)`;
+  touchAxes.x=axes.x;touchAxes.y=axes.y;
+  if(thumbX!==axes.thumbX||thumbY!==axes.thumbY){
+   thumbX=axes.thumbX;thumbY=axes.thumbY;
+   thumb.style.transform=`translate(${thumbX}px,${thumbY}px)`;
+  }
   matchday?.flushGameInput();
  };
  joystick.addEventListener('pointerdown',e=>{
   if(mode!=='walk'||matchday?.playing&&matchday.paused)return;
-  e.preventDefault();beginWalk();joystickPointer=e.pointerId;
-  joystickBounds=undefined;joystick.setPointerCapture(e.pointerId);steer(e);
+  e.preventDefault();
+  if(joystickPointer!==null)return;
+  beginWalk();joystickPointer=e.pointerId;
+  joystickBounds=undefined;thumbX=thumbY=0;joystick.setPointerCapture(e.pointerId);steer(e);
  });
  joystick.addEventListener('pointermove',e=>{if(e.pointerId===joystickPointer){e.preventDefault();steer(e);}});
  const releaseJoystick=e=>{
   if(e.pointerId!==joystickPointer)return;
-  touchAxes.x=touchAxes.y=0;joystickPointer=null;joystickBounds=undefined;thumb.style.transform='none';
+  touchAxes.x=touchAxes.y=0;joystickPointer=null;joystickBounds=undefined;thumbX=thumbY=0;thumb.style.transform='none';
   matchday?.flushGameInput();
  };
  joystick.addEventListener('pointerup',releaseJoystick);joystick.addEventListener('pointercancel',releaseJoystick);joystick.addEventListener('lostpointercapture',releaseJoystick);
@@ -597,6 +604,7 @@ function bindUI(){
  canvas.addEventListener('pointerdown',e=>{
   if(mode!=='walk'||matchday?.playing&&matchday.paused||(e.pointerType==='mouse'&&e.button===1))return;
   if(matchday?.playing&&matchday.gameCamera==='broadcast'){canvas.focus({preventScroll:true});return;}
+  if(lastPointer)return;
   beginWalk();if(document.pointerLockElement===canvas)return;
   dragging=true;lastPointer={id:e.pointerId,x:e.clientX,y:e.clientY};document.body.classList.add('looking');canvas.setPointerCapture?.(e.pointerId);
  });
@@ -606,7 +614,7 @@ function bindUI(){
  });
  window.addEventListener('mousemove',e=>{if(mode==='walk'&&walkReady&&document.pointerLockElement===canvas)turn(e.movementX,e.movementY,.0021);});
  function releasePointer(e){if(lastPointer?.id===e.pointerId){dragging=false;lastPointer=null;document.body.classList.remove('looking');}movementPointers.delete(e.pointerId);moveFlags.clear();for(const direction of movementPointers.values())moveFlags.add(direction);}
- window.addEventListener('pointerup',releasePointer);window.addEventListener('pointercancel',releasePointer);
+ window.addEventListener('pointerup',releasePointer);window.addEventListener('pointercancel',releasePointer);canvas.addEventListener('lostpointercapture',releasePointer);
  document.addEventListener('museum-open',()=>{clearWalkInput();stopTour();});
  window.addEventListener('blur',()=>{if(matchday?.active){if(matchday.online)matchday.clearOnlineInput();else matchday.setPaused(true);}if(mode==='walk')setWalkReady(false);else clearWalkInput();});
  window.addEventListener('pagehide',saveWalkCheckpoint);

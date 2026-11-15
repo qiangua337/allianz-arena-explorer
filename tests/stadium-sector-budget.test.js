@@ -217,3 +217,21 @@ test('filled matches skip seat geometry hidden by spectators and restore all sea
  stadium.update(camera,'walk',false,false,false);
  assert.equal(count(),stadium.seatCount);
 });
+test('walking sector detail stays exact on distance boundaries and avoids rechecking between them',()=>{
+ const width=globalThis.innerWidth;globalThis.innerWidth=390;
+ const camera=new THREE.PerspectiveCamera(66,390/844,.06,2500),sorted=[];
+ const nearby=stadium.bowl.children.filter(o=>o.isInstancedMesh&&o.instanceColor&&o.count>384);
+ const position=camera.position,originalDistance=position.distanceTo;let checks=0;
+ position.distanceTo=function(v){if(nearby.some(o=>o.boundingSphere.center===v))checks++;return originalDistance.call(this,v);};
+ try{
+  const triangleCount=(position,mesh)=>{const d=originalDistance.call(position,mesh.boundingSphere.center);return d>100?2:d>32?4:24;};
+  for(let i=0;i<201;i++){
+   camera.position.set(106-i*.10,40-i*.022,-36.5+i*.016);camera.lookAt(0,10,0);stadium.update(camera,'walk');
+   assert.equal(stadium.bowl.visible,true);
+   for(const mesh of nearby)assert.equal(triangles(mesh),triangleCount(camera.position,mesh));
+   sorted.push(checks);
+  }
+  assert.ok(checks<nearby.length*80,`small movements scanned ${checks} sector distances`);
+  assert.ok(sorted.some((value,i)=>i>0&&value>sorted[i-1]),'crossings trigger a fresh check');
+ }finally{if(width===undefined)delete globalThis.innerWidth;else globalThis.innerWidth=width;}
+});

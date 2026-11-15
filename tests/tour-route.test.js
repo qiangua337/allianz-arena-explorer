@@ -103,6 +103,18 @@ test('touch guidance retains the doorway waypoint while the visitor is on thresh
  assert.equal(waypointReached(past,upperThreshold,upperThresholdFoot,upperBridgeStart),true);
 });
 
+test('an off-centre return overstep rejoins the bottom stair and describes the one step down',()=>{
+ const {upperThreshold,upperThresholdFoot}=tourNodes;
+ const x=101.512,z=-35.617,position={x,y:floorHeight(x,z,38.917,geometry),z};
+ const returning=planWalkPath(position,'entrance',geometry);
+ assert.equal(returning.blocked,false);
+ assert.deepEqual(returning.path.slice(0,2),[upperThresholdFoot,upperThreshold]);
+ const yaw=Math.atan2(x-upperThresholdFoot.x,z-upperThresholdFoot.z);
+ assert.equal(movementInstruction(position,yaw,upperThresholdFoot,upperThreshold).action,'退回连廊楼梯底部');
+ const onStairs={x,y:floorHeight(x,upperThreshold.z,38.917,geometry),z:upperThreshold.z};
+ assert.equal(planWalkPath(onStairs,'entrance',geometry).path[0],upperThreshold);
+});
+
 test('a lost visitor in the lower hall follows the ring instead of crossing staff walls',()=>{
  const route=planTour({x:-96,y:-2.9,z:0},'pitch');
  assert.ok(route[0].id.startsWith('lower'));assert.ok(route.some(n=>n.id==='visitorGate'||n.id==='playerSouthLobby'||n.id==='playerNorthLobby'));assert.ok(!route.some(n=>n.id==='homeRoom'));

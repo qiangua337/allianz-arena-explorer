@@ -10,7 +10,7 @@ const {createWalkCheckpoint,safeCheckpointFloor}=await import('../dist/walk-chec
 const {floorHeight}=await import('../dist/navigation.js');
 const {loadVisitorSettings,saveVisitorSettings,qualityProfile}=await import('../dist/visitor-settings.js');
 const {smoothWalkInput}=await import('../dist/walk-smoothing.js');
-const {walkSpeed}=await import('../dist/walk-motion.js');
+const {walkMotionSeconds,walkSpeed}=await import('../dist/walk-motion.js');
 const {tourGoals}=await import('../dist/tour-route.js');
 const {createWalkFrameRate}=await import('../dist/walk-frame-rate.js');
 const {createFramePacer,WALK_FRAME_SLACK}=await import('../dist/frame-pacing.js');
@@ -80,6 +80,11 @@ test('touch sprint slows for the interior stairs and tight gallery, then returns
  }
  assert.equal(walkSpeed(true,true,0,-4.1,214),10);
  assert.equal(walkSpeed(true,true,106,12.2,-24),10);
+});
+test('touch after a frame stall cannot apply a whole quarter second of stair sprint',()=>{
+ assert.equal(walkMotionSeconds(1/30,true),1/30);
+ assert.equal(walkMotionSeconds(.148,true)*walkSpeed(true,true,103,31.8,8),.5);
+ assert.equal(walkMotionSeconds(.35,false),.25);
 });
 test('quality preferences tolerate unavailable storage and cap mobile rendering work',()=>{
  assert.equal(loadVisitorSettings({getItem(){throw Error();}}).quality,'standard');assert.equal(loadVisitorSettings({getItem:()=>'{bad'}).quality,'standard');let saved;saveVisitorSettings({setItem:(k,v)=>saved=v},{quality:'low'});assert.equal(loadVisitorSettings({getItem:()=>saved}).quality,'low');assert.equal(qualityProfile('low',390,844,3).shadows,false);assert.equal(qualityProfile('low',390,844,3).grass,0);assert.ok(qualityProfile('standard',390,844,3).pixelRatio<=1);assert.equal(qualityProfile('high',1280,720,2).shadows,true);

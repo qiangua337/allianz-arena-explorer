@@ -113,6 +113,15 @@ function routeFromUpperThresholdStairs(position,goal,geometry,groups,obstacles){
  // A new destination selected mid-flight still uses a physical stair end.
  // Consider both ends, as somebody on the stairs may turn back to their seat.
  const first=tourNodes.upperThresholdFoot,last=tourNodes.upperThreshold;
+ // After a small overrun from the radial aisle, rejoin the landing before
+ // climbing the stair at an angle from the very edge of the bottom tread.
+ if(position.x<x-depth*(steps-2)&&Math.abs(position.z-z)>.65){
+  for(const start of [first,tourNodes.upperAisleEntry]){
+   if(!walkSegmentClear(position,start,geometry,obstacles))continue;
+   const recovery=validatePath(position,planTour(position,goal,start.id),geometry,groups,obstacles);
+   if(!recovery.blocked&&recovery.path.length)return recovery;
+  }
+ }
  let best=null,bestDistance=Infinity;
  for(const start of [first,last]){
   const path=planTour(position,goal,start.id);

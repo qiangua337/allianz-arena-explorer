@@ -19,7 +19,7 @@ import {buildPitchSurface} from './pitch-surface.js';
 import {buildArenaScreens} from './arena-screens.js';
 import {finishedBox} from './finishes.js';
 import {partitionGeometry,partitionStaticMesh,facadeSectorVisible} from './spatial-batches.js';
-import {shellProfileSampler,installEtfeSurface,seatingDetail,buildRoofLining} from './venue-models.js';
+import {shellProfileSampler,installEtfeSurface,seatingDetailLimits,buildRoofLining} from './venue-models.js';
 import {buildMatchBall} from './football-ball.js';
 import {seatHasSupporter} from './crowd-layout.js';
 
@@ -156,6 +156,26 @@ export function buildStadium(scene){
  // Other mesh visibility (including circulation sectors and lamps) stays with its owner.
  const cameraFrustum=buildWalkFrustum(),cullStaticBatches=buildStaticBatchCulling([...structural.children,...circulation.root.children,...seatInstances.map(({inst})=>inst)]);
  const suspendBowl=suspendMatrixTraversal(bowl),suspendRoof=suspendMatrixTraversal(roof);
+ const seatOrigin=v();let seatState=-1,seatRangeSquared=0;
+ function updateSeatSectors(position,high,low,playing,filled,compact){
+  const tunnel=position.x>-70&&position.x<-41&&Math.abs(position.z)<3.5&&position.y<3.5;
+  const {curved,coarse}=seatingDetailLimits(high,low,playing,tunnel);
+  const nextState=(high?1:0)|(filled?2:0)|(compact?4:0)|(!curved?8:0);
+  if(seatState===nextState&&seatOrigin.distanceToSquared(position)<seatRangeSquared)return;
+  seatState=nextState;seatOrigin.copy(position);
+  let range=Infinity;
+  for(const {inst,emptyCount,totalCount} of seatInstances){
+   const count=filled&&!high?emptyCount:totalCount;
+   if(inst.count!==count)inst.count=count;
+   const distance=curved?position.distanceTo(inst.boundingSphere.center):0;
+   // By the triangle inequality the viewer cannot cross any sector's LOD
+   // boundary until moving at least this far from the last check.
+   if(curved)range=Math.min(range,Math.abs(distance-coarse),Math.abs(distance-curved));
+   const geometry=!curved||distance>coarse?farSeat:distance>curved?coarseSeat:compact?compactSeat:seatGeom;
+   if(inst.geometry!==geometry)inst.geometry=geometry;
+  }
+  seatRangeSquared=Math.max(0,range-.000001)**2;
+ }
  return {root,roof,circulation,bowl,matchBall,updateMatchEffects:feedback.update,resetMatchEffects:feedback.reset,get detailSeatCount(){return nearSeats.count;},setMatchday:screens.setMatchday,setMatchScore:screens.setMatchScore,seatCount:seats.length,seatPositions:seats,panelCount,tiers,
  update(camera,mode='orbit',high=false,low=false,playing=false,filled=false){
   const position=camera.position,walking=mode==='walk',width=typeof innerWidth==='number'?innerWidth:Infinity;
@@ -189,13 +209,7 @@ export function buildStadium(scene){
    const compact=compactWalk&&position.distanceToSquared(location)>42**2;
    detailed.visible=!compact;distant.visible=compact;
   }
-  const tunnel=position.x>-70&&position.x<-41&&Math.abs(position.z)<3.5&&position.y<3.5;
-  for(const {inst,emptyCount,totalCount} of seatInstances){
-   inst.count=filled&&!high?emptyCount:totalCount;
-   const distance=position.distanceTo(inst.boundingSphere.center);
-   const detail=seatingDetail({distance,high,low,playing,tunnel});
-   inst.geometry=detail==='far'?farSeat:detail==='coarse'?coarseSeat:compactWalk?compactSeat:seatGeom;
-  }
+  updateSeatSectors(position,high,low,playing,filled,compactWalk);
  },night(n){bowlLighting.night(n);circulation.night(n);shellMaterials[0].color.set(n?0xe52a49:0xe5e8e4);shellMaterials[0].emissive.set(n?0xd7082c:0x000000);shellMaterials[0].emissiveIntensity=n?.72:0;shellMaterials[0].roughness=n?.76:.58;shellMaterials[1].color.set(n?0xcfc0c4:0xf4f4ed);shellMaterials[1].emissive.set(n?0x9d1736:0x000000);shellMaterials[1].emissiveIntensity=n?.22:0;lightMaterial.color.set(n?0xf7fbff:0xb9c6cb);logo.material.map=logoBack.material.map=n?logoNightMap:logoDayMap;}};
 }
 
