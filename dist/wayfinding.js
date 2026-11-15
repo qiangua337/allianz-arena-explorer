@@ -32,12 +32,30 @@ export function waypointReached(position,target,anchor,next,isFinal=false){
  return false;
 }
 const doorRooms={homeDoor:['homeRoom','主队更衣室'],guestRoomDoor:['guestRoom','客队更衣室'],pressDoor:['press','新闻发布厅'],storeDoor:['store','球迷商店'],museumDoor:['museum','荣誉展厅'],loungeDoor:['lounge','贵宾包厢']};
-export function movementInstruction(position,yaw,target,next){
+export function movementInstruction(position,yaw,target,next,goal){
  const distance=Math.hypot(target.x-position.x,target.z-position.z),angle=relativeBearing(position,yaw,target),height=target.y-position.y;
  let action=height>1.5?'沿楼梯上行':height<-1.5?'沿楼梯下行':/^lower\d+$/.test(target.id)?'沿入口环廊前行':/^upper\d+$/.test(target.id)?'沿公共大厅前行':target.label;
  let hint=target.hint;
  const door=doorRooms[target.id];
- if(door){const entering=next&&(next.id===door[0]||next.id.startsWith(door[0]+'Walk')||door[0]==='press'&&next.id==='pressEntry');action=(entering?'进入':'走出')+door[1];hint=entering?'靠近感应门后，从开放门洞步行进入。':'穿过房门回到走廊，再沿地线继续前行。';}
+ if(door){
+  const entering=next&&(next.id===door[0]||next.id.startsWith(door[0]+'Walk')||door[0]==='press'&&next.id==='pressEntry');
+  action=(entering?'进入':'走出')+door[1];
+  if(entering)hint='靠近感应门后，从开放门洞步行进入。';
+  else if(target.id==='museumDoor'||target.id==='storeDoor')hint='穿过东侧感应门，回到公共大厅。';
+  else hint='穿过房门回到走廊，再沿地线继续前行。';
+ }else if(/^upper\d+$/.test(target.id)&&next?.id==='museumDoor'){
+  action='前往荣誉展厅入口';hint='沿公共大厅走到展厅东侧的感应门。';
+ }
+ else if(target.id==='museum'||target.id.startsWith('museumWalk')){
+  const entering=goal==='museum'||target.id==='museum'&&!next;
+  action=entering?'前往荣誉展厅中央展区':'沿展柜间通道前往出口';
+  hint=entering?'沿两排奖杯展柜之间的过道前进。':'沿展柜之间的通道前往东侧感应门，出去就是公共大厅。';
+ }
+ else if(target.id==='store'||target.id.startsWith('storeWalk')){
+  const entering=goal==='store'||target.id==='store'&&!next;
+  action=entering?'前往球迷商店展示区':'沿货架间通道前往出口';
+  hint=entering?'沿货架之间的开放通道继续前进。':'沿货架之间的通道走向东侧感应门，出去就是公共大厅。';
+ }
  else if(target.id.includes('RoomWalk'))hint='沿衣柜与备战台之间的过道通行。';
  else if(['tunnel','tunnelStairs','tunnelMouth'].includes(target.id)){const out=(next?.x??target.x)>(next?target.x:position.x);action=out?'沿球员通道返回草坪':'沿球员通道前往更衣区';hint=out?'朝明亮的出口前行，沿台阶上行走出通道。':'沿红色通道向内，前方连接主客队更衣室与发布厅。';}
  else if(['visitorGate','passage','ramp','pitchExit','pitchEdge'].includes(target.id)){const back=(next?.z??target.z)>(next?target.z:position.z);action=back?'沿参观通道返回大厅':'沿参观通道前往草坪';hint=back?'沿灯带向接待大厅前行，靠近场边时先下台阶。':'沿灯带直行，走上场边台阶后进入草坪。';}

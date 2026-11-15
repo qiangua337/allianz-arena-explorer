@@ -18,7 +18,10 @@ export function buildInteractions(scene,interiors,{toast,navigate,showInfo,setEy
  for(const[id,s]of Object.entries(roomSpecs)){
   const z=id==='lounge'?-10.5:s.z,x=s.x+s.w/2,hinge=new THREE.Group();hinge.name=id+' automatic door';hinge.position.set(x+.16,s.y,z-1.15);root.add(hinge);const leaf=box(hinge,.07,2.9,2.3,0,1.45,1.15,id==='homeRoom'||id==='guestRoom'?red:glass);leaf.name='Solid moving door leaf';const frame=new Batches(hinge);for(const zz of[.045,2.255])frame.add(.085,2.9,.065,0,1.45,zz,metal);for(const yy of[.055,2.845])frame.add(.085,.085,2.2,0,yy,1.15,metal);for(const side of[-1,1]){frame.add(.08,.42,.055,side*.08,1.35,2.0,metal);const label=sign(hinge,names[id],1.45,.21,side*.048,2.15,1.15,{font:67,fg:'#f0e9dc',bg:'#36454c'});label.rotation.y=side*Math.PI/2;}frame.flush();compactGroup(hinge,[leaf]);
   tracks.add(.16,.09,4.8,x+.16,s.y+3.01,z-1.175,metal);
-  const board=sign(root,names[id]+' · 自动门',2,.32,x+.13,s.y+3.15,z,{bg:'#354e57',font:70});board.rotation.y=Math.PI/2;
+  if(id!=='museum'){
+   const board=sign(root,names[id]+' · 自动门',2,.32,x+.13,s.y+3.15,z,{bg:'#354e57',font:70});
+   board.rotation.y=Math.PI/2;
+  }
   const collider=doorCollider(x,z,s.y,0,id);colliders.push(collider);doors.push({id,x,z,y:s.y,hinge,opening:0,hold:false,collider});
  }
  tracks.flush();

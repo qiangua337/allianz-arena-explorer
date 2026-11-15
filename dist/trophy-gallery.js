@@ -3,6 +3,51 @@ import {finishedBox} from './finishes.js';
 import {honours} from './honours.js';
 import {buildPersonalGallery} from './personal-gallery.js';
 
+// Chapters follow the published museum renovation, condensed into one wall.
+const museumChapters=[
+ ['1900–1932','俱乐部成立 · 首夺德国冠军','#a82641'],
+ ['1933–1965','战后重建 · 升入德甲','#b69a72'],
+ ['1965–1979','黄金一代 · 欧洲三连冠','#62aaa3'],
+ ['1980–1998','Rummenigge · Matthäus','#629ac3'],
+ ['1999–2012','2001 欧冠 · 2012 主场决赛','#c77254'],
+ ['2013–2020','温布利到里斯本 · 两次三冠王','#bc3654'],
+];
+
+function historyWallTexture(){
+ return canvasTexture(1536,512,(c,w,h)=>{
+  const wash=c.createLinearGradient(0,0,w,h);
+  wash.addColorStop(0,'#371523');
+  wash.addColorStop(.65,'#201c25');
+  wash.addColorStop(1,'#131c24');
+  c.fillStyle=wash;
+  c.fillRect(0,0,w,h);
+  const crest=getCrestImage();
+  if(crest)c.drawImage(crest,w-183,50,117,117);
+  c.fillStyle='#dbc29c';
+  c.font='600 25px Arial';
+  c.fillText('FC BAYERN MÜNCHEN  /  SEIT 1900',62,76);
+  c.fillStyle='#f6eee5';
+  c.font='800 63px Arial, Microsoft YaHei, sans-serif';
+  c.fillText('拜仁历史',60,154);
+  c.font='500 24px Arial';
+  c.fillStyle='#c6bbaf';
+  c.fillText('VEREINSGESCHICHTE',361,153);
+  for(const [i,[years,label,color]] of museumChapters.entries()){
+   const x=62+(i%3)*474,y=205+Math.floor(i/3)*133;
+   c.fillStyle='#11131c7a';
+   c.fillRect(x,y,452,112);
+   c.fillStyle=color;
+   c.fillRect(x,y,452,4);
+   c.fillStyle='#f7eee6';
+   c.font='700 38px Arial';
+   c.fillText(years,x+20,y+55);
+   c.fillStyle='#e1d5c6';
+   c.font='500 23px Arial, Microsoft YaHei, sans-serif';
+   c.fillText(label,x+20,y+90,412);
+  }
+ });
+}
+
 const lathe=points=>new THREE.LatheGeometry(points.map(p=>new THREE.Vector2(...p)),64);
 export function europeanCupGeometry(){return lathe([[.001,0],[.22,0],[.245,.04],[.24,.10],[.18,.12],[.13,.17],[.11,.24],[.13,.32],[.21,.38],[.31,.55],[.38,.83],[.385,.99],[.36,1.02],[.34,.99],[.345,.85],[.28,.57],[.185,.41],[.105,.35],[.085,.25],[.10,.16],[.001,.13]]);}
 export function pokalGeometry(){return lathe([[.001,0],[.28,0],[.31,.045],[.29,.1],[.20,.16],[.16,.30],[.17,.42],[.27,.53],[.34,.65],[.36,.90],[.35,1.02],[.37,1.06],[.34,1.09],[.32,1.04],[.32,.92],[.30,.69],[.24,.57],[.145,.46],[.13,.31],[.001,.22]]);}
@@ -42,16 +87,23 @@ export function buildTrophyGallery(g,{dark,red,lightMat}){
   sign(g,h.year,1.42,.31,x,.57,z+.861,{font:112,w:512,h:160,fg:'#27343a'});sign(g,h.city,1.4,.12,x,.25,z+.862,{font:50,w:512,h:128,fg:'#34474f'});const aisleLabel=sign(g,h.year,1.42,.31,x+(x<0?.861:-.861),.57,z,{font:112,w:512,h:160,fg:'#27343a'});aisleLabel.rotation.y=x<0?Math.PI/2:-Math.PI/2;
   const plaque=sign(g,h.opponent,1.42,.13,x+(x<0?.862:-.862),.27,z,{font:74,w:512,h:128,fg:'#34474f'});plaque.rotation.y=x<0?Math.PI/2:-Math.PI/2;const title=sign(g,'球队荣誉 · '+h.year,1.48,.14,x+(x<0?.863:-.863),1.06,z,{font:145,fg:'#27343a'});title.rotation.y=x<0?Math.PI/2:-Math.PI/2;
  }
- const legacy=canvasTexture(2048,640,c=>{
-  c.fillStyle='#211b20';c.fillRect(0,0,2048,640);const wash=c.createLinearGradient(0,0,2048,640);wash.addColorStop(0,'#701b2b');wash.addColorStop(1,'#101b23');c.fillStyle=wash;c.fillRect(0,0,2048,640);
-  c.strokeStyle='#ffffff09';c.lineWidth=2;for(let x=-600;x<2300;x+=100){c.beginPath();c.moveTo(x,0);c.lineTo(x+600,640);c.stroke();}
-  c.fillStyle='#ffffff08';c.font='bold 520px Arial';c.fillText('1900',760,490);const crest=getCrestImage();if(crest)c.drawImage(crest,90,94,172,172);
-  c.fillStyle='#d0b982';c.font='27px Arial';c.fillText('MÜNCHEN · SEIT 1900',320,136);c.fillStyle='#f3ede1';c.font='bold 108px Arial';c.fillText('MIA SAN MIA.',313,262);c.fillStyle='#c5bcae';c.font='30px Arial';c.fillText('SIX TIMES EUROPEAN CHAMPIONS',320,332);
-  c.strokeStyle='#b5975d';c.lineWidth=2;c.beginPath();c.moveTo(128,463);c.lineTo(1920,463);c.stroke();c.textAlign='center';honours.slice(0,6).forEach((h,i)=>{const x=160+i*345;c.fillStyle='#d2bc88';c.beginPath();c.arc(x,463,7,0,Math.PI*2);c.fill();c.font='bold 43px Arial';c.fillText(h.year,x,534);c.fillStyle='#b4aba0';c.font='20px Arial';c.fillText(h.city,x,579);});
- });
- finishedBox(g,11.7,3.75,.07,0,2.47,12.32,bronze,.025);const mural=mesh(new THREE.PlaneGeometry(11.56,3.6125),new THREE.MeshBasicMaterial({map:legacy}),g,0,2.47,12.27);mural.rotation.y=Math.PI;
+ const mural=mesh(new THREE.PlaneGeometry(11.28,3.76),new THREE.MeshBasicMaterial({map:historyWallTexture(),toneMapped:false}),g,0,2.34,12.24);
+ mural.rotation.y=Math.PI;
+ finishedBox(g,11.45,3.92,.10,0,2.34,12.31,bronze,.025);
+ // Suspended lighting tracks align with the two rows of club trophy cases.
+ const warmStrip=new THREE.MeshBasicMaterial({color:0xf1d6ac,toneMapped:false});
+ for(const x of [-3.7,3.7]){
+  b.add(.20,.11,19.6,x,4.28,0,dark);
+  for(const z of [-8.8,0,8.8])b.add(.06,.15,.06,x,4.40,z,dark);
+  for(const z of [-8,-2.7,2.6,7.9]){
+   b.add(.56,.14,1.22,x,4.17,z,frame);
+   b.add(.38,.025,1.02,x,4.09,z,warmStrip);
+  }
+ }
  buildPersonalGallery(g,{gold,silver,bronze:frame,dark,glass});
  // A directory beside, rather than in, the entrance keeps the doorway clear.
  const directory=new THREE.Group();directory.position.set(7.32,2.1,2.65);directory.rotation.y=-Math.PI/2;g.add(directory);box(directory,1.65,1.7,.05,0,0,0,dark);sign(directory,'荣誉展厅',1.42,.27,0,.42,.035,{font:100,fg:'#e0ca98'});sign(directory,'个人荣誉 · 球队冠军',1.42,.15,0,.06,.036,{font:60,fg:'#ded9cb'});sign(directory,'F 打开展览目录',1.42,.14,0,-.38,.037,{font:65,fg:'#b7af9f'});
+ const exit=sign(g,'AUSGANG  /  公共大厅',2.02,.35,7.33,3.27,0,{sub:'CONCOURSE',bg:'#263c36',fg:'#f4f5e8',h:128,font:56});
+ exit.rotation.y=-Math.PI/2;
  b.flush();
 }

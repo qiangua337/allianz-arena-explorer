@@ -1,7 +1,7 @@
 import {routeSummary} from './walk-tours.js';
 import {THREE,v} from './kit.js';
 import {EYE_HEIGHT} from './navigation.js';
-import {inCoreShaft,coreLevels} from './building-layout.js';
+import {inCoreShaft,coreLevels,roomAt} from './building-layout.js';
 import {tourGoals,tourNodes} from './tour-route.js';
 import {waypointReached,movementInstruction} from './wayfinding.js';
 import {directWalkDestination,planWalkPath,navigationObstacles,walkSegmentClear} from './walk-path.js';
@@ -67,7 +67,7 @@ export function buildWalkGuide(scene,geometry,{obstacles={},onChoose,onSelect,on
   }else if(!walking){
    action='已选择 · '+tourGoals[goal];hint='从上次步行位置出发，或直接传送到目的地。';subline='步行 / 直接传送';symbol='↗';
   }else if(path.length){
-   const target=path[0],instruction=movementInstruction(p,yaw,target,path[1]),summary=routeSummary(p,path);
+   const target=path[0],instruction=movementInstruction(p,yaw,target,path[1],goal),summary=routeSummary(p,path);
    action=instruction.action;symbol='↑';angle=instruction.angle;
    subline='还有 '+summary.metres+' 米 · '+floorLabel(p.y,p);
    hint=instruction.hint+' 下一转向点约 '+Math.round(instruction.distance)+' 米。';
@@ -119,7 +119,9 @@ export function buildWalkGuide(scene,geometry,{obstacles={},onChoose,onSelect,on
   // A visitor may take another open aisle instead of visiting every old node.
   // Arrival still requires the same floor and an unobstructed final segment.
   const destination=tourNodes[goal],remaining=Math.hypot(p.x-destination.x,p.z-destination.z);
-  const approachPending=goal==='upperStands'&&path.some(node=>node.id==='upperThresholdFoot'||node.id==='upperAisleEntry');
+  const stairPending=goal==='upperStands'&&path.some(node=>node.id==='upperThresholdFoot'||node.id==='upperAisleEntry');
+  const museumDoorPending=goal==='museum'&&roomAt(p)!=='museum'&&path.some(node=>node.id==='museumDoor');
+  const approachPending=stairPending||museumDoorPending;
   if(!arrived&&!approachPending&&remaining<8&&Math.abs(p.y-destination.y)<(goal==='upperStands'?.65:1)){
    if(walkSegmentClear(p,destination,geometry,getWalls())){
     blocked=false;

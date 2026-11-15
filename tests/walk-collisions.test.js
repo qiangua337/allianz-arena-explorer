@@ -247,6 +247,25 @@ test('the final route marker does not mark arrival through an intervening wall',
  assert.equal(guide.isArrived(),true);
 });
 
+test('museum guidance keeps the real entrance visible and still accepts crossing its opening',()=>{
+ const {upper14,museumDoor,museum}=tourNodes;
+ const approach=new THREE.Vector3(upper14.x,upper14.y+1.7,upper14.z);
+ const atDoor=new THREE.Vector3(museumDoor.x,museumDoor.y+1.7,museumDoor.z);
+ const exhibitAisle=new THREE.Vector3(museum.x,museum.y+1.7,museum.z);
+ const guide=buildWalkGuide(scene,geometry,{obstacles:obstacleGroups});
+ guide.setGoal('museum',approach);guide.update(approach,0,1.3,'walk');
+ assert.equal(guide.getRoute()[0],museumDoor,'a near visitor sees the entrance before the exhibits');
+ assert.equal(guide.isArrived(),false);
+ guide.update(atDoor,0,.2,'walk');
+ assert.equal(guide.getRoute()[0],museum);
+ assert.equal(guide.isArrived(),false);
+ guide.update(exhibitAisle,0,.2,'walk');
+ assert.equal(guide.isArrived(),true);
+ const onExit=planWalkPath(museum,'store',geometry,obstacleGroups);
+ assert.equal(onExit.blocked,false);
+ assert.ok(onExit.path.includes(museumDoor),'walking to the shop still shows the museum exit');
+});
+
 test('the compact arrival action names the next place and starts a real walk from the current position',()=>{
  const original=document.getElementById,nodes=new Map();document.getElementById=id=>{if(!nodes.has(id))nodes.set(id,{hidden:true,style:{},setAttribute(k,value){this[k]=value;},classList:{toggle(){}},focus(){}});return nodes.get(id);};
  try{

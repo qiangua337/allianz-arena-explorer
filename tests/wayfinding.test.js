@@ -69,3 +69,16 @@ test('return instructions describe leaving a room and going up to the pitch',()=
  assert.doesNotMatch(movementInstruction({x:22,y:-2.9,z:101},Math.PI,turn,reception).hint,/左转|右转/);
  assert.match(movementInstruction({x:0,y:10.6,z:-90},Math.PI,{id:'lowerEntry',x:0,y:12.2,z:-104,label:'看台入口'},{id:'upper24'}).hint,/前往公共大厅/);
 });
+
+test('museum and store instructions name the exhibit aisle and east exit by walking direction',()=>{
+ const {museumDoor,museum,store}=tourNodes;
+ const museumAisle=tourNodes['museumWalk2-2'],storeAisle=tourNodes['storeWalk2-2'];
+ const outward=movementInstruction(museum,0,museumAisle,museumDoor,'store');
+ const inward=movementInstruction(museumDoor,0,museumAisle,museum,'museum');
+ assert.match(outward.hint,/东侧感应门/);
+ assert.match(inward.action,/荣誉展厅中央展区/);
+ assert.match(inward.hint,/两排奖杯展柜/);
+ assert.match(movementInstruction(museumAisle,0,museumDoor,tourNodes.upper14,'store').hint,/回到公共大厅/);
+ assert.match(movementInstruction(storeAisle,0,store,null,'store').action,/球迷商店展示区/);
+ assert.match(movementInstruction(store,0,storeAisle,tourNodes.storeDoor,'museum').action,/货架间通道前往出口/);
+});

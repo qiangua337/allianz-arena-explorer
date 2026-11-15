@@ -1,7 +1,7 @@
 import {compactStaticMeshes} from './scene-budget.js';
 import {positionStateChanged} from './position-state.js';
 import {finishReception,finishedBox,contactShadow} from './finishes.js';
-import {inCoreShaft,publicWallOpening,clearCore,roomFootprint} from './building-layout.js';
+import {inCoreShaft,publicWallOpening,clearCore,roomFootprint,roomSpecs} from './building-layout.js';
 import {THREE,TAU,v,mat,mesh,box,beam,canvasTexture,repeatTex,floorTexture,ringGeometry,Batches,mergeGeometry,addCrest} from './kit.js';
 import {ACCESS_BASE,ACCESS_TOP,accessStairs,perimeterFrames,perimeterPoint,perimeterNormal,stairwellAt,orientedCollider} from './access-layout.js';
 import {visitorPassage,visitorWallOpening} from './tour-route.js';
@@ -307,6 +307,15 @@ export function buildCirculation(parent){
 
  function decorateConcourse(g){
   const b=new Batches(g);
+  // Mount the signs at the actual gallery opening. The blade can also be
+  // read from either direction when walking parallel to the concourse wall.
+  const museum=roomSpecs.museum,doorX=museum.x+museum.w/2,signY=museum.y+3.47;
+  b.add(.15,.53,2.36,doorX+.13,signY,museum.z,red);
+  atlas.add(g,'FC BAYERN MUSEUM','荣誉展厅',2.26,.43,doorX+.208,signY,museum.z,Math.PI/2,{bg:'#922237',accent:'#eed1a0'});
+  const bladeX=doorX+.55,bladeY=museum.y+3.33,bladeZ=museum.z-1.56;
+  b.add(.93,.39,.09,bladeX,bladeY,bladeZ,edge);
+  atlas.add(g,'MUSEUM','荣誉展厅',.87,.34,bladeX,bladeY,bladeZ+.046,0,{bg:'#243039',accent:'#eed1a0'});
+  atlas.add(g,'MUSEUM','荣誉展厅',.87,.34,bladeX,bladeY,bladeZ-.046,Math.PI,{bg:'#243039',accent:'#eed1a0'});
   for(const [a,bb]of[[85,103],[105,122]])for(const frame of perimeterFrames(a,bb,256)){if(publicWallOpening(frame.x,frame.z))continue;colliders.push(orientedCollider(frame.x,frame.z,frame.spacing+.12,.18,12.2,16.8,frame.yaw));}
   mesh(ringGeometry(85.2,103.2,85.5,103.5,12.24),red,g);
   mesh(ringGeometry(91,109,91.3,109.3,12.235),edge,g);

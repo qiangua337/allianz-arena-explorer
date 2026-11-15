@@ -145,7 +145,9 @@ export function planWalkPath(position,goal,geometry,groups={}){
  const remaining=route.map(()=>0);for(let i=route.length-2;i>=0;i--)remaining[i]=remaining[i+1]+distance(route[i],route[i+1]);
  let best=null;for(let i=0;i<Math.min(route.length,5);i++){const target=route[i];if(i&&Math.abs(target.y-position.y)>.85)break;if(i&&distance(position,target)>45)break;
   if(walkSegmentClear(position,target,geometry,obstacles)){const cost=distance(position,target)+remaining[i];if(!best||cost<best.cost)best={cost,index:i};}
-  if(target.level==='core'||/^landing/.test(target.id))break;
+  // Keep the museum portal visible in both directions even when a diagonal
+  // through its opening would provide a slightly shorter route.
+  if(target.level==='core'||target.id==='museumDoor'||/^landing/.test(target.id))break;
  }
  const prefix=best?null:detour(position,route[0],geometry,obstacles);
  if(best||prefix){

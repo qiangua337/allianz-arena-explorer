@@ -8,7 +8,7 @@ import {surfaceMaps} from './visual-assets.js';
 import {buildNearSeatDetails,seatShellGeometry} from './near-seat-details.js';
 import {buildBowlLighting} from './stadium-lighting.js';
 import {positionStateChanged} from './position-state.js';
-import {THREE,TAU,v,mat,mesh,box,beam,sign,cylinder,canvasTexture,textTexture,superpoint,supernormal,ringGeometry,curveLine,mergeGeometry,compactGroup,Batches,addCrest,seeded} from './kit.js';
+import {THREE,TAU,v,mat,mesh,box,beam,sign,cylinder,canvasTexture,textTexture,superpoint,supernormal,ringGeometry,curveLine,mergeGeometry,compactGroup,Batches,addCrest,getCrestImage,seeded} from './kit.js';
 import {bowlIsVisible,buildStairwellOcclusion,buildWalkFrustum,buildStaticBatchCulling,suspendMatrixTraversal} from './scene-budget.js';
 import {enclosedPlayerPosition} from './player-area-layout.js';
 import {buildCirculation} from './circulation.js';
@@ -22,6 +22,7 @@ import {partitionGeometry,partitionStaticMesh,facadeSectorVisible} from './spati
 import {shellProfileSampler,installEtfeSurface,seatingDetailLimits,buildRoofLining} from './venue-models.js';
 import {buildMatchBall} from './football-ball.js';
 import {seatHasSupporter} from './crowd-layout.js';
+import {buildArenaSeatMosaic} from './seat-mosaic.js';
 
 export function buildStadium(scene){
  const root=new THREE.Group();root.name='Allianz Arena | metres';scene.add(root);
@@ -67,7 +68,8 @@ export function buildStadium(scene){
  const roofLining=partitionStaticMesh(roofSurface)??roofSurface;
  // A three-tier bowl. Angles follow the published 24 / 30 / 34 degree sections.
  const tiers=seatingTiers;
- const rowGeometries=[];const seats=[];const aisleRails=new THREE.Group();aisleRails.name='Continuous stair handrails beside clear walking aisles';bowl.add(aisleRails);const closeLabels=new THREE.Group();bowl.add(closeLabels);const textCanvas=document.createElement('canvas');textCanvas.width=1200;textCanvas.height=260;const tx=textCanvas.getContext('2d');tx.fillStyle='#000';tx.fillRect(0,0,1200,260);tx.fillStyle='#fff';tx.textAlign='center';tx.textBaseline='middle';tx.font='bold 165px Arial';tx.fillText('FC BAYERN MÜNCHEN',600,130,1170);const textPixels=tx.getImageData(0,0,1200,260).data;
+ const rowGeometries=[];const seats=[];const aisleRails=new THREE.Group();aisleRails.name='Continuous stair handrails beside clear walking aisles';bowl.add(aisleRails);const closeLabels=new THREE.Group();bowl.add(closeLabels);
+ const seatColor=buildArenaSeatMosaic(getCrestImage());
  function openTunnelRing(a,b,aa,bb,y,row){const limit=Math.asin((2.6/b)**(3.35/2)),ts=Array.from({length:385},(_,i)=>i/384*TAU);ts.push(Math.PI-limit,Math.PI+limit);if(row<8)for(const x of[visitorPassage.x-visitorPassage.width/2-.35,visitorPassage.x+visitorPassage.width/2+.35])ts.push(Math.acos(Math.sign(x)*Math.abs(x/a)**(3.35/2)));ts.sort((a,b)=>a-b);const ps=[];for(let i=0;i<ts.length-1;i++){const t=ts[i],u=ts[i+1],mid=superpoint(a,b,(t+u)/2,3.35);if(bowlOpening(mid.x,mid.z,row))continue;const pts=[superpoint(a,b,t,3.35),superpoint(aa,bb,t,3.35),superpoint(aa,bb,u,3.35),superpoint(a,b,u,3.35)];for(const k of[0,2,1,0,3,2])ps.push(pts[k].x,y,pts[k].z);}const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(ps,3));g.computeVertexNormals();return g;}
  tiers.forEach((tier,ti)=>{
   const rise=tier.depth*Math.tan(tier.angle*Math.PI/180);
@@ -82,9 +84,7 @@ export function buildStadium(scene){
     if(block<.055||block>.945)continue;
     // Keep the player entrance open through the lowest western rows.
     if(ti===0&&bowlOpening(p.x,p.z,r)||tierEntryOpening(p.x,p.z,ti,r)||ti===2&&(inCoreShaft(p.x,p.z,.5)||upperAisleSeatClearance(p.x,p.z,r)))continue;
-    const n=supernormal(a,b,t,3.35);let color=0xc91c36;
-    if(ti===1&&p.x>0&&Math.abs(p.z)<64){const px=Math.floor((p.z+64)/128*1199),py=Math.floor((tier.rows-1-r)/(tier.rows-1)*259);if(textPixels[(py*1200+px)*4]>100)color=0xefefea;}
-    if(ti===2&&p.z<-80&&r>3&&r<10&&Math.abs(p.x)<46){if((Math.floor((p.x+46)/4)+r)%5<2)color=0xe9e9e4;}
+    const n=supernormal(a,b,t,3.35),color=seatColor(p.x,y+.19,p.z,ti,r,tier.rows);
     seats.push({x:p.x,y:y+.19,z:p.z,yaw:Math.atan2(n.x,n.z),color,sector:Math.min(23,Math.floor(j/count*24))});
    }
   }
