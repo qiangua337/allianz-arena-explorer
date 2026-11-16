@@ -74,11 +74,26 @@ test('museum and store instructions name the exhibit aisle and east exit by walk
  const {museumDoor,museum,store}=tourNodes;
  const museumAisle=tourNodes['museumWalk2-2'],storeAisle=tourNodes['storeWalk2-2'];
  const outward=movementInstruction(museum,0,museumAisle,museumDoor,'store');
- const inward=movementInstruction(museumDoor,0,museumAisle,museum,'museum');
+ const atEntrance=movementInstruction(museumDoor,Math.PI/2,museumAisle,museum,'museum');
+ const inward=movementInstruction(museumAisle,Math.PI/2,museum,null,'museum');
  assert.match(outward.hint,/东侧感应门/);
+ assert.equal(atEntrance.action,'穿过荣誉展厅感应门');
  assert.match(inward.action,/荣誉展厅中央展区/);
  assert.match(inward.hint,/两排奖杯展柜/);
  assert.match(movementInstruction(museumAisle,0,museumDoor,tourNodes.upper14,'store').hint,/回到公共大厅/);
  assert.match(movementInstruction(storeAisle,0,store,null,'store').action,/球迷商店展示区/);
  assert.match(movementInstruction(store,0,storeAisle,tourNodes.storeDoor,'museum').action,/货架间通道前往出口/);
+});
+
+test('the stairs and gallery tell the visitor what is around the actual corner',()=>{
+ const {corePublicApproach,corePublicFront,landing1,upperGalleryOuter,upperBridgeStart,upperThreshold}=tourNodes;
+ const look=(from,to)=>Math.atan2(from.x-to.x,from.z-to.z);
+ const beforeDoor={...corePublicFront,x:corePublicFront.x-2};
+ const enter=movementInstruction(beforeDoor,look(beforeDoor,corePublicFront),corePublicFront,landing1);
+ assert.equal(enter.action,'到平台后右转');
+ assert.match(enter.hint,/穿过门洞/);
+ assert.equal(waypointReached(beforeDoor,corePublicFront,corePublicApproach,landing1),false);
+ const fromGallery=movementInstruction(upperGalleryOuter,look(upperGalleryOuter,upperBridgeStart),upperBridgeStart,upperThreshold);
+ assert.equal(fromGallery.action,'走到上层连廊转角');
+ assert.match(fromGallery.hint,/转向看台门洞/);
 });

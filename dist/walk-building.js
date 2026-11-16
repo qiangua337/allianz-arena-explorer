@@ -12,7 +12,15 @@ export function buildWalkBuilding(scene){
   for(const side of[-1,1])rail([f.x+side*(f.width/2-.05),f.base,f.z],[f.x+side*(f.width/2-.05),f.top,f.z+f.dir*f.run]);
  }
  for(const p of platforms){b.add(p.w,.22,p.d,p.x,p.y-.11,p.z,concrete);if(p.id.startsWith('turn')){rail([p.x-p.w/2,p.y,p.z+p.d/2],[p.x+p.w/2,p.y,p.z+p.d/2]);}}
- for(let i=0;i<coreLevels.length;i++){const y=coreLevels[i],text=['入口层 · 接待大厅','公共大厅 · 商店 · 展厅','中层看台 · 贵宾包厢','上层看台'][i];sign(root,text,5.7,.65,101.5,y+2.65,-13.02,{bg:'#a61b35',font:64});const back=sign(root,'下一层 ↓    ↑ 上一层',5.6,.5,101.5,y+2.4,-13.04,{bg:'#304852',font:64});back.rotation.y=Math.PI;b.add(5.6,.04,.14,101.5,y+2.95,-12.4,glow);}
+ const floorNames=['入口层 · 接待大厅','公共大厅 · 商店 · 展厅','中层看台 · 贵宾包厢','上层看台'];
+ for(const [i,y] of coreLevels.entries()){
+  sign(root,floorNames[i],5.7,.65,101.5,y+2.65,-13.02,{bg:'#a61b35',font:64});
+  // Facing the flights from the hall, the up flight is on the visitor's right.
+  const direction=i===0?'上楼 →':i===coreLevels.length-1?'← 下楼':'← 下楼      上楼 →';
+  const back=sign(root,direction,5.6,.5,101.5,y+2.4,-13.04,{bg:'#304852',font:64});
+  back.rotation.y=Math.PI;
+  b.add(5.6,.04,.14,101.5,y+2.95,-12.4,glow);
+ }
  // Side walls leave the full front landing open at every level.
  function sideWall(x,z,d,y0=-3.2,y1=43.4){if(y1<=y0)return;b.add(.15,y1-y0,d,x,(y0+y1)/2,z,concrete);colliders.push(orientedCollider(x,z,.15,d,y0,y1));}
  sideWall(core.maxX+.12,-1,25);
@@ -23,7 +31,16 @@ export function buildWalkBuilding(scene){
  const stairWidth=core.maxX-core.minX+.4,frontSpan=(y0,y1)=>{if(y1<=y0)return;b.add(stairWidth,y1-y0,.18,101.5,(y0+y1)/2,-13.25,concrete);colliders.push(orientedCollider(101.5,-13.25,stairWidth,.18,y0,y1));};
  b.add(stairWidth,46.6,.18,101.5,20.1,10.1,concrete);colliders.push(orientedCollider(101.5,10.1,stairWidth,.18,-3.2,43.4));b.add(stairWidth,.18,23.6,101.5,43.4,-1.6,concrete);
  previous=-3.2;for(const y of coreLevels){frontSpan(previous,y);previous=y+3.25;}frontSpan(previous,43.4);
- for(const p of platforms.filter(p=>p.id.startsWith('turn'))){const label=sign(root,['公共大厅 · 2F','中层看台 · 3F','上层看台 · 4F'][Number(p.id.slice(4))],4.8,.5,101.5,p.y+1.9,9.98,{bg:'#344b51',font:76});label.rotation.y=Math.PI;b.add(stairWidth-.2,.09,.045,101.5,p.y+.28,9.97,red);b.add(3.1,.045,.22,101.5,p.y+3.2,8.7,glow);const light=new THREE.PointLight(0xffedda,55,17,2);light.position.set(101.5,p.y+2.9,7.7);root.add(light);}
+ for(const p of platforms.filter(p=>p.id.startsWith('turn'))){
+  const floor=Number(p.id.slice(4))+1;
+  const label=sign(root,`← 上楼 ${floor+1}F      ${floor}F 下楼 →`,4.8,.5,101.5,p.y+1.9,9.98,{bg:'#344b51',font:68});
+  label.rotation.y=Math.PI;
+  b.add(stairWidth-.2,.09,.045,101.5,p.y+.28,9.97,red);
+  b.add(3.1,.045,.22,101.5,p.y+3.2,8.7,glow);
+  const light=new THREE.PointLight(0xffedda,55,17,2);
+  light.position.set(101.5,p.y+2.9,7.7);
+  root.add(light);
+ }
  for(const bridge of bridges){const a=v(...bridge.a),c=v(...bridge.b),delta=c.clone().sub(a),length=delta.length(),yaw=Math.atan2(delta.x,delta.z),floor=box(root,bridge.width,.16,length,(a.x+c.x)/2,(a.y+c.y)/2-.08,(a.z+c.z)/2,concrete);floor.rotation.set(-Math.atan2(delta.y,Math.hypot(delta.x,delta.z)),yaw,0,'YXZ');
   const n=v(delta.z,0,-delta.x).normalize(),startTrim=bridge.id==='loungeBridge'?4:bridge.id==='middleBridge'?1.8:0,endTrim=bridge.id==='middleGallery'||bridge.id==='upperGallery'||bridge.id==='middleBridge'?1.8:0;
   if(length>startTrim+endTrim+.2&&bridge.id==='lowerPassage')for(const side of[-1,1]){const first=a.clone().addScaledVector(delta,startTrim/length),last=c.clone().addScaledVector(delta,-endTrim/length);rail([first.x+n.x*side*(bridge.width/2-.04),first.y,first.z+n.z*side*(bridge.width/2-.04)],[last.x+n.x*side*(bridge.width/2-.04),last.y,last.z+n.z*side*(bridge.width/2-.04)]);}

@@ -22,10 +22,9 @@ export function suspendMatrixTraversal(root){
  root.updateMatrixWorld=function(force){if(!suspended)return update.call(this,force);};
  return value=>{suspended=value;};
 }
-// Three skips invisible groups when drawing, but still walks their transforms.
-// Suspend only the exploration roots for matches; they stay in the scene so
-// material settings, queries, and the existing room state still find them.
-export function suspendExplorationDuringMatch(roots){
+// Three skips drawing invisible groups but still walks their transforms.
+// Keep hidden roots attached for material settings, queries and room state.
+export function suspendExplorationRoots(roots){
  let suspended=false;
  const previous=roots.map(root=>root.visible);
  const setTraversal=roots.map(suspendMatrixTraversal);
@@ -52,14 +51,32 @@ export function buildWalkFrustum(){
   return view;
  };
 }
-export function buildStaticBatchCulling(meshes){
+export function buildUpperRevealView(){
+ const direction=new THREE.Vector3();
+ return camera=>{
+  // Require the entire viewport to face across the covered bowl. Turning to
+  // either side or toward the exterior restores the lower backdrop immediately.
+  const vertical=Math.tan(THREE.MathUtils.degToRad(camera.fov*.5))/camera.zoom,horizontal=vertical*camera.aspect;
+  for(const sx of [-1,1])for(const sy of [-1,1]){
+   direction.set(sx*horizontal,sy*vertical,-1).applyQuaternion(camera.quaternion);
+   if(direction.x>=-.6||Math.abs(direction.z)>-.85*direction.x)return false;
+  }
+  return true;
+ };
+}
+export function buildStaticBatchCulling(meshes,opaqueSurfaces=[]){
  const entries=[];
+ function register(mesh,box){
+  // Seat LODs and normal camera motion both need room at the viewport edge.
+  entries.push({mesh,visible:mesh.visible,bounds:box.clone().applyMatrix4(mesh.matrixWorld).expandByScalar(.18)});
+ }
  for(const mesh of meshes){
   if(!mesh.isInstancedMesh||mesh.count<150||!mesh.frustumCulled)continue;
-  mesh.computeBoundingBox();
-  // The boxes are static world bounds. Padding accounts for alternate seat
-  // meshes and keeps edge objects visible while the camera turns.
-  entries.push({mesh,visible:mesh.visible,bounds:mesh.boundingBox.clone().applyMatrix4(mesh.matrixWorld).expandByScalar(.18)});
+  mesh.computeBoundingBox();register(mesh,mesh.boundingBox);
+ }
+ for(const mesh of opaqueSurfaces){
+  if(!mesh.isMesh||!mesh.frustumCulled)continue;
+  mesh.geometry.computeBoundingBox();register(mesh,mesh.geometry.boundingBox);
  }
  let previous=false;
  return (active,view)=>{

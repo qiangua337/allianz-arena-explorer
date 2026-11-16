@@ -17,7 +17,7 @@ export function floorLabel(y,position){if(position){const{x,z}=position;if(inCor
 export function buildWalkGuide(scene,geometry,{obstacles={},onChoose,onSelect,onWalk,onTeleport,onContinue,onOrient,nextDestination}={}){
  const $=id=>document.getElementById(id),panel=$('walk-guide'),select=$('guide-goal'),arrow=$('guide-arrow'),title=$('guide-title'),detail=$('guide-detail'),next=$('guide-next');
  const walkButton=$('guide-walk'),teleportButton=$('guide-teleport'),goalName=$('guide-goal-name'),distanceText=$('guide-distance');
- const alternate=$('guide-alternate'),orient=$('guide-orient'),collapse=$('guide-collapse');
+ const alternate=$('guide-alternate'),orient=$('guide-orient'),bearing=$('guide-bearing'),collapse=$('guide-collapse');
  const group=new THREE.Group();scene.add(group);const positions=new Float32Array(2048*3),geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.BufferAttribute(positions,3).setUsage(THREE.DynamicDrawUsage));
  const line=new THREE.Mesh(geo,new THREE.MeshBasicMaterial({color:0xffd36b,side:THREE.DoubleSide,depthTest:true,depthWrite:false,transparent:true,opacity:.85,toneMapped:false,forceSinglePass:true}));line.frustumCulled=false;line.renderOrder=2;group.add(line);
  let path=[],goal='arcade',arrived=false,blocked=false,selected=false,collapsed=true,suppressed=false,timer=0,planClock=0,anchor=null,eyeHeight=EYE_HEIGHT,lastMode='orbit';
@@ -37,7 +37,26 @@ export function buildWalkGuide(scene,geometry,{obstacles={},onChoose,onSelect,on
  const suggestions=()=>{const id=nextDestination?.();return id===undefined?[nextWalkDestination(goal),alternateWalkDestination(goal)]:[id,null];};
  next.onclick=()=>{if(!arrived)return;if(onContinue?.())return;const [id]=suggestions();if(id)choose(id);};
  alternate.onclick=()=>{const [,id]=suggestions();if(arrived&&id)choose(id);};
- orient.onclick=()=>{if(lastMode==='walk'&&!arrived&&!blocked&&path[0])onOrient?.(path[0]);};
+ const canOrient=()=>!suppressed&&lastMode==='walk'&&!arrived&&!blocked&&path.length>0;
+ const orientToPath=()=>{if(canOrient())onOrient?.(path[0]);};
+ orient.onclick=orientToPath;
+ let bearingTouch=null,lastBearingTouch=-Infinity;
+ // A touch tap after a canvas swipe can end without a browser click.
+ bearing.onpointerdown=event=>{
+  if(event.pointerType==='touch'&&event.isPrimary&&canOrient())bearingTouch={id:event.pointerId,x:event.clientX,y:event.clientY};
+ };
+ bearing.onpointerup=event=>{
+  if(event.pointerId!==bearingTouch?.id)return;
+  const {x,y}=bearingTouch;
+  bearingTouch=null;
+  lastBearingTouch=performance.now();
+  if(Math.hypot(event.clientX-x,event.clientY-y)<=10)orientToPath();
+ };
+ bearing.onpointercancel=event=>{if(event.pointerId===bearingTouch?.id)bearingTouch=null;};
+ bearing.onclick=event=>{
+  if(event.detail>0&&(!event.pointerType||event.pointerType==='touch')&&performance.now()-lastBearingTouch<500)return;
+  orientToPath();
+ };
  const writeText=(element,value)=>writeHudProperty(element,'textContent',value);
  const setHint=(key,value)=>writeHudData(document.body,key,value);
  function refresh(yaw=lastYaw){
@@ -50,7 +69,9 @@ export function buildWalkGuide(scene,geometry,{obstacles={},onChoose,onSelect,on
   writeHudProperty(walkButton,'hidden',walking);
   writeHudProperty(teleportButton,'title','传送到'+tourGoals[goal]+'（T）');
   writeHudProperty(next,'hidden',!arrived||!walking);
-  writeHudProperty(orient,'hidden',collapsed||!walking||arrived||blocked||!path.length);
+  const showOrientation=canOrient();
+  writeHudProperty(bearing,'disabled',!showOrientation);
+  writeHudProperty(orient,'hidden',collapsed||!showOrientation);
   let action,hint,subline,symbol,angle=0;
   let other=null;
   if(arrived){

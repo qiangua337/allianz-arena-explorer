@@ -125,6 +125,40 @@ test('room and core portals are open in the actual rendered architecture, not on
  for(const [a,b]of passages){const start=new THREE.Vector3(...a),delta=new THREE.Vector3(...b).sub(start),ray=new THREE.Raycaster(start,delta.clone().normalize(),.02,delta.length()-.02),hits=ray.intersectObjects(objects,false);assert.equal(hits.length,0,`visible geometry blocks ${a} → ${b}: ${hits[0]?.point.toArray()}`);}
 });
 
+test('live guidance leads from the south gate through the museum door and on to upper seats',()=>{
+ const guide=buildWalkGuide(scene,geometry,{obstacles:obstacleGroups});
+ const doors=buildInteractions(scene,interiors,{toast(){},showInfo(){},setEye(){}});
+ const fixed=indexWalkWalls(Object.values(obstacleGroups).flat());
+ const dynamicWalls=[...doors.colliders,...service.colliders];
+ const blocked=(x,z,eye)=>fixed(x,z,eye)||hitsWall(x,z,eye,dynamicWalls);
+ const arrival=destinationArrival('entrance',geometry);
+ const position={x:arrival.position[0],z:arrival.position[2]};let feet=arrival.feet;
+ const eye=()=>new THREE.Vector3(position.x,feet+1.7,position.z);
+ const doorX=roomSpecs.museum.x+roomSpecs.museum.w/2;
+ const doorCrossings=[],targets=new Set();
+ for(const goal of ['museum','upperStands']){
+  guide.setGoal(goal,eye());guide.update(eye(),0,.15,'walk');
+  for(let i=0,stalled=0;!guide.isArrived();i++){
+   assert.ok(i<2800,'bounded walk to '+goal);
+   const target=guide.getRoute()[0];
+   assert.ok(target,'guidance stays available throughout '+goal);
+   targets.add(target.id);
+   const dx=target.x-position.x,dz=target.z-position.z,distance=Math.hypot(dx,dz),step=Math.min(.3,distance),oldX=position.x,oldZ=position.z;
+   doors.update(eye(),.12,'walk');
+   if(distance>.001)feet=advanceWalker(position,feet,dx*step/distance,dz*step/distance,geometry,blocked);
+   if((oldX<doorX)!==(position.x<doorX)&&Math.abs(position.z-roomSpecs.museum.z)<1.2){
+    doorCrossings.push(position.x<doorX?'in':'out');
+   }
+   stalled=Math.hypot(position.x-oldX,position.z-oldZ)<.001?stalled+1:0;
+   assert.ok(stalled<25,'walk reaches '+target.id+' for '+goal);
+   guide.update(eye(),Math.atan2(-dx,-dz),.13,'walk');
+  }
+ }
+ assert.deepEqual(doorCrossings,['in','out']);
+ for(const id of ['security','reception','corePublicFront','flight0Turn','flight1Turn','flight2Turn','upperGalleryOuter','upperBridgeStart','upperThreshold','upperAisleEntry'])assert.ok(targets.has(id),'followed '+id);
+ assert.ok(Math.abs(feet-tourNodes.upperStands.y)<.65,'arrives on a supported seating tread');
+});
+
 test('future guide segments stay clear after turning into either player connection',()=>{
  for(const z of [-48,53])for(const goal of Object.keys(tourGoals)){
   const start={x:-69.739,y:-2.7,z:z+.016},route=planWalkPath(start,goal,geometry,obstacleGroups);assert.equal(route.blocked,false,goal+' from connector '+z);let previous=start;
@@ -279,18 +313,31 @@ test('free visit can choose the pitch in reception and look toward the first way
  const original=document.getElementById,nodes=new Map();
  document.getElementById=id=>{if(!nodes.has(id))nodes.set(id,{hidden:true,style:{},setAttribute(k,value){this[k]=value;},classList:{toggle(){}},focus(){}});return nodes.get(id);};
  try{
-  let oriented=null;
-  const guide=buildWalkGuide(scene,geometry,{obstacles:obstacleGroups,onOrient:target=>{oriented=target;}});
+  const orientations=[];
+  const guide=buildWalkGuide(scene,geometry,{obstacles:obstacleGroups,onOrient:target=>{orientations.push(target);}});
   const position=new THREE.Vector3(0,-1.2,113),before=position.clone();
   guide.update(position,0,.2,'walk');guide.arrive('arcade',position);
+  const bearing=nodes.get('guide-bearing');
+  assert.equal(bearing.disabled,true);
   const alternate=nodes.get('guide-alternate');
   assert.equal(alternate.hidden,false);assert.equal(alternate['aria-label'],'步行前往草坪');
   alternate.onclick();
   assert.equal(guide.getGoal(),'pitch');assert.equal(guide.isArrived(),false);
   assert.equal(guide.getRoute().at(-1).id,'pitch');assert.equal(alternate.hidden,true);
   const orient=nodes.get('guide-orient');assert.equal(orient.hidden,true);
+  assert.equal(bearing.disabled,false);
+  const touch={pointerType:'touch',isPrimary:true,pointerId:1,clientX:160,clientY:802};
+  bearing.onpointerdown(touch);
+  bearing.onpointerup({...touch,clientX:182});
+  assert.deepEqual(orientations,[],'dragging on the control does not turn the camera');
+  bearing.onpointerdown(touch);
+  bearing.onpointerup(touch);
+  bearing.onclick({detail:1,pointerType:'touch'});
+  assert.deepEqual(orientations,[guide.getRoute()[0]],'a touch tap turns once, even without a click');
+  bearing.onclick({detail:0});
+  assert.equal(orientations.length,2,'keyboard can still turn the camera');
   nodes.get('guide-collapse').onclick();assert.equal(orient.hidden,false);
-  orient.onclick();assert.equal(oriented,guide.getRoute()[0]);assert.deepEqual(position,before);
+  orient.onclick();assert.equal(orientations.at(-1),guide.getRoute()[0]);assert.deepEqual(position,before);
  }finally{document.getElementById=original;}
 });
 

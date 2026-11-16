@@ -9,12 +9,12 @@ import {buildNearSeatDetails,seatShellGeometry} from './near-seat-details.js';
 import {buildBowlLighting} from './stadium-lighting.js';
 import {positionStateChanged} from './position-state.js';
 import {THREE,TAU,v,mat,mesh,box,beam,sign,cylinder,canvasTexture,textTexture,superpoint,supernormal,ringGeometry,curveLine,mergeGeometry,compactGroup,Batches,addCrest,getCrestImage,seeded} from './kit.js';
-import {bowlIsVisible,buildStairwellOcclusion,buildWalkFrustum,buildStaticBatchCulling,suspendMatrixTraversal} from './scene-budget.js';
+import {bowlIsVisible,buildStairwellOcclusion,buildUpperRevealView,buildWalkFrustum,buildStaticBatchCulling,suspendMatrixTraversal} from './scene-budget.js';
 import {enclosedPlayerPosition} from './player-area-layout.js';
 import {buildCirculation} from './circulation.js';
 import {accessStairs,ACCESS_BASE,ACCESS_TOP} from './access-layout.js';
 import {visitorPassage,bowlOpening} from './tour-route.js';
-import {tierEntryOpening,inCoreShaft,seatingTiers,upperAisleIndex,upperAislePoint,upperAisleSeatClearance} from './building-layout.js';
+import {tierEntryOpening,inCoreShaft,seatingTiers,upperAisleIndex,upperAislePoint,upperAisleSeatClearance,upperTierThreshold,upperThresholdLanding,upperGalleryRooms} from './building-layout.js';
 import {buildPitchSurface} from './pitch-surface.js';
 import {buildArenaScreens} from './arena-screens.js';
 import {finishedBox} from './finishes.js';
@@ -108,7 +108,7 @@ export function buildStadium(scene){
   }
  });
  const steps=mesh(mergeGeometry(rowGeometries),concrete,bowl);steps.name='Seating decks and risers';steps.castShadow=true;
- partitionStaticMesh(steps);compactGroup(aisleRails);for(const part of [...aisleRails.children])if(part.isMesh)partitionStaticMesh(part);
+ const decks=partitionStaticMesh(steps);compactGroup(aisleRails);for(const part of [...aisleRails.children])if(part.isMesh)partitionStaticMesh(part);
  const seatGeom=seatShellGeometry(2),compactSeat=seatShellGeometry(1);
  const farSeat=new THREE.PlaneGeometry(.435,.77).rotateX(-.35).translate(0,.43,.12),coarseSeat=mergeGeometry([new THREE.PlaneGeometry(.435,.4).rotateX(-Math.PI/2).translate(0,.23,0),new THREE.PlaneGeometry(.435,.49).translate(0,.49,.17)]),seatMat=mat(0xffffff,{roughness:.53,metalness:.04,side:THREE.DoubleSide});const dummy=new THREE.Object3D(),seatInstances=[];
  const emptyBySector=Array.from({length:24},()=>[]),filledBySector=Array.from({length:24},()=>[]);
@@ -127,7 +127,7 @@ export function buildStadium(scene){
   const lum=p.clone().lerp(q,.08),n=supernormal(66,78,t,2.65),yaw=Math.atan2(n.x,n.z);for(let k=0;k<(j%9===0?5:4);k++)roofBatch.add(.6,.23,.4,lum.x+n.z*(k-1.5)*.72,lum.y-1.25,lum.z-n.x*(k-1.5)*.72,lightMaterial,yaw);
  }
  for(const [a,b,y,r]of[[66.6,77.6,46.4,.22],[83,97,48.2,.14],[104,120,44.5,.18]]){const pts=[];for(let j=0;j<256;j++){const p=superpoint(a,b,j/256*TAU,2.65);p.y=y;pts.push(p);}trussGeometries.push(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts,true,'centripetal'),384,r,6,true));}
- roofBatch.flush();const trusses=mesh(mergeGeometry(trussGeometries),steel,roofDetails);trusses.name='Radial roof trusses and compression rings';partitionStaticMesh(trusses);
+ roofBatch.flush();const trusses=mesh(mergeGeometry(trussGeometries),steel,roofDetails);trusses.name='Radial roof trusses and compression rings';const trussSectors=partitionStaticMesh(trusses);
  const rim=[];for(let j=0;j<=384;j++){const p=superpoint(66.8,77.8,j/384*TAU,2.65);p.y=47.1;rim.push(p);}curveLine(roofDetails,rim,0xff274a);
  const logo=sign(root,'Allianz Arena',40,5.4,0,26.7,129.7,{fg:'#164c94',w:2048,h:256,font:185,weight:650,unique:true});
  const logoBack=sign(root,'Allianz Arena',40,5.4,0,26.7,-129.7,{fg:'#164c94',w:2048,h:256,font:185,weight:650,unique:true});logoBack.rotation.y=Math.PI;const logoDayMap=logo.material.map,logoNightMap=textTexture('Allianz Arena',{fg:'#ffffff',w:2048,h:256,font:185,weight:650});
@@ -152,14 +152,15 @@ export function buildStadium(scene){
  }
  batch.flush({sectors:12});compactGroup(closeLabels);const pitchside=buildPitchsideDetails(bowl);const bowlLighting=buildBowlLighting(bowl),visibilityChanged=positionStateChanged(),stairwellOccluded=buildStairwellOcclusion();
  root.updateWorldMatrix(true,true);circulation.root.updateWorldMatrix(true,true);
- // These fixed instances otherwise use only Three's loose bounding spheres.
- // Other mesh visibility (including circulation sectors and lamps) stays with its owner.
- const cameraFrustum=buildWalkFrustum(),cullStaticBatches=buildStaticBatchCulling([...structural.children,...circulation.root.children,...seatInstances.map(({inst})=>inst)]);
+ // Keep box culling limited to fixed children without independent visibility.
+ // Their parent still controls room, roof, and bowl visibility.
+ const staticSurfaces=[...(decks?.children??[]),...(trussSectors?.children??[]),...roofLining.children,...aisleRails.children.flatMap(group=>group.children)];
+ const cameraFrustum=buildWalkFrustum(),facesUpperBowl=buildUpperRevealView(),cullStaticBatches=buildStaticBatchCulling([...structural.children,...circulation.root.children,...seatInstances.map(({inst})=>inst)],staticSurfaces);
  const suspendBowl=suspendMatrixTraversal(bowl),suspendRoof=suspendMatrixTraversal(roof);
- const seatOrigin=v();let seatState=-1,seatRangeSquared=0;
- function updateSeatSectors(position,high,low,playing,filled,compact){
+ const seatOrigin=v();let seatState=-1,seatRangeSquared=0,stairwellHidden=false,groundsBehindUpperBowl=false;
+ function updateSeatSectors(position,high,low,playing,filled,compact,revealing){
   const tunnel=position.x>-70&&position.x<-41&&Math.abs(position.z)<3.5&&position.y<3.5;
-  const {curved,coarse}=seatingDetailLimits(high,low,playing,tunnel);
+  const {curved,coarse}=seatingDetailLimits(high,low||revealing,playing,tunnel);
   const nextState=(high?1:0)|(filled?2:0)|(compact?4:0)|(!curved?8:0);
   if(seatState===nextState&&seatOrigin.distanceToSquared(position)<seatRangeSquared)return;
   seatState=nextState;seatOrigin.copy(position);
@@ -176,21 +177,25 @@ export function buildStadium(scene){
   }
   seatRangeSquared=Math.max(0,range-.000001)**2;
  }
- return {root,roof,circulation,bowl,matchBall,updateMatchEffects:feedback.update,resetMatchEffects:feedback.reset,get detailSeatCount(){return nearSeats.count;},setMatchday:screens.setMatchday,setMatchScore:screens.setMatchScore,seatCount:seats.length,seatPositions:seats,panelCount,tiers,
+ return {root,roof,circulation,bowl,matchBall,updateMatchEffects:feedback.update,resetMatchEffects:feedback.reset,get detailSeatCount(){return nearSeats.count;},get stairwellHidden(){return stairwellHidden;},get groundsBehindUpperBowl(){return groundsBehindUpperBowl;},setMatchday:screens.setMatchday,setMatchScore:screens.setMatchScore,seatCount:seats.length,seatPositions:seats,panelCount,tiers,
  update(camera,mode='orbit',high=false,low=false,playing=false,filled=false){
   const position=camera.position,walking=mode==='walk',width=typeof innerWidth==='number'?innerWidth:Infinity;
   const small=width<=760,compactWalk=small&&walking&&!high&&!low&&!playing;
   const mobileWalking=width<=1024&&walking&&!high&&!playing;
   const upperWalking=mobileWalking&&position.y>13&&Math.abs(position.x)<115&&Math.abs(position.z)<130;
   const view=upperWalking?cameraFrustum(camera):null;
-  const hiddenByStairwell=mobileWalking&&stairwellOccluded(camera,view);
-  const state=(walking?1:0)|(high?2:0)|(low?4:0)|(playing?8:0)|(small?16:0)|(filled?32:0)|(hiddenByStairwell?64:0);
-  const showArcade=!hiddenByStairwell||position.y<=5;
+  stairwellHidden=mobileWalking&&stairwellOccluded(camera,view);
+  const {bridge}=upperGalleryRooms;
+  const revealing=upperWalking&&position.y>upperThresholdLanding.y+.75&&position.y<upperTierThreshold.top+3.05&&
+   position.x>=upperThresholdLanding.x0-.2&&position.x<bridge.maxX&&position.z>bridge.minZ&&position.z<upperThresholdLanding.z1+.3;
+  groundsBehindUpperBowl=revealing&&!stairwellHidden&&roof.visible&&facesUpperBowl(camera);
+  const state=(walking?1:0)|(high?2:0)|(low?4:0)|(playing?8:0)|(small?16:0)|(filled?32:0)|(stairwellHidden?64:0)|(groundsBehindUpperBowl?128:0);
+  const showArcade=(!stairwellHidden&&!groundsBehindUpperBowl)||position.y<=5;
   if(!playing&&circulation.root.visible!==showArcade)circulation.root.visible=showArcade;
-  suspendBowl(hiddenByStairwell);suspendRoof(hiddenByStairwell);
-  cullStaticBatches(upperWalking&&!hiddenByStairwell,view);
+  suspendBowl(stairwellHidden);suspendRoof(stairwellHidden);
+  cullStaticBatches(upperWalking&&!stairwellHidden,view);
   if(!visibilityChanged(position,state))return;
-  if(hiddenByStairwell){
+  if(stairwellHidden){
    if(roofLining.visible){
     if(bowl.visible)nearSeats.update(position,false);
     bowl.visible=roofDetails.visible=roofLining.visible=false;
@@ -209,7 +214,8 @@ export function buildStadium(scene){
    const compact=compactWalk&&position.distanceToSquared(location)>42**2;
    detailed.visible=!compact;distant.visible=compact;
   }
-  updateSeatSectors(position,high,low,playing,filled,compactWalk);
+  // Near moulded seats and the walkable treads still use the ordinary meshes.
+  updateSeatSectors(position,high,low,playing,filled,compactWalk,groundsBehindUpperBowl);
  },night(n){bowlLighting.night(n);circulation.night(n);shellMaterials[0].color.set(n?0xe52a49:0xe5e8e4);shellMaterials[0].emissive.set(n?0xd7082c:0x000000);shellMaterials[0].emissiveIntensity=n?.72:0;shellMaterials[0].roughness=n?.76:.58;shellMaterials[1].color.set(n?0xcfc0c4:0xf4f4ed);shellMaterials[1].emissive.set(n?0x9d1736:0x000000);shellMaterials[1].emissiveIntensity=n?.22:0;lightMaterial.color.set(n?0xf7fbff:0xb9c6cb);logo.material.map=logoBack.material.map=n?logoNightMap:logoDayMap;}};
 }
 

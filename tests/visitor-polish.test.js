@@ -31,6 +31,7 @@ test('world-scale material UVs leave the existing sign and clothing coordinates 
  const root=new THREE.Group(),texture=new THREE.Texture();texture.channel=1;const mesh=new THREE.Mesh(new THREE.BoxGeometry(2,.2,4),new THREE.MeshStandardMaterial({map:texture}));mesh.position.set(10,2,20);root.add(mesh);const original=Array.from(mesh.geometry.attributes.uv.array);applyArchitecturalUV(root);assert.deepEqual(Array.from(mesh.geometry.attributes.uv.array),original);const p=mesh.geometry.attributes.position,n=mesh.geometry.attributes.normal,uv=mesh.geometry.attributes.uv1;for(let i=0;i<p.count;i++)if(n.getY(i)>.9){assert.equal(uv.getX(i),p.getX(i)+10);assert.equal(uv.getY(i),p.getZ(i)+20);}
 });
 test('guided walks only advance after the selected stop is reached and finish cleanly',()=>{
+ assert.deepEqual(walkingTours.find(plan=>plan.id==='southToUpper').stops,['arcade','museum','upperStands']);
  for(const plan of walkingTours){assert.ok(plan.stops.every(id=>tourGoals[id]));const tour=createWalkingTour();tour.start(plan.id);assert.equal(tour.next(),null);for(let i=0;i<plan.stops.length;i++){assert.equal(tour.update('entrance',true).arrived,false);assert.equal(tour.update(plan.stops[i],false).arrived,false);assert.equal(tour.update(plan.stops[i],true).arrived,true);assert.equal(tour.next(),plan.stops[i+1]??null);}assert.equal(tour.state(),null);}
 });
 test('a side trip or reload retains the selected tour stop without advancing it',()=>{

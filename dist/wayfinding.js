@@ -1,7 +1,9 @@
+import {roomAt} from './building-layout.js';
+
 export function relativeBearing(position,yaw,target){const targetYaw=Math.atan2(position.x-target.x,position.z-target.z),angle=yaw-targetYaw;return Math.atan2(Math.sin(angle),Math.cos(angle));}
 const upperLandingTurn=id=>id==='upperThresholdFoot'||id==='upperAisleEntry';
 const galleryTurn=id=>id==='upperGalleryFront'||id==='upperGalleryOuter'||id==='upperBridgeStart';
-const coreTurn=id=>/^flight\d+(?:Out|Turn)$/.test(id)||/^landing\d+$/.test(id);
+const coreTurn=id=>/^flight\d+(?:Out|Turn)$/.test(id)||/^landing\d+$/.test(id)||id==='corePublicFront';
 function passedCorner(position,target,anchor,lateralLimit,overshootLimit){
  if(!anchor)return false;
  const dx=target.x-anchor.x,dz=target.z-anchor.z,length=Math.hypot(dx,dz);
@@ -48,8 +50,10 @@ export function movementInstruction(position,yaw,target,next,goal){
  }
  else if(target.id==='museum'||target.id.startsWith('museumWalk')){
   const entering=goal==='museum'||target.id==='museum'&&!next;
-  action=entering?'前往荣誉展厅中央展区':'沿展柜间通道前往出口';
-  hint=entering?'沿两排奖杯展柜之间的过道前进。':'沿展柜之间的通道前往东侧感应门，出去就是公共大厅。';
+  const outside=entering&&roomAt(position)!=='museum';
+  if(outside){action='穿过荣誉展厅感应门';hint='等门打开后，直走穿过门洞。';}
+  else {action=entering?'前往荣誉展厅中央展区':'沿展柜间通道前往出口';
+   hint=entering?'沿两排奖杯展柜之间的过道前进。':'沿展柜之间的通道前往东侧感应门，出去就是公共大厅。';}
  }
  else if(target.id==='store'||target.id.startsWith('storeWalk')){
   const entering=goal==='store'||target.id==='store'&&!next;
@@ -69,9 +73,13 @@ export function movementInstruction(position,yaw,target,next,goal){
  else if(target.id==='upperThresholdFoot'){const entering=next?.id==='upperAisleEntry';action=entering?'下到看台入口平台':'沿平台前往连廊台阶';hint=entering?'到台阶底部后沿地线转入座席过道。':'沿地线走到台阶正前方，再上楼返回连廊。';}
  else if(target.id==='upperAisleEntry'){const leaving=next?.id==='upperThresholdFoot';action=leaving?'沿座席台阶上行':'前往座席过道';hint=leaving?'沿座席之间的台阶上行，在平台转向连廊入口。':'在平台转弯，沿座席之间的台阶下行。';}
  else if(target.id==='upperStands'&&position.y-target.y>1){action='沿台阶进入上层看台';hint='走到台阶后的座席过道。';}
+ else if(target.id==='upperBridgeStart'&&next?.id==='upperThreshold'){action='走到上层连廊转角';hint='走到连廊尽头，再转向看台门洞。';}
  else if(target.id.includes('Bridge'))hint='沿带扶手的连廊通行，到转角后继续跟随地线。';
  else if(target.id==='coreFront'&&next?.id==='coreApproach'){action='走出楼梯间';hint='穿过开放门洞，在入口环廊继续跟随地线。';}
  else if(target.id==='coreApproach'&&/^lower\d+$/.test(next?.id??'')){action='返回入口环廊';hint='转入环廊，沿地线前往接待大厅。';}
+ else if(target.id==='corePublicApproach'&&next?.id==='corePublicFront'){action='前往公共楼梯';hint='沿公共大厅走向开放的楼梯门洞，进入后沿台阶上行。';}
+ else if(target.id==='corePublicFront'&&next?.id==='landing1'){action='进入公共楼梯间';hint='穿过门洞，沿地线转入楼梯平台。';}
+ else if(target.id==='corePublicFront'&&next?.id==='corePublicApproach'){action='走出楼梯间';hint='穿过开放门洞，转入公共大厅。';}
  else if(target.id.startsWith('landing')&&next?.level==='core'){action='前往楼梯平台';hint='在平台转弯，继续沿下一段楼梯走。';}
  else if(target.id.startsWith('core'))hint='沿楼梯与大厅之间的开放平台通行，跟随地线前往下一段走廊。';
  else if(target.level==='core'||target.level==='stairs'||/^T\d+(Top|Middle|Bottom)$/.test(target.id)){

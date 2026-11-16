@@ -30,9 +30,9 @@ test('live room doors, near-seat instances and player cues remain dynamic beside
 });
 
 test('a live match bypasses hidden exploration transforms without removing any rooms or suspending the ball',async()=>{
- const {suspendExplorationDuringMatch}=await import('../dist/scene-budget.js');
+ const {suspendExplorationRoots}=await import('../dist/scene-budget.js');
  const roots=[world.group,interiors.root,building.root,service.root,stadium.circulation.root];
- const setMatch=suspendExplorationDuringMatch(roots),oldPositions=roots.map(o=>o.parent),probes=[];
+ const setMatch=suspendExplorationRoots(roots),oldPositions=roots.map(o=>o.parent),probes=[];
  for(const root of roots){const probe=new THREE.Object3D();root.add(probe);probes.push(probe);}
  const old=world.group.visible;world.group.visible=false;
  setMatch(true);for(const probe of probes)probe.position.x=5;
@@ -43,6 +43,40 @@ test('a live match bypasses hidden exploration transforms without removing any r
  setMatch(false);scene.updateMatrixWorld(true);
  assert.ok(probes.every(o=>o.matrixWorld.elements[12]===5));
  assert.equal(world.group.visible,false);world.group.visible=old;
+});
+
+test('closed stair turns skip distant scenery and turn it back on at the real upper exit',async()=>{
+ const {suspendExplorationRoots}=await import('../dist/scene-budget.js');
+ const width=globalThis.innerWidth;globalThis.innerWidth=390;
+ const distant=[world.group,interiors.root,service.root],setOcclusion=suspendExplorationRoots(distant.slice(1)),setGrounds=suspendExplorationRoots([world.group]);
+ const camera=new THREE.PerspectiveCamera(66,390/844,.06,4500);
+ const face=(position,target,playing=false)=>{
+  camera.position.fromArray(position);camera.lookAt(...target);
+  stadium.update(camera,'walk',false,false,playing);
+  setOcclusion(playing||stadium.stairwellHidden);
+  setGrounds(playing||stadium.stairwellHidden||stadium.groundsBehindUpperBowl);
+ };
+ try{
+  for(const [position,target] of [[[100,16.5,.9],[100,19,3]],[[100,29.8,-1.2],[100,30.1,2]],[[106,41.7,-25],[106,41.7,-37.6]]]){
+   face(position,target);
+   assert.ok(distant.every(root=>!root.visible&&root.parent===scene),'the scene leaves hidden geometry attached');
+   assert.equal(building.root.visible,true,'stairs and connected gallery floors remain visible');
+  }
+  face([103.3,41.7,-36.5],[90,38,-36.5]);
+  assert.equal(stadium.bowl.visible,true);
+  assert.ok(distant.slice(1).every(root=>root.visible),'crossing the real entrance restores interior render roots immediately');
+  assert.equal(world.group.visible,false,'the covered viewpoint can still skip the grounds');
+  face([103.3,41.7,-36.5],[106,41.7,-36.5]);
+  assert.ok(distant.every(root=>!root.visible),'rotating in place restores the closed-wall optimization');
+  face([103.3,41.7,-36.5],[106,41.7,-36.5],true);
+  assert.ok(distant.every(root=>!root.visible),'a live match also skips the distant exploration roots');
+  face([-83.5,13.7,58],[-96,13.7,58]);
+  assert.ok(distant.every(root=>root.visible),'west concourse resumes all exploration roots');
+ }finally{
+  setOcclusion(false);
+  setGrounds(false);
+  if(width===undefined)delete globalThis.innerWidth;else globalThis.innerWidth=width;
+ }
 });
 
 test('the real entrance and concourse frusta reject most exterior tree geometry while keeping every tree',()=>{

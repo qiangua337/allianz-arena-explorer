@@ -1,4 +1,5 @@
 export const walkingTours=[
+ {id:'southToUpper',title:'南门到上层看台',description:'由南门进接待大厅，步行到荣誉展厅，再经室内楼梯和连廊走上看台。',stops:['arcade','museum','upperStands']},
  {id:'firstVisit',title:'第一次来到主场',description:'从接待大厅到看台，走进草坪和红色球员通道。',stops:['arcade','concourse','lowerStands','pitch','tunnel','homeRoom']},
  {id:'club',title:'拜仁的故事',description:'逛球迷商店与荣誉展厅，再到包厢和高处看台。',stops:['concourse','store','museum','lounge','upperStands']},
  {id:'players',title:'球员的一天',description:'从更衣室走向入场通道与草坪，最后来到发布厅。',stops:['homeRoom','tunnel','pitch','guestRoom','press']}

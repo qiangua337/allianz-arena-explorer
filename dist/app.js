@@ -14,7 +14,7 @@ import {applyArchitecturalUV} from './surface-finishes.js';
 import {spatializeArchitecture,updateArchitectureSectors} from './spatial-batches.js';
 import {buildDestinationMenu} from './destinations.js';
 import {buildMatchdayExperience} from './matchday.js';
-import {buildFrameBudget,freezeArchitecture,suspendExplorationDuringMatch} from './scene-budget.js';
+import {buildFrameBudget,freezeArchitecture,suspendExplorationRoots} from './scene-budget.js';
 import {createFramePacer,MOBILE_ONLINE_FRAME_SLACK,WALK_FRAME_SLACK} from './frame-pacing.js';
 import {createMatchFrameRate} from './match-frame-rate.js';
 import {createWalkFrameRate} from './walk-frame-rate.js';
@@ -66,7 +66,7 @@ const frameBudget=buildFrameBudget(),gameDrawBudget=createFramePacer(),visitDraw
 const matchFrameRate=createMatchFrameRate({cap:matchFps,quality:qualityMode});let matchBudgetActive=false,matchSampling=false,pendingMatchScale,matchSampleTime=0,matchSampleFrames=0,matchSampleDraws=0,matchSampleWork=0,matchSampleGameWork=0;
 const walkFrameRate=createWalkFrameRate();
 const matchRafGaps=new Uint16Array(101),matchDrawGaps=new Uint16Array(101);let previousRaf=0,previousDraw=0;
-let building,lightBudget,interactions,serviceRooms,serviceDoorColliders,staticWalkCollision,walkGeometry,matchday,setExplorationMatchMode,matchSnapshot=null,matchStarting=false,qualityScale=1,recoveryFrames=0;
+let building,lightBudget,interactions,serviceRooms,serviceDoorColliders,staticWalkCollision,walkGeometry,matchday,setExplorationMatchMode,setObscuredExploration,setObscuredGrounds,matchSnapshot=null,matchStarting=false,qualityScale=1,recoveryFrames=0;
 let visualAssets,renderer,scene,camera,controls,stadium,world,interiors,walkGuide,sky,stars,dayLight,arenaFill,hemi,ambient;
 let active='exterior',mode='orbit',night=false,transition=null,tourOn=false,tourElapsed=0,tourIndex=0,toastTimer;
 let yaw=0,pitch=0,dragging=false,lastPointer=null,walkReady=false,clock={time:performance.now(),getDelta(){const now=performance.now(),d=(now-this.time)/1000;this.time=now;return d;}},elapsed=0,frames=0,lastPerf=0,frameMs=0;
@@ -99,8 +99,10 @@ export async function startArena({hub, initial, nightAtStart}){
  staticWalkCollision=indexWalkWalls([...serviceRooms.walls,...building.colliders,...interiors.colliders,...world.colliders,...stadium.circulation.colliders]);
  serviceDoorColliders=serviceRooms.colliders.filter(collider=>collider.dynamicDoor);
  spatializeArchitecture(stadium.circulation.root);spatializeArchitecture(interiors.rooms.concourse);
- setExplorationMatchMode=suspendExplorationDuringMatch([world.group,building.root,interiors.root,serviceRooms.root,stadium.circulation.root]);
- freezeArchitecture(world.group,[world.rotor]);freezeArchitecture(stadium.root,[stadium.matchBall]);freezeArchitecture(stadium.circulation.root);freezeArchitecture(interiors.root);freezeArchitecture(building.root);destinationMenu=buildDestinationMenu({onDismiss:()=>setNavOpen(false)});buildHotspots();bindUI();setNavOpen(false);document.body.dataset.mode=mode;setDayNight(nightAtStart);applySurfaceQuality(scene,qualityMode);clock.time=performance.now();document.body.dataset.version='10.8.0';document.body.dataset.seats=stadium.seatCount;document.body.dataset.panels=stadium.panelCount;
+ setExplorationMatchMode=suspendExplorationRoots([building.root,stadium.circulation.root]);
+ setObscuredExploration=suspendExplorationRoots([interiors.root,serviceRooms.root]);
+ setObscuredGrounds=suspendExplorationRoots([world.group]);
+ freezeArchitecture(world.group,[world.rotor]);freezeArchitecture(stadium.root,[stadium.matchBall]);freezeArchitecture(stadium.circulation.root);freezeArchitecture(interiors.root);freezeArchitecture(building.root);destinationMenu=buildDestinationMenu({onDismiss:()=>setNavOpen(false)});buildHotspots();bindUI();setNavOpen(false);document.body.dataset.mode=mode;setDayNight(nightAtStart);applySurfaceQuality(scene,qualityMode);clock.time=performance.now();document.body.dataset.version='10.8.1';document.body.dataset.seats=stadium.seatCount;document.body.dataset.panels=stadium.panelCount;
  const requestedPlace=initial.get('place');
  if(initial.get('view')==='walk'){
   const place=requestedPlace&&(places[requestedPlace]||tourGoals[requestedPlace])?requestedPlace:'arcade';
@@ -448,6 +450,10 @@ function render(timestamp){
   stadium.root.visible=true;
   if(!playing){world.update(camera.position);updateArchitectureSectors(stadium.circulation.root,camera.position);stadium.circulation.update(camera.position,privateEnclosed);}
   stadium.update(camera,mode,qualityMode==='high',qualityMode==='low',playing,playing&&!matchday.training);
+  // Closed stairwell walls also conceal the outdoor grounds and other levels.
+  // Restore them on the same render as any real doorway comes into view.
+  setObscuredExploration(playing||stadium.stairwellHidden);
+  setObscuredGrounds(playing||stadium.stairwellHidden||stadium.groundsBehindUpperBowl);
   const enclosed=privateEnclosed||inPublicConcourse||(camera.position.x>-70&&camera.position.x<-41&&Math.abs(camera.position.z)<2.5&&camera.position.y<3.5);
   const lightingChanging=updateSceneLighting({hemi,ambient,dayLight,arenaFill},lightingProfile({night,enclosed,position:camera.position}),renderDelta);
   const fixturesChanging=lightBudget.update(camera.position,renderDelta);

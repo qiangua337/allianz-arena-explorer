@@ -82,7 +82,7 @@ test('the real phone follow view submits fewer static-ring triangles without red
  stadium.roof.visible=false;assert.ok(ringMeshes.filter(o=>upper.includes(o)||meshes(lining).includes(o)||meshes(trusses).includes(o)).every(o=>{for(let p=o;p;p=p.parent)if(p===stadium.roof)return !p.visible;return false;}));stadium.roof.visible=true;stadium.night(false);
 });
 
-test('phone stairwell occlusion restores the full stadium at an opening or immediately on turning toward it',()=>{
+test('phone stairwell occlusion restores the visible bowl at an opening or immediately on turning toward it',()=>{
  const width=globalThis.innerWidth;globalThis.innerWidth=390;
  const camera=new THREE.PerspectiveCamera(66,390/844,.1,2500);
  const face=(x,y,z,mode='walk',high=false,playing=false)=>{
@@ -111,7 +111,7 @@ test('phone stairwell occlusion restores the full stadium at an opening or immed
   assert.equal(stadium.circulation.root.visible,false);
   camera.position.set(103.3,41.7,-36.5);face(90,38,-36.5);
   assert.equal(stadium.bowl.visible,true,'the open seating entrance is visible before crossing it');
-  assert.equal(stadium.circulation.root.visible,true);
+  assert.equal(stadium.circulation.root.visible,false,'the covered upper view skips the ground-floor arcade');
   face(90,38,-32);
   assert.equal(stadium.bowl.visible,true,'a grazing view keeps the padded opening visible');
   face(105,41.7,-36.5);
@@ -119,6 +119,33 @@ test('phone stairwell occlusion restores the full stadium at an opening or immed
   camera.position.set(101,40.2,-36.5);face(0,15,0);
   assert.equal(stadium.bowl.visible,true,'the upper stands panorama remains visible');
  }finally{if(width===undefined)delete globalThis.innerWidth;else globalThis.innerWidth=width;}
+});
+
+test('the open upper threshold keeps the bowl and detail seats while skipping covered exterior work in the inward view',()=>{
+ const width=globalThis.innerWidth;globalThis.innerWidth=390;
+ const camera=new THREE.PerspectiveCamera(66,390/844,.06,2500),yaw=1.464,pitch=-.11;
+ const chairs=stadium.bowl.children.filter(o=>o.isInstancedMesh&&o.instanceColor&&o.count>384);
+ const check=(high=false)=>stadium.update(camera,'walk',high);
+ try{
+  camera.position.set(102.12,41.17,-36.5);camera.rotation.set(pitch,yaw,0,'YXZ');check();
+  assert.ok(stadium.groundsBehindUpperBowl&&stadium.bowl.visible&&lining.visible);
+  assert.equal(stadium.circulation.root.visible,false);
+  assert.ok(chairs.every(o=>triangles(o)===2),'distant seats use the existing low-poly geometry');
+  assert.ok(stadium.detailSeatCount>0,'near chair shells remain in the view');
+  camera.rotation.set(pitch,yaw+.55,0,'YXZ');check();
+  assert.ok(!stadium.groundsBehindUpperBowl&&stadium.circulation.root.visible,'turning toward the rim restores the ordinary backdrop in the same update');
+  assert.ok(chairs.some(o=>triangles(o)>2),'ordinary seat details resume');
+  camera.rotation.set(pitch,yaw,0,'YXZ');check(true);
+  assert.ok(!stadium.groundsBehindUpperBowl&&stadium.circulation.root.visible,'high quality retains all scene layers');
+  stadium.roof.visible=false;check();
+  assert.ok(!stadium.groundsBehindUpperBowl&&stadium.circulation.root.visible,'the user can see through the roof when hidden');
+  stadium.roof.visible=true;check();assert.ok(stadium.groundsBehindUpperBowl);
+  camera.position.set(100.4,40.6,-35.3);check();
+  assert.ok(!stadium.groundsBehindUpperBowl&&stadium.circulation.root.visible,'the normal view resumes on leaving the connector landing');
+ }finally{
+  stadium.roof.visible=true;
+  if(width===undefined)delete globalThis.innerWidth;else globalThis.innerWidth=width;
+ }
 });
 test('crossing the upper stairwell doorway never reveals a lower floor opening',()=>{
  const width=globalThis.innerWidth;globalThis.innerWidth=390;
@@ -168,6 +195,29 @@ test('phone walking rejects offscreen batch boxes and restores ordinary visibili
   stadium.update(camera,'walk');
   globalThis.innerWidth=1280;stadium.update(camera,'walk');
   assert.ok(candidates.every(o=>o.visible),'desktop retains its original batch visibility');
+ }finally{if(width===undefined)delete globalThis.innerWidth;else globalThis.innerWidth=width;}
+});
+
+test('mobile roof and seating deck sectors use padded world boxes as well as spheres at the open exit',()=>{
+ const width=globalThis.innerWidth;globalThis.innerWidth=390;
+ const camera=new THREE.PerspectiveCamera(66,390/844,.06,2500);
+ const candidates=ringMeshes.filter(mesh=>!upper.includes(mesh));
+ const frustum=new THREE.Frustum(),projection=new THREE.Matrix4();
+ let culledTriangles=0;
+ try{
+  for(const [position,target] of [[[106,41.7,-36.5],[0,10,0]],[[101,40.2,-36.5],[0,15,0]],[[100,29.8,-1.2],[101.5,25.3,-13.25]]]){
+   camera.position.fromArray(position);camera.lookAt(...target);stadium.update(camera,'walk');
+   assert.equal(stadium.bowl.visible,true);
+   frustum.setFromProjectionMatrix(projection.multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse));
+   for(const mesh of candidates.filter(o=>!o.visible&&frustum.intersectsObject(o))){
+    const worldBox=mesh.geometry.boundingBox.clone().applyMatrix4(mesh.matrixWorld).expandByScalar(.18);
+    assert.equal(frustum.intersectsBox(worldBox),false,'a removed sector misses the full viewport');
+    culledTriangles+=triangles(mesh);
+   }
+  }
+  assert.ok(culledTriangles>10000,`only ${culledTriangles} offscreen triangles avoided`);
+  stadium.update(camera,'orbit');
+  assert.ok(candidates.every(mesh=>mesh.visible),'the normal wide view restores the sector flags');
  }finally{if(width===undefined)delete globalThis.innerWidth;else globalThis.innerWidth=width;}
 });
 test('phone stairwell matrix traversal skips the obscured roof and seats and resumes through an opening',()=>{
@@ -245,7 +295,7 @@ test('walking sector detail stays exact on distance boundaries and avoids rechec
  const position=camera.position,originalDistance=position.distanceTo;let checks=0;
  position.distanceTo=function(v){if(nearby.some(o=>o.boundingSphere.center===v))checks++;return originalDistance.call(this,v);};
  try{
-  const triangleCount=(position,mesh)=>{const d=originalDistance.call(position,mesh.boundingSphere.center);return d>100?2:d>32?4:24;};
+  const triangleCount=(position,mesh)=>{const d=originalDistance.call(position,mesh.boundingSphere.center);return stadium.groundsBehindUpperBowl||d>100?2:d>32?4:24;};
   for(let i=0;i<201;i++){
    camera.position.set(106-i*.10,40-i*.022,-36.5+i*.016);camera.lookAt(0,10,0);stadium.update(camera,'walk');
    assert.equal(stadium.bowl.visible,true);
