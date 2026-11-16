@@ -104,9 +104,11 @@ test('reception wayfinding faces the approach and return paths above walking hea
  assert.ok(bounds.min.y>-2.9+2.7,'overhead signs leave more than 2.7 m clear');
  const approaches=[
   [[0,-1.2,121],[0,.85,108.88],[0,0,-1]],
+  [[0,-1.2,105],[0,.85,108.72],[0,0,1]],
   [[12,-1.2,113],[25.92,.85,113],[1,0,0]],
   [[32,-1.2,113],[26.08,.85,113],[-1,0,0]],
-  [[22,-1.2,101],[22,.85,107.42],[0,0,1]]
+  [[22,-1.2,101],[22,.85,107.42],[0,0,1]],
+  [[22,-1.2,113],[22,.85,107.58],[0,0,-1]]
  ];
  for(const [position,target,heading] of approaches){
   const camera=new THREE.PerspectiveCamera(66,390/844,.06,4500);
@@ -120,5 +122,39 @@ test('reception wayfinding faces the approach and return paths above walking hea
   const hit=ray.intersectObject(stadium.circulation.root,true)[0];
   assert.equal(hit?.object.parent,signs,'the sign is visible without an obstruction from '+position.join(','));
  }
- for(const text of ['球场参观 →','← 球场参观','← 草坪参观','公共楼梯 ↑','接待大厅 →'])assert.ok(labels.has(text),text);
+ for(const text of ['草坪参观 →','← 草坪参观','草坪参观 ↑','公共楼梯 ↑','接待大厅 →','南侧正门 ↑'])assert.ok(labels.has(text),text);
+});
+
+test('pitch-side return stairs and tunnel mouth have visible signs on both approaches using one small atlas',()=>{
+ const signs=stadium.circulation.root.getObjectByName('Visitor stair wayfinding');
+ const junction=stadium.circulation.root.getObjectByName('Reception junction wayfinding');
+ const signMeshes=[signs.children[0],junction.children[0]],atlas=signMeshes[0].material.map;
+ assert.equal(signMeshes[1].material.map,atlas);
+ assert.deepEqual([atlas.image.width,atlas.image.height],[2048,512]);
+ const occupied=new Set();
+ for(const mesh of signMeshes){
+  const uv=mesh.geometry.attributes.uv;
+  for(let i=0;i<uv.count;i++)occupied.add(Math.floor(uv.getX(i)*4)+' '+Math.floor((1-uv.getY(i))*4));
+ }
+ assert.equal(occupied.size,14,'the sign faces reuse two tiles and leave two spare on the small atlas');
+ for(const [view,target] of [
+  [[22,1.7,56.2],[22,2.75,60.634]],
+  [[22,-.85,65.8],[22,2.75,60.766]],
+  [[22,.35,62.8],[22,.13,65.975]],
+  [[22,-1.2,71.4],[22,.13,66.125]]
+ ]){
+  const origin=new THREE.Vector3(...view),point=new THREE.Vector3(...target),direction=point.sub(origin).normalize();
+  const hit=new THREE.Raycaster(origin,direction).intersectObject(stadium.circulation.root,true)[0];
+  assert.equal(hit?.object.parent,signs,'return or approach view from '+view.join(','));
+ }
+ for(const text of ['接待大厅 ↓','返回接待大厅 ↑','草坪与看台 ↑'])assert.ok(labels.has(text),text);
+});
+
+test('the outdoor welcome banner has separately printed arrival and exit faces',()=>{
+ const hitFrom=(z,toward)=>new THREE.Raycaster(new THREE.Vector3(0,1.45,z),new THREE.Vector3(0,0,toward)).intersectObject(world.group,true)[0];
+ const inbound=hitFrom(165,-1),outbound=hitFrom(153,1);
+ assert.ok(inbound?.uv&&outbound?.uv);
+ assert.ok(Math.abs(inbound.point.z-158.025)<.001&&Math.abs(outbound.point.z-157.775)<.001,'each direction sees its own near sign face');
+ assert.notDeepEqual(inbound.uv.toArray(),outbound.uv.toArray());
+ assert.ok(labels.has('WILLKOMMEN · ALLIANZ ARENA')&&labels.has('SÜDAUSGANG · SOUTH EXIT'));
 });

@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {registerHooks} from 'node:module';
 import {personalHonours,filterPersonalHonours} from '../dist/personal-honours.js';
+import {filterMuseumHonours} from '../dist/museum-catalog.js';
 import {furniture,furnitureBlocksSegment,pressSeats} from '../dist/furniture-layout.js';
 import {pressLayout,pressFloorRise} from '../dist/facility-layout.js';
 import {floorHeight} from '../dist/navigation.js';
@@ -12,6 +13,17 @@ const {bucketSeatBackGeometry}=await import('../dist/facility-equipment.js');
 test('personal awards separate Ballon d’Or from World Cup awards and supply primary provenance',()=>{
  assert.equal(personalHonours.length,10);assert.equal(new Set(personalHonours.map(h=>h.id)).size,10);assert.deepEqual(personalHonours.filter(h=>h.category==='ballon').map(h=>h.years),['1970','1972 · 1976','1980 · 1981','2026']);assert.equal(personalHonours.find(h=>h.id==='kahn').award,'世界杯金球奖');assert.equal(personalHonours.find(h=>h.id==='neuer').kind,'glove');assert.equal(personalHonours.find(h=>h.id==='ribery').category,'europe');assert.ok(personalHonours.every(h=>h.records.length&&h.sources.every(s=>/^https:\/\/(app\.)?(fcbayern.com|fifa.com|www.fifa.com|www.uefa.com|app.francefootball.fr)/.test(s.url))));
  assert.deepEqual(filterPersonalHonours('KANE').map(h=>h.id),['kane-ballon','kane-shoe']);assert.equal(filterPersonalHonours('', 'ballon').length,4);assert.ok(filterPersonalHonours('莱万','scorer').length);assert.equal(filterPersonalHonours('卡恩','ballon').length,0);assert.equal(filterPersonalHonours('nonsense').length,0);
+});
+test('the exhibit directory can find all eight team trophies and ten personal stories',()=>{
+ const {clubs,individuals}=filterMuseumHonours();
+ assert.equal(clubs.length,8);assert.equal(individuals.length,10);
+ assert.deepEqual(filterMuseumHonours('2013').clubs.map(h=>h.year),['2013']);
+ assert.deepEqual(filterMuseumHonours('温布利','club').clubs.map(h=>h.year),['2013']);
+ assert.deepEqual(filterMuseumHonours('champions league','club').clubs.map(h=>h.year),['1974','1975','1976','2001','2013','2020']);
+ assert.deepEqual(filterMuseumHonours('德国杯','club').clubs.map(h=>h.year),['POKAL']);
+ assert.deepEqual(filterMuseumHonours('KANE').individuals.map(h=>h.id),['kane-ballon','kane-shoe']);
+ assert.deepEqual(filterMuseumHonours('KANE','club'),{clubs:[],individuals:[]});
+ assert.deepEqual(filterMuseumHonours('2013','ballon'),{clubs:[],individuals:[]});
 });
 test('eighteen physical exhibits leave the door, main aisle and two outer aisles clear',()=>{
  assert.equal(furniture.filter(f=>f.owner==='museum').length,18);for(const x of[-101.5,-96,-90.5])assert.equal(furnitureBlocksSegment({x,z:45.7},{x,z:70.3},'museum'),false);assert.equal(furnitureBlocksSegment({x:-88.3,z:58},{x:-96,z:58},'museum'),false);

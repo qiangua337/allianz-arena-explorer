@@ -100,7 +100,11 @@ export function buildWorld(scene){
  // Pedestrian bridges, security gates, ticket booths and entry signs.
  for(const z of[150,660]){b.add(55,.5,7,-100,-2.2,z,edge);b.add(55,1,.07,-100,-1.45,z-3.5,metal);b.add(55,1,.07,-100,-1.45,z+3.5,metal);b.add(1,9,1,-125,-7,z,edge);}
  for(let i=0;i<12;i++){const x=(i<6?-1:1)*(6+(i%6)*8);b.add(.7,2.4,.7,x,-1.8,148,dark);b.add(6,3.1,3,x,-1.35,158,pale);b.add(4.8,1,.1,x,-.9,159.55,dark);wallCollider(colliders,x,158,6,3,-2.9,.2);}
- sign(group,'WILLKOMMEN · ALLIANZ ARENA',49,2.6,0,1.45,157.9,{bg:'#bf1732',fg:'#fff',font:95,h:160});
+ const welcomeZ=157.9;
+ b.add(49,2.6,.24,0,1.45,welcomeZ,red);
+ sign(group,'WILLKOMMEN · ALLIANZ ARENA',49,2.6,0,1.45,welcomeZ+.125,{bg:'#bf1732',fg:'#fff',font:95,h:160});
+ const exitBoard=sign(group,'SÜDAUSGANG · SOUTH EXIT',49,2.6,0,1.45,welcomeZ-.125,{bg:'#366b58',fg:'#fff',font:95,h:160});
+ exitBoard.rotation.y=Math.PI;
  sign(group,'EINGANG SÜD   →',18,2.6,-60,-.2,167,{bg:'#c81a36',fg:'#fff',font:90,h:180});
  for(const z of[-164,164])for(let i=0;i<9;i++)b.add(.22,1,.22,-25+i*6,-2.5,z,metal);
  // Curved balloon-headed lamps and street furniture.

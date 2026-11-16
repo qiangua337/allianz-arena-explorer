@@ -1,5 +1,5 @@
 import {ACCESS_BASE,ACCESS_TOP,accessStairs,accessAt,perimeterPoint} from './access-layout.js';
-import {coreFlights,coreLevels,inCoreShaft,seatingTiers,onBridge,bridges,roomSpecs,roomAt,upperTierThreshold,upperAislePoint,upperAisleEntry,upperThresholdFoot} from './building-layout.js';
+import {coreFlights,coreLevels,inCoreShaft,seatingTiers,onBridge,bridges,roomSpecs,roomAt,upperTierThreshold,upperAislePoint,upperAisleEntry,upperThresholdFoot,onUpperGalleryFloor} from './building-layout.js';
 import {furnitureBlocksSegment} from './furniture-layout.js';
 import {playerCorridor,playerLinks,containsFloor} from './player-area-layout.js';
 
@@ -84,6 +84,7 @@ node('loungeDoor',95.5,23.6,-10.5,'贵宾包厢入口','靠近自动门后步行
 node('middleBridgeStart',101.5,23.6,-30.1,'中层看台连廊','沿带扶手的连廊前往看台','gallery');node('stands',82.55,23.6,-30.1,'中层看台','沿座椅间过道上下，也可按 F 坐下','gallery');join('landing2','middleBridgeStart');join('middleBridgeStart','stands');
 node('upperGalleryFront',101.5,40,-15.5,'上层连廊入口','沿连廊前往看台入口','gallery');node('upperGalleryOuter',106,40,-15.5,'上层连廊转角','沿连廊前往看台入口','gallery');node('upperBridgeStart',106,40,-36.5,'上层看台连廊','沿连廊进入上层看台','gallery');
 const upperConnection=['upperBridgeStart','upperThreshold','upperThresholdFoot','upperAisleEntry','upperStands'];
+const upperGalleryStarts=['landing3','upperGalleryFront','upperGalleryOuter',...upperConnection];
 const {x:upperDoorX,z:upperDoorZ,top:upperDoorY}=upperTierThreshold;
 node('upperThreshold',upperDoorX,upperDoorY,upperDoorZ,'上层看台入口','沿门口的台阶进入看台','gallery');
 for(const [id,point,label,hint,level] of [
@@ -140,8 +141,9 @@ export function tourStarts(position){
  else if(position.y>-.25&&position.y<.5&&Math.abs(position.x)<41.5&&Math.abs(position.z)<60)candidates=candidates.filter(n=>['pitch','westField','tunnelMouth','pitchEdge','pitchExit'].includes(n.id));
  else if(inCoreShaft(position.x,position.z)||position.x>97&&Math.abs(position.z+10.5)<4)candidates=candidates.filter(n=>n.id.startsWith('flight')||n.id.startsWith('landing')).filter(n=>Math.abs(n.y-position.y)<10);
  else if(position.y>=upperAisleEntry.y-.6&&position.y<=upperDoorY+.35&&position.x>=upperAisleEntry.x-.25&&position.x<=upperDoorX+.14&&Math.abs(position.z-upperDoorZ)<upperTierThreshold.width/2+.5)candidates=upperConnection.map(id=>nodes[id]);
+ else if(onUpperGalleryFloor(position))candidates=upperGalleryStarts.map(id=>nodes[id]);
  else if(bridges.some(b=>onBridge(position.x,position.z,b)!==null&&Math.abs(position.y-(b.a[1]+(b.b[1]-b.a[1])*(onBridge(position.x,position.z,b)??0)))<.75)){
-  const link=bridges.find(b=>onBridge(position.x,position.z,b)!==null&&Math.abs(position.y-(b.a[1]+(b.b[1]-b.a[1])*(onBridge(position.x,position.z,b)??0)))<.75),ids=link.id==='lowerPassage'?['lowerEntry','lowerStands']:position.y>30?['landing3','upperGalleryFront','upperGalleryOuter',...upperConnection]:['landing2','loungeDoor','lounge','middleBridgeStart','stands'];candidates=candidates.filter(n=>ids.includes(n.id));
+  const link=bridges.find(b=>onBridge(position.x,position.z,b)!==null&&Math.abs(position.y-(b.a[1]+(b.b[1]-b.a[1])*(onBridge(position.x,position.z,b)??0)))<.75),ids=link.id==='lowerPassage'?['lowerEntry','lowerStands']:position.y>30?upperGalleryStarts:['landing2','loungeDoor','lounge','middleBridgeStart','stands'];candidates=candidates.filter(n=>ids.includes(n.id));
  }
  else if(seatingTiers.some(t=>position.y>=t.y-.15&&position.y<t.y+(t.rows-1)*t.depth*Math.tan(t.angle*Math.PI/180)+.85&&(Math.abs(position.x)/(t.a+t.rows*t.depth+.3))**3.35+(Math.abs(position.z)/(t.b+t.rows*t.depth+.3))**3.35<1&&(Math.abs(position.x)/(t.a-.2))**3.35+(Math.abs(position.z)/(t.b-.2))**3.35>1)){
   const ti=seatingTiers.findIndex(t=>position.y>=t.y-.15&&position.y<t.y+(t.rows-1)*t.depth*Math.tan(t.angle*Math.PI/180)+.85&&(Math.abs(position.x)/(t.a+t.rows*t.depth+.3))**3.35+(Math.abs(position.z)/(t.b+t.rows*t.depth+.3))**3.35<1&&(Math.abs(position.x)/(t.a-.2))**3.35+(Math.abs(position.z)/(t.b-.2))**3.35>1);candidates=candidates.filter(n=>n.level===`seat${ti}`||n.id===['lowerStands','stands','upperStands'][ti]);

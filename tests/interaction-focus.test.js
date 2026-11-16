@@ -11,7 +11,7 @@ const {uefaTorsoGeometry}=await import('../dist/personal-gallery.js');
 const context=new Proxy({createRadialGradient:()=>({addColorStop(){}}),createLinearGradient:()=>({addColorStop(){}}),measureText:t=>({width:String(t).length*20})},{get:(o,k)=>k in o?o[k]:()=>{}});
 function fixture(position=[-100.5,13.7,59.7]){
  const elements=new Map(),calls=[];globalThis.document={body:{dataset:{}},getElementById(id){if(!elements.has(id))elements.set(id,{hidden:true,textContent:'',style:{},focus(){}});return elements.get(id);},createElement:()=>({width:0,height:0,getContext:()=>context}),querySelector:()=>null};
- const camera=new THREE.PerspectiveCamera();camera.position.fromArray(position);const scene=new THREE.Scene(),interactions=buildInteractions(scene,{}, {toast(){},setEye(){},showInfo:title=>calls.push({kind:'club',title}),openPersonal:id=>calls.push({kind:'personal',id}),openCatalogue:()=>calls.push({kind:'catalogue'})});
+ const camera=new THREE.PerspectiveCamera();camera.position.fromArray(position);const scene=new THREE.Scene(),interactions=buildInteractions(scene,{}, {toast(){},setEye(){},openClub:id=>calls.push({kind:'club',id}),openPersonal:id=>calls.push({kind:'personal',id}),openCatalogue:()=>calls.push({kind:'catalogue'})});
  return{camera,calls,scene,interactions,elements,aim(x,y,z){camera.lookAt(x,y,z);},update(){interactions.update(camera.position,.016,'walk',camera);},get selected(){return document.body.dataset.interaction;}};
 }
 test('focus uses a forward ray with finite reach, ignores objects behind the eye and rejects invalid directions',()=>{
@@ -23,7 +23,7 @@ test('looking at Kane selects Kane despite the closer 2013 European cup, and the
 });
 test('pressing F rechecks the current direction instead of opening the previous frame’s story',()=>{
  const f=fixture();f.aim(-99.7,13.7,60.6);f.update();assert.equal(f.selected,'honour2013');f.aim(-102.98,15.15,59.9);assert.equal(f.interactions.activate(),true);assert.deepEqual(f.calls,[{kind:'personal',id:'kane-ballon'}]);
- f.aim(-99.7,13.7,60.6);f.interactions.activate();assert.ok(f.calls[1].title.startsWith('2013'));f.aim(-100.5,25,59.7);assert.equal(f.interactions.activate(),false);assert.equal(f.calls.length,2);assert.equal(f.elements.get('interact').hidden,true);
+ f.aim(-99.7,13.7,60.6);f.interactions.activate();assert.deepEqual(f.calls[1],{kind:'club',id:'2013'});f.aim(-100.5,25,59.7);assert.equal(f.interactions.activate(),false);assert.equal(f.calls.length,2);assert.equal(f.elements.get('interact').hidden,true);
 });
 test('transparent empty case space does not steal a wall exhibit, while the actual trophy and plinth remain selectable',()=>{
  const f=fixture([-98,13.7,60.6]);f.aim(-102.98,15.1,59.9);f.update();assert.equal(f.selected,'personal-kane-ballon');f.aim(-99.7,13.7,60.6);f.update();assert.equal(f.selected,'honour2013');f.aim(-99.7,12.7,60.6);f.update();assert.equal(f.selected,'honour2013');

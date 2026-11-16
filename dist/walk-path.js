@@ -1,5 +1,5 @@
 import {planTour,tourNodes,tourStarts} from './tour-route.js';
-import {bridges,onBridge,roomAt,upperAisleEntry,upperThresholdLanding,upperTierThreshold} from './building-layout.js';
+import {bridges,onBridge,roomAt,upperAisleEntry,upperThresholdLanding,upperTierThreshold,onUpperGalleryFloor} from './building-layout.js';
 import {furnitureBlocksSegment} from './furniture-layout.js';
 import {serviceRoomAt,serviceWorld} from './service-layout.js';
 import {floorHeight,canStandAt,EYE_HEIGHT,MAX_STEP} from './navigation.js';
@@ -87,7 +87,7 @@ function validatePath(position,path,geometry,groups,obstacles){
  }return{path:complete,blocked:false};
 }
 function routeFromBridge(position,goal,geometry,groups,obstacles){
- const onThisFloor=bridges.some(bridge=>{
+ const onThisFloor=onUpperGalleryFloor(position)||bridges.some(bridge=>{
   const fraction=onBridge(position.x,position.z,bridge);
   return fraction!==null&&Math.abs(position.y-(bridge.a[1]+(bridge.b[1]-bridge.a[1])*fraction))<.75;
  });

@@ -46,6 +46,11 @@ export const upperGalleryRooms={
  aisle:{minX:104.75,maxX:107.25,minZ:-37.75,maxZ:-14.25},
  bridge:{minX:102.75,maxX:107.25,minZ:-37.75,maxZ:-35.25}
 };
+const upperGallerySpans=Object.values(upperGalleryRooms);
+export function onUpperGalleryFloor({x,y,z}){
+ return Math.abs(y-coreLevels.at(-1))<.35&&upperGallerySpans.some(room=>
+  x>=room.minX&&x<=room.maxX&&z>=room.minZ&&z<=room.maxZ);
+}
 export const coreFlights=[];
 for(let i=0;i<coreLevels.length-1;i++){
  const bottom=coreLevels[i],top=coreLevels[i+1],steps=Math.ceil((top-bottom)/.36),run=steps*.34,middle=(top+bottom)/2;

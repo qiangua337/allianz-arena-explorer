@@ -345,6 +345,33 @@ test('the compact arrival action names the next place and starts a real walk fro
  }finally{document.getElementById=original;}
 });
 
+test('walking beyond a completed stop displays the new location and continues from there',()=>{
+ const original=document.getElementById,nodes=new Map();
+ document.getElementById=id=>{if(!nodes.has(id))nodes.set(id,{hidden:true,style:{},setAttribute(k,value){this[k]=value;},classList:{toggle(){}},focus(){}});return nodes.get(id);};
+ try{
+  const guide=buildWalkGuide(scene,geometry,{obstacles:obstacleGroups});
+  const entrance=new THREE.Vector3(0,-2.403,214),lobby=new THREE.Vector3(0,-1.2,113.6),corridor=new THREE.Vector3(22,-1.2,81);
+  guide.update(entrance,0,.2,'walk');guide.arrive('entrance',entrance);
+  assert.equal(document.body.dataset.guideState,'arrived');
+  guide.update(lobby,0,.2,'walk');
+  assert.equal(document.body.dataset.guideState,'roaming');
+  assert.equal(nodes.get('guide-title').textContent,'自由参观');
+  assert.equal(nodes.get('guide-distance').textContent,'当前位置 · 接待大厅');
+  assert.equal(nodes.get('guide-goal-name').textContent,'选择地点');
+  assert.equal(nodes.get('guide-next').hidden,false);
+  assert.equal(nodes.get('guide-next')['aria-label'],'步行前往公共大厅','skip the suggestion already in view');
+  assert.equal(guide.isArrived(),true,'a completed guided stop stays complete');
+  guide.restoreState(guide.captureState(),lobby);
+  assert.equal(document.body.dataset.guideState,'roaming','reloading does not bring back the old arrival banner');
+  guide.update(corridor,0,.2,'walk');
+  assert.equal(nodes.get('guide-distance').textContent,'当前位置 · 草坪参观通道');
+  guide.update(lobby,0,.2,'walk');nodes.get('guide-next').onclick();guide.update(lobby,0,.2,'walk');
+  assert.equal(guide.getGoal(),'concourse');
+  assert.equal(document.body.dataset.guideState,'routing');
+  assert.equal(guide.getRoute().at(-1).id,'concourse');
+ }finally{document.getElementById=original;}
+});
+
 test('free visit can choose the pitch in reception and look toward the first waypoint without moving',()=>{
  const original=document.getElementById,nodes=new Map();
  document.getElementById=id=>{if(!nodes.has(id))nodes.set(id,{hidden:true,style:{},setAttribute(k,value){this[k]=value;},classList:{toggle(){}},focus(){}});return nodes.get(id);};
@@ -432,6 +459,25 @@ test('free positions by the shop wall, on an upper aisle and behind the press de
   let previous=p;
   for(const next of result.path){
    assert.equal(walkSegmentClear(previous,next,geometry,walls),true,(previous.id||'visitor')+' → '+next.id);
+   previous=next;
+  }
+ }
+});
+
+test('both directions remain navigable from the outer corner of the upper gallery landing',()=>{
+ const points=[[100.85,-16.35],[101.3,-16.35],[100.85,-15.9],[101.3,-15.9],[106,-36.97]];
+ for(const [x,z] of points)for(const goal of ['entrance','upperStands']){
+  const p={x,y:40,z},walls=navigationObstacles(p,obstacleGroups);
+  assert.equal(floorHeight(x,z,40,geometry),40,'the corner is on the real gallery floor');
+  assert.equal(hitsWall(x,z,41.7,walls),false,'the corner is outside the walls');
+  const {path,blocked}=planWalkPath(p,goal,geometry,obstacleGroups);
+  assert.equal(blocked,false,JSON.stringify({p,goal}));
+  assert.equal(path.at(-1).id,goal);
+  assert.ok(path.some(n=>goal==='entrance'?n.id==='landing3':n.id==='upperThresholdFoot'));
+  assert.equal(path.some(n=>n.id.startsWith('seat2-')),false,'the gallery route cannot begin inside the seat decks');
+  let previous=p;
+  for(const next of path){
+   assert.ok(walkSegmentClear(previous,next,geometry,walls),JSON.stringify({p,goal,from:previous.id,to:next.id}));
    previous=next;
   }
  }

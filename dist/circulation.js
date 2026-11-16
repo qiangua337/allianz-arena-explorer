@@ -10,8 +10,9 @@ import {arcadeInnerPoint,playerPublicOpening} from './player-area-layout.js';
 // One shared sign atlas and instanced architectural parts keep the pedestrian
 // level detailed without adding a separate draw call for every door or label.
 class SignAtlas{
- constructor(){
-  this.canvas=document.createElement('canvas');this.canvas.width=4096;this.canvas.height=2048;
+ constructor(columns=8,rows=16){
+  this.columns=columns;this.capacity=columns*rows;
+  this.canvas=document.createElement('canvas');this.canvas.width=columns*512;this.canvas.height=rows*128;
   this.ctx=this.canvas.getContext('2d');this.cells=new Map();this.parts=new Map();
   this.texture=new THREE.CanvasTexture(this.canvas);this.texture.colorSpace=THREE.SRGBColorSpace;this.texture.anisotropy=8;
   this.material=new THREE.MeshBasicMaterial({map:this.texture,side:THREE.FrontSide,toneMapped:false});
@@ -19,8 +20,8 @@ class SignAtlas{
  add(parent,title,sub,w,h,x,y,z,yaw=0,{bg='#293943',fg='#f3f0e9',accent='#d9183e',tilt=0,style='label'}={}){
   const key=JSON.stringify([title,sub,bg,fg,accent,style,Math.round(w/h*100)]);let cell=this.cells.get(key);
   if(!cell){
-   const index=this.cells.size;if(index>=128)throw Error('Wayfinding atlas capacity exceeded');
-   cell={x:index%8*512,y:Math.floor(index/8)*128};this.cells.set(key,cell);
+   const index=this.cells.size;if(index>=this.capacity)throw Error('Wayfinding atlas capacity exceeded');
+   cell={x:index%this.columns*512,y:Math.floor(index/this.columns)*128};this.cells.set(key,cell);
    const c=this.ctx;c.save();c.translate(cell.x,cell.y);c.fillStyle=bg;c.fillRect(0,0,512,128);
    c.fillStyle=accent;c.fillRect(0,0,8,128);const scale=(512/128)/(w/h);
    c.translate(262,0);c.scale(scale,1);c.fillStyle=fg;c.textAlign='center';c.textBaseline='middle';
@@ -35,7 +36,7 @@ class SignAtlas{
    c.restore();
   }
   const g=new THREE.PlaneGeometry(w,h),uv=g.attributes.uv;
-  for(let i=0;i<uv.count;i++){const u=uv.getX(i),vv=uv.getY(i);uv.setXY(i,(cell.x+1+u*510)/4096,1-(cell.y+1+(1-vv)*126)/2048);}
+  for(let i=0;i<uv.count;i++){const u=uv.getX(i),vv=uv.getY(i);uv.setXY(i,(cell.x+1+u*510)/this.canvas.width,1-(cell.y+1+(1-vv)*126)/this.canvas.height);}
   const matrix=new THREE.Matrix4().compose(v(x,y,z),new THREE.Quaternion().setFromEuler(new THREE.Euler(tilt,yaw,0,'YXZ')),v(1,1,1));g.applyMatrix4(matrix);
   if(!this.parts.has(parent))this.parts.set(parent,[]);this.parts.get(parent).push(g);
  }
@@ -243,6 +244,7 @@ export function buildCirculation(parent){
  // the route around the east ring to the public stair. Signs face each
  // approach so the arrows match the visitor's direction of travel.
  const junctionSigns=new THREE.Group();junctionSigns.name='Reception junction wayfinding';
+ const routeSigns=new SignAtlas(4,4);
  const fieldColor='#875e1c',stairsColor='#354e57',lobbyColor='#366b58';
  function junctionBoard(x,z,yaw,front,back=[]){
   const y=ACCESS_BASE+3.55,width=5.6,height=1.24,top=y+height/2;
@@ -254,7 +256,7 @@ export function buildCirculation(parent){
   function face(rows,angle){
    const nx=Math.sin(angle)*.08,nz=Math.cos(angle)*.08;
    rows.forEach(([title,sub,bg],i)=>{
-    atlas.add(junctionSigns,title,sub,width-.12,.54,x+nx,y+(.5-i)*.58,z+nz,angle,{bg,accent:bg});
+    routeSigns.add(junctionSigns,title,sub,width-.12,.54,x+nx,y+(.5-i)*.58,z+nz,angle,{bg,accent:bg});
    });
   }
   face(front,yaw);
@@ -263,6 +265,9 @@ export function buildCirculation(parent){
  junctionBoard(0,108.8,0,[
   ['草坪参观 →','VISITOR PASSAGE',fieldColor],
   ['公共楼梯 →','商店 · 展厅 · 包厢',stairsColor]
+ ],[
+  ['南侧正门 ↑','SÜDAUSGANG',lobbyColor],
+  ['← 接待柜台 →','INFORMATION',stairsColor]
  ]);
  junctionBoard(visitorPassage.x+4,113,-Math.PI/2,[
   ['← 草坪参观','VISITOR PASSAGE',fieldColor],
@@ -274,8 +279,11 @@ export function buildCirculation(parent){
  junctionBoard(visitorPassage.x,107.5,Math.PI,[
   ['← 公共楼梯','商店 · 展厅 · 包厢',stairsColor],
   ['接待大厅 →','SOUTH LOBBY',lobbyColor]
+ ],[
+  ['草坪参观 ↑','VISITOR PASSAGE',fieldColor],
+  ['公共楼梯 →','商店 · 展厅 · 包厢',stairsColor]
  ]);
- atlas.finish(junctionSigns);
+ routeSigns.finish(junctionSigns);
  // A real, lit opening leads under the lower seating tier and onto the pitch.
  const visit=visitorPassage,clear=visit.width,wallDepth=visit.backZ-visit.rampZ;
  batch.add(clear,.16,wallDepth,visit.x,ACCESS_BASE-.08,(visit.backZ+visit.rampZ)/2,floor);
@@ -303,11 +311,26 @@ export function buildCirculation(parent){
   for(const side of[-1,1]){batch.add(.18,1.08,d+.02,visit.x+side*(clear/2+.12),y+.54,z,wall);if(i%4===0)batch.add(.04,.98,.04,visit.x+side*(clear/2-.08),y+.49,z,metal);}
  }
  for(const side of[-1,1]){beam(root,v(visit.x+side*(clear/2-.08),ACCESS_BASE+1.05,visit.rampZ),v(visit.x+side*(clear/2-.08),1.05,visit.exitZ),.035,metal);colliders.push(orientedCollider(visit.x+side*(clear/2+.1),(visit.rampZ+visit.exitZ)/2,.18,visit.rampZ-visit.exitZ,ACCESS_BASE,1.1));}
- atlas.add(root,'草坪与看台 ↑','前方出通道后即可进入球场',clear-.6,.62,visit.x,ACCESS_BASE+2.75,68.4,0,{bg:'#9b6c20'});
+ // An overhead sign identifies the same staircase from the field and the tunnel.
+ // The supports stay on the sidewalls and the panel sits above the walking space.
+ const stairWayfinding=new THREE.Group();stairWayfinding.name='Visitor stair wayfinding';
+ const returnZ=visit.exitZ+1.1,returnY=2.75,returnWidth=2.9;
+ batch.add(clear+.3,.075,.09,visit.x,returnY+.27,returnZ,metal);
+ batch.add(returnWidth+.08,.54,.12,visit.x,returnY,returnZ,dark);
+ for(const side of[-1,1]){
+  batch.add(.095,2.47,.095,visit.x+side*(clear/2+.12),returnY-1.0,returnZ,metal);
+ }
+ routeSigns.add(stairWayfinding,'接待大厅 ↓','SÜD · SOUTH LOBBY',returnWidth,.49,visit.x,returnY,returnZ-.066,Math.PI,{bg:lobbyColor,accent:lobbyColor});
+ routeSigns.add(stairWayfinding,'草坪与看台 ↑','SPIELFELD · PITCH',returnWidth,.49,visit.x,returnY,returnZ+.066,0,{bg:fieldColor,accent:fieldColor});
+ const lintelY=visit.head-.42,lintelZ=visit.rampZ+.05;
+ batch.add(clear-.66,.55,.14,visit.x,lintelY,lintelZ,dark);
+ routeSigns.add(stairWayfinding,'返回接待大厅 ↑','SÜD · SOUTH LOBBY',clear-.8,.51,visit.x,lintelY,lintelZ-.075,Math.PI,{bg:lobbyColor,accent:lobbyColor});
+ routeSigns.add(stairWayfinding,'草坪与看台 ↑','SPIELFELD · PITCH',clear-.8,.51,visit.x,lintelY,lintelZ+.075,0,{bg:fieldColor,accent:fieldColor});
+ routeSigns.finish(stairWayfinding);
  finishReception(root,batch,atlas,{floorY:ACCESS_BASE,pale,red,metal,dark});colliders.push(orientedCollider(4,110,.74,.62,ACCESS_BASE,ACCESS_BASE+1.8));
  atlas.add(root,'↑ 室内公共楼梯','公共大厅 · 商店 · 展厅 · 包厢 · 看台',6.4,.9,95.8,.8,10,0,{bg:'#996e24'});
  batch.flush();roofBatch.flush();atlas.finish(root);compactStaticMeshes(root,[roof]);compactStaticMeshes(roof);
- root.add(junctionSigns);
+ root.add(junctionSigns,stairWayfinding);
 
  function decorateConcourse(g){
   const b=new Batches(g);

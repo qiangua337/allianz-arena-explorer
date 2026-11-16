@@ -2,14 +2,14 @@ import {museumTargets} from './museum-targets.js';
 import {chooseInteraction,focusBox,pointAhead} from './interaction-focus.js';
 import {createSeatInteraction} from './seat-interaction.js';
 import {addClubAward} from './trophy-gallery.js';
-import {openMuseumCatalog,openMuseumExhibit} from './museum-catalog.js';
+import {openMuseumCatalog,openMuseumClubExhibit,openMuseumExhibit} from './museum-catalog.js';
 import {THREE,v,mat,mesh,box,sign,Batches,compactGroup} from './kit.js';
 import {buildShopDisplay} from './shop-display.js';
 import {doorCollider,updateAutomaticDoor} from './automatic-door.js';
 import {roomSpecs} from './building-layout.js';
 import {tacticalBoardTarget,tacticalFormations} from './tactical-layout.js';
 import {inVisitorPassage} from './tour-route.js';
-export function buildInteractions(scene,interiors,{toast,navigate,showInfo,setEye,serviceRooms,seats=[],onSit,onStand,onFocusSeat,openPersonal=openMuseumExhibit,openCatalogue=openMuseumCatalog}){
+export function buildInteractions(scene,interiors,{toast,navigate,showInfo,setEye,serviceRooms,seats=[],onSit,onStand,onFocusSeat,openPersonal=openMuseumExhibit,openClub=openMuseumClubExhibit,openCatalogue=openMuseumCatalog}){
  const root=new THREE.Group();root.name='Working doors and interactive exhibits';scene.add(root);const button=document.getElementById('interact'),colliders=[],doors=[],items=[],direction=v(),previousPosition=v(Infinity,0,0),previousDirection=v(),pickerRay=new THREE.Raycaster(),pickerMaterial=new THREE.MeshBasicMaterial({side:THREE.DoubleSide});let selected=null,currentPosition=null,currentCamera=null,currentMode='orbit',previousMode='',focusChanged=false,painted='',interactionPaintFrames=0;
  const seating=createSeatInteraction(seats,{onSit:session=>{if(onSit)onSit(session);else setEye?.(1.05);toast('已入座。再次按 F 或移动即可起身。');},onStand:session=>{if(onStand)onStand(session);else setEye?.(1.7);}});
  const outline=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(1,1,1)),new THREE.LineBasicMaterial({color:0xe3c482,transparent:true,opacity:.72,depthWrite:false}));outline.name='Aimed exhibit outline';outline.visible=false;outline.renderOrder=4;root.add(outline);
@@ -29,11 +29,19 @@ export function buildInteractions(scene,interiors,{toast,navigate,showInfo,setEy
  function item(id,p,label,act,radius=2.8,target={}){const entry={id,p:v(...p),label,act,reach:radius,focusBoxes:[focusBox(...p,1,1.15,1)],...target};items.push(entry);return entry;}
  item('welcome',[4,-1.2,110],'咨询下一站路线',()=>showInfo('从大厅继续参观','沿入口层环廊到东侧室内楼梯，上楼可到公共大厅、商店、展厅、包厢和三层看台。球员区域可由草坪西侧红色通道步行进入。',['concourse','store','museum','lounge','stands','pitch']));
  for(const roomId of ['homeRoom','guestRoom']){const target=tacticalBoardTarget(roomId);let formation=0;item(target.id,target.p,'切换'+names[roomId]+'战术板阵型',()=>{formation=1-formation;interiors.setTactics?.(formation,roomId);toast(names[roomId]+' · '+tacticalFormations[formation].name+' · 训练阵型示意');},target.reach,target);}
- for(const target of museumTargets){const h=target.exhibit;if(target.type==='club')item(target.id,[-96+h.x,13.5,58+h.z],'球队荣誉 · '+h.year+' · '+h.title,()=>showInfo(h.year+' · '+h.title,h.opponent+' · '+h.score+'。'+h.detail,[],h),target.reach,target);else if(target.type==='personal')item(target.id,[-96+h.x,13.6,58+h.z],h.name+' · '+h.award+' · '+h.years,()=>openPersonal(h.id),target.reach,target);else item(target.id,[-89,13.7,60.65],'打开展览目录',openCatalogue,target.reach,target);}
+ for(const target of museumTargets){
+  const h=target.exhibit;
+  if(target.type==='club'){
+   const label=h.kind==='europe'?h.year+' · '+h.title:h.title;
+   item(target.id,[-96+h.x,13.5,58+h.z],'球队荣誉 · '+label,()=>openClub(h.year),target.reach,target);
+  }else if(target.type==='personal'){
+   item(target.id,[-96+h.x,13.6,58+h.z],h.name+' · '+h.award+' · '+h.years,()=>openPersonal(h.id),target.reach,target);
+  }else item(target.id,[-89,13.7,60.65],'打开展览目录',openCatalogue,target.reach,target);
+ }
  // CPU-only pick meshes use the same award builder as the visible gallery.
  // They never enter the rendered scene, and omit the empty glass enclosure.
  for(const target of items.filter(i=>i.type==='club')){const h=target.exhibit,probe=new THREE.Group(),x=-96+h.x,z=58+h.z;mesh(new THREE.BoxGeometry(1.74,1.28,1.74),pickerMaterial,probe,x,12.64,z);const award=new THREE.Group();award.position.set(x,13.295,z);award.rotation.y=h.x<0?Math.PI/2:-Math.PI/2;probe.add(award);addClubAward(award,h.kind,{silver:pickerMaterial,gold:pickerMaterial,dark:pickerMaterial,gem:pickerMaterial});probe.updateMatrixWorld(true);target.hitTest=(origin,ray)=>{pickerRay.set(origin,ray);const hit=pickerRay.intersectObject(probe,true)[0];return hit?hit.distance:null;};}
- document.getElementById('museum-catalog').onclick=openCatalogue;
+ document.getElementById('museum-catalog').onclick=()=>openCatalogue();
  const shop=buildShopDisplay(root,metal),shopSpec=roomSpecs.store;
  const shirtTarget=item('shirt',[shop.position.x,shop.position.y,shop.position.z],shop.player.number+' '+shop.player.name+' · 换一件球衣',()=>{const player=shop.next();shirtTarget.label=player.number+' '+player.name+' · 换一件球衣';toast(player.number+' · '+player.fullName+'｜可继续切换球衣、查看实体姓名牌。');},2.8,{region:{x0:shopSpec.x-shopSpec.w/2,x1:shopSpec.x+shopSpec.w/2,y0:shopSpec.y+.5,y1:shopSpec.y+3,z0:shopSpec.z-shopSpec.d/2,z1:shopSpec.z+shopSpec.d/2},focusBoxes:[focusBox(shop.position.x,shop.position.y,shop.position.z,1,1.15,1)]});
  button.onclick=()=>activate();

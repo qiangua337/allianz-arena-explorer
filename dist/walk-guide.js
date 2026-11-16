@@ -1,8 +1,8 @@
 import {routeSummary} from './walk-tours.js';
 import {THREE,v} from './kit.js';
 import {EYE_HEIGHT} from './navigation.js';
-import {inCoreShaft,coreLevels,roomAt} from './building-layout.js';
-import {tourGoals,tourNodes} from './tour-route.js';
+import {inCoreShaft,coreLevels,onUpperGalleryFloor,roomAt,roomSpecs} from './building-layout.js';
+import {inVisitorPassage,tourGoals,tourNodes,visitorPassage} from './tour-route.js';
 import {waypointReached,movementInstruction} from './wayfinding.js';
 import {directWalkDestination,planWalkPath,navigationObstacles,walkSegmentClear} from './walk-path.js';
 import {normalizeDestination} from './arrivals.js';
@@ -13,7 +13,33 @@ import {playerLinks,containsFloor} from './player-area-layout.js';
 import {alternateWalkDestination,nextWalkDestination} from './walk-continuation.js';
 import {writeHudAttribute,writeHudData,writeHudProperty} from './hud-write.js';
 
-export function floorLabel(y,position){if(position){const{x,z}=position;if(inCoreShaft(x,z)&&!coreLevels.some(level=>Math.abs(level-y)<.5))return'楼梯间';if(y<3&&(x>-95&&x<-40&&z>-43&&z<49||playerLinks.some(r=>containsFloor(r,x,z))))return'球员层';if(y>=-.3&&Math.abs(x)<42&&Math.abs(z)<60)return'球场层';}return y<2?'入口层':y<18?'公共大厅层':y<32?'包厢 / 中层':'上层看台';}
+export function floorLabel(y,position){
+ if(position){
+  const {x,z}=position;
+  if(onUpperGalleryFloor({x,y,z}))return'上层连廊';
+  if(inCoreShaft(x,z)&&!coreLevels.some(level=>Math.abs(level-y)<.5))return'楼梯间';
+  if(y<3&&(x>-95&&x<-40&&z>-43&&z<49||playerLinks.some(r=>containsFloor(r,x,z))))return'球员层';
+  if(y>=-.3&&Math.abs(x)<42&&Math.abs(z)<60)return'球场层';
+ }
+ return y<2?'入口层':y<18?'公共大厅层':y<32?'包厢 / 中层':'上层看台';
+}
+
+function currentWalkLocation(p){
+ const room=roomAt(p);
+ if(room)return destinationName(room);
+ if(p.y<.5&&p.y>=visitorPassage.base-.3&&inVisitorPassage(p.x,p.z))return'草坪参观通道';
+ if(Math.abs(p.y-tourNodes.reception.y)<1.2&&Math.abs(p.x-tourNodes.reception.x)<24&&
+    p.z>=visitorPassage.backZ&&p.z<=tourNodes.door.z+1.5)return'接待大厅';
+ if(p.y<0&&p.z>tourNodes.forecourt.z&&Math.abs(p.x)<68)return'南广场';
+ return floorLabel(p.y,p);
+}
+
+function nearCompletedDestination(p,goal){
+ if(roomSpecs[goal])return roomAt(p)===goal;
+ const destination=tourNodes[goal];
+ return Math.abs(p.y-destination.y)<1.6&&Math.hypot(p.x-destination.x,p.z-destination.z)<6;
+}
+
 export function buildWalkGuide(scene,geometry,{obstacles={},onChoose,onSelect,onWalk,onTeleport,onContinue,onOrient,nextDestination}={}){
  const $=id=>document.getElementById(id),panel=$('walk-guide'),select=$('guide-goal'),arrow=$('guide-arrow'),title=$('guide-title'),detail=$('guide-detail'),next=$('guide-next');
  const walkButton=$('guide-walk'),teleportButton=$('guide-teleport'),goalName=$('guide-goal-name'),distanceText=$('guide-distance');
@@ -30,11 +56,17 @@ export function buildWalkGuide(scene,geometry,{obstacles={},onChoose,onSelect,on
  }
  function reset(position=lastPosition){lastPosition.copy(position);anchor=feet(position);const result=planWalkPath(anchor,goal,geometry,obstacles);path=result.path;blocked=result.blocked;arrived=false;planClock=0;lastDraw=null;geo.setDrawRange(0,0);}
  function choose(id){if(onSelect)onSelect(id);else setGoal(id);$('scene').focus({preventScroll:true});}
- function setGoal(id,position=lastPosition,currentEyeHeight=EYE_HEIGHT){eyeHeight=currentEyeHeight;goal=normalizeDestination(id);select.value=goal;goalName.textContent=destinationName(goal);selected=true;setCollapsed(true);reset(position);refresh();return goal;}
+ function setGoal(id,position=lastPosition,currentEyeHeight=EYE_HEIGHT){eyeHeight=currentEyeHeight;goal=normalizeDestination(id);select.value=goal;selected=true;setCollapsed(true);reset(position);refresh();return goal;}
  select.onclick=()=>onChoose?.();
  collapse.onclick=()=>{setCollapsed(!collapsed);refresh();};
  walkButton.onclick=()=>{setCollapsed(true);onWalk?.();};teleportButton.onclick=()=>onTeleport?.(goal);
- const suggestions=()=>{const id=nextDestination?.();return id===undefined?[nextWalkDestination(goal),alternateWalkDestination(goal)]:[id,null];};
+ function suggestions(p=feet(lastPosition)){
+  const guidedNext=nextDestination?.();
+  if(guidedNext!==undefined)return[guidedNext,null];
+  const next=nextWalkDestination(goal);
+  const stop=lastMode==='walk'&&nearCompletedDestination(p,next)?next:goal;
+  return[nextWalkDestination(stop),alternateWalkDestination(stop)];
+ }
  next.onclick=()=>{if(!arrived)return;if(onContinue?.())return;const [id]=suggestions();if(id)choose(id);};
  alternate.onclick=()=>{const [,id]=suggestions();if(arrived&&id)choose(id);};
  const canOrient=()=>!suppressed&&!tourPaused&&lastMode==='walk'&&!arrived&&!blocked&&path.length>0;
@@ -63,8 +95,10 @@ export function buildWalkGuide(scene,geometry,{obstacles={},onChoose,onSelect,on
   lastYaw=yaw;
   writeHudProperty(panel,'hidden',suppressed||tourPaused||lastMode!=='walk'&&!selected);
   group.visible=!suppressed&&!tourPaused&&lastMode==='walk'&&!blocked&&!arrived;
-  const p=feet(lastPosition);setHint('destination',goal);setHint('guideState',arrived?'arrived':blocked?'blocked':'routing');
-  const walking=lastMode==='walk';
+  const p=feet(lastPosition),walking=lastMode==='walk';
+  const roaming=arrived&&walking&&!nearCompletedDestination(p,goal);
+  setHint('destination',goal);setHint('guideState',roaming?'roaming':arrived?'arrived':blocked?'blocked':'routing');
+  writeText(goalName,roaming?'选择地点':destinationName(goal));
   panel.classList.toggle('arrived',arrived&&walking);
   writeHudProperty(walkButton,'hidden',walking);
   writeHudProperty(teleportButton,'title','传送到'+tourGoals[goal]+'（T）');
@@ -75,13 +109,16 @@ export function buildWalkGuide(scene,geometry,{obstacles={},onChoose,onSelect,on
   let action,hint,subline,symbol,angle=0;
   let other=null;
   if(arrived){
-   const [id,alternateGoal]=suggestions();other=walking?alternateGoal:null;
-   action='已到达 · '+(goal==='entrance'?destinationName(goal):tourGoals[goal]);hint='靠近开放门、展品或座位即可互动。';subline=floorLabel(p.y,p);symbol='✓';
+   const [id,alternateGoal]=suggestions(p);other=walking&&!roaming?alternateGoal:null;
+   action=roaming?'自由参观':'已到达 · '+(goal==='entrance'?destinationName(goal):tourGoals[goal]);
+   hint=roaming?'选择下一站，指引从当前位置开始。':'靠近开放门、展品或座位即可互动。';
+   subline=roaming?'当前位置 · '+currentWalkLocation(p):floorLabel(p.y,p);
+   symbol=roaming?'•':'✓';
    writeText(next,id?destinationName(id)+' →':'完成导览');
    writeHudProperty(next,'title',id?'步行前往'+destinationName(id):'完成当前步行导览');
    writeHudAttribute(next,'aria-label',next.title);
    if(other){writeText(alternate,destinationName(other)+' →');writeHudAttribute(alternate,'aria-label','步行前往'+destinationName(other));}
-   setHint('routeMetres',0);setHint('guideTarget',goal);delete document.body.dataset.guidePoint;
+   setHint('routeMetres',0);setHint('guideTarget',roaming?'':goal);delete document.body.dataset.guidePoint;
   }else if(blocked&&walking){
    action='附近没有找到通路';hint='先退回开放过道，路线会重新计算。也可直接传送。';subline=floorLabel(p.y,p);symbol='!';
    delete document.body.dataset.routeMetres;setHint('guideTarget','');delete document.body.dataset.guidePoint;
