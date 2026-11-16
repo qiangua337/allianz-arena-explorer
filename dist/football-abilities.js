@@ -1,3 +1,6 @@
+import {footballTeams} from './football-teams.js';
+import {footballFormations} from './football-squads.js';
+
 // Gameplay values tuned for this simulation. Each row is pace, dribbling,
 // passing, finishing, defending, and optionally goalkeeping.
 const ratings={
@@ -38,6 +41,26 @@ const ratings={
   17:[72,85,94,81,78],32:[76,83,87,70,76],7:[90,92,83,82,57],42:[92,87,81,86,63]
  }
 };
+const gameRoles={
+ GK:[48,57,74,28,25,88],
+ CB:[73,67,76,48,87],
+ FB:[86,78,80,61,80],
+ DM:[73,77,88,68,85],
+ CM:[77,83,88,74,76],
+ AM:[83,89,89,83,59],
+ W:[91,87,79,81,55],
+ ST:[82,81,76,90,52]
+};
+const aliases={LB:'FB',RB:'FB',LWB:'FB',RWB:'FB',LW:'W',RW:'W',LM:'W',RM:'W'};
+const ratingFor=role=>gameRoles[aliases[role]??role]??gameRoles.CM;
+for(const club of footballTeams){
+ if(ratings[club.id])continue;
+ const roles=footballFormations[club.formation??'4231'].roles;
+ ratings[club.id]=Object.fromEntries([
+  ...club.xi.map(([number],index)=>[number,ratingFor(roles[index])]),
+  ...club.bench.map(([number,,role],index)=>[number,ratingFor(role??(index===0?'GK':'CM'))])
+ ]);
+}
 export const abilityLabels={pace:'速度',dribbling:'盘带',passing:'传球',finishing:'射门',defending:'防守',goalkeeping:'扑救'};
 const keys=Object.keys(abilityLabels);
 const profile=(row)=>Object.freeze(Object.fromEntries(keys.map((key,index)=>[key,row[index]??0])));

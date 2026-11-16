@@ -1,5 +1,5 @@
 import {homeXI,homeReserves,substitutes} from './matchday-roster.js';
-import {opponentSquad} from './football-teams.js';
+import {footballTeam,opponentSquad} from './football-teams.js';
 
 export const footballFormations={
  '4231':{label:'4-2-3-1',positions:[[0,48],[0,-24],[-8,12],[-11,30],[11,30],[-26,21],[26,21],[8,12],[0,-6],[23,-5],[-23,-5]],roles:['GK','ST','DM','CB','CB','LB','RB','DM','AM','RW','LW']},
@@ -12,7 +12,15 @@ export function teamSquad(team='home',opponent='dortmund'){
  return[...homeXI,...substitutes.filter(p=>p.team==='home'),...homeReserves];
 }
 export const squadDefinition=(team,opponent,number)=>teamSquad(team,opponent).find(p=>p.player.number===Number(number));
-export function defaultSelection(team='home',opponent='dortmund'){const xi=teamSquad(team,opponent).slice(0,11).map(p=>p.player.number);if(team==='home')[xi[5],xi[6]]=[xi[6],xi[5]];if(team==='away'&&opponent==='dortmund')return{formation:'4231',xi:[1,9,25,3,4,24,26,8,7,14,18]};return{formation:'4231',xi};}
+export function defaultSelection(team='home',opponent='dortmund'){
+ const xi=teamSquad(team,opponent).slice(0,11).map(p=>p.player.number);
+ if(team==='home'){
+  [xi[5],xi[6]]=[xi[6],xi[5]];
+  return{formation:'4231',xi};
+ }
+ if(opponent==='dortmund')return{formation:'4231',xi:[1,9,25,3,4,24,26,8,7,14,18]};
+ return{formation:footballTeam(opponent).formation??'4231',xi};
+}
 export function validateSelection(value,team='home',opponent='dortmund'){
  if(!value||!Object.hasOwn(footballFormations,value.formation))return{ok:false,error:'请选择支持的阵型'};
  if(!Array.isArray(value.xi)||value.xi.length!==11||new Set(value.xi).size!==11)return{ok:false,error:'首发需要 11 名不同球员'};

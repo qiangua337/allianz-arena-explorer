@@ -4,6 +4,7 @@ import {ONLINE_DELTA_CAPABILITY,ONLINE_FLOW_CAPABILITY,encodeOnlineDelta} from '
 import {safePenaltyAim} from '../dist/football-penalty.js';
 import {normalizeRules} from '../dist/football-rules.js';
 import {defaultSelection,normalizeSelection,validateSelection} from '../dist/football-squads.js';
+import {footballTeam} from '../dist/football-teams.js';
 const TEAMS=['home','away'],TTL=30*60*1000,GRACE=60*1000,alphabet='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const DELTA_KEYFRAME_INTERVAL=20;
 const SNAPSHOT_WINDOW=10,RECEIPT_HISTORY=32,RECOVERY_INTERVAL=1500,RECEIPTS_PER_SECOND=16;
@@ -111,7 +112,7 @@ export class FootballRoom {
   const path=new URL(request.url).pathname,now=Date.now();
   if(path==='/create'){
    if(this.meta&&this.meta.expiresAt>now)return error('房间已存在',409);let b;try{b=await body(request);}catch{return error('房间设置无效');}
-   const opponent=['dortmund','madrid','barcelona','city'].includes(b.opponent)?b.opponent:'dortmund';this.meta={code:b.code,opponent,protocol:ONLINE_PROTOCOL,rules:normalizeRules(b.rules),lineups:{home:normalizeSelection(b.selection,'home',opponent),away:defaultSelection('away',opponent)},intervalReady:{},seed:crypto.getRandomValues(new Uint32Array(1))[0],tokens:{home:token(),away:null},ready:{home:false,away:false},expiresAt:now+TTL,started:false,ended:false,disconnectAt:null};this.sim=null;await this.persist();await this.ctx.storage.setAlarm(this.meta.expiresAt);return json({code:b.code,team:'home',token:this.meta.tokens.home,opponent,rules:this.meta.rules,expiresAt:this.meta.expiresAt},201);
+   const opponent=footballTeam(b.opponent).id;this.meta={code:b.code,opponent,protocol:ONLINE_PROTOCOL,rules:normalizeRules(b.rules),lineups:{home:normalizeSelection(b.selection,'home',opponent),away:defaultSelection('away',opponent)},intervalReady:{},seed:crypto.getRandomValues(new Uint32Array(1))[0],tokens:{home:token(),away:null},ready:{home:false,away:false},expiresAt:now+TTL,started:false,ended:false,disconnectAt:null};this.sim=null;await this.persist();await this.ctx.storage.setAlarm(this.meta.expiresAt);return json({code:b.code,team:'home',token:this.meta.tokens.home,opponent,rules:this.meta.rules,expiresAt:this.meta.expiresAt},201);
   }
   if(!this.meta||this.meta.expiresAt<=now||this.meta.ended)return error('房间已结束或过期，请重新创建',410);
   if(path==='/join'){

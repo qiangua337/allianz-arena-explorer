@@ -123,6 +123,40 @@
   gap: 8px;
 }
 
+#opponent-leagues {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin: 0 0 9px;
+}
+#opponent-leagues button {
+  min-height: 44px;
+  padding: 0 11px;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+#opponent-leagues button[aria-pressed=true] {
+  border-color: var(--accent);
+  color: var(--ink);
+  background: var(--match-selection);
+}
+@media (max-width: 649px) {
+  #opponent-leagues { display: grid; grid-template-columns: repeat(6,minmax(0,1fr)) }
+  #opponent-leagues button { padding-inline: 3px }
+}
+@media (max-width: 379px) {
+  #opponent-leagues { grid-template-columns: repeat(3,minmax(0,1fr)) }
+}
+#match-dialog [data-pattern=center] .club-swatch {
+  background: linear-gradient(90deg,var(--shirt) 34%,var(--ink) 34% 40%,var(--stripe) 40% 60%,var(--ink) 60% 66%,var(--shirt) 66%);
+}
+@media (min-width: 650px) {
+  #match-dialog .opponent-options { grid-template-columns: repeat(3,minmax(0,1fr)) }
+}
+
 #match-dialog .opponent-card,
 #match-dialog .setup-options button,
 #match-dialog .rules-modes button,

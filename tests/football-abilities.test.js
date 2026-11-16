@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {footballAbilities,playerAbilities,playerSpecialties} from '../dist/football-abilities.js';
 import {teamSquad} from '../dist/football-squads.js';
+import {footballTeams} from '../dist/football-teams.js';
 import {createFootballSimulation} from '../dist/football-simulation.js';
 import {beginFootballTouch,moveControlledFootballer} from '../dist/football-movement.js';
 import {passFlight,shotPreparation} from '../dist/football-tactics.js';
@@ -9,7 +10,7 @@ import {packOnlineState,applyOnlineState} from '../dist/online-protocol.js';
 
 test('ability profiles cover every selectable roster and distinguish player strengths',()=>{
  const profiles=new Set();
- for(const opponent of ['dortmund','madrid','barcelona','city']){
+ for(const {id:opponent} of footballTeams){
   for(const team of ['home','away'])for(const member of teamSquad(team,opponent)){
    const profile=footballAbilities(team,opponent,member.player.number);
    assert.ok(profile.pace>0&&profile.dribbling>0&&profile.passing>0&&profile.finishing>0);
@@ -17,7 +18,7 @@ test('ability profiles cover every selectable roster and distinguish player stre
    profiles.add(profile);
   }
  }
- assert.equal(profiles.size,teamSquad('home').length+['dortmund','madrid','barcelona','city'].reduce((sum,id)=>sum+teamSquad('away',id).length,0));
+ assert.equal(profiles.size,teamSquad('home').length+footballTeams.reduce((sum,{id})=>sum+teamSquad('away',id).length,0));
  assert.match(playerSpecialties('home','madrid',19),/速度/);
  assert.match(playerSpecialties('home','madrid',9),/射门/);
  assert.match(playerSpecialties('home','madrid',6),/传球/);

@@ -166,7 +166,7 @@ export function buildPlayableMatch({scene,stadium,players,audio,onCamera,onView,
   const target=lesson.id==='free'?lesson.targets.find(t=>t.active&&!t.completed):null,player=s.players.find(p=>p.id===s.controlledId);write('training-instruction','textContent',target?'下一标记 · '+ballDirection(player,target,aimYaw):lesson.instruction);write('training-feedback','textContent',lesson.feedback);write('game-training-reset','disabled',pending||failed||done);
   write('training-pause','textContent',s.paused?'继续':'暂停');write('training-pause','disabled',pending||failed||done);write('game-overlay-team','hidden',true);write('game-cheer','disabled',true);writeHudAttribute($('game-ui'),'aria-label','球场训练');write('game-help-opponent','textContent',lesson.title+'：'+lesson.instruction+' '+lesson.hint);
   write('game-fixture-title','textContent','FC BAYERN · TRAINING CENTRE');write('game-overlay-title','textContent',failed?'训练暂未就绪':pending?'正在准备训练球场':done?'训练完成':'训练已暂停');write('game-overlay-description','textContent',failed?'请重试加载球员，或返回选择其他体验。':pending?'准备球员与训练标记，即刻开始。':done?lesson.feedback:lesson.hint);
-  write('game-restart','textContent',failed?'重试加载':'重新开始本课');write('game-change-match','textContent','选择其他训练');write('game-resume','textContent','继续训练');write('game-replay-launch','hidden',true);
+  write('game-restart','textContent',failed?'重试加载':done?'再练一次':'重新开始本课');write('game-change-match','textContent','选择其他训练');write('game-resume','textContent','继续训练');write('game-replay-launch','hidden',true);
   if(done){
    const rows=lesson.id==='passing'?[[m.completedPasses,'成功传接'],[m.passes,'尝试传球'],[m.bestStreak,'最佳连续']]:[[m.goals,'进球'],[m.onTarget,'射正'],[m.shots,'射门']];
    const record=trainingRecordText(lesson.id,lesson.record);
@@ -292,7 +292,20 @@ export function buildPlayableMatch({scene,stadium,players,audio,onCamera,onView,
  });
  shoot.onclick=e=>{if(e.detail===0)action('shoot',{power:penaltyContext(simulation.state,network?.team||'home')?penaltyStandardPower:.45});};
  $('game-camera').onclick=cycleCamera;$('game-fullscreen').onclick=()=>$('fullscreen').click?.();$('game-cheer').onclick=()=>{if(active&&!pending&&!failed&&!simulation.state.paused)onCheer?.();};
- $('game-mute').onclick=()=>{if(audio.state==='unavailable')audio.start({ambience:!simulation.state.training});else audio.setMuted(!audio.muted);render();};$('game-pause').onclick=()=>onPause(!simulation.state.paused);$('game-resume').onclick=async()=>{try{if(network&&!network.room?.started){network.setReady(true);return;}if(simulation.state.phase==='interval'){await simulation.continuePeriod();if(!network)onPause(false);render();return;}onPause(false);}catch(error){toast?.(error.message);}};$('game-restart').onclick=()=>network&&simulation.state.phase==='fulltime'?network.send({type:'rematch'}):onRestart();$('game-online-copy').onclick=()=>network&&copyOnlineInvite(network);$('game-exit').onclick=$('game-overlay-exit').onclick=onExit;$('game-change-match').onclick=onChangeMatch||onExit;
+ $('game-mute').onclick=()=>{if(audio.state==='unavailable')audio.start({ambience:!simulation.state.training});else audio.setMuted(!audio.muted);render();};$('game-pause').onclick=()=>onPause(!simulation.state.paused);$('game-resume').onclick=async()=>{try{if(network&&!network.room?.started){network.setReady(true);return;}if(simulation.state.phase==='interval'){await simulation.continuePeriod();if(!network)onPause(false);render();return;}onPause(false);}catch(error){toast?.(error.message);}};
+ $('game-restart').onclick=()=>{
+  if(network&&simulation.state.phase==='fulltime')return network.send({type:'rematch'});
+  if(!active||pending||failed||!simulation.state.training?.completed)return onRestart();
+  clearInput();
+  simulation.reset();
+  lastEvent=uiTime=worldTime=cameraTime=0;
+  players.reset?.();
+  visualDirty=true;
+  onPause(false);
+  render();
+  return true;
+ };
+ $('game-online-copy').onclick=()=>network&&copyOnlineInvite(network);$('game-exit').onclick=$('game-overlay-exit').onclick=onExit;$('game-change-match').onclick=onChangeMatch||onExit;
  $('game-more').onclick=()=>{more=!more;$('game-ui').dataset.more=String(more);writeHudAttribute($('game-more'),'aria-expanded',String(more));writeHudAttribute($('game-more'),'aria-label',more?'收起比赛设置':'展开比赛设置');};$('game-radar-toggle').onclick=()=>{const visible=document.body.dataset.gameRadar==='true';radarChoice=!visible;try{storage?.setItem('arena-match-display',JSON.stringify({radar:radarChoice}));}catch{}render();};$('game-overlay-team').onclick=showTeam;$('game-team').onclick=showTeam;$('game-help').onclick=showHelp;$('game-help-close').onclick=()=>$('game-help-dialog').close();$('game-help-dialog').addEventListener('close',()=>{if(active)onPause(helpWasPaused);});
  $('game-low-quality').onclick=()=>{const quality=$('quality');quality.value=quality.value==='low'?'standard':'low';quality.dispatchEvent(new Event('change',{bubbles:true}));render();};
  function showTeam(){

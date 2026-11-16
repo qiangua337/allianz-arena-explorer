@@ -115,7 +115,22 @@ function drawJerseyPanels(c){
  }
 }
 export function drawJersey(d,crest,colors){return canvasTexture(1024,1024,c=>{
- c.fillStyle=colors.shirt;c.fillRect(0,0,1024,1024);if(d.kit?.pattern==='stripes'&&!d.keeper&&['player','substitute'].includes(d.role)){c.fillStyle='#a62848';for(let x=0;x<1024;x+=128)c.fillRect(x,0,64,1024);}c.strokeStyle='rgba(20,0,0,.055)';c.lineWidth=2;for(let y=0;y<1024;y+=36){c.beginPath();c.moveTo(0,y);c.lineTo(1024,y);c.stroke();}c.fillStyle='rgba(255,255,255,.03)';for(let y=0;y<1024;y+=5)c.fillRect(0,y,1024,1);
+ c.fillStyle=colors.shirt;
+ c.fillRect(0,0,1024,1024);
+ if(d.kit&&!d.keeper&&(d.role==='player'||d.role==='substitute')){
+  if(d.kit.pattern==='stripes'){
+   c.fillStyle=d.kit.stripe??'#a62848';
+   for(let x=0;x<1024;x+=128)c.fillRect(x,0,64,1024);
+  }else if(d.kit.pattern==='center'){
+   for(const x of [256,768]){
+    c.fillStyle=colors.ink;
+    c.fillRect(x-67,0,134,1024);
+    c.fillStyle=d.kit.stripe;
+    c.fillRect(x-58,0,116,1024);
+   }
+  }
+ }
+ c.strokeStyle='rgba(20,0,0,.055)';c.lineWidth=2;for(let y=0;y<1024;y+=36){c.beginPath();c.moveTo(0,y);c.lineTo(1024,y);c.stroke();}c.fillStyle='rgba(255,255,255,.03)';for(let y=0;y<1024;y+=5)c.fillRect(0,y,1024,1);
  drawJerseyPanels(c);
  const player=d.player,club=d.team==='away'?d.club?.english||'BORUSSIA DORTMUND':d.team==='official'?'MATCH OFFICIAL':d.role==='player'||d.role==='substitute'?'FC BAYERN MÜNCHEN':'FC BAYERN · STAFF';c.fillStyle=colors.ink;c.textAlign='center';c.font='bold 43px Arial';c.fillText(club,768,214,292);
  if(player.number){c.font='bold 475px Arial';c.fillText(String(player.number),768,640,player.number<10?120:190);}else{c.font='bold 96px Arial';c.fillText(player.name,768,510,285);}

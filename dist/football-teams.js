@@ -1,15 +1,28 @@
 import {awayXI,substitutes} from './matchday-roster.js';
 import {normalizeRules} from './football-rules.js';
+import {englandClubs} from './football-clubs-england.js';
+import {europeanClubs} from './football-clubs-europe.js';
 
 // Club identities and squad numbers are reference data; these are exhibition
 // selections, generic athletes and independently drawn club-colour kits.
-const team=(id,name,short,code,english,shirt,shorts,ink,pattern,xi,bench,source,style)=>({id,name,short,code,english,kit:{shirt,shorts,ink,socks:shirt,pattern},xi,bench,source,style,checked:'2026-10-26'});
+const team=(id,name,short,code,english,shirt,shorts,ink,pattern,xi,bench,source,style)=>({
+ id,name,short,code,english,kit:{shirt,shorts,ink,socks:shirt,pattern,stripe:pattern==='stripes'?'#a62848':shirt},xi,bench,source,style,checked:'2026-10-26',
+ league:id==='dortmund'?'germany':id==='city'?'england':'spain',
+ possessionStyle:id==='barcelona'||id==='city'
+});
+function addedClub({shirt,shorts,ink,socks=shirt,pattern='plain',stripe=shirt,...club}){
+ return {...club,kit:{shirt,shorts,ink,socks,pattern,stripe}};
+}
 export const footballTeams=[
  team('dortmund','多特蒙德','多特','BVB','BORUSSIA DORTMUND','#ebcc3d','#222c31','#222c31','plain',null,null,'https://shop.bvb.de/pages/shop-by-player','积极逼抢 · 纵向推进'),
  team('madrid','皇家马德里','皇马','RMA','REAL MADRID','#efeee7','#efeee7','#293258','plain',[[1,'COURTOIS'],[10,'MBAPPÉ'],[14,'TCHOUAMENI'],[4,'HUIJSEN'],[22,'RÜDIGER'],[18,'CARRERAS'],[12,'TRENT'],[8,'VALVERDE'],[5,'BELLINGHAM'],[11,'RODRYGO'],[7,'VINI JR.']],[[13,'LUNIN'],[3,'MILITÃO'],[2,'ASENCIO'],[23,'MENDY'],[6,'CAMAVINGA'],[15,'ARDA GÜLER'],[9,'ENDRICK'],[21,'BRAHIM'],[25,'DIOMANDE']],'https://www.realmadrid.com/en-US/news/football/first-team/latest-news/dorsales-del-real-madrid-para-la-temporada-2026-27-10-08-2026','快速反击 · 边路前插'),
  team('barcelona','巴塞罗那','巴萨','BAR','FC BARCELONA','#163c82','#172c65','#efce72','stripes',[[1,'JOAN GARCIA'],[9,'GABRIEL JESUS'],[21,'DE JONG'],[5,'CUBARSÍ'],[15,'CHRISTENSEN'],[3,'BALDE'],[23,'KOUNDÉ'],[8,'PEDRI'],[20,'DANI OLMO'],[10,'LAMINE YAMAL'],[11,'RAPHINHA']],[[13,'SZCZĘSNY'],[24,'ERIC GARCIA'],[18,'GERARD MARTÍN'],[22,'MARC BERNAL'],[6,'GAVI'],[7,'FERMÍN'],[14,'ADEYEMI'],[17,'GORDON'],[19,'BARDGHJI']],'https://www.fcbarcelona.com/en/football/first-team/news/4570894/202627-first-team-jersey-numbers-confirmed','短传接应 · 中场控球'),
  team('city','曼彻斯特城','曼城','MCI','MANCHESTER CITY','#79bddc','#e6e8e4','#183346','plain',[[1,'DONNARUMMA'],[9,'HAALAND'],[5,'ANDERSON'],[3,'RÚBEN DIAS'],[6,'GUÉHI'],[21,'AÏT-NOURI'],[27,'MATHEUS NUNES'],[8,'KOVAČIĆ'],[10,'CHERKI'],[47,'FODEN'],[11,'DOKU']],[[28,'RULLI'],[24,'GVARDIOL'],[45,'KHUSANOV'],[82,'RICO LEWIS'],[33,"O'REILLY"],[17,'ENZO FERNÁNDEZ'],[32,'BOUADDI'],[7,'NDIAYE'],[42,'SEMENYO']],'https://www.mancity.com/players','耐心传递 · 拉开宽度')
 ];
+footballTeams.push(...englandClubs.map(club=>addedClub({...club,league:'england'})),...europeanClubs.map(addedClub));
+export const footballLeagues=new Map([
+ ['all','全部'],['germany','德甲'],['spain','西甲'],['england','英超'],['italy','意甲'],['france','法甲']
+]);
 export const footballTeam=id=>footballTeams.find(t=>t.id===id)||footballTeams[0];
 export function opponentSquad(id){
  const club=footballTeam(id);
