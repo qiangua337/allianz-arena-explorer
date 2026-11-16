@@ -20,7 +20,7 @@ export function buildWalkGuide(scene,geometry,{obstacles={},onChoose,onSelect,on
  const alternate=$('guide-alternate'),orient=$('guide-orient'),bearing=$('guide-bearing'),collapse=$('guide-collapse');
  const group=new THREE.Group();scene.add(group);const positions=new Float32Array(2048*3),geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.BufferAttribute(positions,3).setUsage(THREE.DynamicDrawUsage));
  const line=new THREE.Mesh(geo,new THREE.MeshBasicMaterial({color:0xffd36b,side:THREE.DoubleSide,depthTest:true,depthWrite:false,transparent:true,opacity:.85,toneMapped:false,forceSinglePass:true}));line.frustumCulled=false;line.renderOrder=2;group.add(line);
- let path=[],goal='arcade',arrived=false,blocked=false,selected=false,collapsed=true,suppressed=false,timer=0,planClock=0,anchor=null,eyeHeight=EYE_HEIGHT,lastMode='orbit';
+ let path=[],goal='arcade',arrived=false,blocked=false,selected=false,collapsed=true,suppressed=false,tourPaused=false,timer=0,planClock=0,anchor=null,eyeHeight=EYE_HEIGHT,lastMode='orbit';
  const lastPosition=v(0,-2.4,214);let lastDraw=null,lastYaw=0;
  const feet=p=>({x:p.x,y:p.y-eyeHeight,z:p.z});
  function setCollapsed(value){
@@ -37,7 +37,7 @@ export function buildWalkGuide(scene,geometry,{obstacles={},onChoose,onSelect,on
  const suggestions=()=>{const id=nextDestination?.();return id===undefined?[nextWalkDestination(goal),alternateWalkDestination(goal)]:[id,null];};
  next.onclick=()=>{if(!arrived)return;if(onContinue?.())return;const [id]=suggestions();if(id)choose(id);};
  alternate.onclick=()=>{const [,id]=suggestions();if(arrived&&id)choose(id);};
- const canOrient=()=>!suppressed&&lastMode==='walk'&&!arrived&&!blocked&&path.length>0;
+ const canOrient=()=>!suppressed&&!tourPaused&&lastMode==='walk'&&!arrived&&!blocked&&path.length>0;
  const orientToPath=()=>{if(canOrient())onOrient?.(path[0]);};
  orient.onclick=orientToPath;
  let bearingTouch=null,lastBearingTouch=-Infinity;
@@ -61,8 +61,8 @@ export function buildWalkGuide(scene,geometry,{obstacles={},onChoose,onSelect,on
  const setHint=(key,value)=>writeHudData(document.body,key,value);
  function refresh(yaw=lastYaw){
   lastYaw=yaw;
-  writeHudProperty(panel,'hidden',suppressed||lastMode!=='walk'&&!selected);
-  group.visible=!suppressed&&lastMode==='walk'&&!blocked&&!arrived;
+  writeHudProperty(panel,'hidden',suppressed||tourPaused||lastMode!=='walk'&&!selected);
+  group.visible=!suppressed&&!tourPaused&&lastMode==='walk'&&!blocked&&!arrived;
   const p=feet(lastPosition);setHint('destination',goal);setHint('guideState',arrived?'arrived':blocked?'blocked':'routing');
   const walking=lastMode==='walk';
   panel.classList.toggle('arrived',arrived&&walking);
@@ -132,7 +132,7 @@ export function buildWalkGuide(scene,geometry,{obstacles={},onChoose,onSelect,on
   lastDraw={...p};
  }
  function update(position,yaw,dt,mode,currentEyeHeight=EYE_HEIGHT){
-  eyeHeight=currentEyeHeight;lastPosition.copy(position);lastMode=mode;lastYaw=yaw;if(suppressed){panel.hidden=true;group.visible=false;return;}timer+=dt;planClock+=dt;if(timer<.12)return;timer=0;const p=feet(position);
+  eyeHeight=currentEyeHeight;lastPosition.copy(position);lastMode=mode;lastYaw=yaw;if(suppressed||tourPaused){panel.hidden=true;group.visible=false;return;}timer+=dt;planClock+=dt;if(timer<.12)return;timer=0;const p=feet(position);
   if(!anchor)reset(position);
   if(mode!=='walk'){refresh(yaw);return;}
   let walls;
@@ -168,5 +168,5 @@ export function buildWalkGuide(scene,geometry,{obstacles={},onChoose,onSelect,on
  }
  function arrive(id,position){setGoal(id,position);path=[];blocked=false;arrived=true;geo.setDrawRange(0,0);refresh();}
  function restoreState(saved,position,currentEyeHeight=EYE_HEIGHT){setGoal(saved.goal,position,currentEyeHeight);selected=saved.selected;if(saved.arrived){arrived=true;blocked=false;path=[];geo.setDrawRange(0,0);}setCollapsed(saved.collapsed);refresh();}
- return{update,reset,setGoal,arrive,isArrived:()=>arrived,setSuppressed(value){suppressed=value;refresh();},captureState:()=>({goal,selected,collapsed,arrived}),restoreState,getGoal:()=>goal,getRoute:()=>path};
+ return{update,reset,setGoal,arrive,isArrived:()=>arrived,setSuppressed(value){suppressed=value;refresh();},setTourPaused(value){if(tourPaused!==value){tourPaused=value;refresh();}},captureState:()=>({goal,selected,collapsed,arrived}),restoreState,getGoal:()=>goal,getRoute:()=>path};
 }

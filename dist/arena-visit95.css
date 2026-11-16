@@ -20,7 +20,7 @@
 .load-track { width: min(245px, 64vw); height: 3px; background: #ffffff21 }
 .load-track span { background: #e03a59 }
 
-body:not(.game-active) :is(#explore, #walk-guide, #walk-prompt) {
+body:not(.game-active) :is(#explore, #walk-guide, #walk-prompt, #tour-overview) {
   --panel: #1c1a20f7;
   --subtle: #2d2932;
   --rule: #f4edef25;
@@ -125,26 +125,90 @@ body:not(.game-active) :is(#explore, #walk-guide, #walk-prompt) {
   text-overflow: ellipsis;
 }
 #guide-alternate { color: var(--ink) }
+#tour-overview {
+  position: absolute;
+  top: 112px;
+  right: max(18px, env(safe-area-inset-right));
+  z-index: 7;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  max-width: min(234px, 50vw);
+  padding: 5px 9px;
+  border-left: 2px solid var(--accent);
+  text-align: left;
+}
+#tour-overview:hover, #tour-overview:focus-visible { border-color: var(--accent) }
+.tour-overview-icon { color: var(--accent); display: grid; flex: none; place-items: center }
+.tour-overview-copy { min-width: 0 }
+.tour-overview-copy :is(strong, small) { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.tour-overview-copy strong { font-size: 11px; line-height: 1.4 }
+.tour-overview-copy small { color: var(--muted); font-size: 10px; margin-top: 2px }
+body:is(.hud-hidden, .hub-open, .nav-open, .game-active, .match-cinematic) #tour-overview,
+body:has(.environment.expanded) #tour-overview { display: none }
 #walking-tour-dialog {
-  --subtle: #263742;
-  --rule: #b8cdd344;
+  --panel: #151419;
+  --subtle: #222028;
+  --rule: #f1deed28;
   --ink: #f5f0e9;
-  --muted: #c3d0d7;
+  --muted: #c8bdcb;
   --accent: #f497a8;
+  width: min(490px, calc(100vw - 24px));
+  max-height: min(720px, calc(100dvh - 24px));
+  overscroll-behavior: contain;
   color: var(--ink);
 }
+#walking-tour-close { width: 44px; height: 44px }
 #walking-tour-dialog .walking-tour-plans > button { color: var(--ink) }
 #walking-tour-dialog p { color: var(--muted) }
-#walking-tour-resume:not([hidden]) {
-  display: block;
+#walking-tour-dialog .walking-tour-description { display: block; color: var(--muted); font-size: 11px; line-height: 1.65 }
+#walking-tour-current { color: var(--ink); font-size: 17px; margin: 0 0 3px }
+#walking-tour-count { margin: 0 0 6px }
+#walking-tour-meter { display: block; width: 100%; height: 6px; border: 0; border-radius: 5px; accent-color: var(--accent) }
+#walking-tour-meter::-webkit-progress-bar { background: var(--subtle); border-radius: 5px }
+#walking-tour-meter::-webkit-progress-value { background: var(--accent); border-radius: 5px }
+#walking-tour-meter::-moz-progress-bar { background: var(--accent); border-radius: 5px }
+#walking-tour-itinerary { list-style: none; margin: 12px 0; padding: 0; display: grid; gap: 4px }
+#walking-tour-itinerary li {
+  display: grid;
+  grid-template-columns: 10px 1fr auto;
+  gap: 8px;
+  align-items: center;
+  padding: 6px 8px;
+  border-radius: 5px;
+  font-size: 12px;
+}
+#walking-tour-itinerary li[aria-current=step] { background: var(--subtle); color: var(--ink) }
+#walking-tour-itinerary li::before { content: ''; width: 8px; height: 8px; border: 1px solid var(--muted); border-radius: 50% }
+#walking-tour-itinerary li[data-status=visited]::before { background: #8bc8aa; border-color: #8bc8aa }
+#walking-tour-itinerary li[data-status=current]::before { border-color: var(--accent); box-shadow: 0 0 0 2px #f497a830 }
+#walking-tour-itinerary li small { color: var(--muted); font-size: 10px; white-space: nowrap }
+.walking-tour-actions { display: flex; flex-wrap: wrap; gap: 6px }
+.walking-tour-actions button { min-height: 44px; margin: 0 }
+#walking-tour-share-status { margin: 8px 0 0 }
+#walking-tour-share-status:empty { display: none }
+#walking-tour-link { display: grid; gap: 5px; color: var(--muted); font-size: 11px; margin-top: 6px }
+#walking-tour-share-field {
   width: 100%;
+  min-width: 0;
   min-height: 44px;
-  margin: 14px 0 0;
+  border: 1px solid var(--rule);
+  border-radius: 5px;
+  color: var(--ink);
+  background: var(--subtle);
+  padding: 6px 8px;
+  font-size: 16px;
+}
+#walking-tour-resume {
   background: #a61d38;
   border-color: #ed7084;
   color: #fff;
   font-weight: 800;
 }
+#tour-arrival :is(#tour-advance, #tour-end) { min-height: 44px }
+#tour-arrival #tour-end { min-width: 40px }
+#tour-arrival #tour-advance { max-width: 46%; overflow: hidden; text-overflow: ellipsis }
 .toast { background: #232023; border-color: #f6f1e936; color: #f6f1e9 }
 @media (max-width: 760px), (max-width: 1024px) and (orientation: portrait) {
   body:not(.game-active) {
@@ -153,6 +217,7 @@ body:not(.game-active) :is(#explore, #walk-guide, #walk-prompt) {
     --visit-right: max(10px, calc(env(safe-area-inset-right, 0px) + 6px));
     --visit-guide-clearance: 68px;
   }
+  #tour-overview { top: max(102px, calc(env(safe-area-inset-top, 0px) + 94px)); right: var(--visit-right) }
   #explore {
     top: auto;
     bottom: var(--visit-bottom);
@@ -232,6 +297,7 @@ body:not(.game-active) :is(#explore, #walk-guide, #walk-prompt) {
   }
 }
 @media (max-height: 500px) {
+  #tour-overview { top: 102px }
   #explore {
     top: max(62px, calc(env(safe-area-inset-top, 0px) + 52px));
     bottom: auto;

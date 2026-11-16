@@ -92,7 +92,16 @@
       "licenseUrl": "https://creativecommons.org/licenses/by-sa/2.5/",
       "date": "2008-01-08",
       "context": "Allianz Arena exterior illuminated red at night.",
-      "changeNotice": "Resized and encoded as WebP. CSS crop, color adjustment and gradient overlay in the card.",
+      "changeNotice": "Resized and encoded as WebP in two sizes. CSS crop and gradient overlay in the cover.",
+      "variants": [
+        {
+          "file": "arena-night-wide.webp",
+          "width": 1600,
+          "height": 572,
+          "bytes": 94112,
+          "sha256": "36fe8c1c372d54e64f79f6d395ba0a761e50031760f0a8bf89b3be2804f8a028"
+        }
+      ],
       "sha256": "164a2904a44528863a76ea71ad25475750e7f816ee60cf0267aa4f59b742331f"
     },
     {

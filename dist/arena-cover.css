@@ -1,63 +1,51 @@
-/* The venue is the landing page's main photograph. The player image is a separate editorial card. */
+/* The home screen is the venue cover. Stadium and match code load after entry. */
 #arena-hub.editorial-cover {
-  --cover-ink: #f6f3ef;
-  --cover-muted: #bfbabe;
-  --cover-line: #f4edef26;
-  --cover-red: #c81536;
-  padding: max(10px, env(safe-area-inset-top)) max(clamp(14px, 4vw, 62px), env(safe-area-inset-right)) max(14px, env(safe-area-inset-bottom)) max(clamp(14px, 4vw, 62px), env(safe-area-inset-left));
-  background: #141316;
+  --cover-ink: #f7f3f0;
+  --cover-muted: #c6bac0;
+  --cover-line: #ffffff23;
+  --cover-red: #cf1c3b;
+  padding: max(10px, env(safe-area-inset-top)) max(clamp(12px, 3.5vw, 54px), env(safe-area-inset-right)) max(18px, env(safe-area-inset-bottom)) max(clamp(12px, 3.5vw, 54px), env(safe-area-inset-left));
+  background: #151216;
   color: var(--cover-ink);
   color-scheme: dark;
 }
 
-#arena-hub.editorial-cover[open] { justify-content: flex-start; gap: 16px }
+#arena-hub.editorial-cover[open] { justify-content: flex-start; gap: 13px }
 #arena-hub.editorial-cover[open] :is(.hub-intro, .hub-feature, .hub-modes) { animation: none }
-.editorial-cover :is(.hub-header, .hub-body, .hub-footer) {
-  width: 100%;
-  max-width: 1360px;
-  margin: 0 auto;
-}
+.editorial-cover :is(.hub-header, .hub-body, .hub-footer) { width: 100%; max-width: 1336px; margin: 0 auto }
 
-.editorial-cover .hub-header { min-height: 58px; padding: 0 0 7px; border-bottom: 1px solid var(--cover-line) }
-.editorial-cover .hub-wordmark { font: 600 clamp(19px, 2.3vw, 28px)/1 var(--sport-font); letter-spacing: .065em; gap: 13px }
-.editorial-cover .hub-wordmark i { border-color: #f65c74; box-shadow: none }
-.editorial-cover .hub-wordmark i::after { border-color: #f65c74 }
-.editorial-cover .hub-header>button {
-  min-height: 44px;
-  padding: 0 4px 0 12px;
-  border: 0;
-  font-size: 13px;
-  color: var(--cover-muted);
-}
-.editorial-cover .hub-header>button span { margin-left: 8px; color: var(--cover-ink); font: 600 19px/1 var(--sport-font) }
+.editorial-cover .hub-header { min-height: 54px; padding: 0 0 6px; border-bottom: 1px solid var(--cover-line) }
+.editorial-cover .hub-wordmark { font: 650 clamp(19px, 2.1vw, 29px)/1 var(--sport-font); letter-spacing: .075em; gap: 13px }
+.editorial-cover .hub-wordmark i, .editorial-cover .hub-wordmark i::after { border-color: #ff5372; box-shadow: none }
+.editorial-cover .hub-header > button { min-height: 44px; padding: 0 4px 0 12px; border: 0; color: var(--cover-muted); font-size: 13px }
+.editorial-cover .hub-header > button span { margin-left: 7px; color: var(--cover-ink); font: 600 19px/1 var(--sport-font) }
 
 .editorial-cover .hub-body {
   display: grid;
-  grid-template-columns: minmax(0, 2.7fr) minmax(218px, 1fr);
-  grid-template-areas: "hero player" "modes modes";
-  gap: clamp(14px, 2vw, 27px);
+  grid-template-columns: minmax(0, 2.65fr) minmax(245px, 1fr);
+  grid-template-areas: "hero hero" "route player" "modes player";
+  gap: 13px 16px;
   align-items: stretch;
 }
 .editorial-cover .hub-stage {
   grid-area: hero;
   position: relative;
-  display: grid;
   isolation: isolate;
-  align-items: center;
-  min-height: clamp(305px, 46dvh, 445px);
+  display: flex;
+  align-items: flex-end;
+  min-height: clamp(320px, 44dvh, 448px);
   overflow: hidden;
-  background: #191519;
+  background: #151216;
   border: 1px solid var(--cover-line);
   border-radius: 12px;
 }
 .editorial-cover .hub-stadium {
   position: absolute;
-  inset: 0 0 0 auto;
+  inset: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
-  object-position: 50% 42%;
-  opacity: .95;
+  object-position: 63% 48%;
 }
 .editorial-cover .hub-stage::before {
   content: "";
@@ -65,32 +53,22 @@
   z-index: 1;
   inset: 0;
   pointer-events: none;
-  background: linear-gradient(90deg, #181418 3%, #181418f4 17%, #181418c0 33%, #18141823 67%, #1814180a), linear-gradient(0deg, #141216d8, transparent 53%);
+  background: linear-gradient(90deg, #160e14f7 0%, #160e14de 19%, #160e1490 36%, transparent 62%), linear-gradient(0deg, #100d12b3, transparent 45%);
 }
-.editorial-cover .hub-lead { position: relative; z-index: 2; padding: clamp(22px, 4vw, 62px) }
+.editorial-cover .hub-lead { position: relative; z-index: 2; padding: clamp(22px, 4vw, 49px); width: 100% }
 .editorial-cover .hub-intro { min-height: 0; padding: 0; pointer-events: auto }
-.editorial-cover .hub-eyebrow {
-  color: #f3adb8;
-  font: 600 12px/1.25 var(--sport-font);
-  letter-spacing: .16em;
-  margin: 0 0 14px;
-}
-.editorial-cover .hub-eyebrow::before { width: 20px; background: #ea4563 }
-.editorial-cover .hub-intro h1 {
-  color: var(--cover-ink);
-  font: 800 clamp(42px, 6.05vw, 86px)/1.12 var(--ui-font);
-  letter-spacing: -.05em;
-  margin: 0 0 10px;
-}
-.editorial-cover .hub-description { margin: 0; color: #e1dbe0; font-size: clamp(14px, 1.3vw, 17px); line-height: 1.6 }
+.editorial-cover .hub-eyebrow { margin: 0 0 11px; color: #ffc2cc; font: 650 15px/1.2 var(--sport-font); letter-spacing: .14em }
+.editorial-cover .hub-eyebrow::before { width: 24px; background: #ff607e }
+.editorial-cover .hub-intro h1 { margin: 0 0 12px; color: var(--cover-ink); font: 800 clamp(42px, 7vw, 100px)/1.05 var(--ui-font); letter-spacing: -.07em }
+.editorial-cover .hub-description { margin: 0; color: #f1e6e9; font: 500 clamp(14px, 1.3vw, 17px)/1.6 var(--ui-font) }
 .editorial-cover .hub-cta { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 25px }
-.editorial-cover :is(.hub-kickoff, .hub-explore) {
+.editorial-cover :is(.hub-kickoff, .hub-explore, .hub-itinerary-head > button) {
   display: inline-flex;
   align-items: center;
   justify-content: space-between;
-  gap: clamp(12px, 2vw, 30px);
   min-height: 48px;
-  padding: 0 15px;
+  gap: 22px;
+  padding: 0 16px;
   border: 1px solid transparent;
   border-radius: 6px;
   font: 800 14px/1 var(--ui-font);
@@ -100,8 +78,66 @@
   transition: background .15s, border-color .15s;
 }
 .editorial-cover .hub-kickoff { background: var(--cover-red); color: #fff }
-.editorial-cover .hub-explore { background: #1d191de8; color: var(--cover-ink); border-color: #f7edf052 }
-.editorial-cover :is(.hub-kickoff, .hub-explore) span { font: 600 20px/1 var(--sport-font) }
+.editorial-cover .hub-explore { background: #1c181ce6; color: var(--cover-ink); border-color: #fff6 }
+.editorial-cover :is(.hub-kickoff, .hub-explore, .hub-itinerary-head > button) span { font: 650 20px/1 var(--sport-font) }
+
+.editorial-cover .hub-itinerary {
+  grid-area: route;
+  min-width: 0;
+  padding: 14px 17px 12px;
+  color: #30212b;
+  background: #efe8e4;
+  border: 1px solid #fff3eb;
+  border-radius: 9px;
+}
+.editorial-cover .hub-itinerary-head { display: flex; align-items: center; justify-content: space-between; gap: 10px }
+.editorial-cover .hub-itinerary-head p { margin: 0 0 4px; color: #852c44; font: 800 11px/1.25 var(--ui-font) }
+.editorial-cover .hub-itinerary h2 { margin: 0; font: 800 clamp(17px, 2.1vw, 26px)/1.24 var(--ui-font); letter-spacing: -.026em }
+.editorial-cover .hub-itinerary-head > button { min-height: 44px; gap: 10px; border-color: #764d57; color: #3b1d2b }
+.editorial-cover .hub-itinerary-stops { display: flex; justify-content: space-between; list-style: none; margin: 11px 0 0; padding: 0; gap: 10px }
+.editorial-cover .hub-itinerary-stops li { display: flex; align-items: center; gap: 8px; font: 800 12px/1.4 var(--ui-font); white-space: nowrap }
+.editorial-cover .hub-itinerary-stops li:not(:last-child) { flex: 1 }
+.editorial-cover .hub-itinerary-stops li::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: #e58b9a; border: 2px solid #923c51 }
+.editorial-cover .hub-itinerary-stops li:not(:last-child)::after { content: ""; flex: 1; height: 1px; margin-right: 3px; background: #a47c84 }
+
+.editorial-cover .hub-directory { grid-area: modes; min-width: 0 }
+.editorial-cover .hub-directory h2 { font: 800 15px/1.4 var(--ui-font); margin: 0 0 7px }
+.editorial-cover .hub-modes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px }
+.editorial-cover .hub-modes .hub-mode {
+  display: grid;
+  align-content: end;
+  isolation: isolate;
+  min-height: clamp(100px, 15dvh, 135px);
+  padding: 11px;
+  border: 1px solid var(--cover-line);
+  border-radius: 8px;
+  background: #261a22;
+  box-shadow: none;
+  transform: none;
+  text-align: left;
+  transition: border-color .15s;
+}
+.editorial-cover .hub-mode::after { inset: 0; z-index: 0; width: auto; height: auto; background: linear-gradient(0deg, #130e16f7 0%, #18101a9c 48%, #18101a06 92%); pointer-events: none }
+.editorial-cover .hub-card-photo {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 50% var(--card-y, 50%);
+  opacity: 1;
+  filter: none;
+  mask-image: none;
+  transition: none;
+}
+.editorial-cover .hub-mode[data-hub-mode=training] { --card-y: 4% }
+.editorial-cover .hub-mode[data-hub-mode=online] { --card-y: 39% }
+.editorial-cover .hub-mode[data-hub-mode=entrance] { --card-y: 60% }
+.editorial-cover .hub-mode > b { position: relative; z-index: 1; display: flex; align-items: center; justify-content: space-between; gap: 4px; margin: 0 0 3px; font: 800 17px/1.3 var(--ui-font); color: var(--cover-ink) }
+.editorial-cover .hub-mode > b > span { flex: none; color: #fff; font: 650 18px/1 var(--sport-font); transform: none }
+.editorial-cover .hub-mode > small { position: relative; z-index: 1; display: block; margin: 0; color: #eee1e7; font: 500 11px/1.4 var(--ui-font); letter-spacing: 0 }
 
 .editorial-cover .hub-feature {
   grid-area: player;
@@ -113,180 +149,91 @@
   margin: 0;
   overflow: hidden;
   border: 1px solid var(--cover-line);
-  border-radius: 12px;
-  background: #252027;
+  border-radius: 9px;
+  background: #28222a;
   opacity: 1;
   mask-image: none;
   pointer-events: auto;
 }
-.editorial-cover .hub-feature img {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  object-position: 51% 43%;
-  filter: none;
-  mask-image: none;
-  transform: none;
-  transition: none;
-}
-.editorial-cover .hub-feature[data-player=musiala] img { object-position: 55% 14% }
+.editorial-cover .hub-feature img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 51% 40%; filter: none; mask-image: none; transform: none; transition: none }
+.editorial-cover .hub-feature[data-player=musiala] img { object-position: 54% 22% }
 .editorial-cover .hub-feature:hover img { transform: none }
-.editorial-cover .hub-feature::before { background: linear-gradient(0deg, #101014f7, #10101489 24%, transparent 62%) }
+.editorial-cover .hub-feature::before { background: linear-gradient(0deg, #100d13f2, #100d1399 24%, transparent 63%) }
 .editorial-cover .hub-feature::after { display: none }
-.editorial-cover .hub-feature figcaption { inset: auto 17px 18px; text-align: left; gap: 6px; pointer-events: none }
-.editorial-cover .hub-feature figcaption>span {
-  display: block;
-  color: #ddd6da;
-  font: 600 11px/1.2 var(--sport-font);
-  letter-spacing: .12em;
-}
-.editorial-cover .hub-feature strong { color: #fff; opacity: 1; font: 600 clamp(26px, 3.1vw, 50px)/.95 var(--sport-font); letter-spacing: -.01em }
-.editorial-cover .hub-feature small { display: block; color: var(--cover-ink); font-size: 12px }
-.editorial-cover #hub-cover-number { margin-right: 5px; color: #ffadbd; font: 600 16px/1 var(--sport-font) }
-.editorial-cover .cover-picker {
-  position: absolute;
-  z-index: 3;
-  inset: 11px 11px auto auto;
-  display: flex;
-  gap: 2px;
-  padding: 3px;
-  border: 1px solid #ffffff37;
-  border-radius: 6px;
-  background: #121116ed;
-}
-.editorial-cover .cover-picker button {
-  min-height: 44px;
-  padding: 0 10px;
-  color: #ddd4db;
-  border-radius: 3px;
-  font: 600 12px/1 var(--sport-font);
-  letter-spacing: .045em;
-}
-.editorial-cover .cover-picker button[aria-pressed=true] { background: var(--cover-ink); color: #1c161d }
+.editorial-cover .hub-feature figcaption { inset: auto 15px 14px; text-align: left; gap: 4px; pointer-events: none }
+.editorial-cover .hub-feature figcaption > span { display: block; color: #eee0e7; font: 600 11px/1.2 var(--sport-font); letter-spacing: .12em }
+.editorial-cover .hub-feature strong { opacity: 1; color: #fff; font: 650 clamp(29px, 3vw, 47px)/.95 var(--sport-font); letter-spacing: -.018em }
+.editorial-cover .hub-feature small { display: block; color: var(--cover-ink); font: 500 12px/1.4 var(--ui-font) }
+.editorial-cover #hub-cover-number { margin-right: 4px; color: #ffaabd; font: 650 16px/1 var(--sport-font) }
+.editorial-cover .cover-picker { position: absolute; z-index: 3; inset: 9px 10px auto auto; display: flex; gap: 2px; padding: 2px; border: 1px solid #ffffff37; border-radius: 6px; background: #141218e8 }
+.editorial-cover .cover-picker button { min-height: 44px; padding: 0 8px; border-radius: 3px; color: #eee3e8; font: 650 12px/1 var(--sport-font); letter-spacing: .04em }
+.editorial-cover .cover-picker button[aria-pressed=true] { background: var(--cover-ink); color: #221721 }
 
-.editorial-cover .hub-directory { grid-area: modes; min-width: 0 }
-.editorial-cover .hub-directory h2 { font: 800 16px/1.4 var(--ui-font); margin: 0 0 9px }
-.editorial-cover .hub-modes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: clamp(8px, 1vw, 15px) }
-.editorial-cover .hub-modes .hub-mode {
-  display: grid;
-  align-content: end;
-  isolation: isolate;
-  min-height: clamp(118px, min(13.8vw, 22.5dvh), 194px);
-  padding: 14px;
-  border: 1px solid var(--cover-line);
-  border-radius: 9px;
-  background: #201d23;
-  box-shadow: none;
-  text-align: left;
-  transform: none;
-  transition: border-color .15s;
-}
-.editorial-cover .hub-mode::after {
-  inset: 0;
-  z-index: 0;
-  width: auto;
-  height: auto;
-  background: linear-gradient(0deg, #0d0c11f5 1%, #141117b3 33%, #18141a16 73%);
-  pointer-events: none;
-}
-.editorial-cover .hub-card-photo {
-  position: absolute;
-  z-index: -1;
-  inset: 0;
-  display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  object-position: var(--card-x, 50%) var(--card-y, 50%);
-  opacity: 1;
-  filter: none;
-  mask-image: none;
-  transition: none;
-}
-.editorial-cover .hub-mode[data-hub-mode=training] { --card-y: 4% }
-.editorial-cover .hub-mode[data-hub-mode=online] { --card-y: 33% }
-.editorial-cover .hub-mode[data-hub-mode=entrance] { --card-y: 59% }
-.editorial-cover .hub-mode>b { position: relative; z-index: 1; display: flex; align-items: center; justify-content: space-between; gap: 5px; margin: 0 0 4px; font: 800 17px/1.35 var(--ui-font); color: var(--cover-ink) }
-.editorial-cover .hub-mode>b>span { display: block; flex: none; color: #fff; font: 600 18px/1 var(--sport-font); transition: color .15s }
-.editorial-cover .hub-mode>small { position: relative; z-index: 1; display: block; margin: 0; color: #eee3e9; font-size: 11px; line-height: 1.5; letter-spacing: 0 }
-
-.editorial-cover .hub-footer { gap: 12px; padding-top: 8px; border-color: var(--cover-line) }
-.editorial-cover .hub-footer>p { font-size: 11px; color: var(--cover-muted) }
+.editorial-cover .hub-footer { gap: 10px; padding-top: 8px; border-color: var(--cover-line) }
+.editorial-cover .hub-footer > p { font-size: 11px; color: var(--cover-muted) }
 .editorial-cover .hub-footer a { color: var(--cover-ink); text-underline-offset: 3px }
 .editorial-cover .hub-preferences { gap: 10px }
 .editorial-cover .hub-time button { min-height: 44px; color: var(--cover-muted) }
 .editorial-cover .hub-time button[aria-pressed=true] { color: var(--cover-ink) }
 .editorial-cover .hub-preferences select { min-height: 44px; background: #221e25; color: var(--cover-ink); border-color: var(--cover-line) }
 .editorial-cover :is(button, select, a):focus-visible { outline: 2px solid #ffb6c3; outline-offset: 2px }
-.editorial-cover .hub-mode:focus-visible { outline-offset: 3px }
+.editorial-cover .hub-itinerary-head button:focus-visible { outline-color: #962f4e }
 @media (hover: hover) and (pointer: fine) {
   .editorial-cover .hub-modes .hub-mode:hover { border-color: #fda0b2 }
-  .editorial-cover .hub-mode:hover>b>span { color: #ff9eaf; transform: none }
-  .editorial-cover .hub-kickoff:hover { background: #dc2348; transform: none }
-  .editorial-cover .hub-explore:hover { background: #322632; border-color: #fff9 }
+  .editorial-cover .hub-kickoff:hover { background: #e02b4b; transform: none }
+  .editorial-cover .hub-explore:hover { background: #352831; border-color: #fff9 }
+  .editorial-cover .hub-itinerary-head button:hover { background: #e3ced3 }
 }
 
 @media (max-width: 740px) {
-  #arena-hub.editorial-cover[open] { gap: 11px }
-  .editorial-cover .hub-header { min-height: 46px; padding: 0 0 2px; gap: 10px }
-  .editorial-cover .hub-header>button { font-size: 12px }
-  .editorial-cover .hub-body { grid-template-columns: minmax(0, 1fr); grid-template-areas: "hero" "modes" "player"; gap: 15px }
-  .editorial-cover .hub-stage { min-height: clamp(285px, 40dvh, 326px); align-items: stretch }
-  .editorial-cover .hub-stadium { object-fit: contain; width: 113%; height: auto; inset: auto -6% 50px auto }
-  .editorial-cover .hub-stage::before { background: linear-gradient(180deg, #181418 0%, #181418ee 32%, #1814180d 59%, transparent 72%, #181418 98%) }
-  .editorial-cover .hub-lead { display: flex; flex-direction: column; justify-content: space-between; padding: 17px 15px 12px }
-  .editorial-cover .hub-eyebrow { margin-bottom: 8px; font-size: 11px }
-  .editorial-cover .hub-intro h1 { font-size: clamp(34px, 11vw, 56px); margin-bottom: 4px }
-  .editorial-cover .hub-description { font-size: 13px }
-  .editorial-cover .hub-cta { margin-top: 8px; flex-wrap: nowrap }
+  #arena-hub.editorial-cover[open] { gap: 9px }
+  .editorial-cover .hub-header { min-height: 45px; gap: 8px; padding-bottom: 3px }
+  .editorial-cover .hub-header > button { font-size: 12px }
+  .editorial-cover .hub-body { grid-template-columns: minmax(0, 1fr); grid-template-areas: "hero" "route" "modes" "player"; gap: 12px }
+  .editorial-cover .hub-stage { min-height: clamp(280px, 39dvh, 342px); align-items: stretch }
+  .editorial-cover .hub-stadium { width: 100%; height: 74%; inset: 20% auto auto 0; object-position: 53% center }
+  .editorial-cover .hub-stage::before { background: linear-gradient(180deg, #171117 0%, #171117ec 24%, #17111700 57%, #17111700 62%, #171117ec 89%, #171117 99%) }
+  .editorial-cover .hub-lead { display: flex; flex-direction: column; justify-content: space-between; padding: 16px 13px 13px }
+  .editorial-cover .hub-eyebrow { margin-bottom: 6px; font-size: 12px }
+  .editorial-cover .hub-intro h1 { margin-bottom: 5px; font-size: clamp(38px, 11.2vw, 64px) }
+  .editorial-cover .hub-description { font-size: 12px }
+  .editorial-cover .hub-cta { margin-top: 8px; flex-wrap: nowrap; gap: 7px }
   .editorial-cover :is(.hub-kickoff, .hub-explore) { flex: 1; min-height: 46px; gap: 7px; padding: 0 10px; font-size: 13px }
-  .editorial-cover .hub-directory h2 { margin-bottom: 7px; font-size: 15px }
-  .editorial-cover .hub-modes .hub-mode { min-height: 112px; padding: 8px }
-  .editorial-cover .hub-mode>b { font-size: 14px; margin-bottom: 3px }
-  .editorial-cover .hub-mode>b>span { font-size: 15px }
-  .editorial-cover .hub-mode>small { font-size: 10px }
-  .editorial-cover .hub-feature { min-height: 174px }
-  .editorial-cover .hub-feature img { width: 67%; inset: 0 0 0 auto; object-position: 60% 36%; mask-image: linear-gradient(90deg, transparent, #000 28%) }
-  .editorial-cover .hub-feature[data-player=musiala] img { object-position: 63% 12% }
-  .editorial-cover .hub-feature::before { background: linear-gradient(90deg, #211c23 0, #211c23a8 34%, transparent 66%), linear-gradient(0deg, #141116da, transparent 50%) }
-  .editorial-cover .hub-feature figcaption { inset: auto 12px 13px; gap: 5px }
-  .editorial-cover .hub-feature strong { font-size: clamp(25px, 7.5vw, 42px) }
-  .editorial-cover .cover-picker { inset: 10px auto auto 10px }
+  .editorial-cover .hub-itinerary { padding: 11px 11px 10px }
+  .editorial-cover .hub-itinerary-head p { font-size: 10px }
+  .editorial-cover .hub-itinerary h2 { font-size: clamp(15px, 4.6vw, 23px) }
+  .editorial-cover .hub-itinerary-head > button { gap: 6px; padding: 0 7px; font-size: 12px }
+  .editorial-cover .hub-itinerary-head > button span { font-size: 17px }
+  .editorial-cover .hub-itinerary-stops li { font-size: 11px; gap: 5px }
+  .editorial-cover .hub-itinerary-stops li::before { width: 7px; height: 7px; border-width: 1px }
+  .editorial-cover .hub-directory h2 { margin-bottom: 5px; font-size: 14px }
+  .editorial-cover .hub-modes { gap: 6px }
+  .editorial-cover .hub-modes .hub-mode { min-height: 104px; padding: 7px }
+  .editorial-cover .hub-mode > b { font-size: clamp(12px, 3.5vw, 16px); margin-bottom: 2px }
+  .editorial-cover .hub-mode > b > span { font-size: 15px }
+  .editorial-cover .hub-mode > small { font-size: 10px }
+  .editorial-cover .hub-feature { min-height: 175px }
+  .editorial-cover .hub-feature img { width: 68%; inset: 0 0 0 auto; object-position: 55% 37%; mask-image: linear-gradient(90deg, transparent, #000 28%) }
+  .editorial-cover .hub-feature[data-player=musiala] img { object-position: 57% 21% }
+  .editorial-cover .hub-feature::before { background: linear-gradient(90deg, #211923 4%, #2119237a 42%, transparent 68%), linear-gradient(0deg, #141116c9, transparent 55%) }
+  .editorial-cover .hub-feature figcaption { inset: auto 12px 12px }
+  .editorial-cover .hub-feature strong { font-size: clamp(29px, 8vw, 44px) }
+  .editorial-cover .cover-picker { inset: 8px auto auto 9px }
   .editorial-cover .hub-footer { flex-wrap: wrap }
   .editorial-cover .hub-preferences { width: 100%; margin: 0; flex-wrap: wrap; justify-content: space-between }
 }
-
-@media (max-width: 345px) {
-  .editorial-cover .hub-modes { grid-template-columns: repeat(2, minmax(0, 1fr)) }
-  .editorial-cover .hub-mode[data-hub-mode=entrance] { grid-column: 1 / -1 }
-  .editorial-cover .hub-preferences select { max-width: 115px }
+@media (max-width: 339px) {
+  .editorial-cover .hub-mode > b > span { display: none }
+  .editorial-cover .hub-preferences select { max-width: 112px }
 }
-
-@media (max-height: 520px) and (min-width: 700px) {
-  #arena-hub.editorial-cover[open] { gap: 9px }
-  .editorial-cover .hub-header { min-height: 44px; padding-bottom: 2px }
-  .editorial-cover .hub-body { grid-template-columns: minmax(0, 2.7fr) minmax(174px, 1fr); grid-template-areas: "hero player" "modes modes"; gap: 8px 12px }
-  .editorial-cover .hub-stage { min-height: 187px; align-items: center }
-  .editorial-cover .hub-stadium { inset: 0 0 0 auto; width: 100%; height: 100%; object-fit: cover }
-  .editorial-cover .hub-stage::before { background: linear-gradient(90deg, #181418 4%, #181418de 23%, #18141836 59%, transparent 92%) }
-  .editorial-cover .hub-lead { display: block; padding: 16px }
-  .editorial-cover .hub-intro h1 { font-size: clamp(36px, 5.2vw, 54px) }
-  .editorial-cover .hub-cta { margin-top: 10px }
-  .editorial-cover :is(.hub-kickoff, .hub-explore) { flex: none; min-height: 44px }
-  .editorial-cover .hub-feature { min-height: 0 }
-  .editorial-cover .hub-feature img { width: 100%; mask-image: none }
-  .editorial-cover .hub-feature figcaption { inset: auto 10px 12px }
-  .editorial-cover .hub-feature strong { font-size: clamp(26px, 3vw, 38px) }
-  .editorial-cover .cover-picker { inset: 7px 7px auto auto }
-  .editorial-cover .cover-picker button { padding-inline: 8px }
-  .editorial-cover .hub-directory h2 { margin-bottom: 5px; font-size: 13px }
-  .editorial-cover .hub-modes .hub-mode { min-height: 91px; padding: 8px }
+@media (max-height: 520px) and (min-width: 741px) {
+  .editorial-cover .hub-stage { min-height: 226px }
+  .editorial-cover .hub-lead { padding: 18px }
+  .editorial-cover .hub-intro h1 { font-size: 55px }
+  .editorial-cover .hub-cta { margin-top: 11px }
 }
-
 @media (prefers-reduced-motion: reduce) {
-  .editorial-cover :is(.hub-mode, .hub-mode>b>span, .hub-kickoff, .hub-explore) { transition: none }
+  .editorial-cover :is(.hub-mode, .hub-kickoff, .hub-explore, .hub-itinerary-head > button) { transition: none }
 }
 body[data-startup=home] #loading { visibility: hidden }
 body[data-startup=error] .load-track { display: none }

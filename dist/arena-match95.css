@@ -661,3 +661,68 @@
   font-size: 11px;
   color: #aab8c3;
 }
+
+.squad-tactics {
+  min-width: 0;
+  margin: 0 0 16px;
+  padding: 9px 11px 10px;
+  border: 1px solid var(--arena-line);
+  border-radius: 8px;
+}
+
+.squad-tactics legend {
+  padding: 0 6px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.squad-tactic-options {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.squad-tactic-options button {
+  min-height: 44px;
+  padding: 5px;
+  border: 1px solid #ffffff31;
+  border-radius: 5px;
+  background: #ffffff08;
+  font-size: 12px;
+}
+
+.squad-tactic-options button[aria-pressed=true] {
+  border-color: #d5ba80;
+  background: #d5ba802e;
+  color: #f2da9f;
+}
+
+.squad-tactic-options button:focus-visible {
+  outline: 2px solid #f2da9f;
+  outline-offset: 2px;
+}
+
+#squad-tactic-description {
+  margin: 7px 2px 0;
+  color: #d4dce1;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+@media (max-width: 390px) {
+  .squad-tactic-options { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+.training-course .training-course-record,
+.training-result .training-record {
+  margin: 7px 0 0;
+  color: #ecd197;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.training-result .training-record {
+  grid-column: 1 / -1;
+  padding-top: 9px;
+  border-top: 1px solid #d5ba8030;
+}

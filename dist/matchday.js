@@ -1,4 +1,5 @@
 import {trainingDrills} from './football-training.js';
+import {createTrainingRecords,trainingRecordText} from './training-records.js';
 import {buildOnlineLobby} from './online-lobby.js';
 import {buildPlayableMatch} from './playable-match.js';
 import {buildMatchdayCrowd} from './matchday-crowd.js';
@@ -18,11 +19,11 @@ export function buildMatchdayExperience({scene,stadium,onBegin,onPose,onFinish,o
  let active=false,cinematic=false,paused=false,pending=false,time=0,playerSeconds=0,worldTime=0,uiClock=0,visualClock=0,redraw=false,token=0,lastCountdown=-1,roared=false,steps=0,stepDistance=0,lastPosition=null,lastGamePaused=null;
  const setting=buildMatchdaySet(stadium.bowl,stadium.matchBall);
  if(players.preview)buildPlayerStudio(players.preview);
- let storage;try{storage=globalThis.localStorage;}catch{}const setup=buildMatchSetup(storage);
+ let storage;try{storage=globalThis.localStorage;}catch{}const setup=buildMatchSetup(storage),trainingRecords=createTrainingRecords(storage),recordLines=new Map();
  let lastYaw=0,rosterWasPaused=false,lastCheer=-10;
  for(const[team,title,xi]of [['home','FC BAYERN',homeXI],['away','DORTMUND',awayXI]]){const section=document.createElement('section'),heading=document.createElement('h3');heading.textContent=title;section.append(heading);for(const player of [...xi,...substitutes.filter(p=>p.team===team)]){const row=document.createElement('div'),number=document.createElement('b'),name=document.createElement('span');row.className='roster-player';number.textContent=player.player.number;name.textContent=player.player.name+(player.keeper?' · GK':'')+(player.role==='substitute'?' · 替补':'');row.append(number,name);section.append(row);}$('match-roster-content').append(section);}
  const audio=createMatchdayAudio({onState:state=>{document.body.dataset.matchSound=state.state;$('match-volume').value=String(Math.round(state.volume*100));$('match-mute').setAttribute('aria-pressed',String(state.muted));$('match-mute').setAttribute('aria-label',state.state==='unavailable'?'重试加载看台声':state.muted?'开启看台声':'静音看台声');const labels={loading:'声浪加载中',unavailable:'声音未加载 · 点击重试',playing:'看台声浪',muted:'已静音',paused:'声音已暂停',off:'声音已关闭'};$('match-audio-status').textContent=labels[state.state]||'看台声浪';}});
- const game=buildPlayableMatch({scene,stadium,players,audio,mobile,toast,onCamera:onGameCamera,onView:onGameView,onReadGameInput,getRenderCamera:getGameRenderCamera,onPause:setPaused,onRestart:()=>start(false,true,game.network,game.training),onExit:exit,onChangeMatch:()=>{const training=game.training;exit();launch(training?'training':undefined);},onCheer:cheer,onCrowdReaction:intensity=>{if(!game.training)crowd.react(worldTime,intensity);}});
+ const game=buildPlayableMatch({scene,stadium,players,audio,mobile,toast,trainingRecords,onCamera:onGameCamera,onView:onGameView,onReadGameInput,getRenderCamera:getGameRenderCamera,onPause:setPaused,onRestart:()=>start(false,true,game.network,game.training),onExit:exit,onChangeMatch:()=>{const training=game.training;exit();launch(training?'training':undefined);},onCheer:cheer,onCrowdReaction:intensity=>{if(!game.training)crowd.react(worldTime,intensity);}});
  const onlineLobby=buildOnlineLobby({getOptions:()=>setup.options,onOpen:()=>setPanel('online'),onEnter:session=>start(false,true,session),toast});
  function pausedNow(){return paused||game.active&&game.state.paused;}
  function cheer(){if(game.training||!active||pending||pausedNow()||worldTime-lastCheer<1.5)return false;lastCheer=worldTime;audio.cheer();crowd.react(worldTime,1);return true;}
@@ -47,13 +48,23 @@ export function buildMatchdayExperience({scene,stadium,onBegin,onPose,onFinish,o
   };
   $('match-dialog-title').textContent=labels[panel][0];
   $('match-intro-copy').textContent=labels[panel][1];
+  if(panel==='training')for(const [id,line] of recordLines){
+   const text=trainingRecordText(id,trainingRecords.get(id));
+   writeHudProperty(line,'textContent',text);writeHudProperty(line,'hidden',!text);
+  }
   for(const button of document.querySelectorAll('[data-match-tab]'))button.setAttribute('aria-selected',String(button.dataset.matchTab===panel));
   dialog.scrollTop=0;
  }
  for(const button of document.querySelectorAll('[data-match-tab]'))button.onclick=()=>{if(button.dataset.matchTab==='online')onlineLobby.open();else setPanel(button.dataset.matchTab);};
  $('online-configure').onclick=()=>setPanel('play');
  function launch(panel){const explicit=['training','play','online','tour'].includes(panel),room=new URLSearchParams(location.search).has('room');const selected=explicit?panel:room?'online':'play';setPanel(selected);setup.refresh();dialog.showModal();if(selected==='online')onlineLobby.open();}
- for(const drill of trainingDrills){const button=document.createElement('button');button.className='training-course';button.type='button';button.dataset.trainingDrill=drill.id;button.innerHTML='<small>'+({free:'01 / BALL CONTROL',passing:'02 / PASS & MOVE',shooting:'03 / FINISHING'}[drill.id])+'</small><b>'+drill.title+'</b><p>'+drill.description+'</p><span aria-hidden="true">↗</span>';button.onclick=()=>start(false,true,null,drill.id);$('training-courses').append(button);}
+ for(const drill of trainingDrills){
+  const button=document.createElement('button'),record=document.createElement('p');
+  button.className='training-course';button.type='button';button.dataset.trainingDrill=drill.id;
+  button.innerHTML='<small>'+({free:'01 / BALL CONTROL',passing:'02 / PASS & MOVE',shooting:'03 / FINISHING'}[drill.id])+'</small><b>'+drill.title+'</b><p>'+drill.description+'</p><span aria-hidden="true">↗</span>';
+  record.className='training-course-record';record.hidden=true;recordLines.set(drill.id,record);
+  button.append(record);button.onclick=()=>start(false,true,null,drill.id);$('training-courses').append(button);
+ }
  async function start(automatic=false,play=false,network=null,training=null){training=!network&&trainingDrills.some(d=>d.id===training)?training:null;const id=++token;if(game.active)game.exit(!!network&&game.network===network);active=true;cinematic=automatic;paused=false;lastGamePaused=null;pending=true;time=automatic?0:ENTRANCE_DURATION;playerSeconds=automatic?0:200;lastCountdown=-1;roared=false;stepDistance=0;lastPosition=null;panel.hidden=false;document.body.classList.add('match-active');crowd.setEnabled(!training);setting.setEnabled(!training);stadium.setMatchday?.(!training);players.root.visible=false;players.reset();
   // start() resumes the AudioContext in this click event before any network await.
   const options={...setup.options,...(training?{training}:{}),...(network?{opponent:network.opponent,difficulty:'regular'}:{})},sound=audio.start({ambience:!training}),models=Promise.all([players.prepare(),training?true:crowd.prepare()]).then(async([,crowdReady])=>{if(!active||id!==token)return;players.setOpponent(play?options.opponent:'dortmund');crowd.setOpponent(footballTeam(play?options.opponent:'dortmund'));if(!crowdReady)toast?.('观众贴图暂未载入，先显示轻量形象；重新开球可重试。');await onPrepare?.(players.root);if(!active||id!==token)return;if(!training)await onPrepare?.(crowd.root);if(!active||id!==token)return;if(play)await onPrepare?.(game.root);});dialog.close();onBegin?.({cinematic:automatic,playing:play});if(play)game.start(options,network);if(automatic)onPose?.(entranceSample(0,{reducedMotion}),{instant:true});renderUI();sound.then(value=>{if(!value&&active&&id===token)toast?.('声景暂未加载，可点击声音按钮重试；画面仍可继续体验。');},()=>{if(active&&id===token)toast?.('声景暂未加载，可点击声音按钮重试；画面仍可继续体验。');});const [modelResult]=await Promise.allSettled([models]);if(!active||id!==token)return;pending=false;if(modelResult.status==='rejected'){toast?.('球员模型未加载，请检查网络后重试。');if(play)game.fail();}else if(play)game.ready();renderUI();

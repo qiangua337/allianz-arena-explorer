@@ -206,7 +206,7 @@ export function attackingShape(players,team,system,sign,ball,owner,controlledId)
  return{anchor:{x,z,id:owner?.id},depth,flank,wide,outlet,edgeSupport,edgeDepth,edgeX,box,runLine:Number.isFinite(line)?clamp(Math.max(depth+1,line-1),-48,48):48};
 }
 
-export function movingAttackRuns(players,team,system,shape,sign,excluded,phase,previous=[],active=[]){
+export function movingAttackRuns(players,team,system,shape,sign,excluded,phase,previous=[],active=[],width=1){
  const {anchor,depth,runLine}=shape,side=anchor.x<0?-1:1;
  const ahead=runLine-depth;
  const counter=phase==='counter';
@@ -232,7 +232,7 @@ export function movingAttackRuns(players,team,system,shape,sign,excluded,phase,p
    const baseSide=Math.sign(system.positions[player.index][0]);
    const outlets=!counter&&forward&&shape.wide?[channel.x,side*15,-side*22]:[channel.x];
    for(const outlet of outlets)for(const offset of [0,-4,4]){
-    const x=clamp(outlet+offset,-28,28),targetDepth=forward?Math.min(channel.depth,from+(counter?13:9)):channel.depth;
+    const x=clamp((outlet+offset)*(forward?width:1),-28,28),targetDepth=forward?Math.min(channel.depth,from+(counter?13:9)):channel.depth;
     const target={x,z:sign*targetDepth};
     const gap=distance(player,target),passLength=distance(anchor,target);
     if(gap<2.5||gap>(counter?23:17)||passLength<5||passLength>37||forward&&targetDepth-from<2.7)continue;
@@ -374,7 +374,7 @@ export function passingSupportRun(players,team,system,shape,sign,owner,excluded,
  return best;
 }
 
-export function supportPosition(player,ball,players,{base,role='CM',sign=-1,attacking=false,shape=null}={}){
+export function supportPosition(player,ball,players,{base,role='CM',sign=-1,attacking=false,shape=null,width=1}={}){
  const anchor=shape?.anchor??ball,depth=anchor.z*sign,flank=Math.sign(anchor.x),wide=Math.abs(anchor.x)>8,baseX=base[0],side=Math.sign(baseX),nearSide=wide&&flank===side;
  let x=baseX+anchor.x*.20,q=-base[1]+depth*.20,speed=5.1;
  const edge=attacking&&shape&&shape.edgeSupport===player.id;
@@ -407,6 +407,7 @@ export function supportPosition(player,ball,players,{base,role='CM',sign=-1,atta
    x=side*(crossing?Math.max(10,22-(depth-30)*.65):nearSide?Math.max(19,Math.abs(anchor.x)-5):27);
    q=crossing?depth+8:Math.max(push,depth+(nearSide?6:4));speed=5.6;
   }
+  if(!boxPosition&&!edge&&(wideAttack.has(role)||wideBack.has(role)))x*=width;
   if(shape&&q>depth&&depth> -10)q=Math.min(q,shape.runLine+(role==='ST'?.2:0));
  }
  const z=sign*q;

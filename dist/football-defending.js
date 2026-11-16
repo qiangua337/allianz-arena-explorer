@@ -10,7 +10,7 @@ const wide={width:.76,shift:.36,depth:.61,min:-34,max:22,outletCover:6.5};
 const forward={width:.82,shift:.32,depth:.62,min:-28,max:30,outletCover:5.5};
 const roles={CB:centreBack,LB:fullBack,RB:fullBack,LWB:wingBack,RWB:wingBack,DM:holding,CM:midfielder,AM:forward,LM:wide,RM:wide,LW:wide,RW:wide,ST:forward};
 
-export function defendingShape(field,team,system,sign,ball,owner,pressers,{counter=false}={}){
+export function defendingShape(field,team,system,sign,ball,owner,pressers,{counter=false,line=0,width=1}={}){
  const ballX=clamp(ball.x+(ball.vx||0)*.28,-33,33),ballDepth=clamp((ball.z+(ball.vz||0)*.28)*sign,-51,51);
  const shape=new Map(),markers=[],threats=[],outlets=[],screeners=[],markedIds=[];
  const carrier=owner??(ball.targetId&&field.find(player=>player.id===ball.targetId));
@@ -45,11 +45,11 @@ export function defendingShape(field,team,system,sign,ball,owner,pressers,{count
   if(pressers?.includes(player.id))continue;
   const base=system.positions[player.index],profile=roles[system.roles[player.index]]||midfielder;
   const weakSide=base[0]*ballX<0?Math.min(1,Math.abs(ballX)/22):0;
-  const x=clamp(base[0]*(profile.width-.18*weakSide)+ballX*profile.shift,-31,31);
-  const depth=clamp(-base[1]+ballDepth*profile.depth-2,profile.min,profile.max);
+  const x=clamp(base[0]*(profile.width-.18*weakSide)*width+ballX*profile.shift,-31,31);
+  const depth=clamp(-base[1]+ballDepth*profile.depth-2+line,profile.min,profile.max);
   // Retain part of each player's formation position so the block can shift
   // without the midfield and the back line moving onto the same space.
-  const anchorX=base[0]+ball.x*.20,anchorDepth=-base[1]+ball.z*sign*.20;
+  const anchorX=base[0]*width+ball.x*.20,anchorDepth=-base[1]+ball.z*sign*.20+line;
   const point={x:anchorX+(x-anchorX)*shapeWeight,z:(anchorDepth+(depth-anchorDepth)*shapeWeight)*sign,speed:5.1};
   shape.set(player.id,point);
   if(profile.mark!==undefined)markers.push({player,profile,point,x,depth,used:false});

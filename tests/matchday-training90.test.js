@@ -68,12 +68,15 @@ test('training uses no crowd allocation or compile, completes from physical rece
  }
  assert.equal(experience.gameState.phase,'fulltime');assert.equal(node('game-overlay-title').textContent,'训练完成');
  assert.equal(node('training-result').hidden,false);assert.match(node('training-result').innerHTML,/成功传接/);
+ assert.match(node('training-result').innerHTML,/个人最佳 · 5 次传球/);
  assert.equal(node('game-result').hidden,true);assert.equal(node('game-overlay-team').hidden,true);
  assert.equal(calls.scores.length,0,'training must not overwrite arena screens with a fictitious match clock or opponent');
  await node('game-restart').onclick();
  assert.equal(experience.training,'passing');assert.equal(experience.gameState.training.metrics.completedPasses,0);
  assert.equal(experience.gameState.phase,'playing');assert.equal(node('training-result').hidden,true);
- assert.equal(calls.crowdConstructed,0);experience.exit();
+ assert.equal(calls.crowdConstructed,0);experience.exit();experience.launch('training');
+ const record=course.children.find(child=>child.className==='training-course-record');
+ assert.equal(record.hidden,false);assert.match(record.textContent,/个人最佳 · 5 次传球/);
 });
 
 test('changing a completed or paused course returns to training choices, then an ordinary match restores its HUD and crowd',async()=>{

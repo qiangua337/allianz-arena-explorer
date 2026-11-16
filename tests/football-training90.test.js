@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createFootballTraining,trainingDrills} from '../dist/football-training.js';
 import {createFootballSimulation} from '../dist/football-simulation.js';
+import {createTrainingRecords} from '../dist/training-records.js';
 
 const tick=(game,seconds,input={})=>{for(let i=0;i<Math.round(seconds*60);i++)game.update(1/60,input);};
 function until(game,condition,seconds=12){
@@ -12,6 +13,19 @@ function passToMate(game,number=0){
  const s=game.state,owner=s.players.find(p=>p.id===s.ball.ownerId),mate=s.players.filter(p=>p.team==='home'&&!p.trainingInactive&&p.id!==owner.id)[number%2];
  assert.equal(game.action('pass',{direction:{x:mate.x-owner.x,z:mate.z-owner.z},power:.45}),true);
  return mate;
+}
+function storageFixture(initial){
+ let content=initial,writes=0;
+ return {get writes(){return writes;},getItem:()=>content,setItem(_key,value){content=value;writes++;}};
+}
+function driveToNextGate(game){
+ const before=game.state.training.metrics.gates;
+ for(let i=0;i<900&&game.state.training.metrics.gates===before;i++){
+  const marker=game.state.training.targets.find(target=>target.active),ball=game.state.ball;
+  const x=marker.x-ball.x,z=marker.z-ball.z,n=Math.hypot(x,z)||1;
+  game.update(1/60,{x:x/n,z:z/n,sprint:true});
+ }
+ assert.equal(game.state.training.metrics.gates,before+1);
 }
 
 test('lessons use explicitly inactive actors, not red cards or an abandoned competition',()=>{
@@ -37,11 +51,12 @@ test('free warmup registers an actual dribbled ball crossing a marker and has no
 });
 
 test('five passes finish only after five physical teammate receptions',()=>{
- const game=createFootballTraining({drill:'passing'});
+ const storage=storageFixture(),records=createTrainingRecords(storage),game=createFootballTraining({drill:'passing',records});
  for(let index=0;index<5;index++){
   const receiver=passToMate(game,index),s=game.state;
   assert.equal(s.ball.ownerId,null);assert.ok(Math.hypot(s.ball.vx,s.ball.vz)>10);
   assert.equal(s.training.metrics.completedPasses,index,'starting a pass awards no completion');
+  assert.equal(storage.writes,0,'incomplete pass rounds do not save a result');
   tick(game,.1);assert.equal(s.training.metrics.completedPasses,index,'a ball in flight has not been received');
   until(game,()=>s.training.metrics.completedPasses===index+1);
   assert.equal(s.ball.ownerId,receiver.id);assert.equal(s.training.metrics.passes,index+1);
@@ -49,6 +64,10 @@ test('five passes finish only after five physical teammate receptions',()=>{
  assert.equal(game.state.training.successCount,5);assert.equal(game.state.training.completed,true);
  assert.equal(game.state.phase,'fulltime');assert.equal(game.state.paused,true);
  assert.deepEqual(game.state.score,{home:0,away:0});assert.equal(game.state.competition,null);
+ assert.deepEqual(createTrainingRecords(storage).get('passing'),game.state.training.record);
+ assert.equal(game.state.training.record.attempts,5);assert.ok(game.state.training.record.seconds>0);
+ assert.equal(storage.writes,1);assert.equal(game.state.training.newRecord,true);
+ game.reset();assert.equal(game.state.training.newRecord,false);assert.equal(game.state.training.record.attempts,5);
 });
 
 test('an unreceived pass does not award progress and reset preserves earned progress',()=>{
@@ -79,16 +98,50 @@ test('shots are real flights: a central attempt is saved and a well struck corne
 });
 
 test('eight resolved physical shots complete a lesson without a half or artificial match score',()=>{
- const game=createFootballTraining({drill:'shooting'});
+ const storage=storageFixture(),records=createTrainingRecords(storage),game=createFootballTraining({drill:'shooting',records});
  for(let i=0;i<8;i++){
   assert.equal(game.action('shoot',{direction:{x:i%2?-.9:.9,z:-.2},power:.75}),true);
+  assert.equal(storage.writes,0,'the shot must settle before saving the round');
   until(game,()=>game.state.training.completed||game.state.training.attempt>i+1);
  }
  const s=game.state;assert.equal(s.training.metrics.shots,8);assert.equal(s.stats.home.shots,8);
  assert.equal(s.training.completed,true);assert.equal(s.phase,'fulltime');assert.equal(s.competition,null);
  assert.equal(s.training.metrics.goals,s.score.home);assert.equal(s.training.metrics.onTarget,s.stats.home.onTarget);
  assert.ok(s.training.metrics.goals>0);assert.ok(s.training.metrics.goals<=8);
+ assert.deepEqual(createTrainingRecords(storage).get('shooting'),{goals:s.training.metrics.goals,onTarget:s.training.metrics.onTarget});
  const finished=structuredClone(s);game.setPaused(false);tick(game,3,{z:-1});assert.deepEqual(s,finished);
+});
+
+test('the dribbling record needs four actual markers on one unbroken lap and survives a reload',()=>{
+ const storage=storageFixture(),records=createTrainingRecords(storage),game=createFootballTraining({drill:'free',records});
+ driveToNextGate(game);game.resetAttempt();
+ for(let i=0;i<3;i++)driveToNextGate(game);
+ assert.equal(storage.writes,0,'resetting the ball invalidates the current lap');
+ for(let i=0;i<4;i++)driveToNextGate(game);
+ assert.equal(storage.writes,1);
+ assert.ok(game.state.training.record.seconds>1);
+ assert.deepEqual(createFootballTraining({drill:'free',records:createTrainingRecords(storage)}).state.training.record,game.state.training.record);
+});
+
+test('training record storage rejects damaged values, keeps stronger scores and tolerates unavailable storage',()=>{
+ const storage=storageFixture(JSON.stringify({free:{seconds:-1},passing:{seconds:1,attempts:4},shooting:{goals:9,onTarget:9}}));
+ const records=createTrainingRecords(storage);
+ for(const id of ['free','passing','shooting'])assert.equal(records.get(id),null);
+ assert.equal(records.submit('free',{seconds:8}),true);
+ assert.equal(records.submit('free',{seconds:9}),false);
+ assert.equal(records.submit('passing',{attempts:6,seconds:9}),true);
+ assert.equal(records.submit('passing',{attempts:5,seconds:12}),true,'efficiency wins before time');
+ assert.equal(records.submit('passing',{attempts:5,seconds:11}),true);
+ assert.equal(records.submit('shooting',{goals:3,onTarget:6}),true);
+ assert.equal(records.submit('shooting',{goals:2,onTarget:8}),false);
+ assert.equal(records.submit('shooting',{goals:3,onTarget:7}),true);
+ const otherTab=createTrainingRecords(storage);
+ assert.equal(otherTab.submit('free',{seconds:7}),true);
+ assert.equal(records.submit('free',{seconds:7.5}),false,'an older tab cannot overwrite the newer record');
+ assert.deepEqual(otherTab.get('shooting'),{goals:3,onTarget:7});
+ const denied=createTrainingRecords({getItem(){throw Error('Denied');},setItem(){throw Error('Denied');}});
+ assert.equal(denied.submit('free',{seconds:8}),true);
+ assert.deepEqual(denied.get('free'),{seconds:8});
 });
 
 test('pausing freezes the lesson, invalid deltas do not advance it, and restart clears all progress',()=>{

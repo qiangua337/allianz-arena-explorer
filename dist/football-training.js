@@ -1,5 +1,6 @@
 import {createFootballSimulation} from './football-simulation.js';
 import {trainingDrills,validTrainingDrill,trainingLayout,trainingGates} from './football-training-layout.js';
+import {createTrainingRecords} from './training-records.js';
 
 export {trainingDrills};
 const finiteTime=dt=>Number.isFinite(dt)?Math.max(0,Math.min(.25,dt)):0;
@@ -7,8 +8,9 @@ const near=(a,b,r)=>Math.hypot(a.x-b.x,a.z-b.z)<r;
 
 // A local lesson adapter over the same flight, reception and goalkeeper simulation
 // as a match. Progress comes from physical contacts / resolved shots, never rolls.
-export function createFootballTraining({drill='free',...settings}={}){
+export function createFootballTraining({drill='free',records=createTrainingRecords(),...settings}={}){
  let engine,lesson,lastEvent=0,pendingPass=null,pendingShot=null,recoverAt=null,gateIndex=0;
+ let lapStartedAt=null;
  const preferences={...settings};
  function start(id){
   const definition=trainingDrills.find(d=>d.id===validTrainingDrill(id));
@@ -16,15 +18,21 @@ export function createFootballTraining({drill='free',...settings}={}){
   lesson={id:definition.id,title:definition.title,instruction:definition.instruction,
    hint:definition.id==='shooting'?'移动调整角度 · 按住射门蓄力，松开出脚':definition.id==='passing'?'朝队友方向短传 · 半自动会在接球后切换控制':'移动、转向、加速 · 不设倒计时',
    feedback:'训练就绪',completed:false,attempt:1,attemptLimit:definition.attemptLimit,
-   targetCount:definition.targetCount,successCount:0,elapsed:0,
+   targetCount:definition.targetCount,successCount:0,elapsed:0,record:records.get(definition.id),newRecord:false,
    metrics:{passes:0,completedPasses:0,shots:0,onTarget:0,goals:0,gates:0,streak:0,bestStreak:0},
    targets:[],activeIds:trainingLayout(definition.id).map(p=>p.id)};
   engine.state.training=lesson;
-  pendingPass=pendingShot=recoverAt=null;gateIndex=0;lastEvent=engine.state.eventCount;
+  pendingPass=pendingShot=recoverAt=lapStartedAt=null;gateIndex=0;lastEvent=engine.state.eventCount;
   refreshTargets();return engine.state;
  }
  function feedback(message){lesson.feedback=message;engine.state.message=message;}
+ function recordResult(result){
+  lesson.newRecord=records.submit(lesson.id,result);
+  lesson.record=records.get(lesson.id);
+ }
  function finish(message){
+  const metrics=lesson.metrics,seconds=Math.round(lesson.elapsed*10)/10;
+  recordResult(lesson.id==='passing'?{attempts:metrics.passes,seconds}:{goals:metrics.goals,onTarget:metrics.onTarget});
   lesson.completed=true;recoverAt=null;engine.state.phase='fulltime';engine.state.phaseTime=0;engine.state.paused=true;
   Object.assign(engine.state.ball,{vx:0,vy:0,vz:0});
   for(const p of engine.state.players)p.vx=p.vz=0;
@@ -42,7 +50,7 @@ export function createFootballTraining({drill='free',...settings}={}){
   const paused=engine.state.paused;
   if(pendingPass)lesson.metrics.streak=0;
   lesson.attempt=lesson.id==='shooting'?lesson.metrics.shots+1:lesson.attempt+1;
-  pendingPass=pendingShot=recoverAt=null;
+  pendingPass=pendingShot=recoverAt=lapStartedAt=null;
   engine.resetPractice(lesson.attempt);engine.setPaused(paused);lastEvent=engine.state.eventCount;
   feedback('已回到训练标记 · 继续练习');refreshTargets();return true;
  }
@@ -103,8 +111,16 @@ export function createFootballTraining({drill='free',...settings}={}){
   if(lesson.id==='free'){
    const marker=trainingGates[gateIndex],owner=s.players.find(p=>p.id===s.ball.ownerId);
    if(owner?.team==='home'&&s.ball.y<.7&&near(s.ball,marker,1.8)){
+    let message='控球标记 '+(lesson.metrics.gates+1)+' · 前往下一个';
+    if(gateIndex===0)lapStartedAt=s.time;
+    if(gateIndex===trainingGates.length-1&&lapStartedAt!==null){
+     const seconds=Math.round((s.time-lapStartedAt)*10)/10;
+     recordResult({seconds});
+     message=(lesson.newRecord?'个人最佳':'本轮用时')+' · '+seconds.toFixed(1)+' 秒';
+     lapStartedAt=null;
+    }
     lesson.metrics.gates++;lesson.successCount=lesson.metrics.gates;gateIndex=(gateIndex+1)%trainingGates.length;
-    feedback('控球标记 '+lesson.metrics.gates+' · 前往下一个');
+    feedback(message);
    }
    lesson.metrics.goals=s.score.home;lesson.metrics.onTarget=s.stats.home.onTarget;
   }else if(lesson.id==='passing'&&pendingPass&&s.time>pendingPass.until){

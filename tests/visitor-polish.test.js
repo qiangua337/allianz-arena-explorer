@@ -49,6 +49,25 @@ test('a side trip or reload retains the selected tour stop without advancing it'
  restored.restore({id:'firstVisit',index:100});
  assert.equal(restored.state(),null);
 });
+test('guided progress keeps real arrivals during a pause or side trip and restores them after reload',()=>{
+ const tour=createWalkingTour();
+ assert.equal(tour.start('southToUpper').visitedCount,0);
+ assert.equal(tour.update('museum',true).visitedCount,0);
+ assert.equal(tour.update('arcade',true).visitedCount,1);
+ tour.pause();
+ assert.equal(tour.update('arcade',true).arrived,false);
+ assert.equal(tour.update('museum',true).visitedCount,1);
+ assert.equal(tour.next(),null);
+ const resumed=createWalkingTour();
+ resumed.restore(tour.snapshot());
+ assert.deepEqual([resumed.state().paused,resumed.state().visitedCount,resumed.state().goal],[true,1,'arcade']);
+ resumed.resume();
+ assert.equal(resumed.update('museum',true).arrived,false);
+ assert.equal(resumed.update('arcade',true).arrived,true);
+ assert.equal(resumed.next(),'museum');
+ assert.equal(resumed.state().visitedCount,1);
+ assert.equal(resumed.update('museum',true).visitedCount,2);
+});
 test('same-tab walk checkpoints match the intended place and refuse stale or obstructed positions',()=>{
  let payload,writes=0;
  const storage={setItem(_key,data){payload=data;writes++;},getItem(){return payload;}};

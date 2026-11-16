@@ -6,7 +6,7 @@ import {footballInput,footballCamera,advanceFootballCamera,offscreenBallCue,pena
 import {loadVisualAssets,applySurfaceQuality} from './visual-assets.js';
 import {installInteriorShading} from './interior-shading.js';
 import {lightingProfile,updateSceneLighting} from './lighting-profile.js';
-import {walkingTours,createWalkingTour} from './walk-tours.js';
+import {walkingTours,createWalkingTour,walkingTourFromSearch,walkingTourShareURL} from './walk-tours.js';
 import {createWalkCheckpoint,safeCheckpointFloor} from './walk-checkpoint.js';
 import {loadVisitorSettings,saveVisitorSettings,qualityProfile,matchFpsCap} from './visitor-settings.js';
 import {smoothWalkInput} from './walk-smoothing.js';
@@ -102,17 +102,20 @@ export async function startArena({hub, initial, nightAtStart}){
  setExplorationMatchMode=suspendExplorationRoots([building.root,stadium.circulation.root]);
  setObscuredExploration=suspendExplorationRoots([interiors.root,serviceRooms.root]);
  setObscuredGrounds=suspendExplorationRoots([world.group]);
- freezeArchitecture(world.group,[world.rotor]);freezeArchitecture(stadium.root,[stadium.matchBall]);freezeArchitecture(stadium.circulation.root);freezeArchitecture(interiors.root);freezeArchitecture(building.root);destinationMenu=buildDestinationMenu({onDismiss:()=>setNavOpen(false)});buildHotspots();bindUI();setNavOpen(false);document.body.dataset.mode=mode;setDayNight(nightAtStart);applySurfaceQuality(scene,qualityMode);clock.time=performance.now();document.body.dataset.version='10.8.1';document.body.dataset.seats=stadium.seatCount;document.body.dataset.panels=stadium.panelCount;
- const requestedPlace=initial.get('place');
- if(initial.get('view')==='walk'){
-  const place=requestedPlace&&(places[requestedPlace]||tourGoals[requestedPlace])?requestedPlace:'arcade';
-  const saved=restoreWalkCheckpoint(initial,place);
-  setMode('walk',{place});
-  if(saved){
-   const goal=normalizeDestination(place),threshold=tourNodes.upperThreshold;
-   const stoppedOnBridge=goal==='upperStands'&&Math.abs(saved.feet-threshold.y)<.9&&
-    Math.hypot(saved.x-threshold.x,saved.z-threshold.z)<2.4;
-   walkGuide.restoreState({goal,selected:true,collapsed:saved.collapsed,arrived:saved.arrived&&!stoppedOnBridge},navigationPosition());
+ freezeArchitecture(world.group,[world.rotor]);freezeArchitecture(stadium.root,[stadium.matchBall]);freezeArchitecture(stadium.circulation.root);freezeArchitecture(interiors.root);freezeArchitecture(building.root);destinationMenu=buildDestinationMenu({onDismiss:()=>setNavOpen(false)});buildHotspots();bindUI();setNavOpen(false);document.body.dataset.mode=mode;setDayNight(nightAtStart);applySurfaceQuality(scene,qualityMode);clock.time=performance.now();document.body.dataset.version='11.0.0';document.body.dataset.seats=stadium.seatCount;document.body.dataset.panels=stadium.panelCount;
+ const requestedPlace=initial.get('place'),requestedTour=walkingTourFromSearch(initial);
+ if(requestedTour||initial.get('view')==='walk'){
+  const place=requestedPlace&&(places[requestedPlace]||tourGoals[requestedPlace])?requestedPlace:requestedTour?.stops[0]||'arcade';
+  const saved=restoreWalkCheckpoint(initial,place,requestedTour?.id);
+  if(requestedTour&&!saved)startWalkingTour(requestedTour.id);
+  else{
+   setMode('walk',{place});
+   if(saved){
+    const goal=normalizeDestination(place),threshold=tourNodes.upperThreshold;
+    const stoppedOnBridge=goal==='upperStands'&&Math.abs(saved.feet-threshold.y)<.9&&
+     Math.hypot(saved.x-threshold.x,saved.z-threshold.z)<2.4;
+    walkGuide.restoreState({goal,selected:true,collapsed:saved.collapsed,arrived:saved.arrived&&!stoppedOnBridge},navigationPosition());
+   }
   }
  }else if(requestedPlace&&(places[requestedPlace]||tourGoals[requestedPlace]))goPlace(requestedPlace,false);
  $('load-status').textContent='正在准备室内与室外画面…';await renderer.compileAsync(scene,camera);document.body.dataset.ready='true';clock.time=performance.now();renderer.setAnimationLoop(render);
@@ -120,10 +123,10 @@ export async function startArena({hub, initial, nightAtStart}){
  return arenaEntry;
 }
 
-function restoreWalkCheckpoint(initial,place){
+function restoreWalkCheckpoint(initial,place,tourId){
  if(initial.has('room')||initial.has('experience')||performance.getEntriesByType('navigation')[0]?.type!=='reload')return null;
  const saved=walkCheckpoint.load(place);
- if(!saved)return null;
+ if(!saved||tourId&&saved.tour?.id!==tourId)return null;
  const feet=safeCheckpointFloor(saved,walkGeometry,blocked);
  if(feet===null)return null;
  walker.position.set(saved.x,feet+EYE_HEIGHT,saved.z);
@@ -153,6 +156,11 @@ const arenaEntry={
  },
  enter(panel){
   if(matchday.active)matchday.exit();
+  if(panel==='guided'){
+   if(walkingTour.state()?.id==='southToUpper')resumeWalkingTour();
+   else startWalkingTour('southToUpper');
+   return;
+  }
   if(panel==='explore'){
    walkingTour.cancel();
    setMode('walk',{place:'entrance'});
@@ -230,6 +238,7 @@ function goPlace(id,animate=true){
  const detour=tour?.goal===walkGuide.getGoal()&&normalizeDestination(id)!==tour.goal;
  const p=places[id]||(tourGoals[id]?{...(id==='entrance'?places.exterior:places.stands),title:tourGoals[id]}:null);if(!p)return;setNavOpen(false);clearWalkInput();active=id;document.body.dataset.place=id;document.querySelectorAll('.location').forEach(b=>{const on=b.dataset.place===id;b.classList.toggle('active',on);b.setAttribute('aria-current',on?'location':'false');});$('place-title').textContent=p.title;$('place-tag').textContent=p.tag;$('place-desc').textContent=p.desc;$('accuracy-tag').textContent=p.accuracy;
  walkGuide.setGoal(normalizeDestination(id),navigationPosition(),mode==='walk'?desiredEye:EYE_HEIGHT);
+ walkGuide.setTourPaused(tour?.paused===true&&tour.goal===walkGuide.getGoal());
  if(mode==='walk'){setWalkReady(true);canvas.focus({preventScroll:true});transition=null;if(!matchStarting)toast('已设置步行路线：'+(tourGoals[id]||p.title)+(detour?' · 原导览已保留':''));}else{
   controls.maxPolarAngle=roomSpecs[id]||id==='tunnel'||id==='concourse'?Math.PI*.8:Math.PI*.61;
   const dest=v(...p.pos),target=v(...p.target);if(animate&&!mediaReduced&&!roomSpecs[id]&&id!=='tunnel'&&id!=='concourse'){transition={from:camera.position.clone(),to:dest,startTarget:controls.target.clone(),target,time:0,duration:1.65};}else{camera.position.copy(dest);controls.target.copy(target);controls.update();transition=null;}
@@ -525,28 +534,133 @@ function setQuality(){
 }
 
 function resize(){document.body.dataset.touch=String(innerWidth<=1024);syncDrawingBuffer();camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();frameBudget.invalidate();}
-function updateLocationURL(){const q=new URLSearchParams(),room=matchday?.onlineRoom||new URLSearchParams(location.search).get('room');if(room)q.set('room',room);if(active!=='exterior'||mode==='walk')q.set('place',active);if(night)q.set('night','1');if(mode==='walk')q.set('view','walk');if(matchday?.active){q.set('experience',matchday.training?'training':matchday.playing?'football':'matchday');if(matchday.training)q.set('drill',matchday.training);}history.replaceState(null,'',location.pathname+(q.size?'?'+q:''));}
+function updateLocationURL(){
+ const query=new URLSearchParams(),room=matchday?.onlineRoom||new URLSearchParams(location.search).get('room');
+ if(room)query.set('room',room);
+ if(active!=='exterior'||mode==='walk')query.set('place',active);
+ if(night)query.set('night','1');
+ if(mode==='walk'){
+  query.set('view','walk');
+  const tour=walkingTour.state();
+  if(tour&&!room&&!matchday?.active)query.set('tour',tour.id);
+ }
+ if(matchday?.active){
+  query.set('experience',matchday.training?'training':matchday.playing?'football':'matchday');
+  if(matchday.training)query.set('drill',matchday.training);
+ }
+ history.replaceState(null,'',location.pathname+(query.size?'?'+query:''));
+}
+function startWalkingTour(id){
+ const selected=walkingTour.start(id);
+ if(!selected)return;
+ $('walking-tour-dialog').close();
+ if(mode!=='walk')setMode('walk',{place:selected.goal});
+ else goPlace(selected.goal,false);
+ beginWalk();refreshWalkingTour();saveWalkCheckpoint();
+}
 function resumeWalkingTour(){
- const tour=walkingTour.state();
- if(!tour)return;
+ const before=walkingTour.state();
+ if(!before)return;
+ const tour=walkingTour.resume();
  $('walking-tour-dialog').close();
  if(mode!=='walk')setMode('walk',{place:tour.goal});
- else if(walkGuide.getGoal()!==tour.goal)goPlace(tour.goal,false);
- beginWalk();refreshWalkingTour();
+ else if(walkGuide.getGoal()!==tour.goal||before.paused)goPlace(tour.goal,false);
+ beginWalk();refreshWalkingTour();saveWalkCheckpoint();
+}
+function nextWalkingTourStop(){
+ if(!walkingTour.state()?.arrived)return;
+ const goal=walkingTour.next();
+ if(goal)goPlace(goal,false);
+ else{updateLocationURL();toast('导览已完成，可以继续自由探索。');}
+ refreshWalkingTour();saveWalkCheckpoint();
+}
+function endWalkingTour(){
+ const tour=walkingTour.state();
+ walkingTour.cancel();
+ if(tour?.paused&&walkGuide.getGoal()===tour.goal)walkGuide.reset(navigationPosition());
+ $('walking-tour-dialog').close();
+ if(mode==='walk')beginWalk();
+ refreshWalkingTour();saveWalkCheckpoint();updateLocationURL();
 }
 function upcomingWalkDestination(){
  const tour=walkingTour.state();
- if(!tour)return undefined;
+ if(!tour||tour.paused)return undefined;
  return tour.goal===walkGuide.getGoal()?tour.nextGoal:tour.goal;
 }
 function advanceWalkingTourFromGuide(){
  const tour=walkingTour.state();
- if(!tour)return false;
- if(tour.goal===walkGuide.getGoal())$('tour-advance').click();
+ if(!tour||tour.paused)return false;
+ if(tour.goal===walkGuide.getGoal())nextWalkingTourStop();
  else resumeWalkingTour();
  return true;
 }
-function refreshWalkingTour(){const state=walkingTour.update(walkGuide.getGoal(),walkGuide.isArrived()),show=state?.arrived&&mode==='walk'&&walkReady&&!seatStanding&&$('explore').hidden&&!document.querySelector('dialog[open]'),key=JSON.stringify([state?.id,state?.index,state?.arrived,!!show]);if(key===tourUIState)return;tourUIState=key;document.body.dataset.walkingTour=state?.id||'none';$('tour-arrival').hidden=!show;if(state){$('tour-arrival-progress').textContent=`${state.index+1} / ${state.total} · ${state.title}`;$('tour-arrival-title').textContent='已到达 · '+tourGoals[state.goal];$('tour-advance').textContent=state.last?'完成导览':'下一站 →';}}
+function renderTourItinerary(state,detour){
+ $('walking-tour-current').textContent=state.title;
+ $('walking-tour-count').textContent=`已参观 ${state.visitedCount} / ${state.total} 站`;
+ const meter=$('walking-tour-meter');meter.max=state.total;meter.value=state.visitedCount;
+ $('walking-tour-itinerary').replaceChildren(...state.stops.map((id,index)=>{
+  const item=document.createElement('li'),name=document.createElement('strong'),status=document.createElement('small');
+  const visited=index<state.visitedCount,current=index===state.index;
+  item.dataset.tourStop=id;item.dataset.status=visited?'visited':current?'current':'upcoming';
+  if(current)item.setAttribute('aria-current','step');
+  name.textContent=tourGoals[id];
+  status.textContent=visited?'已到达':current?(state.paused?'已暂停':detour?'待继续':'前往中'):index===state.index+1?'下一站':'待参观';
+  item.append(name,status);return item;
+ }));
+ const resume=$('walking-tour-resume'),pause=$('walking-tour-pause');
+ resume.hidden=!state.paused&&!detour;
+ resume.textContent='继续前往 · '+tourGoals[state.goal];
+ pause.hidden=state.paused;
+}
+function showWalkingTours(){
+ setNavOpen(false);clearWalkInput();document.exitPointerLock?.();
+ const state=walkingTour.state();
+ $('walking-tour-progress').hidden=!state;
+ $('walking-tour-plans').hidden=!!state;
+ $('walking-tour-change').setAttribute('aria-expanded','false');
+ $('walking-tour-link').hidden=true;
+ $('walking-tour-share-status').textContent='';
+ if(state)renderTourItinerary(state,state.goal!==walkGuide.getGoal());
+ $('walking-tour-dialog').showModal();
+ refreshWalkingTour();
+}
+async function shareWalkingTour(){
+ const tour=walkingTour.state();
+ if(!tour)return;
+ const link=walkingTourShareURL(location.href,tour.id,night);
+ let copied=false;
+ try{
+  await navigator.clipboard.writeText(link);
+  copied=true;
+ }catch{}
+ if(!$('walking-tour-dialog').open||walkingTour.state()?.id!==tour.id)return;
+ $('walking-tour-link').hidden=copied;
+ $('walking-tour-share-status').textContent=copied?'已复制导览链接':'请复制选中的导览链接';
+ if(!copied){
+  const field=$('walking-tour-share-field');
+  field.value=link;field.focus();field.select();
+ }
+}
+function refreshWalkingTour(){
+ const goal=walkGuide.getGoal(),state=walkingTour.update(goal,walkGuide.isArrived());
+ walkGuide.setTourPaused(state?.paused===true&&state.goal===goal);
+ const detour=!!state&&state.goal!==goal;
+ const visible=!!state&&mode==='walk'&&!seatStanding&&$('explore').hidden;
+ const showArrival=visible&&state.arrived&&walkReady&&!document.querySelector('dialog[open]');
+ const key=state?`${state.id}/${state.index}/${state.visitedCount}/${state.paused}/${detour}/${visible}/${showArrival}`:'none';
+ if(key===tourUIState)return;
+ tourUIState=key;
+ document.body.dataset.walkingTour=state?.id||'none';
+ document.body.dataset.walkingTourState=state?.paused?'paused':detour?'detour':state?'active':'none';
+ $('tour-overview').hidden=!visible;
+ $('tour-arrival').hidden=!showArrival;
+ if(!state)return;
+ $('tour-overview-stop').textContent=`${state.index+1} / ${state.total} · ${tourGoals[state.goal]}`;
+ $('tour-overview-next').textContent=state.paused?'已暂停 · 继续导览':detour?'自由探索 · 返回导览':state.nextGoal?'下一站 · '+tourGoals[state.nextGoal]:'最后一站';
+ $('tour-arrival-progress').textContent=`${state.visitedCount} / ${state.total} · ${state.title}`;
+ $('tour-arrival-title').textContent='已到达 · '+tourGoals[state.goal];
+ $('tour-advance').textContent=state.last?'完成导览':tourGoals[state.nextGoal]+' →';
+}
 function stopTour(){if(!tourOn)return;tourOn=false;$('tour').innerHTML='<span>▷</span> 自动巡游 <small>15 个视角</small>';}
 function bindUI(){
  document.body.dataset.touch=String(innerWidth<=1024);
@@ -598,11 +712,24 @@ function bindUI(){
  $('capture').onclick=()=>{drawArena();const a=document.createElement('a');a.download=`allianz-arena-${active}-${night?'night':'day'}.png`;a.href=canvas.toDataURL('image/png');a.click();toast('已保存当前场景截图。');};
  $('help').onclick=()=>matchday?.playing?matchday.showGameHelp():openDialog('help');$('references').onclick=()=>openDialog('references');document.querySelector('.close-dialog').onclick=()=>$('info-dialog').close();$('info-dialog').addEventListener('click',e=>{if(e.target===$('info-dialog')){const r=$('info-dialog').getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)$('info-dialog').close();}});
  $('tour').onclick=()=>{if(tourOn){stopTour();return;}if(mode==='walk')setMode('orbit');setNavOpen(false);tourOn=true;tourElapsed=0;tourIndex=Object.keys(places).indexOf(active);$('tour').innerHTML='<span>Ⅱ</span> 暂停巡游 <small>每 7.5 秒切换</small>';toast('自动巡游开始；拖动场景或选择区域可暂停。');};
- $('walking-tour-plans').innerHTML=walkingTours.map(plan=>`<button data-walking-tour="${plan.id}"><small>${plan.stops.length} 站</small><b>${plan.title}<span>↗</span></b><p>${plan.description}</p></button>`).join('');
- $('walking-tour').onclick=()=>{setNavOpen(false);clearWalkInput();const tour=walkingTour.state(),resume=$('walking-tour-resume');resume.hidden=!tour;if(tour)resume.textContent='继续导览 · '+tourGoals[tour.goal];$('walking-tour-dialog').showModal();};
- $('walking-tour-resume').onclick=resumeWalkingTour;$('walking-tour-close').onclick=()=>$('walking-tour-dialog').close();
- document.querySelectorAll('[data-walking-tour]').forEach(button=>button.onclick=()=>{walkingTour.cancel();$('walking-tour-dialog').close();if(mode!=='walk')setMode('walk');const selected=walkingTour.start(button.dataset.walkingTour);goPlace(selected.goal,false);beginWalk();toast('已开始：'+selected.title);refreshWalkingTour();});
- $('tour-advance').onclick=()=>{const goal=walkingTour.next();if(goal)goPlace(goal,false);else toast('导览已完成，可以继续自由探索。');refreshWalkingTour();};$('tour-end').onclick=()=>{walkingTour.cancel();refreshWalkingTour();};
+ $('walking-tour-plans').innerHTML=walkingTours.map(plan=>`<button type="button" data-walking-tour="${plan.id}"><small>${plan.stops.length} 站</small><b>${plan.title}<span aria-hidden="true">↗</span></b><span class="walking-tour-description">${plan.description}</span></button>`).join('');
+ $('walking-tour').onclick=$('tour-overview').onclick=showWalkingTours;
+ $('walking-tour-resume').onclick=resumeWalkingTour;
+ $('walking-tour-share').onclick=shareWalkingTour;
+ $('walking-tour-close').onclick=()=>$('walking-tour-dialog').close();
+ $('walking-tour-pause').onclick=()=>{
+  walkingTour.pause();$('walking-tour-dialog').close();
+  if(mode==='walk')beginWalk();
+  refreshWalkingTour();saveWalkCheckpoint();toast('已暂停导览 · 可自由探索');
+ };
+ $('walking-tour-change').onclick=()=>{
+  const plans=$('walking-tour-plans');plans.hidden=!plans.hidden;
+  $('walking-tour-change').setAttribute('aria-expanded',String(!plans.hidden));
+  if(!plans.hidden)plans.querySelector('button')?.focus({preventScroll:true});
+ };
+ document.querySelectorAll('[data-walking-tour]').forEach(button=>button.onclick=()=>startWalkingTour(button.dataset.walkingTour));
+ $('tour-advance').onclick=nextWalkingTourStop;
+ $('tour-end').onclick=$('walking-tour-end').onclick=endWalkingTour;
  $('nav-trigger').onclick=()=>setNavOpen($('explore').hidden);
  $('toggle-nav').onclick=()=>destinationMenu.dismiss();
  document.addEventListener('pointerdown',e=>{if(!$('explore').hidden&&!e.target.closest('#explore,#nav-trigger'))setNavOpen(false);});

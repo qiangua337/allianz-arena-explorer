@@ -338,6 +338,15 @@ test('free visit can choose the pitch in reception and look toward the first way
   assert.equal(orientations.length,2,'keyboard can still turn the camera');
   nodes.get('guide-collapse').onclick();assert.equal(orient.hidden,false);
   orient.onclick();assert.equal(orientations.at(-1),guide.getRoute()[0]);assert.deepEqual(position,before);
+  const route=guide.getRoute();
+  guide.setTourPaused(true);
+  guide.update(position,0,.2,'walk');
+  assert.equal(nodes.get('walk-guide').hidden,true);
+  assert.equal(bearing.disabled,true);
+  assert.equal(guide.getRoute(),route,'pausing keeps the target and existing intent');
+  guide.setTourPaused(false);
+  assert.equal(nodes.get('walk-guide').hidden,false);
+  assert.equal(bearing.disabled,false);
  }finally{document.getElementById=original;}
 });
 

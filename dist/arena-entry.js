@@ -22,7 +22,7 @@ function enter(mode){
  }
  if(loading)return;
  body.dataset.startup='loading';
- loading=import('./app.js?v=10801')
+ loading=import('./app.js?v=11000')
   .then(({startArena})=>startArena({hub,initial,nightAtStart:night}))
   .then(api=>{
    arena=api;
@@ -49,6 +49,7 @@ const hub=buildExperienceHub({
  onOpen:()=>arena?.pauseForHub(),
  onClose:state=>{if(state)arena.resumeFromHub(state);else enter();},
  onExplore:()=>enter('explore'),
+ onGuidedTour:()=>enter('guided'),
  onTraining:()=>enter('training'),
  onMatch:()=>enter('play'),
  onOnline:()=>enter('online'),
