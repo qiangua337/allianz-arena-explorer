@@ -102,7 +102,7 @@ export async function startArena({hub, initial, nightAtStart}){
  setExplorationMatchMode=suspendExplorationRoots([building.root,stadium.circulation.root]);
  setObscuredExploration=suspendExplorationRoots([interiors.root,serviceRooms.root]);
  setObscuredGrounds=suspendExplorationRoots([world.group]);
- freezeArchitecture(world.group,[world.rotor]);freezeArchitecture(stadium.root,[stadium.matchBall]);freezeArchitecture(stadium.circulation.root);freezeArchitecture(interiors.root);freezeArchitecture(building.root);destinationMenu=buildDestinationMenu({onDismiss:()=>setNavOpen(false)});buildHotspots();bindUI();setNavOpen(false);document.body.dataset.mode=mode;setDayNight(nightAtStart);applySurfaceQuality(scene,qualityMode);clock.time=performance.now();document.body.dataset.version='11.2.2';document.body.dataset.seats=stadium.seatCount;document.body.dataset.panels=stadium.panelCount;
+ freezeArchitecture(world.group,[world.rotor]);freezeArchitecture(stadium.root,[stadium.matchBall]);freezeArchitecture(stadium.circulation.root);freezeArchitecture(interiors.root);freezeArchitecture(building.root);destinationMenu=buildDestinationMenu({onDismiss:()=>setNavOpen(false)});buildHotspots();bindUI();setNavOpen(false);document.body.dataset.mode=mode;setDayNight(nightAtStart);applySurfaceQuality(scene,qualityMode);clock.time=performance.now();document.body.dataset.version='11.2.3';document.body.dataset.seats=stadium.seatCount;document.body.dataset.panels=stadium.panelCount;
  const requestedPlace=initial.get('place'),requestedTour=walkingTourFromSearch(initial);
  if(requestedTour||initial.get('view')==='walk'){
   const place=requestedPlace&&(places[requestedPlace]||tourGoals[requestedPlace])?requestedPlace:requestedTour?.stops[0]||'arcade';
@@ -370,16 +370,18 @@ function updateMapPlaces(view,goal){
 }
 function drawMap(force=false){
  const {x,y,z}=camera.position,route=walkGuide.getRoute(),goal=walkGuide.getGoal(),selection=$('map-floor').value;
+ const feetY=mode==='walk'?(walkFeet??y-desiredEye):y-desiredEye;
  camera.getWorldDirection(mapDirection);
  const heading=-Math.atan2(mapDirection.x,-mapDirection.z);
  const previous=lastMapPaint;
- if(!force&&previous&&previous.mode===mode&&previous.night===night&&previous.goal===goal&&previous.route===route&&previous.selection===selection
-    &&Math.abs(previous.x-x)+Math.abs(previous.z-z)<.30&&Math.abs(previous.y-y)<.13&&Math.abs(previous.heading-heading)<.025)return;
- lastMapPaint={x,y,z,heading,mode,night,goal,route,selection};
- lastMapView=drawArenaFloorMap(ctx,{position:camera.position,feetY:camera.position.y-desiredEye,mode,night,route,goal,yaw:heading,selection});
+ if(!force&&previous&&previous.mode===mode&&previous.night===night&&previous.goal===goal&&previous.route===route&&previous.waypoint===route[0]&&previous.selection===selection
+    &&Math.abs(previous.x-x)+Math.abs(previous.z-z)<.30&&Math.abs(previous.feetY-feetY)<.13&&Math.abs(previous.heading-heading)<.025)return;
+ lastMapPaint={x,z,feetY,heading,mode,night,goal,route,waypoint:route[0],selection};
+ lastMapView=drawArenaFloorMap(ctx,{position:camera.position,feetY,mode,night,route,goal,yaw:heading,selection});
  const label=lastMapView.floor===lastMapView.current||lastMapView.floor==='overview'?lastMapView.label:'你在 '+lastMapView.currentLabel;
  writeHudProperty($('elevation'),'textContent',label);
- writeHudProperty($('map-position-key'),'textContent',lastMapView.showPosition?'红点为当前位置 · 金线为路线':'点选地点查看路线');
+ const legend=lastMapView.hasTransition?'红点为当前位置 · 虚线连接下一层':lastMapView.showPosition?'红点为当前位置 · 金线为路线':'点选地点查看路线';
+ writeHudProperty($('map-position-key'),'textContent',legend);
  updateMapPlaces(lastMapView,goal);
 }
 
@@ -451,7 +453,7 @@ function render(timestamp){
    world.rotor.rotation.z=elapsed*.13;
    building.update(camera.position,mode);interactions.update(camera.position,renderDelta,mode,camera);
    interiors.update(camera.position,active);serviceRooms.update(camera.position,renderDelta);
-   walkGuide.update(navigationPosition(),mode==='walk'?yaw:walker.yaw,renderDelta,mode,mode==='walk'?desiredEye:EYE_HEIGHT);refreshWalkingTour();
+   walkGuide.update(navigationPosition(),mode==='walk'?yaw:walker.yaw,renderDelta,mode,mode==='walk'?desiredEye:EYE_HEIGHT);
   }
   const privateEnclosed=!playing&&(Object.entries(roomSpecs).some(([key,s])=>key!=='lounge'&&inside(camera.position.x,camera.position.z,s)&&Math.abs(camera.position.y-s.y)<6)||(camera.position.x>-80&&camera.position.x<-66&&camera.position.z>-43&&camera.position.z<50&&camera.position.y<3)||!!serviceRoomAt({x:camera.position.x,y:camera.position.y-desiredEye,z:camera.position.z}));
   const inPublicConcourse=!playing&&(((Math.abs(camera.position.x)/105)**2.8+(Math.abs(camera.position.z)/122)**2.8<1&&(Math.abs(camera.position.x)/85)**2.8+(Math.abs(camera.position.z)/103)**2.8>1&&camera.position.y>12.9&&camera.position.y<17.8)||(camera.position.y>-2&&camera.position.y<44&&inCoreShaft(camera.position.x,camera.position.z)));
@@ -497,7 +499,7 @@ function render(timestamp){
  }
  matchSampling=sample;
  if(drawFrame&&telemetryBudget.ready(elapsed,20)){
-  if(!playing){updateHotspots();if(!document.querySelector('.minimap').hidden)drawMap();}
+  if(!playing){refreshWalkingTour();updateHotspots();if(!document.querySelector('.minimap').hidden)drawMap();}
   document.body.dataset.camera=camera.position.toArray().map(x=>x.toFixed(3)).join(',');
   document.body.dataset.heading=[yaw,pitch].map(x=>x.toFixed(4)).join(',');
  }
@@ -645,7 +647,7 @@ function refreshWalkingTour(){
  walkGuide.setTourPaused(state?.paused===true&&state.goal===goal);
  const detour=!!state&&state.goal!==goal;
  const visible=!!state&&mode==='walk'&&!seatStanding&&$('explore').hidden;
- const showArrival=visible&&state.arrived&&walkReady&&!document.querySelector('dialog[open]');
+ const showArrival=visible&&state.arrived&&walkGuide.isNearArrival()&&walkReady&&!document.querySelector('dialog[open]');
  const key=state?`${state.id}/${state.index}/${state.visitedCount}/${state.paused}/${detour}/${visible}/${showArrival}`:'none';
  if(key===tourUIState)return;
  tourUIState=key;

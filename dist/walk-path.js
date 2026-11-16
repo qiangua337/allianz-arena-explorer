@@ -132,16 +132,8 @@ function routeFromUpperThresholdStairs(position,goal,geometry,groups,obstacles){
  }
  return best;
 }
-export function planWalkPath(position,goal,geometry,groups={}){
- const service=serviceRoomAt(position);if(service){const door={...serviceWorld(service,0,.45),y:service.y},outside=serviceWorld(service,0,3.1),node=(p,id,label)=>({...p,y:service.y,id,level:'upper',label,hint:'按 F 或点击互动按钮打开服务间双门，再回到公共大厅。'}),obstacles=navigationObstacles(position,groups),prefix=walkSegmentClear(position,door,geometry,obstacles)?[]:detour(position,door,geometry,obstacles),tail=planWalkPath({...outside,y:service.y},goal,geometry,groups);if(!prefix)return{path:[],blocked:true};return{path:[...prefix,node(door,service.id+'Exit','走出服务间'),node(outside,service.id+'Outside','返回公共大厅'),...tail.path],blocked:tail.blocked};}
- const obstacles=navigationObstacles(position,groups);
- const thresholdRoute=routeFromUpperThresholdStairs(position,goal,geometry,groups,obstacles);
- if(thresholdRoute)return thresholdRoute;
- const direct=directWalkDestination(position,goal,geometry,obstacles);
- if(direct)return{path:[direct],blocked:false};
- const bridgeRoute=routeFromBridge(position,goal,geometry,groups,obstacles);
- if(bridgeRoute)return bridgeRoute;
- const route=planTour(position,goal);if(!route.length)return{path:[],blocked:true};
+function connectTour(position,route,geometry,groups,obstacles){
+ if(!route.length)return null;
  const remaining=route.map(()=>0);for(let i=route.length-2;i>=0;i--)remaining[i]=remaining[i+1]+distance(route[i],route[i+1]);
  let best=null;for(let i=0;i<Math.min(route.length,5);i++){const target=route[i];if(i&&Math.abs(target.y-position.y)>.85)break;if(i&&distance(position,target)>45)break;
   if(walkSegmentClear(position,target,geometry,obstacles)){const cost=distance(position,target)+remaining[i];if(!best||cost<best.cost)best={cost,index:i};}
@@ -153,6 +145,25 @@ export function planWalkPath(position,goal,geometry,groups={}){
  if(best||prefix){
   const result=validatePath(position,best?route.slice(best.index):[...prefix,...route],geometry,groups,obstacles);
   if(!result.blocked)return result;
+ }
+ return null;
+}
+export function planWalkPath(position,goal,geometry,groups={}){
+ const service=serviceRoomAt(position);if(service){const door={...serviceWorld(service,0,.45),y:service.y},outside=serviceWorld(service,0,3.1),node=(p,id,label)=>({...p,y:service.y,id,level:'upper',label,hint:'按 F 或点击互动按钮打开服务间双门，再回到公共大厅。'}),obstacles=navigationObstacles(position,groups),prefix=walkSegmentClear(position,door,geometry,obstacles)?[]:detour(position,door,geometry,obstacles),tail=planWalkPath({...outside,y:service.y},goal,geometry,groups);if(!prefix)return{path:[],blocked:true};return{path:[...prefix,node(door,service.id+'Exit','走出服务间'),node(outside,service.id+'Outside','返回公共大厅'),...tail.path],blocked:tail.blocked};}
+ const obstacles=navigationObstacles(position,groups);
+ const thresholdRoute=routeFromUpperThresholdStairs(position,goal,geometry,groups,obstacles);
+ if(thresholdRoute)return thresholdRoute;
+ const direct=directWalkDestination(position,goal,geometry,obstacles);
+ if(direct)return{path:[direct],blocked:false};
+ const bridgeRoute=routeFromBridge(position,goal,geometry,groups,obstacles);
+ if(bridgeRoute)return bridgeRoute;
+ const route=planTour(position,goal);
+ const usual=connectTour(position,route,geometry,groups,obstacles);
+ if(usual)return usual;
+ // An unavailable outdoor path should still have the indoor public stairs.
+ if(route.includes(tourNodes.museumWestApproach)){
+  const indoor=connectTour(position,planTour(position,goal,undefined,false),geometry,groups,obstacles);
+  if(indoor)return indoor;
  }
  // A railing or corner can hide the nearest graph point while a nearby
  // aisle still reaches the graph. Try same-area points that the visitor

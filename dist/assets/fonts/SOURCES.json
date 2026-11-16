@@ -34,10 +34,10 @@
       "family": "Arena Sans SC",
       "style": "normal",
       "weight": 500,
-      "bytes": 144716,
-      "sha256": "454aaa5707768ad2be95a0c5b0dcf6378aeb675f0ce19c39ca82cfbf799c8d2f",
-      "characters": 1094,
-      "glyphs": 1133,
+      "bytes": 144484,
+      "sha256": "eab7bd026c3856223fa086889ca872bae4e636122e002874e2bb86c82b435a84",
+      "characters": 1093,
+      "glyphs": 1131,
       "source": "NotoSansSC[wght].ttf",
       "licenseFile": "OFL-NotoSansSC.txt"
     },
@@ -46,10 +46,10 @@
       "family": "Arena Sans SC",
       "style": "normal",
       "weight": 800,
-      "bytes": 146348,
-      "sha256": "f3936415eedf7ef8ed4ae2c62c44fe6b23f5325fa1935e52180091341e9c3150",
-      "characters": 1094,
-      "glyphs": 1133,
+      "bytes": 146236,
+      "sha256": "b9d0747553983a655e778f883dca77534c1b6e115f002da51412764a059cd870",
+      "characters": 1093,
+      "glyphs": 1131,
       "source": "NotoSansSC[wght].ttf",
       "licenseFile": "OFL-NotoSansSC.txt"
     },
@@ -69,10 +69,10 @@
   "coverage": {
     "scan": "All non-vendor dist .js and .html, HTML entities and JavaScript Unicode/hex escapes, plus printable ASCII.",
     "sourceFileCount": 153,
-    "requestedCharacters": 1110,
-    "requestedCJKCharacters": 954,
-    "subsetCharacters": 1094,
-    "charsetSha256": "2b8e38eb15c4e90f27cf258c176a9a5ed35bbbeae991e2f0b6e9158a94906640",
+    "requestedCharacters": 1109,
+    "requestedCJKCharacters": 952,
+    "subsetCharacters": 1093,
+    "charsetSha256": "fe874110eee19b0b8471258c25bef9fc0e60c0fd63662786016dfd6a0a04645a",
     "subsetCodepoints": [
       32,
       33,
@@ -194,6 +194,7 @@
       8211,
       8212,
       8217,
+      8226,
       8230,
       8242,
       8545,
@@ -762,7 +763,6 @@
       27839,
       27861,
       27874,
-      27880,
       27934,
       27954,
       27969,
@@ -962,6 +962,7 @@
       33945,
       33988,
       34255,
+      34394,
       34892,
       34893,
       34913,
@@ -1009,8 +1010,6 @@
       35850,
       35937,
       36125,
-      36127,
-      36131,
       36133,
       36135,
       36136,
@@ -1258,7 +1257,7 @@
       },
       {
         "file": "app.js",
-        "sha256": "0b1b1b71237614740d5116426a4ac81f06274ce03747e469d8393499b32b4ebd"
+        "sha256": "b0e7299f4a026fb934ede2c14ca2ac473b7a4e610eea39ff9976f8d7806f3a2a"
       },
       {
         "file": "architecture-clip.js",
@@ -1266,15 +1265,15 @@
       },
       {
         "file": "arena-entry.js",
-        "sha256": "f69cb3dd96e91efd7d7211cae441c79330c976f476c769b5872ccf26e3e1acd7"
+        "sha256": "f0159c011731aec8765afc60fa92d180510218d3ae730d5c4c4982ac24a98b86"
       },
       {
         "file": "arena-floor-map.js",
-        "sha256": "229445ecce11410f305ede468f43a1e82e2340eac009700e968d927f1a90efcf"
+        "sha256": "4aa34b24c1038bb17693ffee1d093b5b32446f6899877b21c43bdb1ae3f45d5b"
       },
       {
         "file": "arena-screens.js",
-        "sha256": "b095b86f7fecec471560a313bcb2d84af8395ca13928f7f15fdb5b31fe0db0b1"
+        "sha256": "2d6504dca54d5ba4bcd48dd32123f1923c9902e7ab0afc858d43f86a6ff44619"
       },
       {
         "file": "arrivals.js",
@@ -1290,11 +1289,11 @@
       },
       {
         "file": "building-layout.js",
-        "sha256": "b23a3c0c9b87e8100df0b7b52a32ec12d7ad7ec33f7072836612453d6a841ab9"
+        "sha256": "f4c9bcfe039c7cce3882ea1067d113ffe538846c302437b7a3ddf2657a82ca16"
       },
       {
         "file": "circulation.js",
-        "sha256": "2a5687299d45e5d90a29d1a39370fb580e3d654af737e21da11e623532446749"
+        "sha256": "328d8058674afa71b5754480885819d71a78599af99460ccb75379aed04f588a"
       },
       {
         "file": "crowd-layout.js",
@@ -1314,7 +1313,7 @@
       },
       {
         "file": "entrance-players.js",
-        "sha256": "bdf23a169a5ee256ae069a00b45becde082f875bd1bc9bb3352ba5a146228bd1"
+        "sha256": "9b45e9a711eb546be89f53c020c81af063011cacb8b34ba46bf987f8548fa5c1"
       },
       {
         "file": "experience-hub.js",
@@ -1334,7 +1333,7 @@
       },
       {
         "file": "football-abilities.js",
-        "sha256": "fae40547d8fd143a87d9d82cce6df7d4542713d9125f0f9f852537ceddd49159"
+        "sha256": "0bd0a3a557f92adbb69548fddf1bed1ae7689d6f7e1c066281b5a0e8f0d44e21"
       },
       {
         "file": "football-action-pose.js",
@@ -1342,7 +1341,7 @@
       },
       {
         "file": "football-appearance.js",
-        "sha256": "a9cc6177fc4bd5c4f2f5d908a48a59d087c928c9ddda1c4e51abf47f80dcacf9"
+        "sha256": "3d028015a28dd33d2981429bd81d6966565fa317267f14cb6ea39a12e5b4319c"
       },
       {
         "file": "football-assist.js",
@@ -1394,7 +1393,7 @@
       },
       {
         "file": "football-likeness.js",
-        "sha256": "45fba011be61fabd68be567318339ce8a9b97c0efac11ad894cc7db06b3f0edf"
+        "sha256": "2633e4fd696e6df6c39312e2adbfd1e70aa5598660de58230b325c82a186fa6d"
       },
       {
         "file": "football-materials.js",
@@ -1410,7 +1409,7 @@
       },
       {
         "file": "football-penalty-ui.js",
-        "sha256": "4d444e9ab03d118bbe69070523d56b5372780c970848f325295a7b6f6052318b"
+        "sha256": "f4a31ee8a41f57d5e235dbe4047fa8b31397f8f846993574c89670c60c8b436d"
       },
       {
         "file": "football-penalty.js",
@@ -1418,7 +1417,7 @@
       },
       {
         "file": "football-radar.js",
-        "sha256": "587473a0ea61b5c0e29580cae5c8ba2ed2c72f286cf05d629b7072db727a439b"
+        "sha256": "aa925d93c621b6b8c1296cc655ad9c4cb88fa0c4067eb8ee6a80aa1fa0ff4aba"
       },
       {
         "file": "football-rebound.js",
@@ -1426,7 +1425,7 @@
       },
       {
         "file": "football-regulations.js",
-        "sha256": "1c08cb58ecb7819b542b4676903b3fb96f64bce4ba5645f8cce8e2d8f40d2259"
+        "sha256": "1c4163beb7dd797397d89c1580363afbcb94cdab14b2fd7862ff8c685a87ecb1"
       },
       {
         "file": "football-replay.js",
@@ -1434,11 +1433,11 @@
       },
       {
         "file": "football-report.js",
-        "sha256": "63e32fa17d14f9252440bec90ffa6be8320fcbc22240029daeb0407e2c7bfecb"
+        "sha256": "2d4f4d44746e0258fba77f6f0771b773e2150f357f1c1f77fd5e0d381f39b505"
       },
       {
         "file": "football-roster-heads.js",
-        "sha256": "c66e9ed278728de0cea7db34dfdb9b5b9fea7541bbdb5546deb3361e02e7d9ec"
+        "sha256": "5311002a2d69c5c9b675c1988e1d6e7128cb34411603d4ae2e1f5dd593d47d93"
       },
       {
         "file": "football-rules.js",
@@ -1450,11 +1449,11 @@
       },
       {
         "file": "football-simulation.js",
-        "sha256": "0fe0e9e1d600ed955d54914fe25e1822e7c7fd0e7257630f72cc4e000a3dbbbb"
+        "sha256": "94c5436463bd650124453186ab968bc7d6cc9d94093cd84332d02dc3607a9fcf"
       },
       {
         "file": "football-squads.js",
-        "sha256": "97f6a263186000e7030b542a78a4e8ba00066fa9212e181ea6fca7c6fb6e8edf"
+        "sha256": "c60cb509e55face304ea875530f259cf7492473376ebed31046e45429aa02fa5"
       },
       {
         "file": "football-tactical-style.js",
@@ -1466,7 +1465,7 @@
       },
       {
         "file": "football-teams.js",
-        "sha256": "a29a715d8e14132cc3c6f4ad6c66177707fbfa21409092d2473c7115c515c1c7"
+        "sha256": "d70b3bbe3e8e17f6b9e169814b2739e5eba3dcfba92bf3c54ad2414162d16cd7"
       },
       {
         "file": "football-training-layout.js",
@@ -1518,7 +1517,7 @@
       },
       {
         "file": "index.html",
-        "sha256": "cb4ac6395a041375cdfcc1e6a3ceef0a6ed9df3f38d57afedbbb5a62d01e6f36"
+        "sha256": "5f977b68b7b934a69cdb1fec44ef7e3e71251dea78798a378f2771e12622b025"
       },
       {
         "file": "instant-action.js",
@@ -1530,7 +1529,7 @@
       },
       {
         "file": "interactions.js",
-        "sha256": "048c15ea656e4dc650a064e9d6be709decbda14cb145198e0aeaa8f0c6cf949b"
+        "sha256": "46b34b8bdd1ee3aefa0ac188afdeafbea3d6220c5cd687f9d43d9f0e2840f8d7"
       },
       {
         "file": "interior-orbit.js",
@@ -1590,11 +1589,11 @@
       },
       {
         "file": "matchday.js",
-        "sha256": "30176da13b80901b53b6caf947549673c3ea37b96bf1face441ee6820eaf483e"
+        "sha256": "c15a7c84c318171ef0b0466e6347421ba36c122d29e1e578e9a135ddeb678c4a"
       },
       {
         "file": "museum-catalog.js",
-        "sha256": "fb24564b2085426a9983b267272b17010d3b099e15b4121bee478312a4ddbb5e"
+        "sha256": "ca0dce6b1d926c09641dcf46dece21c642c4322754472bd35ac1ffb8471ff4ba"
       },
       {
         "file": "museum-references.js",
@@ -1614,7 +1613,7 @@
       },
       {
         "file": "online-client.js",
-        "sha256": "28f6b97694f875706fae1cccf46aad954f3815e6b461e1ec6b70a68f38bff226"
+        "sha256": "4fe0fd803b1dc5ec601e47842caa0573680f642a9860013aafa8b4e4ec6f586b"
       },
       {
         "file": "online-kick-presentation.js",
@@ -1622,7 +1621,7 @@
       },
       {
         "file": "online-lobby.js",
-        "sha256": "6a837a598ab98c8cd731894dc7ceb18100ad66472511aa47122af2cc59d73561"
+        "sha256": "6736dcca4f88396dde08fc37954043ebd5076ccfa31ce77a1b468812b72115f9"
       },
       {
         "file": "online-prediction.js",
@@ -1630,7 +1629,7 @@
       },
       {
         "file": "online-protocol.js",
-        "sha256": "b7755130c6da66b6f4530c1c95ab5b3fc73139d964447045e875fe2ef9fcf082"
+        "sha256": "e8301351e9a75ae666b76ffc086b230095dafe31962879cf393856c2434b88cd"
       },
       {
         "file": "online-state-delta.js",
@@ -1662,7 +1661,7 @@
       },
       {
         "file": "playable-match.js",
-        "sha256": "c5f6cb1b43a1b2b4e3dd015484f914069259d13cdf53cbbb701b85998b248e58"
+        "sha256": "bd2b9a13fd334bef2934ecb42526b9fcf452f8abdcacf15a44a626fc43c81950"
       },
       {
         "file": "player-area-layout.js",
@@ -1686,7 +1685,7 @@
       },
       {
         "file": "ribbon-path.js",
-        "sha256": "9f2f34822ca75d7e3d5d8e8b7198ca4d92eb161a017f904f39100905aec2f3c0"
+        "sha256": "94fb0da74334f66841d4abfac930c428419d781604c0ebdf34fd0d7570d5e5a4"
       },
       {
         "file": "room-detail.js",
@@ -1702,7 +1701,7 @@
       },
       {
         "file": "scene-budget.js",
-        "sha256": "0676fdfeebd95f07168375e9a85867097d58b3380548ca2a3f48a26911943f1f"
+        "sha256": "65245ee02d1495a8be3a9dd427cc59326a0659a623c14cf87f6f7e0b6d62f91d"
       },
       {
         "file": "seat-interaction.js",
@@ -1746,7 +1745,7 @@
       },
       {
         "file": "squad-editor.js",
-        "sha256": "87f02bcd41c46b2ab084c8d5e2220b39f1ea6aa793560e2a066033df4fee17c9"
+        "sha256": "5f3f29a0a6a03e24bf7804cd3ced4539a5293d23d36493faf7ae869501c2604b"
       },
       {
         "file": "stadium-lighting.js",
@@ -1754,7 +1753,7 @@
       },
       {
         "file": "stadium.js",
-        "sha256": "fb770ccb6af801c7331d999947b4990c06b2a5a5c859985ef84babbefa189ddf"
+        "sha256": "15b5b97b680aac76a5e63e019d00105ff147e5c2314d98e599e5560f642deff9"
       },
       {
         "file": "supporter-model.js",
@@ -1778,7 +1777,7 @@
       },
       {
         "file": "tour-route.js",
-        "sha256": "13383ef04424aca39f9320fdfcc9e304cac6116e554516cb36a99949918e2f9b"
+        "sha256": "403d57fc46ce31796b7be3f5f6b44c345578a1652b63bb52b678182c7e381299"
       },
       {
         "file": "training-records.js",
@@ -1834,15 +1833,15 @@
       },
       {
         "file": "walk-guide.js",
-        "sha256": "f0fb4421e456526290f4d7327ffc21061f7159be02ea77feb7b24399ab8a9a9e"
+        "sha256": "b4691746152a09a9bf9549253973ee0aa8a22c4b72838933508dc31350e4a4ce"
       },
       {
         "file": "walk-motion.js",
-        "sha256": "ff3108b96600b4a18ec30aee5223528ef35d85488510838eb4b456d27898cea2"
+        "sha256": "e7394c6aca431b794a08e2b413615038acaf0b8d468a393f9aba3cae921a3600"
       },
       {
         "file": "walk-path.js",
-        "sha256": "95ac1405f114ee18d218273635c79fe3b26758ceb44c8d1b346985f4254c0df8"
+        "sha256": "077d928b7c7223975161d7e1e042f182e6c108c29fe5561389096b25741d89a3"
       },
       {
         "file": "walk-smoothing.js",
@@ -1850,7 +1849,7 @@
       },
       {
         "file": "walk-tours.js",
-        "sha256": "0724f82e81128d813dc5026f2ac02fce73fdbc9ee738840c0ec2135323e25286"
+        "sha256": "ff18df80a5c293f236f3124b4025d7498c3ea6230fb9b66db73aa9989513b3e0"
       },
       {
         "file": "wardrobe-detail.js",
@@ -1858,11 +1857,11 @@
       },
       {
         "file": "wayfinding.js",
-        "sha256": "537c56624c0cf1402db75befffcf261ee579fa1c9d553b36f4f241c1ff922f5a"
+        "sha256": "2acd5c9ab3c9476bd1bc0ab366de63b8afc0b23f9d1d318230e50c9e38260f7b"
       },
       {
         "file": "world.js",
-        "sha256": "3dcceea9eb3d3648c7274b7b6c2033d66b0a317f17128254d37d0e4bbf867914"
+        "sha256": "91bdb1ee7c77ef12c3081ca91b412f42b7f33024bbd208fc7ade2f1ec4066c5b"
       }
     ]
   },

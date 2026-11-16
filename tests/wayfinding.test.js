@@ -97,3 +97,10 @@ test('the stairs and gallery tell the visitor what is around the actual corner',
  assert.equal(fromGallery.action,'走到上层连廊转角');
  assert.match(fromGallery.hint,/转向看台门洞/);
 });
+test('outdoor stair directions match the physical number on the rail sign and the travel direction',()=>{
+ const {T3Bottom,T3Middle,T3Top,forecourt,outside9}=tourNodes;
+ assert.match(movementInstruction(T3Bottom,0,T3Middle,T3Top).action,/沿 T3 楼梯上行/);
+ assert.match(movementInstruction(T3Top,0,T3Middle,T3Bottom).action,/沿 T3 楼梯下行/);
+ assert.match(movementInstruction(T3Middle,0,T3Bottom,null).hint,/沿扶手与踏步/);
+ assert.match(movementInstruction(forecourt,0,forecourt,outside9).action,/前往球场外环步道/);
+});

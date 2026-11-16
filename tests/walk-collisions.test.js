@@ -172,7 +172,7 @@ test('live guidance leads from the south gate through the museum door and on to 
  const eye=()=>new THREE.Vector3(position.x,feet+1.7,position.z);
  const doorX=roomSpecs.museum.x+roomSpecs.museum.w/2;
  const doorCrossings=[],targets=new Set();
- for(const goal of ['museum','upperStands']){
+ for(const goal of ['arcade','museum','upperStands']){
   guide.setGoal(goal,eye());guide.update(eye(),0,.15,'walk');
   for(let i=0,stalled=0;!guide.isArrived();i++){
    assert.ok(i<2800,'bounded walk to '+goal);
@@ -191,8 +191,39 @@ test('live guidance leads from the south gate through the museum door and on to 
   }
  }
  assert.deepEqual(doorCrossings,['in','out']);
- for(const id of ['security','reception','corePublicFront','flight0Turn','flight1Turn','flight2Turn','upperGalleryOuter','upperBridgeStart','upperThreshold','upperAisleEntry'])assert.ok(targets.has(id),'followed '+id);
+ for(const id of ['security','museumWestApproach','T3Bottom','T3Middle','T3Top','corePublicFront','flight1Turn','flight2Turn','upperGalleryOuter','upperBridgeStart','upperThreshold','upperAisleEntry'])assert.ok(targets.has(id),'followed '+id);
+ assert.equal(targets.has('flight0Turn'),false,'the outdoor stair replaces the first indoor flight');
  assert.ok(Math.abs(feet-tourNodes.upperStands.y)<.65,'arrives on a supported seating tread');
+});
+
+test('reception and museum share the short west stairs through the actual door in both directions',()=>{
+ for(const [start,goal,stairs] of [['arcade','museum',['T3Bottom','T3Middle','T3Top']],['museum','arcade',['T3Top','T3Middle','T3Bottom']]]){
+  const from=tourNodes[start],walls=navigationObstacles(from,obstacleGroups);
+  const {path,blocked}=planWalkPath(from,goal,geometry,obstacleGroups);
+  const ids=path.map(node=>node.id);
+  assert.equal(blocked,false);
+  assert.equal(ids.at(-1),goal);
+  assert.ok(ids.includes('museumDoor'),'use the same real doorway');
+  assert.deepEqual(ids.filter(id=>/^T\d/.test(id)),stairs);
+  let previous=from,metres=0;
+  for(const next of path){
+   assert.equal(walkSegmentClear(previous,next,geometry,walls),true,previous.id+' → '+next.id);
+   metres+=Math.hypot(next.x-previous.x,next.y-previous.y,next.z-previous.z);
+   previous=next;
+  }
+  assert.ok(metres<205,'open west approach stays within 205 metres');
+ }
+});
+
+test('blocks beside the west approach fall back to the indoor public staircase',()=>{
+ const approach=tourNodes.museumWestApproach,barrier={x0:approach.x-.6,x1:approach.x+.6,z0:approach.z-.6,z1:approach.z+.6,y0:approach.y,y1:approach.y+2.5};
+ const groups={...obstacleGroups,world:[...world.colliders,barrier]};
+ for(const [start,goal] of [['arcade','museum'],['museum','arcade']]){
+  const route=planWalkPath(tourNodes[start],goal,geometry,groups);
+  assert.equal(route.blocked,false);
+  assert.ok(route.path.some(node=>node.id==='flight0Turn'),'returns to the indoor stairs');
+  assert.ok(!route.path.includes(approach));
+ }
 });
 
 test('future guide segments stay clear after turning into either player connection',()=>{

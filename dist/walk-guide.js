@@ -47,14 +47,23 @@ export function buildWalkGuide(scene,geometry,{obstacles={},onChoose,onSelect,on
  const group=new THREE.Group();scene.add(group);const positions=new Float32Array(2048*3),geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.BufferAttribute(positions,3).setUsage(THREE.DynamicDrawUsage));
  const line=new THREE.Mesh(geo,new THREE.MeshBasicMaterial({color:0xffd36b,side:THREE.DoubleSide,depthTest:true,depthWrite:false,transparent:true,opacity:.85,toneMapped:false,forceSinglePass:true}));line.frustumCulled=false;line.renderOrder=2;group.add(line);
  let path=[],goal='arcade',arrived=false,blocked=false,selected=false,collapsed=true,suppressed=false,tourPaused=false,timer=0,planClock=0,anchor=null,eyeHeight=EYE_HEIGHT,lastMode='orbit';
- const lastPosition=v(0,-2.4,214);let lastDraw=null,lastYaw=0;
+ const lastPosition=v(0,-2.4,214),ribbonSegments=new Map();
+ let lastDraw=null,lastYaw=0,lastCheckedPosition=null,lastPlannedPosition=null;
  const feet=p=>({x:p.x,y:p.y-eyeHeight,z:p.z});
+ const samePosition=(a,b)=>a?.x===b.x&&a.y===b.y&&a.z===b.z;
  function setCollapsed(value){
   collapsed=value;panel.classList.toggle('collapsed',value);
   collapse.textContent=value?'详情':'收起';
   collapse.setAttribute('aria-expanded',String(!value));
  }
- function reset(position=lastPosition){lastPosition.copy(position);anchor=feet(position);const result=planWalkPath(anchor,goal,geometry,obstacles);path=result.path;blocked=result.blocked;arrived=false;planClock=0;lastDraw=null;geo.setDrawRange(0,0);}
+ function reset(position=lastPosition){
+  lastPosition.copy(position);
+  anchor=feet(position);
+  const result=planWalkPath(anchor,goal,geometry,obstacles);
+  path=result.path;blocked=result.blocked;arrived=false;planClock=0;
+  lastDraw=lastCheckedPosition=lastPlannedPosition=null;
+  ribbonSegments.clear();geo.setDrawRange(0,0);
+ }
  function choose(id){if(onSelect)onSelect(id);else setGoal(id);$('scene').focus({preventScroll:true});}
  function setGoal(id,position=lastPosition,currentEyeHeight=EYE_HEIGHT){eyeHeight=currentEyeHeight;goal=normalizeDestination(id);select.value=goal;selected=true;setCollapsed(true);reset(position);refresh();return goal;}
  select.onclick=()=>onChoose?.();
@@ -142,7 +151,7 @@ export function buildWalkGuide(scene,geometry,{obstacles={},onChoose,onSelect,on
   function vertex(x,y,z){positions[count*3]=x;positions[count*3+1]=y;positions[count*3+2]=z;count++;}
   // The route around a solid corner has no use until the visitor reaches it.
   // Keep the next stair flight in view without sampling the whole gallery.
-  const points=ribbonPoints(p,path,geometry,inTightWalkSpace(p.x,p.y,p.z)?14:28);
+  const points=ribbonPoints(p,path,geometry,inTightWalkSpace(p.x,p.y,p.z)?14:28,ribbonSegments);
   for(let i=1;i<points.length&&count+9<positions.length/3;i++){
    const a=points[i-1],b=points[i],dx=b.x-a.x,dz=b.z-a.z,length=Math.hypot(dx,dz);
    if(b.breakBefore){spacing=0;continue;}
@@ -172,6 +181,10 @@ export function buildWalkGuide(scene,geometry,{obstacles={},onChoose,onSelect,on
   eyeHeight=currentEyeHeight;lastPosition.copy(position);lastMode=mode;lastYaw=yaw;if(suppressed||tourPaused){panel.hidden=true;group.visible=false;return;}timer+=dt;planClock+=dt;if(timer<.12)return;timer=0;const p=feet(position);
   if(!anchor)reset(position);
   if(mode!=='walk'){refresh(yaw);return;}
+  // Static route clearance cannot change when the visitor only turns on the
+  // spot. Moving doors are excluded from these path checks.
+  const shouldReplan=planClock>1.2&&!arrived&&!samePosition(lastPlannedPosition,p);
+  if(!shouldReplan&&samePosition(lastCheckedPosition,p)){refresh(yaw);return;}
   let walls;
   const getWalls=()=>walls??=navigationObstacles(p,obstacles);
   // A visitor may take another open aisle instead of visiting every old node.
@@ -191,19 +204,23 @@ export function buildWalkGuide(scene,geometry,{obstacles={},onChoose,onSelect,on
   }
   // Advance intermediate waypoints only. The final destination uses the
   // clear-segment check above, even when it is just on the other side of a wall.
-  while(path.length>1&&waypointReached(p,path[0],anchor,path[1])&&walkSegmentClear(p,path[1],geometry,getWalls())){anchor=path.shift();lastDraw=null;}
+  while(path.length>1&&waypointReached(p,path[0],anchor,path[1])&&walkSegmentClear(p,path[1],geometry,getWalls())){
+   anchor=path.shift();ribbonSegments.delete(anchor);lastDraw=null;
+  }
   if(!path.length&&!blocked&&!arrived)reset(position);
-  if(planClock>1.2&&!arrived){
+  if(shouldReplan&&!arrived&&planClock>1.2){
    planClock=0;
    const target=path[0],distance=Math.hypot(p.x-anchor.x,p.z-anchor.z);
    if(!approachPending&&path.length>1&&distance>.7&&directWalkDestination(p,goal,geometry,getWalls())){
     anchor=p;path=[destination];lastDraw=null;
    }else if(blocked?distance>.7:target&&(!walkSegmentClear(p,target,geometry,getWalls())||distance>55))reset(position);
+   lastPlannedPosition=p;
   }
+  lastCheckedPosition=p;
   refresh(yaw);
   if(mode==='walk'&&!blocked&&!arrived&&(!lastDraw||Math.hypot(p.x-lastDraw.x,p.y-lastDraw.y,p.z-lastDraw.z)>.15))draw(p);
  }
  function arrive(id,position){setGoal(id,position);path=[];blocked=false;arrived=true;geo.setDrawRange(0,0);refresh();}
  function restoreState(saved,position,currentEyeHeight=EYE_HEIGHT){setGoal(saved.goal,position,currentEyeHeight);selected=saved.selected;if(saved.arrived){arrived=true;blocked=false;path=[];geo.setDrawRange(0,0);}setCollapsed(saved.collapsed);refresh();}
- return{update,reset,setGoal,arrive,isArrived:()=>arrived,setSuppressed(value){suppressed=value;refresh();},setTourPaused(value){if(tourPaused!==value){tourPaused=value;refresh();}},captureState:()=>({goal,selected,collapsed,arrived}),restoreState,getGoal:()=>goal,getRoute:()=>path};
+ return{update,reset,setGoal,arrive,isArrived:()=>arrived,isNearArrival:()=>arrived&&nearCompletedDestination(feet(lastPosition),goal),setSuppressed(value){suppressed=value;refresh();},setTourPaused(value){if(tourPaused!==value){tourPaused=value;refresh();}},captureState:()=>({goal,selected,collapsed,arrived}),restoreState,getGoal:()=>goal,getRoute:()=>path};
 }

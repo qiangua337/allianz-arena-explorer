@@ -107,6 +107,21 @@ test('the floor picker previews another level without drawing the visitor on tha
  assert.deepEqual(upperFloor.destinations,['upperStands']);
  assert.equal(mapDestinationAt(upperFloor,mapProject(upperFloor,tourNodes.upperStands)),'upperStands');
 });
+test('the map keeps the next staircase section visible as the route changes floor in either direction',()=>{
+ const {T3Bottom,T3Middle,T3Top,museum}=tourNodes;
+ const dashed=[],labels=[];
+ const context=new Proxy({setLineDash:pattern=>dashed.push(pattern),fillText:text=>labels.push(text)},{get:(o,k)=>k in o?o[k]:()=>{}});
+ for(const [position,route] of [[T3Bottom,[T3Middle,T3Top,museum]],[T3Middle,[T3Top,museum]],[T3Top,[T3Middle,T3Bottom]]]){
+  const view=drawArenaFloorMap(context,{position,feetY:position.y,route});
+  assert.equal(view.hasTransition,true);
+  assert.deepEqual(dashed.pop(),[2,2]);
+ }
+ assert.ok(labels.includes('T3'));
+ assert.ok(!labels.includes('主队更衣室'),'the map must not label a neighbouring floor at the same elevation');
+ const preview=drawArenaFloorMap(context,{position:T3Bottom,feetY:T3Bottom.y,route:[T3Middle,T3Top],selection:'public'});
+ assert.equal(preview.hasTransition,false);
+ assert.deepEqual(dashed,[]);
+});
 test('analog touch control has a radial dead zone, never exceeds unit speed and preserves diagonal direction',()=>{
  assert.equal(joystickAxes(1,1).x,0);const full=joystickAxes(100,-100);assert.ok(Math.abs(Math.hypot(full.x,full.y)-1)<1e-10);assert.ok(Math.abs(full.x-full.y)<1e-10);assert.ok(joystickAxes(12,0).x<joystickAxes(24,0).x);assert.deepEqual(joystickAxes(NaN,1),{x:0,y:0,thumbX:0,thumbY:0});assert.equal(joystickAxes(25,0).y,0);
 });

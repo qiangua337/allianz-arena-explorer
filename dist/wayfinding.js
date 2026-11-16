@@ -65,7 +65,23 @@ export function movementInstruction(position,yaw,target,next,goal){
  else if(['visitorGate','passage','ramp','pitchExit','pitchEdge'].includes(target.id)){const back=(next?.z??target.z)>(next?target.z:position.z);action=back?'沿参观通道返回大厅':'沿参观通道前往草坪';hint=back?'沿灯带向接待大厅前行，靠近场边时先下台阶。':'沿灯带直行，走上场边台阶后进入草坪。';}
  else if(target.id==='reception'){hint=next?.id==='door'?'沿大厅中央开放通道向南离开，前往正门。':next?.id==='turn'?'跟随地线前往红色开放入口，进入参观通道。':'沿地线前往接待区或环廊内的公共楼梯。';}
  else if(target.id==='turn'){action=next?.id==='reception'?'返回接待大厅':'前往球场参观入口';hint=next?.id==='reception'?'从红色通道出口沿地线回到大厅中央。':'红色开放门连接通往草坪的参观通道。';}
- else if(['security','forecourt','door'].includes(target.id)){const out=next&&next.z>target.z;action=out?'前往南侧正门':'进入接待大厅';hint=out?'沿中央开放通道离开大厅，直达南侧正门。':'沿中央开放通道进入大厅，抵达后跟随所选目的地。';}
+ else if(target.id==='museumWestApproach'){
+  const returning=next?.id==='forecourt';
+  action=returning?'返回接待大厅':'前往 T3 楼梯';
+  hint=returning?'沿外环步道回到南侧大厅入口。':'沿外环步道向西，前方是通往公共大厅的楼梯。';
+ }
+ else if(['security','forecourt','door'].includes(target.id)){
+  if(next?.id==='museumWestApproach'){
+   action='前往 T3 楼梯';hint='走出大厅后转向西侧外环，沿地线前往 T3 楼梯。';
+  }else if(next?.id?.startsWith('outside')){
+   action='前往球场外环步道';hint='出大厅后沿外环跟随地线，前往室外楼梯。';
+  }else if(next&&next.z>target.z){
+   action=target.id==='door'?'走出接待大厅':'前往南侧正门';
+   hint='沿中央开放通道离开大厅，然后跟随地线。';
+  }else{
+   action='进入接待大厅';hint='沿中央开放通道进入大厅，抵达后跟随所选目的地。';
+  }
+ }
  else if(target.id==='pitch'&&next?.id==='pitchEdge'){action='穿过草坪前往参观通道';hint='南侧场边的开放通道通往接待大厅与正门。';}
  else if(target.id==='westField'&&next?.id==='pitch'){action='返回草坪';hint='走出球员通道，沿地线前往南侧的参观通道。';}
  else if(target.id==='lowerEntry'){const leaving=next?.id==='upper24';action=leaving?'返回公共大厅':'进入下层看台';hint=leaving?'沿北侧缓坡前往公共大厅，继续跟随地线。':'沿北侧缓坡进入看台，留意座椅之间的过道。';}
@@ -82,7 +98,12 @@ export function movementInstruction(position,yaw,target,next,goal){
  else if(target.id==='corePublicFront'&&next?.id==='corePublicApproach'){action='走出楼梯间';hint='穿过开放门洞，转入公共大厅。';}
  else if(target.id.startsWith('landing')&&next?.level==='core'){action='前往楼梯平台';hint='在平台转弯，继续沿下一段楼梯走。';}
  else if(target.id.startsWith('core'))hint='沿楼梯与大厅之间的开放平台通行，跟随地线前往下一段走廊。';
- else if(target.level==='core'||target.level==='stairs'||/^T\d+(Top|Middle|Bottom)$/.test(target.id)){
+ else if(/^T\d+(Top|Middle|Bottom)$/.test(target.id)){
+  const name=target.id.replace(/(?:Top|Middle|Bottom)$/,'')+' 楼梯';
+  action=height>.55?'沿 '+name+'上行':height<-.55?'沿 '+name+'下行':'前往 '+name;
+  hint='沿扶手与踏步前进，到平台后继续跟随地线。';
+ }
+ else if(target.level==='core'||target.level==='stairs'){
   action=Math.abs(height)>.45?height>0?'沿楼梯上行':'沿楼梯下行':'前往楼梯平台';
   hint=Math.abs(height)>.45?'沿扶手与踏步到达平台，再跟随地线转弯。':'沿地线穿过平台，在下一段踏步前转弯。';
  }

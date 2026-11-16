@@ -3,6 +3,7 @@ import {roomSpecs,bridges,platforms,coreFlights} from './building-layout.js';
 import {playerCorridor,playerLinks,playerShower,enclosedPlayerPosition,tunnelHasBowlView} from './player-area-layout.js';
 import {routeOnCurrentLevel} from './walk-path.js';
 import {tourGoals,tourNodes} from './tour-route.js';
+import {accessStairs} from './access-layout.js';
 
 const width=260,height=210;
 const outerRing=makeRing(113.5,129),innerRing=makeRing(84,102);
@@ -70,11 +71,33 @@ export function drawArenaFloorMap(c,{position,feetY=0,mode='walk',night=false,ro
  c.fillStyle='#233e35';c.strokeStyle='#778f8166';rect(0,0,68,105);path([{x:-34,z:0},{x:34,z:0}]);c.stroke();const center=project({x:0,z:0});c.beginPath();c.ellipse(center.x,center.y,9.15*view.scale,9.15*view.scale,0,0,TAU);c.stroke();
  if(view.level===-2.7){c.fillStyle='#687782';c.strokeStyle='#97a4aa';for(const r of[playerCorridor,...playerLinks,playerShower])rect((r.minX+r.maxX)/2,(r.minZ+r.maxZ)/2,r.maxX-r.minX,r.maxZ-r.minZ);rect(-53.7,0,26,4.6);}
  const labels={homeRoom:'主队更衣室',guestRoom:'客队更衣室',press:'新闻发布厅',lounge:'贵宾包厢',museum:'荣誉展厅',store:'球迷商店'};
- for(const[id,r]of Object.entries(roomSpecs)){const on=view.level===null||Math.abs(view.level-r.y)<2;c.fillStyle=on?'#465762':'#27353b';c.strokeStyle=on?'#9cabb3':'#4c5b63';rect(r.x,r.z,r.w,r.d);if(on){const p=project(r);c.fillStyle='#e7e8de';c.font='9px sans-serif';c.textAlign='center';c.fillText(labels[id],p.x,p.y-8);}}
+ for(const[id,r]of Object.entries(roomSpecs)){const on=view.level===null||view.destinations.includes(id);c.fillStyle=on?'#465762':'#27353b';c.strokeStyle=on?'#9cabb3':'#4c5b63';rect(r.x,r.z,r.w,r.d);if(on&&view.level!==null){const p=project(r);c.fillStyle='#e7e8de';c.font='9px sans-serif';c.textAlign='center';c.fillText(labels[id],p.x,p.y-8);}}
  c.strokeStyle='#8ba0a9';c.lineWidth=3;for(const b of bridges){if(view.level!==null&&Math.min(Math.abs(b.a[1]-view.level),Math.abs(b.b[1]-view.level))>2)continue;path([{x:b.a[0],z:b.a[2]},{x:b.b[0],z:b.b[2]}]);c.stroke();}
  c.fillStyle='#687d88';c.strokeStyle='#b9c6ca';for(const p of platforms)if(view.level===null||Math.abs(p.y-view.level)<2)rect(p.x,p.z,p.w,p.d);
  c.strokeStyle='#a2b9c2';c.lineWidth=2;for(const f of coreFlights){if(view.level!==null&&Math.min(Math.abs(f.base-view.level),Math.abs(f.top-view.level))>2)continue;path([{x:f.x,z:f.z},{x:f.x,z:f.z+f.dir*f.run}]);c.stroke();}
- const visible=view.showPosition?routeOnCurrentLevel(route,feetY):[];if(visible.length){c.lineWidth=2.5;c.strokeStyle='#edc876';path([{x:position.x,z:position.z},...visible]);c.stroke();}
+ if(view.level===null||view.floor==='entry'||view.floor==='public'){
+  const stairNode=route.find(node=>/^T\d+(?:Bottom|Middle|Top)$/.test(node.id));
+  const activeStair=stairNode?.id.replace(/(?:Bottom|Middle|Top)$/,'');
+  c.lineWidth=.8;
+  for(const stair of accessStairs){
+   const a={x:stair.x,z:stair.z},b={x:stair.topX,z:stair.topZ},w=stair.width/2;
+   const side=(p,i)=>({x:p.x+stair.nz*w*i,z:p.z-stair.nx*w*i});
+   const highlights=stair.id===activeStair;
+   c.fillStyle=highlights?'#795e35':'#5c737e';c.strokeStyle=highlights?'#edc876':'#8ba0a9';
+   path([side(a,-1),side(a,1),side(b,1),side(b,-1)]);c.closePath();c.fill();c.stroke();
+   if(highlights){
+    const label=project(side({x:(a.x+b.x)/2,z:(a.z+b.z)/2},1));
+    c.save();c.fillStyle='#ffe0a0';c.font='bold 10px sans-serif';c.textAlign=stair.nz>=0?'left':'right';c.fillText(stair.id,label.x+Math.sign(stair.nz)*4,label.y+6);c.restore();
+   }
+  }
+ }
+ const visible=view.showPosition?routeOnCurrentLevel(route,feetY):[];
+ const transition=view.showPosition?route[visible.length]:null;
+ view.hasTransition=Boolean(transition);
+ if(visible.length){c.lineWidth=2.5;c.strokeStyle='#edc876';path([position,...visible]);c.stroke();}
+ if(transition){
+  c.save();c.lineWidth=2;c.strokeStyle='#edc876';c.setLineDash([2,2]);path([visible.at(-1)??position,transition]);c.stroke();c.restore();
+ }
  for(const id of view.destinations){
   const p=visibleDestination(view,tourNodes[id]);
   if(!p)continue;

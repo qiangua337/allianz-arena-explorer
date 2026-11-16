@@ -64,6 +64,8 @@ for(let i=0;i<8;i++){
  node(s.id+'Bottom',s.x,ACCESS_BASE,s.z,s.id+' 楼梯底部','沿外环返回接待大厅');
  join('upper'+k,s.id+'Top');join(s.id+'Top',s.id+'Middle');join(s.id+'Middle',s.id+'Bottom');join(s.id+'Bottom','outside'+k);
 }
+node('museumWestApproach',-50,ACCESS_BASE,142,'西侧 T3 楼梯','沿南门外广场走到西侧楼梯');
+join('forecourt','museumWestApproach');join('museumWestApproach','T3Bottom');
 node('store',12,ACCESS_TOP,118,'球迷商店','从东侧开放门返回公共大厅','upper');node('storeDoor',15.3,ACCESS_TOP,118,'球迷商店出口','前往公共大厅下楼出口','upper');node('storeOutside',23,ACCESS_TOP,118,'公共大厅','沿环形大厅前往目的地','upper');join('store','storeDoor');join('storeDoor','storeOutside');join('storeOutside','upper7');
 node('museum',-94,12,58,'荣誉展厅','从东侧开放门返回公共大厅','upper');node('museumDoor',-87.8,12,58,'荣誉展厅出口','沿环形大厅前往目的地','upper');join('museum','museumDoor');join('museumDoor','upper14');
 
@@ -132,6 +134,8 @@ export const tourLinks=links;
 const neighbours=new Map(Object.keys(nodes).map(id=>[id,[]]));for(const[a,b]of links){neighbours.get(a).push(b);neighbours.get(b).push(a);}
 export const tourGoals={arcade:'接待大厅',concourse:'公共大厅',access:'室内公共楼梯',store:'球迷商店',museum:'荣誉展厅',lowerStands:'下层看台',stands:'中层看台',upperStands:'上层看台',lounge:'贵宾包厢',visitorEntry:'草坪参观入口',pitch:'草坪',tunnel:'球员入场通道',homeRoom:'主队更衣室',guestRoom:'客队更衣室',press:'新闻发布厅',esplanade:'南侧广场',entrance:'返回南侧正门',exterior:'南侧正门'};
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z,(a.y-b.y)*2);
+const museumApproach=new Set(['forecourt','museumWestApproach','T3Bottom','T3Middle','T3Top','upper10']);
+const museumReturnGoals=new Set(['arcade','entrance','esplanade','exterior']);
 const privateStarts=new Set(Object.values(nodes).filter(n=>roomAt(n)&&!n.id.endsWith('Door')).map(n=>n.id));
 export function tourStarts(position){
  let candidates=Object.values(nodes);const inner=(Math.abs(position.x)/86)**2.8+(Math.abs(position.z)/104)**2.8,outer=(Math.abs(position.x)/105)**2.8+(Math.abs(position.z)/120)**2.8,stair=accessAt(position.x,position.z);
@@ -155,21 +159,29 @@ export function tourStarts(position){
  else if(position.y>9)candidates=candidates.filter(n=>n.level==='upper');
  else if(inVisitorPassage(position.x,position.z))candidates=candidates.filter(n=>['visitorGate','passage','ramp','pitchExit','pitchEdge'].includes(n.id));
  else if(position.y<2&&inner>1&&outer<1.02)candidates=candidates.filter(n=>n.id.startsWith('lower')||['reception','turn','door'].includes(n.id));
- else if(position.y<2&&outer>=1.02)candidates=candidates.filter(n=>n.id.startsWith('outside')||n.id.endsWith('Bottom')||['entrance','security','forecourt','door'].includes(n.id));
+ else if(position.y<2&&outer>=1.02)candidates=candidates.filter(n=>n.id.startsWith('outside')||n.id.endsWith('Bottom')||['entrance','security','forecourt','door','museumWestApproach'].includes(n.id));
  // Room routes still use their own doors, even when an interior waypoint
  // happens to be the closest point to a visitor outside the wall.
  if(!room)candidates=candidates.filter(n=>!privateStarts.has(n.id));
  return candidates;
 }
-export function planTour(position,goal='pitch',startId){
+export function planTour(position,goal='pitch',startId,allowMuseumApproach=true){
  if(!nodes[goal])goal='pitch';
- const stair=accessAt(position.x,position.z);
+ const stair=roomAt(position)?null:accessAt(position.x,position.z);
+ const returningFromWest=museumReturnGoals.has(goal)&&position.x<-40&&position.z>42&&position.y<ACCESS_TOP+1&&position.y>ACCESS_BASE-.8;
+ const useMuseumApproach=allowMuseumApproach&&(goal==='museum'||returningFromWest);
  const start=startId??tourStarts(position).reduce((best,n)=>!best||distance(position,n)<distance(position,best)?n:best,null)?.id;
  if(!start||!nodes[start])return[];
  const costs=new Map([[start,0]]),previous=new Map(),open=[{id:start,cost:0,score:distance(nodes[start],nodes[goal])}];
  function enqueue(item){let lo=0,hi=open.length;while(lo<hi){const mid=(lo+hi)>>1;if(open[mid].score<item.score)lo=mid+1;else hi=mid;}open.splice(lo,0,item);}
  while(open.length){const current=open.shift(),at=current.id,best=current.cost;if(best!==costs.get(at))continue;if(at===goal)break;
-  for(const next of neighbours.get(at)){const outdoorDetour=!stair&&(at.startsWith('outside')||next.startsWith('outside')||/^T\d/.test(at)||/^T\d/.test(next))?500:0,cost=best+distance(nodes[at],nodes[next])+outdoorDetour;if(cost<(costs.get(next)??Infinity)){costs.set(next,cost);previous.set(next,at);enqueue({id:next,cost,score:cost+distance(nodes[next],nodes[goal])});}}
+  for(const next of neighbours.get(at)){
+   const onMuseumApproach=museumApproach.has(at)&&museumApproach.has(next);
+   const outdoor=onMuseumApproach||at.startsWith('outside')||next.startsWith('outside')||/^T\d/.test(at)||/^T\d/.test(next);
+   const outdoorDetour=outdoor&&!stair&&!(useMuseumApproach&&onMuseumApproach)?500:0;
+   const cost=best+distance(nodes[at],nodes[next])+outdoorDetour;
+   if(cost<(costs.get(next)??Infinity)){costs.set(next,cost);previous.set(next,at);enqueue({id:next,cost,score:cost+distance(nodes[next],nodes[goal])});}
+  }
  }
  const ids=[goal];while(ids[0]!==start){const p=previous.get(ids[0]);if(!p)return[];ids.unshift(p);}return ids.map(id=>nodes[id]);
 }
