@@ -12,6 +12,7 @@ registerHooks({
 const {THREE}=await import('../dist/kit.js');
 const {applyFootballAction}=await import('../dist/football-action-pose.js');
 const {setFootballBootBounds}=await import('../dist/football-kick-pose.js');
+const {samplePenaltyApproach}=await import('../dist/penalty-approach.js');
 const directory=new URL('../dist/assets/players/',import.meta.url);
 const data=JSON.parse(readFileSync(new URL('footballer-960.json',directory)));
 const {clips}=JSON.parse(readFileSync(new URL('walk-cycle.json',directory)));
@@ -131,6 +132,42 @@ test('a locally presented strike uses the first contact pose at the displayed ba
  const boots=f.boots(ball);
  assert.ok(Math.abs(boots[1].contact-.11)<.025);
  assert.ok(boots.every(boot=>boot.lowest>=.001));
+});
+
+test('either penalty boot reaches the spot while the other sole stays planted through contact',()=>{
+ for(const direction of [-1,1])for(const side of [0,1]){
+  const f=fixture(),sign=side===0?1:-1,runup=.82,duration=1.45,scale=side===0?.93:1.05;
+  const motion={id:1,type:'penaltyKick',side,power:.7,runup,duration,startX:sign*direction*.74,startZ:41.5*direction-2.65*direction,
+   strikeX:-sign*direction*.15,strikeZ:(41.5-.39)*direction,contactX:0,contactY:.11,contactZ:41.5*direction};
+  const ball=vector(motion.contactX,motion.contactY,motion.contactZ);
+  const start=samplePenaltyApproach(motion,0),ready={clip:'Idle_Loop',x:start.x,z:start.z,heading:start.yaw,scale};
+  assert.deepEqual(f.pose({type:'prepareShot',elapsed:1,duration:1,penaltyReady:true},ready).feet,f.pose(null,ready).feet);
+  const pose=elapsed=>{
+   const {x,z,yaw:heading}=samplePenaltyApproach(motion,elapsed);
+   return f.pose({...motion,elapsed},{clip:'Idle_Loop',phase:elapsed*.35,x,z,heading,scale});
+  };
+  for(const [index,start,end] of [[1-side,.33,.48],[side,.56,.77]]){
+   const from=pose(start*runup).feet[index],to=pose(end*runup).feet[index];
+   assert.ok(from.distanceTo(to)<.033,JSON.stringify({direction,side,index,start,end,from,to}));
+  }
+  let plant;
+  for(const fraction of [.33,.56,.84,.90,.95,1,1.13]){
+   const frame=pose(fraction*runup),boots=f.boots(ball);
+   assert.ok(boots.every(boot=>boot.lowest>-.002),JSON.stringify({direction,side,fraction,boots}));
+   if(fraction>=.84){
+    plant??=frame.feet[1-side];
+    assert.ok(boots[1-side].lowest<.023,JSON.stringify({direction,side,fraction,boots}));
+    assert.ok(frame.feet[1-side].distanceTo(plant)<.027,JSON.stringify({direction,side,fraction,plant,foot:frame.feet[1-side]}));
+   }
+   if(fraction===1)assert.ok(Math.abs(boots[side].contact-.11)<.026,JSON.stringify({direction,side,fraction,boots,foot:frame.feet[side]}));
+   if(fraction<.95)assert.ok(boots[side].contact>.11,JSON.stringify({direction,side,fraction,boots}));
+  }
+  const follow=pose(runup+.16);
+  assert.ok(follow.feet[side].y>.24);
+  for(let elapsed=0;elapsed<duration;elapsed+=1/24){
+   pose(elapsed);assert.ok(f.boots().every(boot=>boot.lowest>-.002),JSON.stringify({direction,side,elapsed,boots:f.boots()}));
+  }
+ }
 });
 
 test('high-speed charge and online anticipation keep both running boots on their base gait',()=>{

@@ -53,6 +53,11 @@ function readFootballBootFloor(bones,rig,side,ankle){
 }
 
 export function placeFootballSupportFoot(bones,side,target,weight){const rig=rigFor(bones);if(!rig)return;placeFoot(bones,rig.legs[side],rig,target,null,weight,0);}
+export function placeFootballPoseFoot(bones,side,target,pitch,yaw,weight){
+ const rig=rigFor(bones);if(!rig)return false;
+ placeFoot(bones,rig.legs[side],rig,target,pitch,weight,weight,yaw);
+ return true;
+}
 export function keepFootballBootsAboveFloor(bones){
  const rig=rigFor(bones);if(!rig)return;
  for(let side=0;side<2;side++){

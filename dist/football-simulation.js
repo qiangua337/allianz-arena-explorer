@@ -8,6 +8,7 @@ import {goalFrameCollision} from './goal-frame.js';
 import {footballFormations,squadDefinition} from './football-squads.js';
 import {createFootballRegulations} from './football-regulations.js';
 import {penaltyFlight,penaltyPowerRisk} from './football-penalty.js';
+import {samplePenaltyApproach} from './penalty-approach.js';
 import {defendingShape} from './football-defending.js';
 import {planCpuAttack} from './football-attack.js';
 import {moveFootballer as movePlayer,moveControlledFootballer,carryFootball,beginFootballTouch,clearFootballTouch,continuesReceiveIntent} from './football-movement.js';
@@ -169,9 +170,11 @@ export function createFootballSimulation({duration=180,seed=73417,controlMode='s
    aim=shotOption(player,b,{direction,power,error,heightError,kind:mode,keeper,pressure});
   }
   if(aim.distance<.01)return false;
-  motion(player,'shoot',.46,strikeDetails(player,aim.kind,power));
+  const continuousPenalty=penalty&&player.motion?.type==='penaltyKick';
+  if(continuousPenalty){player.motion.power=power;actionSerial++;}
+  else motion(player,'shoot',.46,strikeDetails(player,aim.kind,power));
   release(player,aim.vx,aim.vz,aim.vy);
-  b.curve=aim.curve;b.shot={id:actionSerial,team:player.team,kind:aim.kind,at:worldTime};state.lastShot={...b.shot,updatedAt:worldTime,playerId:player.id,name:player.name,power,distance:aim.distance,quality:aim.quality,preparation:aim.preparation,spread:aim.spread,heightSpread:aim.heightSpread,limited:aim.limited,outcome:'flight',onTarget:false};player.yaw=face(aim.x-b.x,aim.z-b.z);state.stats[player.team].shots++;const reasons={backfoot:'背身调整起脚',rushed:'跑动起脚',pressured:'贴身受压',overpowered:'蓄力过满','long-range':'远距离起脚'};emit('shot',player.team,player.name+'射门！'+(reasons[aim.preparation]?' · '+reasons[aim.preparation]:''),player.id,practice?{shotId:state.lastShot.id}:null);return true;
+  b.curve=aim.curve;b.shot={id:actionSerial,team:player.team,kind:aim.kind,at:worldTime};state.lastShot={...b.shot,updatedAt:worldTime,playerId:player.id,name:player.name,power,distance:aim.distance,quality:aim.quality,preparation:aim.preparation,spread:aim.spread,heightSpread:aim.heightSpread,limited:aim.limited,outcome:'flight',onTarget:false};if(!continuousPenalty)player.yaw=face(aim.x-b.x,aim.z-b.z);state.stats[player.team].shots++;const reasons={backfoot:'背身调整起脚',rushed:'跑动起脚',pressured:'贴身受压',overpowered:'蓄力过满','long-range':'远距离起脚'};emit('shot',player.team,player.name+'射门！'+(reasons[aim.preparation]?' · '+reasons[aim.preparation]:''),player.id,practice?{shotId:state.lastShot.id}:null);return true;
  }
  function nearestOutfield(team,point,exclude=null){let nearest,best=Infinity;for(const p of state.players){if(p.dismissed||p.team!==team||p.keeper||p.id===exclude)continue;const gap=distance(p,point);if(gap<best){best=gap;nearest=p;}}return nearest;}
  function restart(type,team,x,z){
@@ -291,7 +294,7 @@ export function createFootballSimulation({duration=180,seed=73417,controlMode='s
    }
   }
   for(const p of field){
-   if(state.setPiece?.keeper===p.id)continue;
+   if(state.setPiece?.keeper===p.id||p.motion?.type==='penaltyKick')continue;
    const sign=attackSign(p.team),isControlled=isHuman(p),input=inputs[p.team];
    if(isControlled){moveControlledFootballer(p,b,owner,input,dt,worldTime);continue;}
    if(practice&&p.team==='home'&&!p.keeper&&b.targetId!==p.id){p.vx=p.vz=0;if(owner?.id!==p.id)p.yaw=face(b.x-p.x,b.z-p.z);continue;}
@@ -454,8 +457,23 @@ export function createFootballSimulation({duration=180,seed=73417,controlMode='s
   const drag=Math.exp(-(b.y<=BALL_RADIUS+.015?.39:.08)*dt);b.vx*=drag;b.vz*=drag;if(Math.hypot(b.vx,b.vz)<.04)b.vx=b.vz=0;
   hitGoalFrame(previous,dt);if(!boundary(previous)){contestBall(previous);if(b.shot&&state.lastShot?.outcome==='flight'&&!b.ownerId&&b.y<=BALL_RADIUS+.015&&Math.hypot(b.vx,b.vz)<.75&&worldTime-b.shot.at>1){finishShot('short');b.shot=null;b.curve=0;emit('shot-short',lastTouch,'射门力量未到门前 · 可以追球');}}
  }
+ const penaltyPose={};
  function step(dt,inputs){
-  worldTime+=dt;state.time=worldTime;state.phaseTime+=dt;for(const p of onField()){let previous=previousPositions.get(p);if(!previous){previous={x:p.x,z:p.z};previousPositions.set(p,previous);}else{previous.x=p.x;previous.z=p.z;}if(p.motion){p.motion.elapsed+=dt;if(p.motion.elapsed>=p.motion.duration)p.motion=null;}}
+  worldTime+=dt;state.time=worldTime;state.phaseTime+=dt;
+  for(const p of onField()){
+   let previous=previousPositions.get(p);
+   if(!previous){previous={x:p.x,z:p.z};previousPositions.set(p,previous);}
+   else{previous.x=p.x;previous.z=p.z;}
+   if(p.motion){
+    p.motion.elapsed+=dt;
+    if(p.motion.type==='penaltyKick'){
+     const pose=samplePenaltyApproach(p.motion,p.motion.elapsed,penaltyPose);
+     p.vx=(pose.x-p.x)/dt;p.vz=(pose.z-p.z)/dt;
+     p.x=pose.x;p.z=pose.z;p.yaw=pose.yaw;
+    }
+    if(p.motion.elapsed>=p.motion.duration)p.motion=null;
+   }
+  }
   if(state.phase==='fulltime')return;if(regulations.step(dt,inputs))return;
   if(state.phase==='goal'){if(state.phaseTime>3.6&&!regulations.periodEnd())kickoff(goalRestartTeam);return;}
   if(state.phase==='kickoff'){if(regulations.periodEnd())return;carryBall(dt);if(state.phaseTime>=restartDelay){state.phase='playing';state.phaseTime=0;emit('start',state.restartTeam,'比赛进行中');}return;}

@@ -82,3 +82,34 @@ test('both penalty dive heights land and recover above the grass between mobile 
   }
  }
 });
+
+test('a penalty keeper loads against the dive and puts one boot down before rising',()=>{
+ const f=fixture();
+ for(const direction of [-1,1])for(const height of [.35,1.95]){
+  const stance=elapsed=>{
+   f.clip('Idle_Loop',0);
+   applyFootballAction(f.bones,{type:'dive',elapsed,duration:1.23,direction,penaltyDive:true,saveWindow:.58,height});
+   const lowest=f.lowest(true),root=f.bones[0].position;
+   const ankles=[11,17].map(index=>f.bones[index].getWorldPosition(new THREE.Vector3()).y);
+   return {x:root.x,y:root.y,ankles,lowest};
+  };
+  const ready=stance(0),load=stance(.09),reach=stance(.44),land=stance(.74),rise=stance(1.04);
+  assert.ok((load.x-ready.x)*direction<-.05&&load.y<ready.y-.045,'transfer onto the opposite leg before the push');
+  assert.ok(land.y<reach.y-.12,'stay low until the supporting leg lands');
+  assert.ok(Math.min(...land.ankles)<.19&&Math.max(...land.ankles)>.26,'lead boot bears weight instead of hovering with two feet up');
+  assert.ok(rise.y>land.y+.23&&land.lowest>.001);
+ }
+});
+
+test('central penalty blocks gather both gloves in front at the selected height',()=>{
+ const f=fixture();
+ const profile=height=>{
+  f.clip('Idle_Loop',0);
+  applyFootballAction(f.bones,{type:'save',elapsed:.18,duration:.55,penaltyDive:true,height});
+  const floor=f.lowest(true),gloves=[8,14].map(index=>f.bones[index].getWorldPosition(new THREE.Vector3()));
+  assert.ok(gloves.every(p=>p.z>.25)&&floor>.001);
+  return gloves;
+ };
+ const low=profile(.35),high=profile(1.95);
+ for(let i=0;i<2;i++)assert.ok(high[i].y>low[i].y+.4);
+});

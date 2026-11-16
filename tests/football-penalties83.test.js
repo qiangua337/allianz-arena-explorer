@@ -33,6 +33,43 @@ test('penalty direction and charge affect the real flight, while pause prevents 
  assert.ok(flights[0].vx<0&&flights[1].vx>0);assert.ok(Math.abs(flights[2].vz)>Math.abs(flights[1].vz)+6);f.g.restore(saved);f.g.setPaused(true);assert.equal(f.g.action('shoot',{power:.8},'home'),false);run(f.g,60);assert.equal(f.g.state.setPiece.stage,'ready');f.g.setPaused(false);shoot(f);
 });
 
+test('one penalty motion moves through plant, ball contact and recovery at both goals',()=>{
+ for(const team of ['home','away']){
+  const f=ready({team}),{g,sign}=f,k=g.state.setPiece,taker=g.state.players.find(p=>p.id===k.taker);
+  const ball={...g.state.ball};
+  assert.ok(g.action('shoot',{power:.7,penaltyAim:{x:.85,y:.65}},team));
+  assert.equal(taker.motion.type,'penaltyKick');
+  const id=taker.motion.id,frames=Math.ceil(k.runupDuration*60);
+  for(let frame=1;frame<=frames;frame++){
+   const z=taker.z,yaw=taker.yaw;
+   run(g,1);
+   assert.equal(taker.motion.id,id);
+   assert.ok((taker.z-z)*sign>=0,'the taker cannot rock back toward the starting mark');
+   const turn=taker.yaw-yaw;
+   assert.ok(Math.abs(Math.atan2(Math.sin(turn),Math.cos(turn)))<.05,'no one-frame turn to the aimed corner');
+   if(frame<frames){
+    close(g.state.ball.x,ball.x);close(g.state.ball.z,ball.z);
+    assert.equal(g.state.ball.ownerId,taker.id);
+   }
+   if(frame===12){
+    const row=packOnlineState(g.state).players[g.state.players.indexOf(taker)];
+    assert.equal(row[8].type,'penaltyKick');
+    assert.equal(row[8].power,undefined);
+    assert.equal(packOnlineState(g.state).setPiece.pendingKick,undefined);
+   }
+  }
+  assert.equal(k.stage,'flight');
+  assert.equal(g.state.ball.ownerId,null);
+  assert.equal(taker.motion.power,.7);
+  close(taker.motion.elapsed,taker.motion.runup);close(taker.z,ball.z-sign*.39);
+  assert.ok(Math.hypot(taker.vx,taker.vz)>.4,'the taker carries momentum through contact');
+  const z=taker.z;
+  run(g,12);
+  assert.ok((taker.z-z)*sign>.12,'the recovery step travels forward');
+  assert.equal(taker.motion.id,id);
+ }
+});
+
 test('32 seeded physical penalties reward the correct dive and punish the wrong one, without changing shootout counters',()=>{
  for(let seed=1;seed<=32;seed++)for(const team of ['home','away'])for(const dive of [1,-1]){const f=ready({seed,team});shoot(f);run(f.g,3);assert.equal(f.g.action('tackle',{direction:{x:dive}},f.defending),true);assert.equal(f.g.action('tackle',{direction:{x:-dive}},f.defending),false,'a committed dive cannot reverse');run(f.g,60);
   assert.equal(f.g.state.setPiece,null);assert.equal(f.g.state.competition.shootout,null);if(dive===1){assert.equal(f.g.state.score[team],0);assert.equal(f.g.state.stats[f.defending].saves,1);assert.ok(['saved','parried'].includes(f.g.state.lastShot.outcome));assert.equal(f.g.state.phase,'playing');}else{assert.equal(f.g.state.score[team],1);assert.equal(f.g.state.lastShot.outcome,'goal');}assert.equal(f.g.state.controlledIds[f.defending],f.defending+'-1');

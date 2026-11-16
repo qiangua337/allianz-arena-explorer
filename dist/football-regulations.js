@@ -147,7 +147,10 @@ export function createFootballRegulations(s,ctx,{rules=null,duration=180,opponen
      const limit=!prior&&s.difficulty==='casual'?2.15:3.52;
      g.targetX=clamp(targetX,-limit,limit);
     }
-   }else Object.assign(g,{phase:'set',committed:true,direction:0,targetY:clamp(targetY,.35,1.97),targetX:targetX});
+   }else{
+    Object.assign(g,{phase:'set',committed:true,direction:0,targetY:clamp(targetY,.35,1.97),targetX});
+    ctx.motion(keeper,'save',.55,{direction:0,height:g.targetY,penaltyDive:true,saveWindow:.40});
+   }
   }
   const tracking=g.phase==='dive'||g.phase==='set',reached=(g.targetX-keeper.x)*g.direction<.48,drive=tracking&&(g.phase==='set'||reached)?clamp((g.targetX-keeper.x)*2,-1,1):tracking?g.direction:0;
   ctx.movePlayer(keeper,drive,0,g.phase==='dive'?penaltyKeeperSpeed:3.6,dt);
@@ -187,9 +190,15 @@ export function createFootballRegulations(s,ctx,{rules=null,duration=180,opponen
   if(!penaltyCanShoot(k))return false;
   const power=Number.isFinite(options.power)?clamp(options.power,.15,1):penaltyStandardPower;
   const aim=safePenaltyAim(options.penaltyAim??{x:(options.direction?.x||0)*.68*-k.attackSign,y:-.17});
-  const taker=byId(k.taker);
+  const taker=byId(k.taker),ball=s.ball;
   k.pendingKick={power,aim,startX:taker.x,startZ:taker.z};
-  k.runupDuration=.78+(taker.number%4)*.035;
+  k.runupDuration=Math.round((.78+(taker.number%4)*.035)*60)/60;
+  const side=(taker.x-ball.x)*k.attackSign>0?1:0;
+  const strikeX=ball.x-(side===0?1:-1)*k.attackSign*.15,strikeZ=ball.z-k.attackSign*.39;
+  ctx.motion(taker,'penaltyKick',k.runupDuration+.63,{
+   runup:k.runupDuration,startX:taker.x,startZ:taker.z,strikeX,strikeZ,
+   contactX:ball.x,contactY:ball.y,contactZ:ball.z,side
+  });
   k.stage='runup';k.time=0;
   ctx.emit('penalty-start',k.team,taker.name+' · 开始助跑',taker.id);
   return true;
@@ -197,18 +206,21 @@ export function createFootballRegulations(s,ctx,{rules=null,duration=180,opponen
  function advancePenaltyRunup(k,dt){
   const {power,aim,startX,startZ}=k.pendingKick;
   const taker=byId(k.taker),ball=s.ball;
-  const progress=clamp(k.time/k.runupDuration,0,1);
-  const stride=progress*progress*(2-progress);
-  const nextX=startX+(ball.x-startX)*stride;
-  const nextZ=startZ+(ball.z-k.attackSign*.53-startZ)*stride;
-  taker.vx=(nextX-taker.x)/dt;taker.vz=(nextZ-taker.z)/dt;
-  taker.x=nextX;taker.z=nextZ;
+  const complete=k.time+1e-6>=k.runupDuration;
+  // Rooms restored mid-attempt from before the continuous motion still
+  // finish their original run-up and contact.
+  if(taker.motion?.type!=='penaltyKick'){
+   const progress=clamp(k.time/k.runupDuration,0,1),stride=progress*progress*(2-progress);
+   const nextX=startX+(ball.x-startX)*stride,nextZ=startZ+(ball.z-k.attackSign*.53-startZ)*stride;
+   taker.vx=(nextX-taker.x)/dt;taker.vz=(nextZ-taker.z)/dt;
+   taker.x=nextX;taker.z=nextZ;
+  }
   if(k.queuedDive&&k.time+1e-6>=k.runupDuration-penaltyDiveLead){
    divePenaltyKeeper(k,k.queuedDive);k.queuedDive=null;k.diveQueued=false;
   }
-  if(progress<1)return;
+  if(!complete)return;
   ctx.shoot(taker,{power,penalty:{aim,goalZ:k.goalZ}});
-  taker.vx=taker.vz=0;
+  if(taker.motion?.type!=='penaltyKick')taker.vx=taker.vz=0;
   if(k.aimHistory){const history=k.aimHistory[k.team];history.push(aim);if(history.length>4)history.shift();}
   k.pendingKick=null;k.stage='flight';k.time=0;taker.protectedUntil=s.time+.1;
  }

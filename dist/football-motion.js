@@ -37,7 +37,7 @@ export function createFootballMotion(data,motion,bones,group,definition){
   const field=options?.fieldLocomotion&&footPlant&&!definition.keeper&&!stair&&px>=-39.6;
   const validTravel=hasLast&&!discontinuity&&dt>.001&&step<2;
   const trapping=field&&options.action?.type==='trap';
-  const natural=field&&(!options.action||trapping);
+  const natural=field&&(!options.action||trapping),penaltyKick=options?.action?.type==='penaltyKick';
   travelSpeed=THREE.MathUtils.damp(travelSpeed,dt>.001&&step<2?step/dt:0,8,dt);const run=stair||definition.seated?0:clamp((travelSpeed-2.2)/2,0,1),fast=stair||definition.seated?0:clamp((travelSpeed-5.4)/1.6,0,1),stride=THREE.MathUtils.lerp(THREE.MathUtils.lerp(motion.stride,jog.stride||2.25,run),sprint.stride||3.1,fast)*(stair?.52:1);
   const headingDelta=heading-lastHeading;lastHeading=heading;
   // A defender can retreat while still facing the ball. Advancing the same
@@ -60,7 +60,7 @@ export function createFootballMotion(data,motion,bones,group,definition){
   }
   lastX=px;lastZ=pz;hasLast=true;
   blend=THREE.MathUtils.damp(blend,moving?1:0,10,dt);
-  if(definition.seated)blend=0;
+  if(definition.seated||penaltyKick)blend=0;
   if(stair||definition.seated||discontinuity||step>=2)lateralSteer=lateralBlend=0;else{lateralSteer=THREE.MathUtils.damp(lateralSteer,moving?steer:0,10,dt);lateralBlend=THREE.MathUtils.damp(lateralBlend,moving?lateral:0,10,dt);}
   if(field){
    // The mixed clips would otherwise keep decoding a run indefinitely after
@@ -133,7 +133,7 @@ export function createFootballMotion(data,motion,bones,group,definition){
   const supported=adaptivePlant?moving&&travelSpeed>.55&&blend>.7:moving&&(travelSpeed>3.4||lateralBlend>.12&&travelSpeed>.8)&&blend>.9;
   // The existing trap uses the right foot. Keep the left stance running and
   // ease the right support out so the trap and locomotion do not fight.
-  footPlant?.update(px,pz,heading,heightScale,phase,fast,dt,supported,stair||definition.seated||px< -39.6||discontinuity||step>=2,(adaptivePlant?1:lateralBlend)*(1-run),adaptivePlant,trapping?1:-1);
+  footPlant?.update(px,pz,heading,heightScale,phase,fast,dt,supported,penaltyKick||stair||definition.seated||px< -39.6||discontinuity||step>=2,(adaptivePlant?1:lateralBlend)*(1-run),adaptivePlant,trapping?1:-1);
   // Interpolated clip rotations do not preserve the exporters' grounded soles.
   // Correct only mixed flat-ground poses; stairs retain their own real treads.
   if(footPlant&&!stair&&!definition.seated&&px>=-39.6&&(receiveLoad>.002||blend>.03&&blend<.995||run>.001&&run<.999||fast>.001&&fast<.999))keepFootballBootsAboveFloor(bones);

@@ -13,6 +13,7 @@ import {entranceFloor} from './matchday-route.js';
 import {likenessParts,playerLikeness,makeRosterCrop,rosterCropStyles} from './football-likeness.js';
 import {shapeFootballBody} from './football-body-profile.js';
 import {rosterHeadProfile,shapeRosterHead} from './football-roster-heads.js';
+import {samplePenaltyApproach} from './penalty-approach.js';
 
 const asset=name=>new URL('./assets/players/'+name,import.meta.url).href;
 const noActionOptions={};
@@ -241,6 +242,15 @@ export function buildEntrancePlayers(scene,{mobile=false}={}){
   const member=squadDefinition(d.team,clubId,number,homeId);
   if(member)replaceIdentity(actor,member);
  }
+ function displayPenaltyKick(actor,motion,ballHeld,dt,time){
+  let action=actor.penaltyAction;
+  if(action?.id!==motion.id||time<actor.penaltyTime)action=actor.penaltyAction={...motion};
+  const latest=ballHeld?motion.runup-.002:motion.duration-.002;
+  action.elapsed=Math.max(motion.elapsed,Math.min(latest,motion.elapsed+.055,action.elapsed+dt));
+  if(motion.power!==undefined)action.power=motion.power;
+  actor.penaltyTime=time;
+  return action;
+ }
  function updateMatch(state,time,viewer,{firstPerson=false,camera}={}){
   if(!ready||!state?.players)return;const dt=lastMatchTime===null?0:Math.max(0,Math.min(.15,time-lastMatchTime));lastMatchTime=time;
   if(camera){
@@ -252,6 +262,7 @@ export function buildEntrancePlayers(scene,{mobile=false}={}){
   fieldSlots.home.fill(null);fieldSlots.away.fill(null);
   for(const player of state.players)if(fieldSlots[player.team])fieldSlots[player.team][player.index]=player;
   const decision=state.discipline?.lastDecision,card=decision?.card&&state.time-decision.at<3?decision.card:null,goal=state.phase==='goal'?state.events?.findLast(e=>e.type==='goal'):null;
+  const penalty=state.setPiece?.type==='penalty'?state.setPiece:state.phase==='penalties'?state.competition?.shootout:null;
   for(let i=0;i<players.length;i++){
    const actor=players[i],d=actor.definition,group=actor.group,wasOffCamera=group.offCamera;let p=d;
    group.offCamera=false;
@@ -265,6 +276,7 @@ export function buildEntrancePlayers(scene,{mobile=false}={}){
    }
    actor.showBooking(d.role==='referee'?card:null);if(!p){actor.group.visible=false;updateActorContactShadows(root.userData.shadows,i,actor);continue;}
    const distance=viewer?Math.hypot(viewer.x-p.x,viewer.z-p.z):0,controlled=d.role==='player'&&p.id===state.controlledId;
+   const penaltyActor=d.role==='player'&&(p.id===penalty?.taker||p.id===penalty?.keeper);
    if(camera&&!controlled){
     actorBounds.center.set(p.x,entranceFloor(p.x)+1.05+(d.seated&&d.role==='assistant'?.45:0),p.z);
     group.offCamera=!cameraBounds.intersectsSphere(actorBounds);
@@ -276,19 +288,32 @@ export function buildEntrancePlayers(scene,{mobile=false}={}){
    const heading=p.yaw??(moving?Math.atan2(p.vx,p.vz):0);
    // Pose even a hidden first-person avatar, so its world position and future
    // third-person animation never fall back to the old entrance queue.
-   const cadence=controlled?0:d.role!=='player'?.10:distance>(mobile?28:35)?(mobile?1/12:.065):mobile&&distance>14?1/20:0,observable=actor.group.visible||controlled;
+   const cadence=controlled||penaltyActor?0:d.role!=='player'?.10:distance>(mobile?28:35)?(mobile?1/12:.065):mobile&&distance>14?1/20:0,observable=actor.group.visible||controlled;
    if(!observable||actor.lastPoseTime==null||time<actor.lastPoseTime||cadence===0)actor.poseBudget.reset();
    // Retain fractional deadlines: .05 seconds sampled by a 30Hz match loop
    // must average 20 poses/second, rather than resetting to an effective 15Hz.
    const animate=observable&&(cadence===0||actor.poseBudget.ready(time,1/cadence));
-   if((actor.group.visible||controlled)&&animate){let action=null,options=noActionOptions;if(d.role==='player'){
-    const celebrating=goal?.team===d.team&&!p.keeper&&(p.id===state.lastShot?.playerId||Math.hypot(p.x-state.ball.x,p.z-state.ball.z)<24),charging=controlled&&state.chargePower>0;
-    action=celebrating?{type:'celebrate',elapsed:state.phaseTime,duration:3.6}:charging?{type:'prepareShot',elapsed:state.chargePower,duration:1,stroke:state.shotKind}:p.motion;
+   if((actor.group.visible||controlled)&&animate){let action=null,options=noActionOptions,px=p.x,pz=p.z,yaw=heading;if(d.role==='player'){
+    const celebrating=goal?.team===d.team&&!p.keeper&&(p.id===state.lastShot?.playerId||Math.hypot(p.x-state.ball.x,p.z-state.ball.z)<24);
+    const charging=controlled&&state.chargePower>0&&(!penalty||p.id===penalty.taker&&penalty.stage==='ready');
+    if(p.motion?.type==='penaltyKick'){
+     action=p.motion;
+     // Smooth the deterministic pose between online snapshots, staying behind
+     // contact until the authoritative ball actually leaves the penalty spot.
+     if(state.online){
+      action=displayPenaltyKick(actor,action,state.ball.ownerId===p.id,dt,time);
+      const sample=samplePenaltyApproach(action,action.elapsed,actor.penaltyPosition??={});
+      px=sample.x;pz=sample.z;yaw=sample.yaw;
+     }
+    }else{
+     actor.penaltyAction=null;
+     action=celebrating?{type:'celebrate',elapsed:state.phaseTime,duration:3.6}:charging?{type:'prepareShot',elapsed:state.chargePower,duration:1,stroke:state.shotKind,penaltyReady:!!penalty}:p.motion;
+    }
     options=actor.fieldOptions??(actor.fieldOptions={});
     options.defending=p.defending;options.speed=speed;options.fieldLocomotion=controlled||distance<(mobile?18:28);
     options.onBall=state.ball.ownerId===p.id;options.holdingBall=!!p.keeper&&options.onBall&&state.ball.y>.64;options.incomingBall=!state.ball.ownerId&&state.ball.targetId===p.id?state.ball:null;
     options.action=action;
-   }else if(d.role==='referee'&&card)action={type:'booking',elapsed:state.time-decision.at,duration:3};actor.pose(p.x,p.z,heading,time,moving,d.seated&&d.role==='assistant'?.45:0,action,options);actor.lastPoseTime=time;}else if(d.role==='player'||!actor.group.visible&&!controlled){actor.group.position.set(p.x,0,p.z);actor.group.rotation.y=heading;}
+   }else if(d.role==='referee'&&card)action={type:'booking',elapsed:state.time-decision.at,duration:3};actor.pose(px,pz,yaw,time,moving,d.seated&&d.role==='assistant'?.45:0,action,options);actor.lastPoseTime=time;}else if(d.role==='player'||!actor.group.visible&&!controlled){actor.group.position.set(p.x,0,p.z);actor.group.rotation.y=heading;}
    updateActorContactShadows(root.userData.shadows,i,actor,animate);
   }
   flushActorContactShadows(root.userData.shadows);
