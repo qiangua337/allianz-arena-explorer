@@ -37,13 +37,16 @@ test('one penalty motion moves through plant, ball contact and recovery at both 
  for(const team of ['home','away']){
   const f=ready({team}),{g,sign}=f,k=g.state.setPiece,taker=g.state.players.find(p=>p.id===k.taker);
   const ball={...g.state.ball};
+  const entryYaw=taker.yaw;
   assert.ok(g.action('shoot',{power:.7,penaltyAim:{x:.85,y:.65}},team));
   assert.equal(taker.motion.type,'penaltyKick');
+  close(taker.motion.entryYaw,entryYaw);
   const id=taker.motion.id,frames=Math.ceil(k.runupDuration*60);
   for(let frame=1;frame<=frames;frame++){
    const z=taker.z,yaw=taker.yaw;
    run(g,1);
    assert.equal(taker.motion.id,id);
+   if(frame===1)assert.ok(Math.hypot(taker.vx,taker.vz)<.5,'the first step accelerates from the ready stance');
    assert.ok((taker.z-z)*sign>=0,'the taker cannot rock back toward the starting mark');
    const turn=taker.yaw-yaw;
    assert.ok(Math.abs(Math.atan2(Math.sin(turn),Math.cos(turn)))<.05,'no one-frame turn to the aimed corner');
@@ -63,8 +66,10 @@ test('one penalty motion moves through plant, ball contact and recovery at both 
   assert.equal(taker.motion.power,.7);
   close(taker.motion.elapsed,taker.motion.runup);close(taker.z,ball.z-sign*.39);
   assert.ok(Math.hypot(taker.vx,taker.vz)>.4,'the taker carries momentum through contact');
-  const z=taker.z;
-  run(g,12);
+  const z=taker.z,contactVx=taker.vx,contactVz=taker.vz;
+  run(g,1);
+  assert.ok(Math.hypot(taker.vx-contactVx,taker.vz-contactVz)<.25,'the recovery inherits the approach velocity');
+  run(g,11);
   assert.ok((taker.z-z)*sign>.12,'the recovery step travels forward');
   assert.equal(taker.motion.id,id);
  }

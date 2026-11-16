@@ -24,6 +24,7 @@ export function createFootballMotion(data,motion,bones,group,definition){
  const rest=data.bones.map(b=>new THREE.Vector3().fromArray(b.head)),world=data.bones.map(()=>new THREE.Quaternion()),q=new THREE.Quaternion(),a=new THREE.Quaternion(),b=new THREE.Quaternion(),hip=new THREE.Vector3(),knee=new THREE.Vector3(),ankle=new THREE.Vector3(),axis=new THREE.Vector3(),bend=new THREE.Vector3(),v=new THREE.Vector3(),u=new THREE.Vector3();
  let distance=0,hasLast=false,lastX=0,lastZ=0,blend=0,lastTime=null,travelSpeed=0,gaitDirection=1,lateralSteer=0,lateralBlend=0;
  let lastHeading=0,bodyPitch=0,bodyRoll=0,counterTurn=0,carrying=0,receiveLoad=0;
+ let keeperShufflePhase=0,keeperShuffleSpeed=0;
  let heightScale=definition.height/1.86;const walk=motion.clips.Walk_Loop,jog=motion.clips.Jog_Fwd_Loop||walk,sprint=motion.clips.Sprint_Loop||jog,idle=motion.clips[definition.seated?'Sitting_Idle_Loop':definition.role==='coach'?'Idle_Talking_Loop':'Idle_Loop'];
  const rootWalk=new THREE.Vector3(),rootIdle=new THREE.Vector3(),rootOffset=new THREE.Vector3(),rootJog=new THREE.Vector3(),rootSprint=new THREE.Vector3(),jogQ=new THREE.Quaternion(),sprintQ=new THREE.Quaternion();
  const walkFrames={},idleFrames={},jogFrames={},sprintFrames={};
@@ -37,7 +38,7 @@ export function createFootballMotion(data,motion,bones,group,definition){
   const field=options?.fieldLocomotion&&footPlant&&!definition.keeper&&!stair&&px>=-39.6;
   const validTravel=hasLast&&!discontinuity&&dt>.001&&step<2;
   const trapping=field&&options.action?.type==='trap';
-  const natural=field&&(!options.action||trapping),penaltyKick=options?.action?.type==='penaltyKick';
+  const natural=field&&(!options.action||trapping),penaltyKick=options?.action?.type==='penaltyKick',penaltyKeeper=options?.penaltyKeeper;
   travelSpeed=THREE.MathUtils.damp(travelSpeed,dt>.001&&step<2?step/dt:0,8,dt);const run=stair||definition.seated?0:clamp((travelSpeed-2.2)/2,0,1),fast=stair||definition.seated?0:clamp((travelSpeed-5.4)/1.6,0,1),stride=THREE.MathUtils.lerp(THREE.MathUtils.lerp(motion.stride,jog.stride||2.25,run),sprint.stride||3.1,fast)*(stair?.52:1);
   const headingDelta=heading-lastHeading;lastHeading=heading;
   // A defender can retreat while still facing the ball. Advancing the same
@@ -60,7 +61,15 @@ export function createFootballMotion(data,motion,bones,group,definition){
   }
   lastX=px;lastZ=pz;hasLast=true;
   blend=THREE.MathUtils.damp(blend,moving?1:0,10,dt);
-  if(definition.seated||penaltyKick)blend=0;
+  if(definition.seated||penaltyKick||penaltyKeeper)blend=0;
+  if(penaltyKeeper){
+   const lateral=options.action?.penaltyDive?0:options.keeperLateralSpeed??0;
+   if(discontinuity)keeperShufflePhase=keeperShuffleSpeed=0;
+   else if(validTravel&&Math.abs(lateral)>.05)keeperShufflePhase=(keeperShufflePhase+step/(.68*heightScale))%1;
+   keeperShuffleSpeed=THREE.MathUtils.damp(keeperShuffleSpeed,lateral,18,dt);
+   options.keeperShufflePhase=keeperShufflePhase;
+   options.keeperShuffleSpeed=keeperShuffleSpeed;
+  }else if(keeperShufflePhase||keeperShuffleSpeed)keeperShufflePhase=keeperShuffleSpeed=0;
   if(stair||definition.seated||discontinuity||step>=2)lateralSteer=lateralBlend=0;else{lateralSteer=THREE.MathUtils.damp(lateralSteer,moving?steer:0,10,dt);lateralBlend=THREE.MathUtils.damp(lateralBlend,moving?lateral:0,10,dt);}
   if(field){
    // The mixed clips would otherwise keep decoding a run indefinitely after
@@ -153,5 +162,5 @@ export function createFootballMotion(data,motion,bones,group,definition){
    group.updateMatrixWorld(true);let lowest=Infinity;for(const foot of[11,17])for(const x of[-.039,.039])for(const z of[-.08,.16]){v.set(rest[foot].x+x,.023,rest[foot].z+z).sub(rest[foot]).applyMatrix4(bones[foot].matrixWorld);lowest=Math.min(lowest,v.y-entranceFloor(v.x));}if(Number.isFinite(lowest)){bones[0].position.y-=clamp(lowest,-.20,.24)/heightScale;group.updateMatrixWorld(true);}
   }
  }
- return{pose,reset(){distance=0;hasLast=false;blend=0;lastTime=null;travelSpeed=0;gaitDirection=1;lateralSteer=lateralBlend=0;lastHeading=bodyPitch=bodyRoll=counterTurn=carrying=receiveLoad=0;footPlant?.reset();}};
+ return{pose,reset(){distance=0;hasLast=false;blend=0;lastTime=null;travelSpeed=0;gaitDirection=1;lateralSteer=lateralBlend=0;lastHeading=bodyPitch=bodyRoll=counterTurn=carrying=receiveLoad=keeperShufflePhase=keeperShuffleSpeed=0;footPlant?.reset();}};
 }

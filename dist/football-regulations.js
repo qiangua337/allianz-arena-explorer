@@ -182,7 +182,7 @@ export function createFootballRegulations(s,ctx,{rules=null,duration=180,opponen
   Object.assign(g,{phase:direction?'dive':'set',committed:true,penaltyDive:true,direction,diveAt:s.time,diveUntil:s.time+saveWindow,recoverUntil:s.time+saveWindow+profile.recovery,blockedUntil:0,targetY,targetX:clamp(keeper.x+direction*2,-3.7,3.7),holdZ:keeper.z});
   g.balancedPenaltySave=ctx.humans.has(k.defending)&&Math.abs(options.penaltyAim?.y??0)<.12;
   ctx.motion(keeper,direction?'dive':'save',direction?saveWindow+profile.recovery:.55,{
-   direction:direction*keeper.attackSign,height:targetY,penaltyDive:true,saveWindow
+   direction:direction*keeper.attackSign,height:targetY,penaltyDive:true,saveWindow,startX:keeper.x
   });
   return true;
  }
@@ -196,7 +196,7 @@ export function createFootballRegulations(s,ctx,{rules=null,duration=180,opponen
   const side=(taker.x-ball.x)*k.attackSign>0?1:0;
   const strikeX=ball.x-(side===0?1:-1)*k.attackSign*.15,strikeZ=ball.z-k.attackSign*.39;
   ctx.motion(taker,'penaltyKick',k.runupDuration+.63,{
-   runup:k.runupDuration,startX:taker.x,startZ:taker.z,strikeX,strikeZ,
+   runup:k.runupDuration,startX:taker.x,startZ:taker.z,entryYaw:taker.yaw,strikeX,strikeZ,
    contactX:ball.x,contactY:ball.y,contactZ:ball.z,side
   });
   k.stage='runup';k.time=0;

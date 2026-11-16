@@ -1,11 +1,15 @@
 import {applyFootballKick,applyFootballShotPreparation,keepFootballBootsAboveFloor,liftFootballBootsAboveFloor} from './football-kick-pose.js';
 import {applyFootballPenaltyKick} from './football-penalty-pose.js';
-import {applyPenaltyKeeperPose} from './football-keeper-penalty-pose.js';
+import {applyPenaltyKeeperPose,applyPenaltyKeeperSet} from './football-keeper-penalty-pose.js';
 // Football strokes layer over the CC0 locomotion clips before the skeleton's
 // single world update. Kicks plant their support foot and begin at contact.
-export function applyFootballAction(bones,motion,{defending=false,speed=0,holdingBall=false}={},group){
+export function applyFootballAction(bones,motion,{defending=false,speed=0,holdingBall=false,penaltyKeeper=false,keeperShuffleSpeed=0,keeperShufflePhase=0}={},group){
  const t=motion?Math.max(0,Math.min(1,motion.elapsed/motion.duration)):0,pulse=Math.sin(t*Math.PI);
  if(motion?.type==='penaltyKick'&&group){applyFootballPenaltyKick(bones,motion,group);return;}
+ if(penaltyKeeper&&(!motion||motion.penaltyDive)){
+  applyPenaltyKeeperSet(bones,keeperShuffleSpeed,keeperShufflePhase,motion);
+  if(!motion)return;
+ }
  if(motion?.type==='keeperThrow'){
   const finish=1-t; bones[6].rotateX(-.30*finish);bones[7].rotateX(-.55*finish);bones[12].rotateX(-1.85*finish);bones[13].rotateX(-.27*finish);bones[2].rotateY(-.16*finish);return;
  }
@@ -36,7 +40,7 @@ export function applyFootballAction(bones,motion,{defending=false,speed=0,holdin
  const strike=motion?.type==='tackle'?pulse:t<.18?Math.sin(t/.18*Math.PI/2):Math.cos((t-.18)/.82*Math.PI/2);
  if(kick&&strike>0){bones[15].rotateX(-kick*strike);bones[16].rotateX(.24*strike);bones[17].rotateX(-.12*strike);bones[6].rotateZ(-.12*strike);bones[12].rotateZ(.15*strike);bones[2].rotateX(.06*strike);}
  if(motion?.penaltyDive&&(motion.type==='dive'||motion.type==='save')){
-  applyPenaltyKeeperPose(bones,motion);return;
+  applyPenaltyKeeperPose(bones,motion,group);return;
  }
  if(motion?.type==='save'){
   bones[6].rotateX(-.85*pulse);bones[12].rotateX(-.85*pulse);

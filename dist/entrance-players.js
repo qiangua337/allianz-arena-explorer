@@ -127,7 +127,7 @@ function athlete(data,geometries,textures,definition,motion,atlasSize,cacheWorld
   // once. Stairs keep their intermediate matrices for foot placement.
   if(cacheWorld)group.solvingPose=true;
   motionPlayer.pose(x,z,heading,time,moving,seatY,true,options);
-  if(action||options.holdingBall||options.defending||options.speed>5.5)applyFootballAction(bones,action,options,group);
+  if(action||options.holdingBall||options.defending||options.penaltyKeeper||options.speed>5.5)applyFootballAction(bones,action,options,group);
   if(cacheWorld){
    group.solvingPose=false;
    group.invalidatePose();
@@ -311,6 +311,8 @@ export function buildEntrancePlayers(scene,{mobile=false}={}){
     }
     options=actor.fieldOptions??(actor.fieldOptions={});
     options.defending=p.defending;options.speed=speed;options.fieldLocomotion=controlled||distance<(mobile?18:28);
+    options.penaltyKeeper=p.id===penalty?.keeper;
+    options.keeperLateralSpeed=options.penaltyKeeper?(p.vx||0)*Math.cos(yaw):0;
     options.onBall=state.ball.ownerId===p.id;options.holdingBall=!!p.keeper&&options.onBall&&state.ball.y>.64;options.incomingBall=!state.ball.ownerId&&state.ball.targetId===p.id?state.ball:null;
     options.action=action;
    }else if(d.role==='referee'&&card)action={type:'booking',elapsed:state.time-decision.at,duration:3};actor.pose(px,pz,yaw,time,moving,d.seated&&d.role==='assistant'?.45:0,action,options);actor.lastPoseTime=time;}else if(d.role==='player'||!actor.group.visible&&!controlled){actor.group.position.set(p.x,0,p.z);actor.group.rotation.y=heading;}

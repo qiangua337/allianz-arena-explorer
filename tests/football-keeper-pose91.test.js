@@ -83,7 +83,7 @@ test('both penalty dive heights land and recover above the grass between mobile 
  }
 });
 
-test('a penalty keeper loads against the dive and puts one boot down before rising',()=>{
+test('a penalty keeper loads against the dive, braces and puts one boot down before rising',()=>{
  const f=fixture();
  for(const direction of [-1,1])for(const height of [.35,1.95]){
   const stance=elapsed=>{
@@ -91,13 +91,60 @@ test('a penalty keeper loads against the dive and puts one boot down before risi
    applyFootballAction(f.bones,{type:'dive',elapsed,duration:1.23,direction,penaltyDive:true,saveWindow:.58,height});
    const lowest=f.lowest(true),root=f.bones[0].position;
    const ankles=[11,17].map(index=>f.bones[index].getWorldPosition(new THREE.Vector3()).y);
-   return {x:root.x,y:root.y,ankles,lowest};
+   const hand=f.bones[direction>0?8:14].getWorldPosition(new THREE.Vector3());
+   return {x:root.x,y:root.y,ankles,hand,lowest};
   };
-  const ready=stance(0),load=stance(.09),reach=stance(.44),land=stance(.74),rise=stance(1.04);
+  const high=height>1.5;
+  const ready=stance(0),load=stance(.09),reach=stance(.44),land=stance(high?.9:.74),rise=stance(1.14);
   assert.ok((load.x-ready.x)*direction<-.05&&load.y<ready.y-.045,'transfer onto the opposite leg before the push');
   assert.ok(land.y<reach.y-.12,'stay low until the supporting leg lands');
   assert.ok(Math.min(...land.ankles)<.19&&Math.max(...land.ankles)>.26,'lead boot bears weight instead of hovering with two feet up');
-  assert.ok(rise.y>land.y+.23&&land.lowest>.001);
+  assert.ok(land.hand.y<.34&&rise.y>land.y+.23&&land.lowest>.001,'brace with the leading hand before pushing up');
+  if(high){
+   assert.ok(reach.y>ready.y+.17&&Math.min(...reach.ankles)>.29,'the high save pushes both boots off the pitch');
+   assert.ok(reach.hand.y>1.75,'the leading glove reaches near the chosen high ball');
+  }else{
+   assert.ok(reach.y<ready.y-.28&&Math.min(...reach.ankles)<.15,'the low save drives along the grass');
+   assert.ok(reach.hand.y<.42,'the leading glove reaches near the chosen low ball');
+  }
+ }
+});
+
+test('a penalty keeper approaches the shot in a crouch and shuffles without crossing the feet',()=>{
+ const f=fixture();
+ const sample=(speed,phase)=>{
+  f.clip('Idle_Loop',0);
+  applyFootballAction(f.bones,null,{penaltyKeeper:true,keeperShuffleSpeed:speed,keeperShufflePhase:phase});
+  const floor=f.lowest(true),positions=[0,11,17,8,14].map(index=>f.bones[index].getWorldPosition(new THREE.Vector3()));
+  assert.ok(floor>0,'boots and gloves stay above the turf');
+  return positions;
+ };
+ const [root,leftFoot,rightFoot,leftGlove,rightGlove]=sample(0,0);
+ assert.ok(root.y<.90&&leftFoot.x-rightFoot.x>.44,'a broad, lowered set stance');
+ assert.ok(leftGlove.z>.28&&rightGlove.z>.28,'hands come forward while waiting');
+ for(const direction of [-1,1]){
+  const [,leftLift,leftSupport]=sample(direction*2,.75),[,rightSupport,rightLift]=sample(direction*2,.25);
+  assert.ok(leftLift.x>leftSupport.x&&rightSupport.x>rightLift.x,'side steps keep the feet apart');
+  assert.ok(leftLift.y>leftSupport.y+.043&&rightLift.y>rightSupport.y+.043,'only the swing foot lifts during each step');
+ }
+});
+
+test('the penalty push-off boot holds its pitch position while the keeper begins to move',()=>{
+ const f=fixture(),startX=.31;
+ for(const yaw of [0,Math.PI])for(const direction of [-1,1]){
+  const support=direction>0?17:11;
+  const sample=(elapsed,travel)=>{
+   f.clip('Idle_Loop',0);
+   f.group.rotation.y=yaw;
+   f.group.position.x=startX+direction*Math.cos(yaw)*travel;
+   const motion=elapsed?{type:'dive',elapsed,duration:1.23,direction,penaltyDive:true,saveWindow:.58,height:1.16,startX}:null;
+   applyFootballAction(f.bones,motion,{penaltyKeeper:true},f.group);
+   const floor=f.lowest(true);
+   assert.ok(floor>0);
+   return f.bones[support].getWorldPosition(new THREE.Vector3());
+  };
+  const set=sample(0,0),push=sample(.113,.40);
+  assert.ok(Math.abs(set.x-push.x)<.07&&push.y<.14,JSON.stringify({direction,yaw,set,push}));
  }
 });
 

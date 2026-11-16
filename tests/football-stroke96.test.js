@@ -136,9 +136,10 @@ test('a locally presented strike uses the first contact pose at the displayed ba
 
 test('either penalty boot reaches the spot while the other sole stays planted through contact',()=>{
  for(const direction of [-1,1])for(const side of [0,1]){
-  const f=fixture(),sign=side===0?1:-1,runup=.82,duration=1.45,scale=side===0?.93:1.05;
+  const f=fixture(),sign=side===0?1:-1,runup=(side===0?47:53)/60,duration=runup+.63,scale=side===0?.93:1.05;
   const motion={id:1,type:'penaltyKick',side,power:.7,runup,duration,startX:sign*direction*.74,startZ:41.5*direction-2.65*direction,
-   strikeX:-sign*direction*.15,strikeZ:(41.5-.39)*direction,contactX:0,contactY:.11,contactZ:41.5*direction};
+   entryYaw:Math.atan2(-sign*direction*.74,direction*2.65),strikeX:-sign*direction*.15,strikeZ:(41.5-.39)*direction,
+   contactX:0,contactY:.11,contactZ:41.5*direction};
   const ball=vector(motion.contactX,motion.contactY,motion.contactZ);
   const start=samplePenaltyApproach(motion,0),ready={clip:'Idle_Loop',x:start.x,z:start.z,heading:start.yaw,scale};
   assert.deepEqual(f.pose({type:'prepareShot',elapsed:1,duration:1,penaltyReady:true},ready).feet,f.pose(null,ready).feet);
@@ -162,8 +163,16 @@ test('either penalty boot reaches the spot while the other sole stays planted th
    if(fraction===1)assert.ok(Math.abs(boots[side].contact-.11)<.026,JSON.stringify({direction,side,fraction,boots,foot:frame.feet[side]}));
    if(fraction<.95)assert.ok(boots[side].contact>.11,JSON.stringify({direction,side,fraction,boots}));
   }
+  const prior=pose(runup-1/120).feet[side],impact=pose(runup).feet[side],next=pose(runup+1/120).feet[side];
+  const incoming=(impact.z-prior.z)*120*direction,outgoing=(next.z-impact.z)*120*direction;
+  assert.ok(Math.min(incoming,outgoing)>4.5,JSON.stringify({direction,side,incoming,outgoing}));
+  assert.ok(Math.abs(incoming-outgoing)<1.3,JSON.stringify({direction,side,incoming,outgoing}));
   const follow=pose(runup+.16);
   assert.ok(follow.feet[side].y>.24);
+  for(let after=.19;after<=.58;after+=1/60){
+   pose(runup+after);
+   assert.ok(Math.min(...f.boots().map(boot=>boot.lowest))<.028,JSON.stringify({direction,side,after,boots:f.boots()}));
+  }
   for(let elapsed=0;elapsed<duration;elapsed+=1/24){
    pose(elapsed);assert.ok(f.boots().every(boot=>boot.lowest>-.002),JSON.stringify({direction,side,elapsed,boots:f.boots()}));
   }
