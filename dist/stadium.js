@@ -9,7 +9,7 @@ import {buildNearSeatDetails,seatShellGeometry} from './near-seat-details.js';
 import {buildBowlLighting} from './stadium-lighting.js';
 import {positionStateChanged} from './position-state.js';
 import {THREE,TAU,v,mat,mesh,box,beam,sign,cylinder,canvasTexture,textTexture,superpoint,supernormal,ringGeometry,curveLine,mergeGeometry,compactGroup,Batches,addCrest,getCrestImage,seeded} from './kit.js';
-import {bowlIsVisible,buildStairwellOcclusion,buildUpperRevealView,buildWalkFrustum,buildStaticBatchCulling,suspendMatrixTraversal} from './scene-budget.js';
+import {bowlIsVisible,buildStairwellOcclusion,buildUpperRevealView,buildVisitorBowlView,buildWalkFrustum,buildStaticBatchCulling,suspendMatrixTraversal} from './scene-budget.js';
 import {enclosedPlayerPosition} from './player-area-layout.js';
 import {buildCirculation} from './circulation.js';
 import {accessStairs,ACCESS_BASE,ACCESS_TOP} from './access-layout.js';
@@ -155,7 +155,8 @@ export function buildStadium(scene){
  // Keep box culling limited to fixed children without independent visibility.
  // Their parent still controls room, roof, and bowl visibility.
  const staticSurfaces=[...(decks?.children??[]),...(trussSectors?.children??[]),...roofLining.children,...aisleRails.children.flatMap(group=>group.children)];
- const cameraFrustum=buildWalkFrustum(),facesUpperBowl=buildUpperRevealView(),cullStaticBatches=buildStaticBatchCulling([...structural.children,...circulation.root.children,...seatInstances.map(({inst})=>inst)],staticSurfaces);
+ const cameraFrustum=buildWalkFrustum(),facesUpperBowl=buildUpperRevealView(),facesVisitorPortal=buildVisitorBowlView(cameraFrustum),cullStaticBatches=buildStaticBatchCulling([...structural.children,...circulation.root.children,...seatInstances.map(({inst})=>inst)],staticSurfaces);
+ const shellBounds=shellMeshes.map(shell=>shell.geometry.boundingBox.clone().applyMatrix4(shell.matrixWorld).expandByScalar(.18));
  const suspendBowl=suspendMatrixTraversal(bowl),suspendRoof=suspendMatrixTraversal(roof);
  const seatOrigin=v();let seatState=-1,seatRangeSquared=0,stairwellHidden=false,groundsBehindUpperBowl=false;
  function updateSeatSectors(position,high,low,playing,filled,compact,revealing){
@@ -182,40 +183,51 @@ export function buildStadium(scene){
   const position=camera.position,walking=mode==='walk',width=typeof innerWidth==='number'?innerWidth:Infinity;
   const small=width<=760,compactWalk=small&&walking&&!high&&!low&&!playing;
   const mobileWalking=width<=1024&&walking&&!high&&!playing;
-  const upperWalking=mobileWalking&&position.y>13&&Math.abs(position.x)<115&&Math.abs(position.z)<130;
-  const view=upperWalking?cameraFrustum(camera):null;
+  const stadiumWalking=mobileWalking&&Math.abs(position.x)<120&&Math.abs(position.z)<140;
+  const groundWalking=stadiumWalking&&position.y<5;
+  const visitorReveal=groundWalking&&position.y<2.1&&Math.abs(position.x-visitorPassage.x)<visitorPassage.width/2+3&&position.z>visitorPassage.exitZ-5&&position.z<=visitorPassage.backZ;
+  const view=stadiumWalking?cameraFrustum(camera):null;
   stairwellHidden=mobileWalking&&stairwellOccluded(camera,view);
   const {bridge}=upperGalleryRooms;
-  const revealing=upperWalking&&position.y>upperThresholdLanding.y+.75&&position.y<upperTierThreshold.top+3.05&&
+  const revealing=stadiumWalking&&position.y>upperThresholdLanding.y+.75&&position.y<upperTierThreshold.top+3.05&&
    position.x>=upperThresholdLanding.x0-.2&&position.x<bridge.maxX&&position.z>bridge.minZ&&position.z<upperThresholdLanding.z1+.3;
   groundsBehindUpperBowl=revealing&&!stairwellHidden&&roof.visible&&facesUpperBowl(camera);
-  const state=(walking?1:0)|(high?2:0)|(low?4:0)|(playing?8:0)|(small?16:0)|(filled?32:0)|(stairwellHidden?64:0)|(groundsBehindUpperBowl?128:0);
+  const showBowl=!stairwellHidden&&bowlIsVisible(position,mode,facesVisitorPortal(camera,view));
+  const state=(walking?1:0)|(high?2:0)|(low?4:0)|(playing?8:0)|(small?16:0)|(filled?32:0)|(stairwellHidden?64:0)|(groundsBehindUpperBowl?128:0)|(showBowl?256:0)|(stadiumWalking?512:0)|(visitorReveal?1024:0);
   const showArcade=(!stairwellHidden&&!groundsBehindUpperBowl)||position.y<=5;
   if(!playing&&circulation.root.visible!==showArcade)circulation.root.visible=showArcade;
-  suspendBowl(stairwellHidden);suspendRoof(stairwellHidden);
-  cullStaticBatches(upperWalking&&!stairwellHidden,view);
-  if(!visibilityChanged(position,state))return;
+  suspendBowl(!showBowl);suspendRoof(stairwellHidden);
+  cullStaticBatches(stadiumWalking&&!stairwellHidden,view);
+  const moved=visibilityChanged(position,state);
+  if(moved||groundWalking&&view.changed){
+   const showShell=!stairwellHidden&&!enclosedPlayerPosition(position);
+   for(const [i,shell] of shellMeshes.entries()){
+    const visible=showShell&&(!groundWalking||view.frustum.intersectsBox(shellBounds[i]))&&(shell.userData.shellSection===1||facadeSectorVisible(position,shell.userData.sectorCenter));
+    if(shell.visible!==visible)shell.visible=visible;
+   }
+  }
+  if(!moved)return;
   if(stairwellHidden){
    if(roofLining.visible){
     if(bowl.visible)nearSeats.update(position,false);
     bowl.visible=roofDetails.visible=roofLining.visible=false;
-    for(const shell of shellMeshes)shell.visible=false;
    }
    return;
   }
-  const enclosedPlayer=enclosedPlayerPosition(position);
-  pitchSurface.update(camera,high,low,small);pitchside.update(position,low);
   roofLining.visible=true;
-  for(const shell of shellMeshes)shell.visible=!enclosedPlayer&&(shell.userData.shellSection===1||facadeSectorVisible(position,shell.userData.sectorCenter));
-  bowl.visible=bowlIsVisible(position,mode);
+  bowl.visible=showBowl;
   nearSeats.update(position,!playing&&bowl.visible&&(!low||walking),low?32:high?384:small?128:192,small&&walking&&!high);
   roofDetails.visible=bowl.visible||position.y>30;closeLabels.visible=position.length()<180;
+  if(!showBowl)return;
+  pitchSurface.update(camera,high,low,small);pitchside.update(position,low);
   for(const {position:location,detailed,distant} of dugouts){
    const compact=compactWalk&&position.distanceToSquared(location)>42**2;
    detailed.visible=!compact;distant.visible=compact;
   }
   // Near moulded seats and the walkable treads still use the ordinary meshes.
-  updateSeatSectors(position,high,low,playing,filled,compactWalk,groundsBehindUpperBowl);
+  // Keep detailed chairs at the landing but use the distant seat silhouette
+  // through the narrow opening and until the visitor clears the stair apron.
+  updateSeatSectors(position,high,low,playing,filled,compactWalk,groundsBehindUpperBowl||visitorReveal);
  },night(n){bowlLighting.night(n);circulation.night(n);shellMaterials[0].color.set(n?0xe52a49:0xe5e8e4);shellMaterials[0].emissive.set(n?0xd7082c:0x000000);shellMaterials[0].emissiveIntensity=n?.72:0;shellMaterials[0].roughness=n?.76:.58;shellMaterials[1].color.set(n?0xcfc0c4:0xf4f4ed);shellMaterials[1].emissive.set(n?0x9d1736:0x000000);shellMaterials[1].emissiveIntensity=n?.22:0;lightMaterial.color.set(n?0xf7fbff:0xb9c6cb);logo.material.map=logoBack.material.map=n?logoNightMap:logoDayMap;}};
 }
 

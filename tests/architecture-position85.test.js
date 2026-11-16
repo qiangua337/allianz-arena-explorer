@@ -11,13 +11,18 @@ const {buildWalkBuilding}=await import('../dist/walk-building.js');
 const {buildServiceRooms}=await import('../dist/service-rooms.js');
 const {serviceWorld}=await import('../dist/service-layout.js');
 await loadBrandAssets();const scene=new THREE.Scene(),stadium=buildStadium(scene),interiors=buildInteriors(scene,stadium.circulation),building=buildWalkBuilding(scene),service=buildServiceRooms(scene),camera=new THREE.PerspectiveCamera();
-function trackVisible(root){let writes=0;root.traverse(o=>{let value=o.visible;Object.defineProperty(o,'visible',{configurable:true,get:()=>value,set:next=>{writes++;value=next;}});});return{count:()=>writes,reset(){writes=0;}};}
+function trackVisible(root){
+ let writes=0,redundant=0;
+ root.traverse(o=>{let value=o.visible;Object.defineProperty(o,'visible',{configurable:true,get:()=>value,set:next=>{writes++;if(value===next)redundant++;value=next;}});});
+ return{count:()=>writes,redundant:()=>redundant,reset(){writes=redundant=0;}};
+}
 const tracker=trackVisible(scene),update=(mode='walk',high=false,low=false,playing=false)=>{stadium.update(camera,mode,high,low,playing);interiors.update(camera.position,'pitch');building.update(camera.position,mode);stadium.circulation.update(camera.position);service.update(camera.position,.016);};
 
 test('stationary architectural updates skip repeated visibility work while preserving settings and movement changes',()=>{
  globalThis.innerWidth=390;camera.position.set(0,1.7,0);update();tracker.reset();
  for(let i=0;i<1000;i++){camera.rotation.y=i*.001;update();}
- assert.equal(tracker.count(),0,'turning in place does not reassign all static visibility');
+ assert.equal(tracker.redundant(),0,'turning in place only writes visibility across a view boundary');
+ tracker.reset();update();assert.equal(tracker.count(),0,'an unchanged view does not reassign static visibility');
  update('walk',false,true);assert.ok(tracker.count()>0,'quality changes immediately apply');assert.equal(stadium.root.getObjectByName('Nearby turf blades').visible,false);
  tracker.reset();update('walk',true,false);assert.ok(tracker.count()>0);assert.equal(stadium.root.getObjectByName('Nearby turf blades').visible,true);
  tracker.reset();globalThis.innerWidth=844;update('walk',true,false);assert.ok(tracker.count()>0,'viewport changes invalidate seat capacity');

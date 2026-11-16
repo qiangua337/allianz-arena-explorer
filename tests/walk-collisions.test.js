@@ -11,7 +11,7 @@ const {buildStadium}=await import('../dist/stadium.js');
 const {buildInteriors,roomSpecs}=await import('../dist/interiors.js');
 const {buildWalkBuilding}=await import('../dist/walk-building.js');
 const {buildWorld}=await import('../dist/world.js');
-const {tourGoals,tourNodes,planTour}=await import('../dist/tour-route.js');
+const {tourGoals,tourNodes,planTour,visitorFloor,visitorPassage}=await import('../dist/tour-route.js');
 const {floorHeight,hitsWall}=await import('../dist/navigation.js');
 const {buildInteractions}=await import('../dist/interactions.js');
 const {furnitureBlocksSegment}=await import('../dist/furniture-layout.js');
@@ -21,7 +21,7 @@ const {destinationArrival}=await import('../dist/arrivals.js');
 const {canStandAt}=await import('../dist/navigation.js');
 const {advanceWalker}=await import('../dist/walk-motion.js');
 const {indexWalkWalls}=await import('../dist/walk-collision-index.js');
-const {accessStairs,accessHeight}=await import('../dist/access-layout.js');
+const {ACCESS_BASE,accessStairs,accessHeight,perimeterFrames}=await import('../dist/access-layout.js');
 const {buildServiceRooms}=await import('../dist/service-rooms.js');
 const {serviceRooms:serviceLayout,serviceWorld}=await import('../dist/service-layout.js');
 const {ribbonPoints}=await import('../dist/ribbon-path.js');
@@ -46,6 +46,42 @@ test('fixed collision bins preserve actual walls across entrance, gallery and st
    assert.equal(blocked(x+dx,z+dz,y+1.7),hitsWall(x+dx,z+dz,y+1.7,fixed));
   }
  }
+});
+
+test('standing visitors cannot pass through the south gate side glazing or columns',()=>{
+ const frames=perimeterFrames(105,120,66),south=frames[16],fixture=frames[14];
+ const eye=ACCESS_BASE+1.7,blocked=indexWalkWalls(stadium.circulation.colliders);
+ const columnOffset=-(fixture.spacing-.35)/2-.18;
+ const column={x:fixture.x+fixture.normal.z*columnOffset,z:fixture.z-fixture.normal.x*columnOffset};
+ assert.ok(blocked(column.x,column.z,eye),'the lower bay column is solid');
+ for(const side of [-1,1])for(const direction of [-1,1]){
+  const start={x:south.x+side*4.2,z:south.z-direction*3};
+  const feet=advanceWalker(start,ACCESS_BASE,0,direction*6,geometry,blocked);
+  assert.ok((start.z-(south.z-.24))*direction<-.29,'the side glazing stops movement from both sides');
+  assert.equal(feet,ACCESS_BASE);
+ }
+ const walker={x:0,z:126};
+ const feet=advanceWalker(walker,ACCESS_BASE,0,-13,geometry,blocked);
+ assert.equal(walker.x,0);
+ assert.ok(Math.abs(walker.z-113)<.01,'the central opening connects the apron and reception');
+ assert.equal(feet,ACCESS_BASE);
+});
+
+test('visitor pitch stairs stay walkable at the centre and contain lateral movement at every height',()=>{
+ const {x,rampZ,exitZ,width}=visitorPassage,blocked=indexWalkWalls(stadium.circulation.colliders);
+ for(const z of [exitZ+.7,(rampZ+exitZ)/2,rampZ-.4])for(const side of [-1,1]){
+  const position={x,z},feet=visitorFloor(x,z);
+  const next=advanceWalker(position,feet,side*5,0,geometry,blocked);
+  assert.ok(Math.abs(position.x-x)<width/2-.1,'the concrete stair edge blocks lateral movement');
+  assert.equal(next,feet);
+ }
+ const position={x,z:rampZ+1};
+ let feet=advanceWalker(position,ACCESS_BASE,0,-8,geometry,blocked);
+ assert.ok(position.z<exitZ+.02);
+ assert.equal(feet,0);
+ feet=advanceWalker(position,feet,0,8,geometry,blocked);
+ assert.ok(position.z>rampZ+.95);
+ assert.equal(feet,ACCESS_BASE);
 });
 
 function visibleEnvelopeMeshes(){const list=[];for(const group of [interiors.rooms.corridor,interiors.rooms.shower,...Object.values(interiors.shells)])group.traverseVisible(o=>{if(o.isMesh)list.push(o);});scene.updateMatrixWorld(true);return list;}

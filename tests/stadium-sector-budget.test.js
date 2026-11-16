@@ -251,6 +251,33 @@ test('phone stairwell matrix traversal skips the obscured roof and seats and res
  }
 });
 
+test('lower reception skips bowl transforms and the visitor stairs restore the scene with bounded distant seats',()=>{
+ const width=globalThis.innerWidth;globalThis.innerWidth=1023;
+ const camera=new THREE.PerspectiveCamera(66,1023/871,.06,4500),probe=new THREE.Object3D();
+ const chairs=stadium.bowl.children.filter(o=>o.isInstancedMesh&&o.instanceColor&&o.count>384);
+ stadium.bowl.add(probe);
+ const face=(position,target)=>{camera.position.fromArray(position);camera.lookAt(...target);stadium.update(camera,'walk');scene.updateMatrixWorld(true);};
+ try{
+  probe.position.x=3;
+  face([6,-1.2,113],[67,-.7,105]);
+  assert.equal(stadium.bowl.visible,false);
+  assert.equal(probe.matrixWorld.elements[12],0,'occluded bowl does no transform work');
+  const roofFlags=upper.map(mesh=>mesh.visible);
+  face([6,-1.2,113],[0,2,144]);
+  assert.notDeepEqual(upper.map(mesh=>mesh.visible),roofFlags,'lower shell culling follows a stationary turn');
+  face([22,-1.2,81],[22,-1.2,65]);
+  assert.ok(stadium.bowl.visible&&probe.matrixWorld.elements[12]===3);
+  assert.ok(chairs.every(o=>triangles(o)===2),'the covered aperture uses inexpensive distant seats');
+  for(const [z,y] of [[65,-.7],[63,.2],[61,.87],[57,1.7]])for(const dx of [-12,12]){
+   face([22,y,z],[22+dx,4,13]);
+   assert.ok(stadium.bowl.visible,'both sides of the exposed stairs keep the full bowl rendered');
+   assert.ok(chairs.every(o=>triangles(o)===2));
+  }
+  face([22,1.7,52],[22,4,13]);
+  assert.ok(chairs.some(o=>triangles(o)>2),'regular seat quality resumes past the apron');
+ }finally{probe.removeFromParent();if(width===undefined)delete globalThis.innerWidth;else globalThis.innerWidth=width;}
+});
+
 test('bowl fittings retain every box and cull the opposite stand from match cameras',()=>{
  const fittings=meshes(stadium.bowl.getObjectByName('Bowl concrete steps and metal fittings'));
  assert.ok(fittings.every(o=>o.isInstancedMesh&&o.castShadow&&o.receiveShadow));

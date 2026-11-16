@@ -10,3 +10,9 @@ test('leaving the pitch cannot drop the walker under the seating bowl',()=>{
 test('a walker at the tunnel stair landing cannot step sideways into the void',()=>{
  const p={x:-43,z:0};let feet=floorHeight(p.x,p.z,-1.4,geometry);for(let i=0;i<80;i++){const before=feet;feet=advanceWalker(p,feet,0,.15,geometry,clear);assert.ok(Math.abs(feet-before)<=.8);}assert.ok(p.z<2.6);assert.ok(feet>-1.5);
 });
+test('a blocked step cannot silently put the walker on a different overlapping floor',()=>{
+ const p={x:0,z:113},feet=-3.2;
+ assert.equal(advanceWalker(p,feet,0,0,geometry,clear),feet);
+ assert.equal(advanceWalker(p,feet,0,-.2,geometry,()=>true),feet);
+ assert.deepEqual(p,{x:0,z:113});
+});

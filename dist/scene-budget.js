@@ -1,6 +1,7 @@
 import {THREE,compactGroup} from './kit.js';
 import {tunnelHasBowlView,enclosedPlayerPosition} from './player-area-layout.js';
 import {core,coreLevels,upperGalleryRooms,upperTierThreshold} from './building-layout.js';
+import {inVisitorPassage,visitorPassage} from './tour-route.js';
 
 // Keep hardware instances and independently controlled subtrees intact while
 // combining small static meshes that otherwise each cost a draw submission.
@@ -34,11 +35,13 @@ export function suspendExplorationRoots(roots){
   roots.forEach((root,i)=>{setTraversal[i](active);if(active){previous[i]=root.visible;root.visible=false;}else root.visible=previous[i];});
  };
 }
-export function bowlIsVisible(position,mode){
+export function bowlIsVisible(position,mode,visitorOpeningVisible=false){
  if(enclosedPlayerPosition(position))return false;
- const inner=(Math.abs(position.x)/83)**2.8+(Math.abs(position.z)/101)**2.8,passage=position.y<8&&Math.abs(position.x-22)<3.6&&position.z>60&&position.z<105;
+ const {x,y,z}=position;
+ if(y<8&&inVisitorPassage(x,z,.32))return z<=visitorPassage.rampZ+.03||visitorOpeningVisible;
+ const inner=(Math.abs(x)/83)**2.8+(Math.abs(z)/101)**2.8;
  // At pedestrian height the opaque exterior and lower arcade hide the bowl.
- return tunnelHasBowlView(position)||position.y>18||inner<.98&&!passage;
+ return tunnelHasBowlView(position)||y>18||inner<.98;
 }
 export function buildWalkFrustum(){
  const frustum=new THREE.Frustum(),projection=new THREE.Matrix4();
@@ -62,6 +65,14 @@ export function buildUpperRevealView(){
    if(direction.x>=-.6||Math.abs(direction.z)>-.85*direction.x)return false;
   }
   return true;
+ };
+}
+export function buildVisitorBowlView(walkFrustum=buildWalkFrustum()){
+ const {x,width,base,head,rampZ}=visitorPassage;
+ const portal=new THREE.Box3(new THREE.Vector3(x-width/2,base,rampZ),new THREE.Vector3(x+width/2,head,rampZ)).expandByScalar(.12);
+ return (camera,view)=>{
+  const p=camera.position;
+  return p.y<8&&p.z>rampZ&&inVisitorPassage(p.x,p.z,.32)&&(view??walkFrustum(camera)).frustum.intersectsBox(portal);
  };
 }
 export function buildStaticBatchCulling(meshes,opaqueSurfaces=[]){

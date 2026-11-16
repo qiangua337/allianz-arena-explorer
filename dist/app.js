@@ -84,7 +84,7 @@ const toast=text=>{clearTimeout(toastTimer);$('toast').textContent=text;$('toast
 export async function startArena({hub, initial, nightAtStart}){
  experienceHub=hub;
  $('quality').value=qualityMode;syncMatchFpsOptions();
- try{renderer=new THREE.WebGLRenderer({canvas,antialias:qualityMode==='high'||!(innerWidth<=760||window.matchMedia('(pointer:coarse)').matches),alpha:false,preserveDrawingBuffer:false,powerPreference:'high-performance'});}catch(error){throw new Error('当前浏览器未能启用 WebGL。请检查浏览器的硬件加速设置。',{cause:error});}
+ try{renderer=new THREE.WebGLRenderer({canvas,antialias:qualityMode==='high'||!(innerWidth<=1024||window.matchMedia('(pointer:coarse)').matches),alpha:false,preserveDrawingBuffer:false,powerPreference:'high-performance'});}catch(error){throw new Error('当前浏览器未能启用 WebGL。请检查浏览器的硬件加速设置。',{cause:error});}
  setQuality();renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.17;renderer.shadowMap.type=THREE.PCFShadowMap;renderer.shadowMap.autoUpdate=false;renderer.shadowMap.needsUpdate=true;
  scene=new THREE.Scene();scene.fog=new THREE.FogExp2(0xb8cbd6,.00082);
  camera=new THREE.PerspectiveCamera(48,innerWidth/innerHeight,.06,4500);camera.position.fromArray(places.exterior.pos);
@@ -102,7 +102,7 @@ export async function startArena({hub, initial, nightAtStart}){
  setExplorationMatchMode=suspendExplorationRoots([building.root,stadium.circulation.root]);
  setObscuredExploration=suspendExplorationRoots([interiors.root,serviceRooms.root]);
  setObscuredGrounds=suspendExplorationRoots([world.group]);
- freezeArchitecture(world.group,[world.rotor]);freezeArchitecture(stadium.root,[stadium.matchBall]);freezeArchitecture(stadium.circulation.root);freezeArchitecture(interiors.root);freezeArchitecture(building.root);destinationMenu=buildDestinationMenu({onDismiss:()=>setNavOpen(false)});buildHotspots();bindUI();setNavOpen(false);document.body.dataset.mode=mode;setDayNight(nightAtStart);applySurfaceQuality(scene,qualityMode);clock.time=performance.now();document.body.dataset.version='11.2.0';document.body.dataset.seats=stadium.seatCount;document.body.dataset.panels=stadium.panelCount;
+ freezeArchitecture(world.group,[world.rotor]);freezeArchitecture(stadium.root,[stadium.matchBall]);freezeArchitecture(stadium.circulation.root);freezeArchitecture(interiors.root);freezeArchitecture(building.root);destinationMenu=buildDestinationMenu({onDismiss:()=>setNavOpen(false)});buildHotspots();bindUI();setNavOpen(false);document.body.dataset.mode=mode;setDayNight(nightAtStart);applySurfaceQuality(scene,qualityMode);clock.time=performance.now();document.body.dataset.version='11.2.1';document.body.dataset.seats=stadium.seatCount;document.body.dataset.panels=stadium.panelCount;
  const requestedPlace=initial.get('place'),requestedTour=walkingTourFromSearch(initial);
  if(requestedTour||initial.get('view')==='walk'){
   const place=requestedPlace&&(places[requestedPlace]||tourGoals[requestedPlace])?requestedPlace:requestedTour?.stops[0]||'arcade';
@@ -321,8 +321,6 @@ function floorAt(x,z,feetY=walkFeet??camera.position.y-desiredEye){return floorH
 function blocked(x,z,y){
  return hitsWall(x,z,y,interactions.colliders)||hitsWall(x,z,y,serviceDoorColliders)||staticWalkCollision(x,z,y);
 }
-let supportedX,supportedZ,supportedFeet;
-
 function moveWalk(dt){
  if(mode!=='walk'||!walkReady||!$('explore').hidden||document.querySelector('dialog[open]'))return;
  yaw+=((keys.has('KeyQ')?1:0)-(keys.has('KeyE')?1:0))*Math.min(dt,.25)*1.5;
@@ -330,20 +328,19 @@ function moveWalk(dt){
  if(interactions.seated&&Math.hypot(f,s)<.01){camera.rotation.set(pitch,yaw,0,'YXZ');return;}
  const touching=joystickPointer!==null||movementPointers.size>0,duration=walkMotionSeconds(dt,touching);
  smoothWalkInput(smoothInput,s,f,duration);forward.set(-Math.sin(yaw),0,-Math.cos(yaw));right.set(Math.cos(yaw),0,-Math.sin(yaw));step.set(0,0,0).addScaledVector(forward,smoothInput.z).addScaledVector(right,smoothInput.x);
- if(step.lengthSq()){interactions.stand();
-  const feet=walkFeet??camera.position.y-desiredEye;
+ const moving=step.lengthSq()>0;
+ if(moving)interactions.stand();
+ if(walkFeet===null)walkFeet=floorAt(camera.position.x,camera.position.z);
+ if(moving){
+  const feet=walkFeet;
   const speed=walkSpeed(touchSprint||keys.has('ShiftLeft')||keys.has('ShiftRight'),touching,camera.position.x,feet,camera.position.z);
   step.normalize().multiplyScalar(speed*duration*Math.min(1,Math.hypot(smoothInput.x,smoothInput.z)));
   walkFeet=advanceWalker(camera.position,feet,step.x,step.z,walkGeometry,blocked);
  }
- const {x,z}=camera.position;
- if(x!==supportedX||z!==supportedZ||walkFeet!==supportedFeet||walkFeet===null){
-  const feet=floorAt(x,z);
-  // A planted foot has the same support while the visitor looks around.
-  supportedX=x;supportedZ=z;supportedFeet=feet===walkFeet?feet:undefined;
-  walkFeet=feet;
- }
- const y=walkFeet+desiredEye;camera.position.y=THREE.MathUtils.lerp(camera.position.y,y,1-Math.exp(-Math.min(dt,.25)*15));camera.rotation.set(pitch,yaw,0,'YXZ');
+ const y=walkFeet+desiredEye;
+ const easedY=THREE.MathUtils.lerp(camera.position.y,y,1-Math.exp(-Math.min(dt,.25)*15));
+ camera.position.y=THREE.MathUtils.clamp(easedY,y-.32,y+.32);
+ camera.rotation.set(pitch,yaw,0,'YXZ');
 }
 
 const hotspotDefs=[{name:'探索球场内部',id:'stands',p:[0,52,0],outside:true},{name:'南广场',id:'esplanade',p:[0,2,190],outside:true},{name:'草坪与看台',id:'pitch',p:[0,2,0],inside:true},{name:'球员通道',id:'tunnel',p:[-39,3,0],inside:true},{name:'主队更衣室',id:'homeRoom',p:[-78,3,-2],inside:true}];
@@ -417,14 +414,16 @@ function render(timestamp){
  // camera and match overlay only need occasional visual updates.
  const drawRate=matchPaused&&!replay?24:matchFrameRate.state.rate;
  const drawSlack=sample&&phone&&matchday.online?MOBILE_ONLINE_FRAME_SLACK:.0007;
- const walkAdaptive=!playing&&phone&&mode==='walk'&&qualityMode==='standard'&&!matchday?.cinematic;
+ const walkAdaptive=!playing&&phone&&mode==='walk'&&qualityMode!=='high'&&!matchday?.cinematic;
  const visitSlack=phone?WALK_FRAME_SLACK:undefined;
  const drawFrame=playing?gameDrawBudget.ready(timestamp/1000,drawRate,drawSlack):visitDrawBudget.ready(timestamp/1000,phone?60:90,visitSlack);
  const measureStart=sample?performance.now():0;
  let rendered=false;
  if(!playing){
   if(mode==='orbit'){controls.update(raw);constrainRoomOrbit();}
-  else if(!matchday?.cinematic)moveWalk(raw);
+  // Walking still checks each short physical step, but a 120/240 Hz screen
+  // needn't run collision queries between the frames presented to the visitor.
+  else if(drawFrame&&!matchday?.cinematic)moveWalk(sceneTime);
  }
  const gameStart=sample?performance.now():0;
  matchday?.update(raw,camera.position,yaw,playing?gameInput(raw):{},drawFrame);

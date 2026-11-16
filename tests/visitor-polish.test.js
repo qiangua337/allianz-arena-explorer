@@ -92,8 +92,8 @@ test('remaining distance includes vertical stairs and an empty route is zero',()
 test('movement easing is independent of frame rate and releases without sliding',()=>{
  const a={x:0,z:0},b={x:0,z:0};for(let i=0;i<10;i++)smoothWalkInput(a,1,1,.01);smoothWalkInput(b,1,1,.1);assert.ok(Math.abs(a.x-b.x)<1e-10);assert.ok(Math.hypot(a.x,a.z)<=1);smoothWalkInput(a,0,0,.016);assert.deepEqual(a,{x:0,z:0});
 });
-test('touch sprint slows for the interior stairs and tight gallery, then returns to plaza pace',()=>{
- for(const [x,y,z] of [[100,4.65,7],[103,31.8,8],[101.2,38.42,-36.5],[106,40,-24],[100,37.44,-35.16]]){
+test('touch sprint slows for the interior stairs, tight gallery and pitch passage, then returns to plaza pace',()=>{
+ for(const [x,y,z] of [[100,4.65,7],[103,31.8,8],[101.2,38.42,-36.5],[106,40,-24],[100,37.44,-35.16],[22,-2.9,88],[22,-.4,60.6]]){
   assert.equal(walkSpeed(true,true,x,y,z),6);
   assert.equal(walkSpeed(false,true,x,y,z),4.5);
   assert.equal(walkSpeed(true,false,x,y,z),10);

@@ -7,6 +7,7 @@ const context=new Proxy({createRadialGradient:()=>({addColorStop(){}}),createLin
 function documentFixture(){const elements=new Map();globalThis.document={body:{dataset:{}},getElementById(id){if(!elements.has(id))elements.set(id,{hidden:true,textContent:'',style:{},focus(){}});return elements.get(id);},createElement:()=>({width:0,height:0,getContext:()=>context}),createElementNS:()=>{const listeners={};return{addEventListener:(k,f)=>listeners[k]=f,removeEventListener(){},set src(value){queueMicrotask(()=>listeners.load?.call(this));}};},querySelector:()=>null};return elements;}
 documentFixture();
 const{THREE,loadBrandAssets}=await import('../dist/kit.js'),{buildStadium}=await import('../dist/stadium.js'),{buildInteractions}=await import('../dist/interactions.js'),{buildServiceRooms}=await import('../dist/service-rooms.js'),{serviceRooms,serviceWorld}=await import('../dist/service-layout.js'),{roomSpecs}=await import('../dist/building-layout.js');await loadBrandAssets();
+const{visitorFloor,visitorPassage}=await import('../dist/tour-route.js');
 const stadium=buildStadium(new THREE.Scene());
 const direction=(from,to)=>({x:to.x-from.x,y:to.y-from.y,z:to.z-from.z});
 
@@ -61,4 +62,23 @@ test('bowl seats behind skybox glass or any same-level room wall are unavailable
   const elements=documentFixture(),camera=new THREE.PerspectiveCamera();camera.position.copy(position);camera.lookAt(seat.x,seat.y+.45,seat.z);const picker=createSeatInteraction([seat]);assert.ok(picker.pick(position,camera.getWorldDirection(new THREE.Vector3())),'fixture is close enough for an unprotected bowl selection');assert.ok(picker.nearest(position));let focused=0,sat=0;
   const interactions=buildInteractions(new THREE.Scene(),{}, {toast(){},showInfo(){},seats:[seat],onFocusSeat(){focused++;},onSit(){sat++;}});interactions.update(camera.position,.016,'walk',camera);assert.ok(!document.body.dataset.interaction.startsWith('seat-')&&!document.body.dataset.interaction.startsWith('focus-seat-'));assert.notEqual(elements.get('interact').textContent,'F · 坐下观看球场');assert.notEqual(elements.get('interact').textContent,'F · 附近座位 · 看过去');assert.equal(focused+sat,0);
  }
+});
+
+test('the south visitor stairs cannot focus or enter a nearby seat through the side wall',()=>{
+ const elements=documentFixture(),camera=new THREE.PerspectiveCamera(),picker=createSeatInteraction(stadium.seatPositions);
+ const {x,width,exitZ,rampZ}=visitorPassage,edge=x+width/2-.5;
+ let nearby;
+ for(let z=exitZ+.1;z<rampZ;z+=.1){
+  camera.position.set(edge,visitorFloor(edge,z)+1.7,z);
+  nearby=picker.nearest(camera.position);
+  if(nearby)break;
+ }
+ assert.ok(nearby,'an actual lower-tier seat is close enough to the steps');
+ camera.lookAt(nearby.target.x,nearby.target.y,nearby.target.z);
+ let seatChanges=0;
+ const interactions=buildInteractions(new THREE.Scene(),{}, {toast(){},showInfo(){},seats:stadium.seatPositions,onFocusSeat(){seatChanges++;},onSit(){seatChanges++;}});
+ interactions.update(camera.position,.016,'walk',camera);
+ assert.equal(elements.get('interact').hidden,true);
+ assert.equal(interactions.activate(),false);
+ assert.equal(seatChanges,0);
 });

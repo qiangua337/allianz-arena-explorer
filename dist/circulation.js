@@ -100,11 +100,15 @@ export function buildCirculation(parent){
  function solid(frame,w,h,d,x,y,z,m,target=batch){const p=placement(frame,x,z);target.add(w,h,d,p.x,ACCESS_BASE+y,p.z,m,frame.yaw);}
  function label(frame,title,sub,w,h,x,y,z,options={}){const p=placement(frame,x,z);atlas.add(root,title,sub,w,h,p.x,ACCESS_BASE+y,p.z,frame.yaw,options);}
  function collision(frame,w,d,x,z,y0=ACCESS_BASE,y1=2){const p=placement(frame,x,z);colliders.push(orientedCollider(p.x,p.z,w,d,y0,y1,frame.yaw));}
+ function obstacle(frame,w,h,d,x,y,z,m){
+  solid(frame,w,h,d,x,y,z,m);
+  collision(frame,w,d,x,z,ACCESS_BASE+y-h/2,ACCESS_BASE+y+h/2);
+ }
 
  for(const frame of frames){
   if(clearCore(frame.x,frame.z))continue;
   const i=frame.index,w=frame.spacing-.35,half=w/2,letter='ABCDEFGHJKLMNPRS'[Math.floor(i/4)%16],entry=entries.has(i),kind=services[Math.floor(i/3)%services.length];
-  solid(frame,.58,8.3,.72,-half-.18,4.15,0,column);solid(frame,.8,.28,.95,-half-.18,.14,0,edge);
+  obstacle(frame,.58,8.3,.72,-half-.18,4.15,0,column);obstacle(frame,.8,.28,.95,-half-.18,.14,0,edge);
   const columnFoot=placement(frame,-half-.18,0);contactShadow(root,1.8,1.8,columnFoot.x,ACCESS_BASE+.009,columnFoot.z,.24);
   solid(frame,w,.6,.74,0,8.0,0,column);if(!entry)solid(frame,w,.34,.34,0,.17,-.4,edge);
   solid(frame,w-.4,1.5,.3,0,6.75,-.3,pale);
@@ -113,8 +117,8 @@ export function buildCirculation(parent){
   if(entry){
    const opening=6.4,sideWidth=(w-opening)/2;
    for(const side of[-1,1]){
-    solid(frame,sideWidth,5.4,.2,side*(opening/2+sideWidth/2),2.9,-.24,glass);
-    solid(frame,.14,5.6,.2,side*opening/2,2.8,-.1,metal);
+    obstacle(frame,sideWidth,5.4,.2,side*(opening/2+sideWidth/2),2.9,-.24,glass);
+    obstacle(frame,.14,5.6,.2,side*opening/2,2.8,-.1,metal);
     solid(frame,.12,3.4,1.8,side*3.1,1.7,-1.12,glass);
     solid(frame,.07,3.4,1.85,side*3.1,1.7,-1.12,metal);
     collision(frame,.16,1.85,side*3.1,-1.12);
@@ -125,8 +129,8 @@ export function buildCirculation(parent){
    label(frame,'↓','OFFENER DURCHGANG',2.3,.78,0,4.45,.12,{bg:'#286d53',accent:'#8ce3ac'});
    for(const side of[-1,1]){solid(frame,.43,1.05,1.25,side*2.15,.525,-.55,metal);solid(frame,.24,.06,.24,side*2.15,1.11,-.3,green);collision(frame,.43,1.25,side*2.15,-.55,ACCESS_BASE,ACCESS_BASE+1.1);}
   }else{
-   if(kind==='WC')solid(frame,w-.14,5.6,.18,0,2.8,-1.8,wall);
-   solid(frame,w-.3,4.7,.13,0,2.95,-.35,glass);
+   if(kind==='WC')obstacle(frame,w-.14,5.6,.18,0,2.8,-1.8,wall);
+   obstacle(frame,w-.3,4.7,.13,0,2.95,-.35,glass);
    for(const x of[-half+.2,-w/4,0,w/4,half-.2])solid(frame,.09,5.4,.16,x,2.7,-.2,metal);
    solid(frame,w-.2,.1,.18,0,5.38,-.18,metal);solid(frame,w-.2,.1,.18,0,.65,-.18,metal);
    label(frame,kind,kind==='WC'?'DAMEN  ·  HERREN  ·  BARRIEREFREI':'SERVICE  ·  ALLIANZ ARENA',w-.6,.68,0,5.45,.02,{bg:kind==='WC'?'#34474f':'#a91b35'});
@@ -140,7 +144,6 @@ export function buildCirculation(parent){
     for(let shelf=0;shelf<3;shelf++){solid(frame,w-1,.07,.5,0,.8+shelf*.83,-.8,metal);for(let j=0;j<7;j++)solid(frame,.38,.4,.32,-w/2+1+j*(w-2)/7,1.04+shelf*.83,-.8,j%3===0?red:j%3===1?pale:wood);}
     const menu=placement(frame,0,-.99);atlas.add(root,kind==='GETRÄNKE'?'KAFFEE · BREZN':'SERVUS!','INFORMATION & SERVICE',w*.7,1.0,menu.x,ACCESS_BASE+3.8,menu.z,frame.yaw+Math.PI,{bg:'#e0dfd2',fg:'#31414a',accent:'#a81732'});
     collision(frame,w-.8,1.1,0,-2.47,ACCESS_BASE,ACCESS_BASE+1.25);
-    collision(frame,w-.3,.18,0,-.3);
    }
    for(const side of[-1,1]){solid(frame,.08,5.5,.1,side*(half-.13),2.75,-.2,metal);}
   }
@@ -153,7 +156,7 @@ export function buildCirculation(parent){
    label(frame,'RECYCLE','PAPIER / REST',.42,.42,2.2,.59,5.005,{bg:'#3f5559',accent:'#63a28a'});
   }
   if(i%4===0){
-   solid(frame,1.3,2.25,.12,half+.04,2.1,.46,edge);
+   obstacle(frame,1.3,2.25,.12,half+.04,2.1,.46,edge);
    label(frame,i%8===0?'ARENA TOUR':'MIA SAN MIA',i%8===0?'TOUR & MUSEUM':'FC BAYERN MÜNCHEN',1.16,2.08,half+.04,2.1,.54,{bg:'#ae1935',accent:'#f0e6d6'});
   }
   if(i%6===0){solid(frame,.75,1.0,.2,-half+.7,1.1,-.03,red);label(frame,'F','FEUERLÖSCHER',.48,.65,-half+.7,1.1,.09,{bg:'#b91d36',accent:'#fff'});}
@@ -226,6 +229,7 @@ export function buildCirculation(parent){
 
  // Arrival information islands sit on the sides, not in the central entrance lane.
  finishedBox(root,12,2.9,.16,0,ACCESS_BASE+2.55,104.3,pale,.035);batch.add(12.05,.055,.18,0,ACCESS_BASE+1.05,104.3,red);
+ colliders.push(orientedCollider(0,104.3,12,.16,ACCESS_BASE+1.1,ACCESS_BASE+4));
  addCrest(root,2.25,-4.1,ACCESS_BASE+2.55,104.415);
  atlas.add(root,'ALLIANZ ARENA','WILLKOMMEN · MIA SAN MIA',7.4,1.25,1.4,ACCESS_BASE+2.55,104.415,0,{bg:'#e1e0d5',fg:'#30373a',accent:'#e1e0d5'});
  atlas.add(root,'接待大厅','导览与咨询 · INFORMATION',5,1.8,0,ACCESS_BASE+.035,112,0,{bg:'#626361',tilt:-Math.PI/2});
@@ -233,7 +237,7 @@ export function buildCirculation(parent){
 
   atlas.add(root,x<0?'参观咨询':'接待中心','公共楼梯 / 草坪参观',4.35,.65,x,ACCESS_BASE+.57,108.08,0,{bg:'#aa1833'});
 
-  colliders.push(orientedCollider(x,107.5,4.8,1.3,ACCESS_BASE,ACCESS_BASE+1.3));
+  colliders.push(orientedCollider(x,107.5,4.85,1.35,ACCESS_BASE,ACCESS_BASE+1.3));
  }
  // The first turn is shared, then the grass entrance branches away from
  // the route around the east ring to the public stair. Signs face each

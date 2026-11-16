@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {registerHooks} from 'node:module';
 registerHooks({resolve(s,c,next){return s==='three'?{url:new URL('../dist/vendor/three.module.js',import.meta.url).href,shortCircuit:true}:next(s,c);}});
 const {THREE}=await import('../dist/kit.js');
-const {bowlIsVisible,buildFrameBudget,compactStaticMeshes,freezeArchitecture}=await import('../dist/scene-budget.js');
+const {bowlIsVisible,buildVisitorBowlView,buildFrameBudget,compactStaticMeshes,freezeArchitecture}=await import('../dist/scene-budget.js');
 const {destinations,matchesDestination}=await import('../dist/destinations.js');
 
 test('pedestrian exterior and covered arcade omit the occluded bowl while pitch and high views retain it',()=>{
@@ -14,6 +14,24 @@ test('pedestrian exterior and covered arcade omit the occluded bowl while pitch 
 test('looking through the connected player tunnel retains the pitch even from the dressing room',()=>{
  for(const x of [-88,-76,-70,-67,-61,-45,-31])assert.equal(bowlIsVisible({x,y:-1,z:0},'walk'),true,'tunnel sightline at '+x);
  assert.equal(bowlIsVisible({x:-88,y:-1,z:28},'walk'),false,'the enclosed away-room wing can still omit the bowl');
+});
+test('the visitor passage shows the real bowl through its aperture and throughout the exposed ramp',()=>{
+ const camera=new THREE.PerspectiveCamera(66,1023/871,.06,4500),facesPortal=buildVisitorBowlView();
+ const visible=()=>bowlIsVisible(camera.position,'walk',facesPortal(camera));
+ camera.position.set(22,-1.2,80);
+ camera.lookAt(22,-.7,62);
+ assert.equal(visible(),true,'pitch-facing doorway reveals the bowl from inside');
+ camera.lookAt(22,-.7,102);
+ assert.equal(visible(),false,'a turn in place toward reception hides the bowl behind the corridor');
+ camera.position.set(36,-1.2,111);camera.lookAt(22,-1.2,64);
+ assert.equal(visible(),false,'reception does not render the bowl through its opaque inner wall');
+ for(const [z,y] of [[66,-1.16],[65,-.7],[63,.2],[61,.87],[59.6,1.7]]){
+  camera.position.set(22,y,z);
+  for(const dx of [-20,20]){
+   camera.lookAt(22+dx,8,z);
+   assert.equal(visible(),true,`all exposed ramp views keep the bowl at z=${z}`);
+  }
+ }
 });
 test('static batching preserves instances and independently animated children',()=>{
  const group=new THREE.Group(),material=new THREE.MeshBasicMaterial(),geo=new THREE.BoxGeometry(1,1,1),rotor=new THREE.Group(),part=new THREE.Mesh(geo,material);rotor.add(part);group.add(rotor);const inst=new THREE.InstancedMesh(geo,material,3);group.add(inst);for(let i=0;i<4;i++)group.add(new THREE.Mesh(geo,material));compactStaticMeshes(group,[rotor]);assert.equal(inst.parent,group);assert.equal(part.parent,rotor);assert.equal(group.children.filter(x=>x.isMesh&&!x.isInstancedMesh).length,1);freezeArchitecture(group,[rotor]);assert.equal(rotor.matrixAutoUpdate,true);assert.equal(inst.matrixAutoUpdate,false);

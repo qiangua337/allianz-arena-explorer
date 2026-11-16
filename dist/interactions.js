@@ -8,6 +8,7 @@ import {buildShopDisplay} from './shop-display.js';
 import {doorCollider,updateAutomaticDoor} from './automatic-door.js';
 import {roomSpecs} from './building-layout.js';
 import {tacticalBoardTarget,tacticalFormations} from './tactical-layout.js';
+import {inVisitorPassage} from './tour-route.js';
 export function buildInteractions(scene,interiors,{toast,navigate,showInfo,setEye,serviceRooms,seats=[],onSit,onStand,onFocusSeat,openPersonal=openMuseumExhibit,openCatalogue=openMuseumCatalog}){
  const root=new THREE.Group();root.name='Working doors and interactive exhibits';scene.add(root);const button=document.getElementById('interact'),colliders=[],doors=[],items=[],direction=v(),previousPosition=v(Infinity,0,0),previousDirection=v(),pickerRay=new THREE.Raycaster(),pickerMaterial=new THREE.MeshBasicMaterial({side:THREE.DoubleSide});let selected=null,currentPosition=null,currentCamera=null,currentMode='orbit',previousMode='',focusChanged=false,painted='',interactionPaintFrames=0;
  const seating=createSeatInteraction(seats,{onSit:session=>{if(onSit)onSit(session);else setEye?.(1.05);toast('已入座。再次按 F 或移动即可起身。');},onStand:session=>{if(onStand)onStand(session);else setEye?.(1.7);}});
@@ -46,7 +47,8 @@ export function buildInteractions(scene,interiors,{toast,navigate,showInfo,setEy
    // A nearby bowl chair behind skybox glazing or a room wall is not an
    // entrance. Exhibits and working doors keep priority over seat discovery.
    const insideRoom=Object.values(roomSpecs).some(s=>Math.abs(currentPosition.x-s.x)<s.w/2+.05&&Math.abs(currentPosition.z-s.z)<s.d/2+.05&&Math.abs(currentPosition.y-s.y-1.7)<2.6);
-   if(!selected&&!insideRoom){const seat=seating.pick(currentPosition,currentCamera?direction:null);if(seat)selected={...seat,label:'坐下观看球场',act:()=>seating.sit(seat,currentPosition)};
+   const insidePassage=currentPosition.y<2&&inVisitorPassage(currentPosition.x,currentPosition.z);
+   if(!selected&&!insideRoom&&!insidePassage){const seat=seating.pick(currentPosition,currentCamera?direction:null);if(seat)selected={...seat,label:'坐下观看球场',act:()=>seating.sit(seat,currentPosition)};
     else if(onFocusSeat){const nearby=seating.nearest(currentPosition);if(nearby)selected={id:'focus-'+nearby.id,label:'附近座位 · 看过去',act:()=>onFocusSeat({seat:nearby.seat,target:nearby.target})};}
    }
   }
