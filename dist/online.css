@@ -4,3 +4,54 @@
 @media(max-width:760px){.online-lobby{padding:15px}.online-code{font-size:29px;letter-spacing:3px}.online-seats{gap:8px}.online-seats>div{padding:11px}.online-room-actions button{padding:8px 10px}.online-join-form{gap:6px}.online-join-form input{font-size:15px;letter-spacing:1px}}
 body.game-active .game-overlay{max-height:calc(100dvh - 108px);overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin}
 @media(max-height:500px){.online-lobby{padding:14px}.online-code{font-size:26px;margin:2px 0}.online-seats{margin:8px 0}.online-seats>div{padding:8px}.online-lobby h3{font-size:17px}body.game-active .game-overlay{padding:18px 22px;max-height:calc(100dvh - 85px)}.game-overlay h2{font-size:20px}.online-game-info button{margin-top:6px}}
+
+#match-dialog #online-club-setup {
+  margin-bottom: 8px;
+}
+#match-dialog .online-club-options {
+  display: grid;
+  grid-template-columns: repeat(2,minmax(0,1fr));
+  gap: 6px;
+  margin-top: 6px;
+  max-height: clamp(112px,35dvh,295px);
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+#match-dialog .online-club-card {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  min-height: 44px;
+  padding: 5px 6px;
+  border: 1px solid var(--rule);
+  border-radius: 7px;
+  color: var(--ink);
+  background: var(--panel);
+  text-align: left;
+}
+#match-dialog .online-club-card[aria-pressed=true] {
+  border-color: var(--accent);
+  background: var(--match-selection);
+}
+#match-dialog .online-club-card .club-swatch {
+  width: 28px;
+  height: 32px;
+  letter-spacing: 0;
+}
+#match-dialog .online-club-card b {
+  min-width: 0;
+  font-size: 12px;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+#match-dialog #online-rules-summary {
+  margin: 8px 0 4px;
+}
+#match-dialog #online-rules-settings summary {
+  min-height: 44px;
+  padding: 11px 0;
+  color: var(--ink);
+  font-size: 13px;
+  cursor: pointer;
+}

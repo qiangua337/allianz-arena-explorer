@@ -255,6 +255,10 @@ test('LED seconds update only the clock texture while fixture and goal artwork s
   screens.setMatchday(true);screens.setMatchScore(s);
   assert.ok(overlays.every(label=>label.visible));assert.equal(material.map,live);
   assert.deepEqual(versions(),[initial[0],initial[1]+1,initial[2]+1]);
+  const selected=createFootballSimulation({homeClub:'arsenal',opponent:'barcelona'}).state;
+  labels.length=0;screens.setMatchScore(selected);
+  assert.ok(labels.some(([text])=>text==='ARSENAL × FC BARCELONA'));
+  assert.ok(!labels.some(([text])=>text.includes('BAYERN')));
  }finally{delete context.fillText;}
 });
 test('real jog and sprint skins stay finite and above the pitch through acceleration and turning',()=>{

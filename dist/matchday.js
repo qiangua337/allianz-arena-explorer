@@ -11,7 +11,7 @@ import {entranceSample,ENTRANCE_DURATION} from './matchday-route.js';
 import {buildMatchdaySet} from './matchday-set.js';
 import {homeXI,awayXI,substitutes} from './matchday-roster.js';
 import {buildMatchSetup} from './football-setup.js';
-import {footballTeam} from './football-teams.js';
+import {matchClubs} from './football-teams.js';
 import {writeHudProperty,writeHudAttribute,writeHudDataset} from './hud-write.js';
 
 export function buildMatchdayExperience({scene,stadium,onBegin,onPose,onFinish,onExit,onPause,onPrepare,onVisitBench,onGameCamera,onGameView,onReadGameInput,getGameRenderCamera,toast,reducedMotion=false,mobile=false}){
@@ -42,7 +42,7 @@ export function buildMatchdayExperience({scene,stadium,onBegin,onPose,onFinish,o
   dialog.dataset.panel=panel;
   const labels={
    play:['赛前设置','选择对手、赛制与首发阵容。'],
-   online:['好友联机','创建房间或输入房间码，开赛前各自确认首发。'],
+   online:['好友联机','创建或加入房间，双方各自选择球队和首发。'],
    training:['球场训练','选择带球、传球或射门练习。'],
    tour:['球员入场','选择跟随球队入场，或在比赛日氛围中自由参观。']
   };
@@ -56,7 +56,6 @@ export function buildMatchdayExperience({scene,stadium,onBegin,onPose,onFinish,o
   dialog.scrollTop=0;
  }
  for(const button of document.querySelectorAll('[data-match-tab]'))button.onclick=()=>{if(button.dataset.matchTab==='online')onlineLobby.open();else setPanel(button.dataset.matchTab);};
- $('online-configure').onclick=()=>setPanel('play');
  function launch(panel){const explicit=['training','play','online','tour'].includes(panel),room=new URLSearchParams(location.search).has('room');const selected=explicit?panel:room?'online':'play';setPanel(selected);setup.refresh();dialog.showModal();if(selected==='online')onlineLobby.open();}
  for(const drill of trainingDrills){
   const button=document.createElement('button'),record=document.createElement('p');
@@ -66,8 +65,9 @@ export function buildMatchdayExperience({scene,stadium,onBegin,onPose,onFinish,o
   button.append(record);button.onclick=()=>start(false,true,null,drill.id);$('training-courses').append(button);
  }
  async function start(automatic=false,play=false,network=null,training=null){training=!network&&trainingDrills.some(d=>d.id===training)?training:null;const id=++token;if(game.active)game.exit(!!network&&game.network===network);active=true;cinematic=automatic;paused=false;lastGamePaused=null;pending=true;time=automatic?0:ENTRANCE_DURATION;playerSeconds=automatic?0:200;lastCountdown=-1;roared=false;stepDistance=0;lastPosition=null;panel.hidden=false;document.body.classList.add('match-active');crowd.setEnabled(!training);setting.setEnabled(!training);stadium.setMatchday?.(!training);players.root.visible=false;players.reset();
-  // start() resumes the AudioContext in this click event before any network await.
-  const options={...setup.options,...(training?{training}:{}),...(network?{opponent:network.opponent,difficulty:'regular'}:{})},sound=audio.start({ambience:!training}),models=Promise.all([players.prepare(),training?true:crowd.prepare()]).then(async([,crowdReady])=>{if(!active||id!==token)return;players.setOpponent(play?options.opponent:'dortmund');crowd.setOpponent(footballTeam(play?options.opponent:'dortmund'));if(!crowdReady)toast?.('观众贴图暂未载入，先显示轻量形象；重新开球可重试。');await onPrepare?.(players.root);if(!active||id!==token)return;if(!training)await onPrepare?.(crowd.root);if(!active||id!==token)return;if(play)await onPrepare?.(game.root);});dialog.close();onBegin?.({cinematic:automatic,playing:play});if(play)game.start(options,network);if(automatic)onPose?.(entranceSample(0,{reducedMotion}),{instant:true});renderUI();sound.then(value=>{if(!value&&active&&id===token)toast?.('声景暂未加载，可点击声音按钮重试；画面仍可继续体验。');},()=>{if(active&&id===token)toast?.('声景暂未加载，可点击声音按钮重试；画面仍可继续体验。');});const [modelResult]=await Promise.allSettled([models]);if(!active||id!==token)return;pending=false;if(modelResult.status==='rejected'){toast?.('球员模型未加载，请检查网络后重试。');if(play)game.fail();}else if(play)game.ready();renderUI();
+  const options={...setup.options,...(training?{training}:{}),...(network?{opponent:network.opponent,homeClub:network.homeClub,difficulty:'regular'}:{})};
+  const {home,away}=play?matchClubs(options.homeClub,options.opponent):matchClubs();
+  const sound=audio.start({ambience:!training}),models=Promise.all([players.prepare(),training?true:crowd.prepare()]).then(async([,crowdReady])=>{if(!active||id!==token)return;players.setOpponent(away.id,home.id);crowd.setOpponent(away);if(!crowdReady)toast?.('观众贴图暂未载入，先显示轻量形象；重新开球可重试。');await onPrepare?.(players.root);if(!active||id!==token)return;if(!training)await onPrepare?.(crowd.root);if(!active||id!==token)return;if(play)await onPrepare?.(game.root);});dialog.close();onBegin?.({cinematic:automatic,playing:play});if(play)game.start(options,network);if(automatic)onPose?.(entranceSample(0,{reducedMotion}),{instant:true});renderUI();sound.then(value=>{if(!value&&active&&id===token)toast?.('声景暂未加载，可点击声音按钮重试；画面仍可继续体验。');},()=>{if(active&&id===token)toast?.('声景暂未加载，可点击声音按钮重试；画面仍可继续体验。');});const [modelResult]=await Promise.allSettled([models]);if(!active||id!==token)return;pending=false;if(modelResult.status==='rejected'){toast?.('球员模型未加载，请检查网络后重试。');if(play)game.fail();}else if(play)game.ready();renderUI();
  }
  function finish(){if(!active||game.active)return;time=ENTRANCE_DURATION;playerSeconds=Math.max(playerSeconds,ENTRANCE_DURATION);cinematic=false;paused=false;onPose?.(entranceSample(time,{reducedMotion}),{instant:true});audio.setPaused(false);if(!roared){roared=true;audio.cheer();}onFinish?.();renderUI();}
  function setPaused(value){if(!active)return;paused=value;if(game.active)game.setPaused(value);const stopped=pausedNow();audio.setPaused(stopped);lastGamePaused=game.active?stopped:null;onPause?.(stopped);renderUI();}

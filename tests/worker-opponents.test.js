@@ -113,3 +113,82 @@ test('opponent lookup preserves the default team and existing origin and seat ch
   headers:{Upgrade:'websocket','Sec-WebSocket-Protocol':'arena-v2, seat.invalid'}});
  assert.equal(denied.status,403);
 });
+
+test('each seat chooses and confirms its own club before two prepared clients can kick off',async t=>{
+ let now=1_000_000;
+ t.mock.method(Date,'now',()=>now);
+ t.mock.method(globalThis,'setInterval',callback=>({callback}));
+ t.mock.method(globalThis,'clearInterval',()=>{});
+ const service=fixture();
+ await service.restore();
+ const created=await service.fetch(roomAPI,{data:{protocol:ONLINE_PROTOCOL,teamChoice:true,opponent:'madrid'}});
+ assert.equal(created.status,201);
+ const seat=await created.json();
+ assert.equal(seat.teamChoice,true);
+ assert.deepEqual(seat.clubs,{home:null,away:null});
+ const joined=await service.fetch(roomAPI+'/'+seat.code+'/join',{data:{protocol:ONLINE_PROTOCOL}});
+ assert.equal(joined.status,200);
+ assert.deepEqual((await joined.json()).clubs,{home:null,away:null});
+ const home=service.attach('home'),away=service.attach('away');
+ let room=await service.restore(),requestId=0;
+ const send=async(socket,packet)=>{
+  const id=++requestId;
+  await room.webSocketMessage(socket,JSON.stringify({...packet,id}));
+  return socket.packets.find(p=>p.type==='result'&&p.id===id);
+ };
+
+ assert.equal((await send(home,{type:'ready',ready:true})).ok,false);
+ assert.equal((await send(away,{type:'club',club:'constructor'})).ok,false);
+ assert.equal((await send(home,{type:'club',club:'arsenal',team:'away'})).ok,true);
+ assert.deepEqual(room.publicRoom().clubs,{home:'arsenal',away:null});
+ assert.deepEqual(room.publicRoom().lineups.home,defaultSelection('home','dortmund','arsenal'));
+ assert.equal((await send(home,{type:'confirm',confirmed:true})).ok,false);
+ assert.equal((await send(away,{type:'club',club:'arsenal',team:'home'})).ok,true,'both seats may choose the same club');
+ assert.deepEqual(room.publicRoom().clubs,{home:'arsenal',away:'arsenal'});
+
+ const homeSelection=defaultSelection('home','arsenal','arsenal');
+ const substitute=opponentSquad('arsenal').bench.find(player=>!player.keeper);
+ homeSelection.xi[1]=substitute.player.number;
+ assert.equal((await send(home,{type:'lineup',selection:homeSelection})).ok,true);
+ const previous=structuredClone(room.publicRoom().clubs);
+ assert.equal((await send(home,{type:'confirm',confirmed:true,clubs:previous})).ok,true);
+ assert.equal((await send(away,{type:'club',club:'inter',team:'home'})).ok,true);
+ assert.deepEqual(room.publicRoom().confirmed,{home:false,away:false},'a new matchup needs both confirmations again');
+ assert.deepEqual(room.publicRoom().lineups.home,homeSelection,'the other club choice cannot replace my XI');
+ assert.equal((await send(home,{type:'confirm',confirmed:true,clubs:previous})).ok,false,'a stale display cannot confirm a changed matchup');
+ assert.equal((await send(away,{type:'rules',rules:{mode:'league'}})).ok,false);
+
+ const clubs=structuredClone(room.publicRoom().clubs);
+ assert.equal((await send(home,{type:'confirm',confirmed:true,clubs})).ok,true);
+ assert.equal((await send(home,{type:'rules',rules:{mode:'league',duration:180}})).ok,true);
+ assert.deepEqual(room.publicRoom().confirmed,{home:false,away:false},'rule changes require confirmation again');
+ for(const socket of [home,away])assert.equal((await send(socket,{type:'confirm',confirmed:true,clubs})).ok,true);
+ assert.equal(room.publicRoom().started,false,'confirmation does not start the clock while browsers prepare');
+ assert.equal((await send(away,{type:'club',club:'liverpool'})).ok,false);
+ assert.equal((await send(home,{type:'rules',rules:{mode:'league'}})).ok,false);
+ assert.equal((await send(home,{type:'lineup',selection:homeSelection})).ok,false);
+ assert.equal((await send(away,{type:'confirm',confirmed:false})).ok,false);
+ room=await service.restore();
+ assert.deepEqual(room.publicRoom().clubs,clubs);
+ assert.deepEqual(room.publicRoom().confirmed,{home:true,away:true});
+ assert.equal(room.publicRoom().started,false);
+ assert.equal((await send(home,{type:'ready',ready:true})).ok,true);
+ assert.equal(room.publicRoom().started,false);
+ assert.equal((await send(away,{type:'ready',ready:true})).ok,true);
+ assert.equal(room.publicRoom().started,true);
+ assert.equal(room.sim.state.homeFixture.id,'arsenal');
+ assert.equal(room.sim.state.fixture.id,'inter');
+ assert.equal(room.sim.state.players.find(p=>p.id==='home-1').name,substitute.player.name);
+ assert.deepEqual(away.packets.findLast(p=>p.state).state.players.slice(11).map(player=>player[10]),defaultSelection('away','inter','arsenal').xi);
+
+ room=await service.restore();
+ assert.equal(room.sim.state.homeFixture.id,'arsenal');
+ assert.equal(room.sim.state.fixture.id,'inter');
+ room.sim.state.phase='fulltime';
+ room.refresh();
+ await send(home,{type:'rematch'});
+ await send(away,{type:'rematch'});
+ assert.deepEqual(room.publicRoom().clubs,clubs);
+ assert.equal(room.sim.state.phase,'kickoff');
+ assert.deepEqual(room.sim.state.teamSheets.home.xi,homeSelection.xi);
+});

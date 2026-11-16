@@ -4,7 +4,7 @@ import {kaneSculpt,kaneHairline,kaneHairOffset} from './football-likeness-kane.j
 import {sculptMusiala,musialaHairline,musialaHairOffset,musialaHairUV,addMusialaCurls} from './football-likeness-musiala.js';
 
 export function playerLikeness(definition){
- if(definition.team!=='home')return null;
+ if(definition.club?definition.club.id!=='bayern':definition.team!=='home')return null;
  if(definition.player?.number===9)return 'kane';
  if(definition.player?.number===10)return 'musiala';
  return null;

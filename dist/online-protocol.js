@@ -41,7 +41,7 @@ export function applyOnlineState(state,packet,team){
   // The three optional records in a player tuple contain only flat fields.
   player.motion=row[8]?{...row[8]}:row[8];
   if(row[10]!==player.number){
-   const member=squadDefinition(player.team,state.fixture.id,row[10]);
+   const member=squadDefinition(player.team,state.fixture.id,row[10],state.homeFixture?.id);
    if(member){player.number=member.player.number;player.name=member.player.name;player.keeper=!!member.keeper;}
   }
   player.cautions=row[11]||0;player.fouls=row[12]||0;player.dismissed=!!row[13];

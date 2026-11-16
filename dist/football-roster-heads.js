@@ -2,7 +2,7 @@ import {THREE} from './kit.js';
 import {bayernHeadProfiles} from './bayern-head-profiles.js';
 
 export function rosterHeadProfile(definition) {
- if(definition.team!=='home')return null;
+ if(definition.club?definition.club.id!=='bayern':definition.team!=='home')return null;
  return bayernHeadProfiles[definition.player?.number]??null;
 }
 

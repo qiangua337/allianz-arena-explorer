@@ -11,7 +11,17 @@ export function atlasGeometry(geometries,hair,{keeper=false}={}){
  for(const[name,size]of Object.entries({position:3,normal:3,uv:2,skinIndex:4,skinWeight:4})){const out=name==='skinIndex'?new Uint16Array(total*size):new Float32Array(total*size);let offset=0;for(const[part,g]of parts){const source=g.attributes[name];for(let i=0;i<source.count;i++)for(let j=0;j<size;j++){let value=source.array[i*size+j];if(name==='uv'){if(part==='socks'||part==='shorts')value=((value%1)+1)%1;if(part==='face')value=(value-faceTextureWindow[j])/(faceTextureWindow[j+2]-faceTextureWindow[j]);const cell=cells[part];value=j===0?cell[0]+.002+value*(cell[2]-.004):1-cell[1]-cell[3]+.002+value*(cell[3]-.004);}out[(offset+i)*size+j]=value;}offset+=source.count;}result.setAttribute(name,new THREE.BufferAttribute(out,size));}
  const indices=[];let offset=0;for(const[part,g]of parts){ranges[part]={start:offset,count:g.attributes.position.count,indexStart:indices.length,indexCount:g.index.count};for(const i of g.index.array)indices.push(i+offset);offset+=g.attributes.position.count;}result.setIndex(indices);result.computeBoundingSphere();result.userData.parts=ranges;return result;
 }
-function kitColors(d){const official=d.team==='official',staff=['coach','assistant','doctor','physio'].includes(d.role),away=d.team==='away';return{shirt:official?'#77cbd1':staff?'#27343c':d.keeper?(away?'#9584b2':'#176f62'):away?d.kit?.shirt||'#ebcc3d':'#bb1d32',shorts:official||staff?'#222c31':d.keeper?(away?'#6b5f85':'#176f62'):away?d.kit?.shorts||'#222c31':'#ab182c',ink:away&&!d.keeper?d.kit?.ink||'#222c31':'#f4f1e8',socks:official||staff?'#27343c':away&&!d.keeper?d.kit?.socks||'#dfdfd6':'#dfdfd6'};}
+function kitColors(d){
+ const official=d.team==='official',staff=['coach','assistant','doctor','physio'].includes(d.role),away=d.team==='away';
+ if(official||staff)return{shirt:official?'#77cbd1':'#27343c',shorts:'#222c31',ink:'#f4f1e8',socks:'#27343c'};
+ if(d.keeper)return{shirt:away?'#9584b2':'#176f62',shorts:away?'#6b5f85':'#176f62',ink:'#f4f1e8',socks:'#dfdfd6'};
+ return{
+  shirt:d.kit?.shirt??(away?'#ebcc3d':'#bb1d32'),
+  shorts:d.kit?.shorts??(away?'#222c31':'#ab182c'),
+  ink:d.kit?.ink??(away?'#222c31':'#f4f1e8'),
+  socks:d.kit?.socks??'#dfdfd6'
+ };
+}
 export function drawBootTexture(c,w,h){
  c.save();c.scale(w/256,h/256);
  const upper=c.createLinearGradient(0,0,0,256);
@@ -61,7 +71,9 @@ function paintSkin(c,cell,base,face){
 
 export function characterAtlas(d,textures,jerseyTexture,size=1024){
  const colors=kitColors(d),id=playerLikeness(d),face=textures.likenessFaces?.[id]?.image,profile=rosterHeadProfile(d);
- const jersey=jerseyTexture(d,d.team==='away'?(d.club&&d.club.id!=='dortmund'?null:textures.awayCrest):textures.crest,colors);
+ const club=d.club?.id??(d.team==='away'?'dortmund':'bayern');
+ const crest=club==='bayern'?textures.crest:club==='dortmund'?textures.awayCrest:null;
+ const jersey=jerseyTexture(d,crest,colors);
  const texture=canvasTexture(size,size,c=>{c.scale(size,size);for(const[name,cell]of Object.entries(cells)){if(['bootR','crop','short02','hands','wrists','keeperWrists','gloveCuffs'].includes(name))continue;c.save();c.beginPath();c.rect(...cell);c.clip();const skin=name==='face'||name==='skin';c.fillStyle=skin?'#b29275':colors[name]||'#eee';if(name==='eyebrows')c.clearRect(...cell);else c.fillRect(...cell);
    if(name==='face'&&face)c.drawImage(face,...cell);
    else if(skin){
@@ -132,8 +144,8 @@ export function drawJersey(d,crest,colors){return canvasTexture(1024,1024,c=>{
  }
  c.strokeStyle='rgba(20,0,0,.055)';c.lineWidth=2;for(let y=0;y<1024;y+=36){c.beginPath();c.moveTo(0,y);c.lineTo(1024,y);c.stroke();}c.fillStyle='rgba(255,255,255,.03)';for(let y=0;y<1024;y+=5)c.fillRect(0,y,1024,1);
  drawJerseyPanels(c);
- const player=d.player,club=d.team==='away'?d.club?.english||'BORUSSIA DORTMUND':d.team==='official'?'MATCH OFFICIAL':d.role==='player'||d.role==='substitute'?'FC BAYERN MÜNCHEN':'FC BAYERN · STAFF';c.fillStyle=colors.ink;c.textAlign='center';c.font='bold 43px Arial';c.fillText(club,768,214,292);
+ const player=d.player,club=d.team==='official'?'MATCH OFFICIAL':d.club?.english??(d.team==='away'?'BORUSSIA DORTMUND':'FC BAYERN MÜNCHEN');c.fillStyle=colors.ink;c.textAlign='center';c.font='bold 43px Arial';c.fillText(club,768,214,292);
  if(player.number){c.font='bold 475px Arial';c.fillText(String(player.number),768,640,player.number<10?120:190);}else{c.font='bold 96px Arial';c.fillText(player.name,768,510,285);}
  c.font='bold 52px Arial';c.fillText(player.name,768,755,290);if(crest&&d.team!=='official')c.drawImage(crest,327,240,53,102);else if(d.club){c.strokeStyle=colors.ink;c.lineWidth=5;c.strokeRect(327,263,53,67);c.font='bold 21px Arial';c.fillText(d.club.code,353,304,46);}
- if(d.team==='official'){c.fillStyle='#18292d';c.fillRect(192,350,128,24);c.fillRect(315,350,92,9);c.font='bold 30px Arial';c.fillText('REFEREE',256,530);}else if(['doctor','physio'].includes(d.role)){c.font='bold 57px Arial';c.fillText('MEDICAL',256,520);}else{c.font='bold 100px Arial';c.fillText(d.team==='away'?d.club?.code||'DORTMUND':'T',256,535,d.team==='away'?230:75);}
+ if(d.team==='official'){c.fillStyle='#18292d';c.fillRect(192,350,128,24);c.fillRect(315,350,92,9);c.font='bold 30px Arial';c.fillText('REFEREE',256,530);}else if(['doctor','physio'].includes(d.role)){c.font='bold 57px Arial';c.fillText('MEDICAL',256,520);}else{const bayern=d.club?.id==='bayern'||!d.club&&d.team==='home';c.font='bold 100px Arial';c.fillText(bayern?'T':d.club?.code||'DORTMUND',256,535,bayern?75:230);}
  });}

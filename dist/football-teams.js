@@ -1,4 +1,4 @@
-import {awayXI,substitutes} from './matchday-roster.js';
+import {awayXI,homeXI,homeReserves,substitutes} from './matchday-roster.js';
 import {normalizeRules} from './football-rules.js';
 import {englandClubs} from './football-clubs-england.js';
 import {europeanClubs} from './football-clubs-europe.js';
@@ -20,14 +20,42 @@ export const footballTeams=[
  team('city','曼彻斯特城','曼城','MCI','MANCHESTER CITY','#79bddc','#e6e8e4','#183346','plain',[[1,'DONNARUMMA'],[9,'HAALAND'],[5,'ANDERSON'],[3,'RÚBEN DIAS'],[6,'GUÉHI'],[21,'AÏT-NOURI'],[27,'MATHEUS NUNES'],[8,'KOVAČIĆ'],[10,'CHERKI'],[47,'FODEN'],[11,'DOKU']],[[28,'RULLI'],[24,'GVARDIOL'],[45,'KHUSANOV'],[82,'RICO LEWIS'],[33,"O'REILLY"],[17,'ENZO FERNÁNDEZ'],[32,'BOUADDI'],[7,'NDIAYE'],[42,'SEMENYO']],'https://www.mancity.com/players','耐心传递 · 拉开宽度')
 ];
 footballTeams.push(...englandClubs.map(club=>addedClub({...club,league:'england'})),...europeanClubs.map(addedClub));
+export const defaultHomeClub='bayern';
+const bayern=addedClub({
+ id:defaultHomeClub,name:'拜仁慕尼黑',short:'拜仁',code:'FCB',english:'FC BAYERN MÜNCHEN',
+ shirt:'#bb1d32',shorts:'#ab182c',ink:'#f4f1e8',socks:'#dfdfd6',league:'germany',formation:'4231',
+ source:'https://fcbayern.com/en/teams/first-team',style:'前场接应',checked:'2026-11-11',possessionStyle:false
+});
+export const footballClubs=[bayern,...footballTeams];
 export const footballLeagues=new Map([
  ['all','全部'],['germany','德甲'],['spain','西甲'],['england','英超'],['italy','意甲'],['france','法甲']
 ]);
-export const footballTeam=id=>footballTeams.find(t=>t.id===id)||footballTeams[0];
-export function opponentSquad(id){
- const club=footballTeam(id);
- if(!club.xi)return{club,xi:awayXI.map(p=>({...p,club,kit:club.kit})),bench:substitutes.filter(p=>p.team==='away').map(p=>({...p,club,kit:club.kit}))};
- const make=([number,name],index,bench=false)=>({team:'away',club,kit:club.kit,role:bench?'substitute':'player',player:{number,name},keeper:index===0,height:index===0?1.93:1.78+(index%5)*.035,dark:[1,4,6,10].includes(index),hair:[1,4,6,10].includes(index)?'crop':'short02',hairColor:0x81776d,phase:index*.61,boot:[0xc3cdbe,0xd5a393,0x8aa0bd][index%3],...(bench?{seated:true,x:-37.45,z:10.9+index*1.28,yaw:Math.PI/2}:{})});
+export const footballTeam=id=>footballClubs.find(t=>t.id===id)||footballTeams[0];
+const homeFootballTeam=id=>footballClubs.find(t=>t.id===id)||bayern;
+export const teamClub=(team,opponent,homeClub=defaultHomeClub)=>team==='home'?homeFootballTeam(homeClub):footballTeam(opponent);
+const contrastKit=(shirt,ink)=>({shirt,shorts:shirt,ink,socks:shirt,pattern:'plain',stripe:shirt});
+const lightKit=contrastKit('#f2e1a5','#26283d'),darkKit=contrastKit('#251f3c','#f5f1e6');
+const channels=hex=>[1,3,5].map(offset=>parseInt(hex.slice(offset,offset+2),16));
+const luminance=([r,g,b])=>.2126*r+.7152*g+.0722*b;
+export function matchClubs(homeClub=defaultHomeClub,opponent='dortmund'){
+ const home=homeFootballTeam(homeClub),away=footballTeam(opponent);
+ const kit=away.id===defaultHomeClub?lightKit:away.kit;
+ const homeColor=channels(home.kit.shirt),awayColor=channels(kit.shirt);
+ const distance=homeColor.reduce((sum,n,index)=>sum+(n-awayColor[index])**2,0);
+ const awayKit=distance<12000?(luminance(homeColor)>144?darkKit:lightKit):kit;
+ return{home,away:awayKit===away.kit?away:{...away,kit:awayKit}};
+}
+export function opponentSquad(id,team='away',otherClub){
+ const club=team==='home'?matchClubs(id,otherClub).home:matchClubs(otherClub,id).away;
+ const placement=(index)=>({seated:true,x:-37.45,z:(team==='away'?10.9:-25.1)+index*1.28,yaw:Math.PI/2});
+ if(club.id===defaultHomeClub||club.id==='dortmund'){
+  const isBayern=club.id===defaultHomeClub,originalTeam=isBayern?'home':'away';
+  const xi=(isBayern?homeXI:awayXI).map(p=>({...p,team,club,kit:club.kit}));
+  const bench=substitutes.filter(p=>p.team===originalTeam).map((p,index)=>({...p,team,club,kit:club.kit,...placement(index)}));
+  const reserves=isBayern?homeReserves.map(p=>({...p,team,club,kit:club.kit})):[];
+  return{club,xi,bench,reserves};
+ }
+ const make=([number,name],index,bench=false)=>({team,club,kit:club.kit,role:bench?'substitute':'player',player:{number,name},keeper:index===0,height:index===0?1.93:1.78+(index%5)*.035,dark:[1,4,6,10].includes(index),hair:[1,4,6,10].includes(index)?'crop':'short02',hairColor:0x81776d,phase:index*.61,boot:[0xc3cdbe,0xd5a393,0x8aa0bd][index%3],...(bench?placement(index):{})});
  return{club,xi:club.xi.map((p,i)=>make(p,i)),bench:club.bench.map((p,i)=>make(p,i,true))};
 }
 export const difficulties={casual:{label:'轻松',speed:.89,reaction:1.45,range:.67,shotError:1.4},regular:{label:'标准',speed:1,reaction:1,range:.85,shotError:.65},challenge:{label:'挑战',speed:1.04,reaction:.78,range:.95,shotError:.3}};

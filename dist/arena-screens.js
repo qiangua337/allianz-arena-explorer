@@ -1,4 +1,5 @@
 import {THREE,mesh,box,canvasTexture,getCrestImage} from './kit.js';
+import {defaultHomeClub,footballTeam} from './football-teams.js';
 const screenWidth=1536,screenHeight=864,screenBackground='#101b25';
 const clockPanel={x:512,y:68,width:512,height:64,baseline:110};
 const scorePanel={x:432,y:246,width:672,height:192,baseline:405};
@@ -44,23 +45,32 @@ export function buildArenaScreens(bowl,batch,{dark,steel}){
   for(const face of[front,rear])overlays.push(mountPanel(face,clockPanel,clockMaterial,'Live LED clock'),mountPanel(face,scorePanel,scoreMaterial,'Live LED score'));
   for(const x of[-7,7])batch.add(.16,6,.16,x,46,z,steel);
  }
- let clubId,lastClock,lastScore;
- function paintClub(club){
+ let clubPair,lastClock,lastScore;
+ function paintClubs(home,away){
   const c=live.image.getContext('2d');
   c.fillStyle=screenBackground;c.fillRect(0,0,screenWidth,screenHeight);
   c.fillStyle='#b01d35';c.fillRect(0,0,screenWidth,18);c.textAlign='center';
-  c.drawImage(getCrestImage('home'),190,205,205,205);
-  if(club.id==='dortmund')c.drawImage(getCrestImage('away'),1140,205,205,205);else{c.fillStyle=club.kit.shirt;c.beginPath();c.arc(1240,307,105,0,Math.PI*2);c.fill();c.fillStyle=club.kit.ink;c.font='bold 75px Arial';c.fillText(club.code,1240,335);}
-  c.fillStyle='#f3f1e9';c.font='600 60px Arial';c.fillText('FC BAYERN',292,510);c.fillText(club.code,1240,510);
-  c.font='400 34px Arial';c.fillStyle='#aab9bd';c.fillText('11  vs  11',768,520);c.fillText('FC BAYERN × '+club.english,768,740);
+  const clubLabel=club=>club.id===defaultHomeClub?'FC BAYERN':club.english;
+  for(const [club,x] of [[home,292],[away,1240]]){
+   const crest=club.id===defaultHomeClub?'home':club.id==='dortmund'?'away':null;
+   if(crest)c.drawImage(getCrestImage(crest),x-102.5,205,205,205);
+   else{
+    c.fillStyle=club.kit.shirt;c.beginPath();c.arc(x,307,105,0,Math.PI*2);c.fill();
+    c.fillStyle=club.kit.ink;c.font='bold 75px Arial';c.fillText(club.code,x,335);
+   }
+   c.fillStyle='#f3f1e9';c.font='600 60px Arial';c.fillText(club.id===defaultHomeClub?'FC BAYERN':club.code,x,510);
+   c.fillStyle=club.kit.shirt;c.fillRect(x-102.5,587,205,7);
+  }
+  c.font='400 34px Arial';c.fillStyle='#aab9bd';c.fillText('11  vs  11',768,520);c.fillText(clubLabel(home)+' × '+clubLabel(away),768,740);
   live.needsUpdate=true;
  }
  return{
   setMatchday(on){material.map=textures[on?1:0];for(const overlay of overlays)overlay.visible=false;},
   setMatchScore(state){
-   const club=state.fixture;if(!club)return;
+   const away=state.fixture;if(!away)return;
+   const home=state.homeFixture??footballTeam(defaultHomeClub),pair=home.id+':'+away.id;
    const seconds=Math.max(0,Math.ceil(state.duration-state.elapsed)),score=state.score.home+' : '+state.score.away;
-   if(club.id!==clubId){clubId=club.id;paintClub(club);}
+   if(pair!==clubPair){clubPair=pair;paintClubs(home,away);}
    if(seconds!==lastClock){
     lastClock=seconds;
     const clock=String(Math.floor(seconds/60)).padStart(2,'0')+':'+String(seconds%60).padStart(2,'0');

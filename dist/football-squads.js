@@ -1,5 +1,4 @@
-import {homeXI,homeReserves,substitutes} from './matchday-roster.js';
-import {footballTeam,opponentSquad} from './football-teams.js';
+import {defaultHomeClub,opponentSquad,teamClub} from './football-teams.js';
 
 export const footballFormations={
  '4231':{label:'4-2-3-1',positions:[[0,48],[0,-24],[-8,12],[-11,30],[11,30],[-26,21],[26,21],[8,12],[0,-6],[23,-5],[-23,-5]],roles:['GK','ST','DM','CB','CB','LB','RB','DM','AM','RW','LW']},
@@ -7,26 +6,28 @@ export const footballFormations={
  '442':{label:'4-4-2',positions:[[0,48],[-9,-22],[-8,7],[-11,30],[11,30],[-26,21],[26,21],[8,7],[9,-22],[25,5],[-25,5]],roles:['GK','ST','CM','CB','CB','LB','RB','CM','ST','RM','LM']},
  '352':{label:'3-5-2',positions:[[0,48],[-9,-21],[0,30],[-16,27],[16,27],[-27,9],[27,9],[-9,10],[9,10],[0,-4],[9,-21]],roles:['GK','ST','CB','CB','CB','LWB','RWB','CM','CM','AM','ST']}
 };
-export function teamSquad(team='home',opponent='dortmund'){
- if(team==='away'){const s=opponentSquad(opponent);return[...s.xi,...s.bench];}
- return[...homeXI,...substitutes.filter(p=>p.team==='home'),...homeReserves];
+export function teamSquad(team='home',opponent='dortmund',homeClub=defaultHomeClub){
+ const squad=team==='home'?opponentSquad(homeClub,'home',opponent):opponentSquad(opponent,'away',homeClub);
+ return[...squad.xi,...squad.bench,...(squad.reserves??[])];
 }
-export const squadDefinition=(team,opponent,number)=>teamSquad(team,opponent).find(p=>p.player.number===Number(number));
-export function defaultSelection(team='home',opponent='dortmund'){
- const xi=teamSquad(team,opponent).slice(0,11).map(p=>p.player.number);
- if(team==='home'){
+export const squadDefinition=(team,opponent,number,homeClub)=>teamSquad(team,opponent,homeClub).find(p=>p.player.number===Number(number));
+export function defaultSelection(team='home',opponent='dortmund',homeClub=defaultHomeClub){
+ const club=teamClub(team,opponent,homeClub),xi=teamSquad(team,opponent,homeClub).slice(0,11).map(p=>p.player.number);
+ if(club.id===defaultHomeClub){
   [xi[5],xi[6]]=[xi[6],xi[5]];
   return{formation:'4231',xi};
  }
- if(opponent==='dortmund')return{formation:'4231',xi:[1,9,25,3,4,24,26,8,7,14,18]};
- return{formation:footballTeam(opponent).formation??'4231',xi};
+ if(club.id==='dortmund')return{formation:'4231',xi:[1,9,25,3,4,24,26,8,7,14,18]};
+ return{formation:club.formation??'4231',xi};
 }
-export function validateSelection(value,team='home',opponent='dortmund'){
+export function validateSelection(value,team='home',opponent='dortmund',homeClub=defaultHomeClub){
  if(!value||!Object.hasOwn(footballFormations,value.formation))return{ok:false,error:'请选择支持的阵型'};
  if(!Array.isArray(value.xi)||value.xi.length!==11||new Set(value.xi).size!==11)return{ok:false,error:'首发需要 11 名不同球员'};
- const members=value.xi.map(n=>squadDefinition(team,opponent,n));if(members.some((p,i)=>!Number.isInteger(value.xi[i])||!p))return{ok:false,error:'阵容包含不属于本队的球员'};
- if(!members[0].keeper||members.slice(1).some(p=>p.keeper))return{ok:false,error:'门将位置必须由门将担任，场上保留一名门将'};
+ const members=new Map(teamSquad(team,opponent,homeClub).map(player=>[player.player.number,player]));
+ const starters=value.xi.map(number=>members.get(number));
+ if(starters.some(player=>!player))return{ok:false,error:'阵容包含不属于本队的球员'};
+ if(!starters[0].keeper||starters.slice(1).some(player=>player.keeper))return{ok:false,error:'门将位置必须由门将担任，场上保留一名门将'};
  return{ok:true,selection:{formation:value.formation,xi:[...value.xi]}};
 }
-export function normalizeSelection(value,team='home',opponent='dortmund'){const result=validateSelection(value,team,opponent);return result.ok?result.selection:defaultSelection(team,opponent);}
-export function createTeamSheet(value,team,opponent){const selection=normalizeSelection(value,team,opponent);return{...selection,bench:teamSquad(team,opponent).filter(p=>!selection.xi.includes(p.player.number)).slice(0,9).map(p=>p.player.number),used:[...selection.xi],substitutions:[],pending:[],windows:0};}
+export function normalizeSelection(value,team='home',opponent='dortmund',homeClub=defaultHomeClub){const result=validateSelection(value,team,opponent,homeClub);return result.ok?result.selection:defaultSelection(team,opponent,homeClub);}
+export function createTeamSheet(value,team,opponent,homeClub){const selection=normalizeSelection(value,team,opponent,homeClub);return{...selection,bench:teamSquad(team,opponent,homeClub).filter(p=>!selection.xi.includes(p.player.number)).slice(0,9).map(p=>p.player.number),used:[...selection.xi],substitutions:[],pending:[],windows:0};}

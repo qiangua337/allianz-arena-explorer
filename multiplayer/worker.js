@@ -4,8 +4,10 @@ import {ONLINE_DELTA_CAPABILITY,ONLINE_FLOW_CAPABILITY,encodeOnlineDelta} from '
 import {safePenaltyAim} from '../dist/football-penalty.js';
 import {normalizeRules} from '../dist/football-rules.js';
 import {defaultSelection,normalizeSelection,validateSelection} from '../dist/football-squads.js';
-import {footballTeam} from '../dist/football-teams.js';
+import {footballClubs,footballTeam} from '../dist/football-teams.js';
 const TEAMS=['home','away'],TTL=30*60*1000,GRACE=60*1000,alphabet='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const homeDefault='bayern',awayDefault='dortmund';
+const seatFlags=()=>({home:false,away:false});
 const DELTA_KEYFRAME_INTERVAL=20;
 const SNAPSHOT_WINDOW=10,RECEIPT_HISTORY=32,RECOVERY_INTERVAL=1500,RECEIPTS_PER_SECOND=16;
 const urgentEvents=new Set(['pass','through','shot','goal','foul','card','penalty-ready','penalty-start','penalty-result']);
@@ -20,7 +22,7 @@ export default {async fetch(request,env){
  if(path==='/rooms'&&request.method==='POST'){
   let options;try{options=await body(request);}catch{return error('房间设置无效');}
   if(options.protocol!==ONLINE_PROTOCOL)return error('联机版本已更新，请刷新网页后重建房间',426);
-  for(let attempt=0;attempt<3;attempt++){const bytes=crypto.getRandomValues(new Uint8Array(8)),code=[...bytes].map(v=>alphabet[v%alphabet.length]).join(''),id=env.ROOMS.idFromName(code),stub=env.ROOMS.get(id,{locationHint:'apac'}),result=await stub.fetch(new Request(url.origin+'/create',{method:'POST',body:JSON.stringify({code,opponent:options.opponent,rules:options.rules,selection:options.selection})}));if(result.status!==409)return result;}return error('暂时无法创建房间，请重试',503);
+  for(let attempt=0;attempt<3;attempt++){const bytes=crypto.getRandomValues(new Uint8Array(8)),code=[...bytes].map(v=>alphabet[v%alphabet.length]).join(''),id=env.ROOMS.idFromName(code),stub=env.ROOMS.get(id,{locationHint:'apac'}),result=await stub.fetch(new Request(url.origin+'/create',{method:'POST',body:JSON.stringify({code,opponent:options.opponent,rules:options.rules,selection:options.selection,teamChoice:options.teamChoice===true})}));if(result.status!==409)return result;}return error('暂时无法创建房间，请重试',503);
  }
  const match=path.match(/^\/rooms\/([^/]+)\/(join|socket)$/);if(!match||!validRoomCode(match[1]))return error('房间码无效或入口不存在',404);
  if(match[2]==='join'&&request.method!=='POST'||match[2]==='socket'&&request.method!=='GET')return error('请求方式无效',405);
@@ -37,8 +39,32 @@ export class FootballRoom {
   if(!stateDelta){this.snapshotSeats.delete(team);return;}
   this.snapshotSeats.set(team,{stateFlow,base:null,framesSinceKeyframe:0,pending:[],lastProgressAt:Date.now(),lastRecoveryAt:0,receiptWindowAt:0,receiptCount:0});
  }
- makeSimulation(){const sim=createFootballSimulation({duration:this.meta.rules.duration,rules:this.meta.rules,selections:this.meta.lineups,seed:this.meta.seed,opponent:this.meta.opponent,difficulty:'regular',humanTeams:TEAMS});for(const team of TEAMS){const preference=this.meta.preferences?.[team];if(preference){sim.setControlMode(preference.controlMode,team);sim.setShotKind(preference.shotKind,team);}}return sim;}
- publicRoom(){return{code:this.meta.code,protocol:ONLINE_PROTOCOL,opponent:this.meta.opponent,rules:this.meta.rules,lineups:this.meta.lineups,intervalReady:this.meta.intervalReady||{},expiresAt:this.meta.expiresAt,started:!!this.meta.started,ended:!!this.meta.ended,rematch:this.meta.rematch||{},reason:this.meta.reason||'',seats:TEAMS.map(team=>({team,connected:this.sockets.has(team),ready:!!this.meta.ready[team],paused:!!this.pauses[team]}))};}
+ fixture(){
+  const {teamChoice,clubs,opponent,confirmed}=this.meta;
+  return{
+   teamChoice:teamChoice===true,
+   clubs:teamChoice?clubs:{home:homeDefault,away:opponent},
+   homeClub:clubs?.home??homeDefault,
+   opponent:teamChoice?(clubs?.away??awayDefault):opponent,
+   confirmed:confirmed??seatFlags()
+  };
+ }
+ hasSelectedClubs(){return !this.meta.teamChoice||TEAMS.every(team=>!!this.meta.clubs?.[team]);}
+ selectionsLocked(){return this.meta.teamChoice&&TEAMS.every(team=>this.meta.confirmed?.[team]);}
+ seatResponse(team){
+  const {code,tokens,rules,expiresAt}=this.meta;
+  return {code,team,token:tokens[team],rules,expiresAt,...this.fixture()};
+ }
+ makeSimulation(){
+  const {homeClub,opponent}=this.fixture(),{rules,lineups,seed}=this.meta;
+  const sim=createFootballSimulation({duration:rules.duration,rules,selections:lineups,seed,homeClub,opponent,difficulty:'regular',humanTeams:TEAMS});
+  for(const team of TEAMS){
+   const preference=this.meta.preferences?.[team];
+   if(preference){sim.setControlMode(preference.controlMode,team);sim.setShotKind(preference.shotKind,team);}
+  }
+  return sim;
+ }
+ publicRoom(){return{code:this.meta.code,protocol:ONLINE_PROTOCOL,...this.fixture(),rules:this.meta.rules,lineups:this.meta.lineups,intervalReady:this.meta.intervalReady||{},expiresAt:this.meta.expiresAt,started:!!this.meta.started,ended:!!this.meta.ended,rematch:this.meta.rematch||{},reason:this.meta.reason||'',seats:TEAMS.map(team=>({team,connected:this.sockets.has(team),ready:!!this.meta.ready[team],paused:!!this.pauses[team]}))};}
  send(ws,message){try{ws.send(typeof message==='string'?message:JSON.stringify(message));return true;}catch{return false;}}
  broadcast(force=false,ordinary=false){
   if(!this.meta)return;
@@ -112,13 +138,18 @@ export class FootballRoom {
   const path=new URL(request.url).pathname,now=Date.now();
   if(path==='/create'){
    if(this.meta&&this.meta.expiresAt>now)return error('房间已存在',409);let b;try{b=await body(request);}catch{return error('房间设置无效');}
-   const opponent=footballTeam(b.opponent).id;this.meta={code:b.code,opponent,protocol:ONLINE_PROTOCOL,rules:normalizeRules(b.rules),lineups:{home:normalizeSelection(b.selection,'home',opponent),away:defaultSelection('away',opponent)},intervalReady:{},seed:crypto.getRandomValues(new Uint32Array(1))[0],tokens:{home:token(),away:null},ready:{home:false,away:false},expiresAt:now+TTL,started:false,ended:false,disconnectAt:null};this.sim=null;await this.persist();await this.ctx.storage.setAlarm(this.meta.expiresAt);return json({code:b.code,team:'home',token:this.meta.tokens.home,opponent,rules:this.meta.rules,expiresAt:this.meta.expiresAt},201);
+   const teamChoice=b.teamChoice===true,opponent=teamChoice?awayDefault:footballTeam(b.opponent).id;
+   const lineups=teamChoice?{home:null,away:null}:{home:normalizeSelection(b.selection,'home',opponent),away:defaultSelection('away',opponent)};
+   this.meta={code:b.code,opponent,protocol:ONLINE_PROTOCOL,rules:normalizeRules(b.rules),lineups,intervalReady:{},seed:crypto.getRandomValues(new Uint32Array(1))[0],tokens:{home:token(),away:null},ready:seatFlags(),expiresAt:now+TTL,started:false,ended:false,disconnectAt:null,
+    ...(teamChoice&&{teamChoice,clubs:{home:null,away:null},confirmed:seatFlags()})};
+   this.sim=null;await this.persist();await this.ctx.storage.setAlarm(this.meta.expiresAt);
+   return json(this.seatResponse('home'),201);
   }
   if(!this.meta||this.meta.expiresAt<=now||this.meta.ended)return error('房间已结束或过期，请重新创建',410);
   if(path==='/join'){
    let b;try{b=await body(request);}catch{return error('加入请求无效');}if(b.protocol!==ONLINE_PROTOCOL)return error('联机版本已更新，请刷新网页',426);let team=TEAMS.find(t=>b.token&&this.meta.tokens[t]===b.token);
    if(!team){if(this.meta.tokens.away)return error('房间已有两位玩家，请核对房间码',409);team='away';this.meta.tokens.away=token();}
-   await this.persist();this.broadcast();return json({code:this.meta.code,team,token:this.meta.tokens[team],opponent:this.meta.opponent,rules:this.meta.rules,expiresAt:this.meta.expiresAt});
+   await this.persist();this.broadcast();return json(this.seatResponse(team));
   }
   if(path!=='/socket'||request.headers.get('Upgrade')?.toLowerCase()!=='websocket')return error('需要实时连接',426);
   const protocols=(request.headers.get('Sec-WebSocket-Protocol')||'').split(',').map(v=>v.trim()),credential=protocols.find(p=>p.startsWith('seat.'))?.slice(5),team=TEAMS.find(t=>credential&&this.meta.tokens[t]===credential);if(!team||!protocols.includes('arena-v2'))return error('房间身份已失效，请重新加入',403);
@@ -132,11 +163,64 @@ export class FootballRoom {
   if(packet.type==='ping'){this.refresh();this.send(ws,{type:'pong',at:packet.at});return;}
   if(packet.type==='input'){if(packet.seq!==undefined){if(!Number.isSafeInteger(packet.seq)||packet.seq<=0||packet.seq<=(this.inputSeq[team]||0))return;this.inputSeq[team]=packet.seq;}this.inputs[team]=safeOnlineInput(packet);this.lastInput[team]=now;return;}
   const reply=result=>this.send(ws,{type:'result',id:packet.id,...result});
-  if(packet.type==='lineup'){if(this.meta.started){reply({ok:false,error:'比赛已开始，请使用战术与替补'});return;}const checked=validateSelection(packet.selection,team,this.meta.opponent);if(!checked.ok){reply(checked);return;}this.meta.lineups[team]=checked.selection;this.meta.ready[team]=false;await this.persist();this.broadcast(true);reply({ok:true});return;}
-  if(packet.type==='rules'){if(team!=='home'||this.meta.started){reply({ok:false,error:'只有房主能在开球前调整赛制'});return;}this.meta.rules=normalizeRules(packet.rules);this.meta.ready={home:false,away:false};await this.persist();this.broadcast(true);reply({ok:true});return;}
+  if(packet.type==='club'){
+   if(!this.meta.teamChoice||this.meta.started||this.selectionsLocked()){
+    reply({ok:false,error:'本房间当前不能更改球队'});return;
+   }
+   const club=packet.club;
+   if(!footballClubs.some(candidate=>candidate.id===club)){reply({ok:false,error:'请选择有效的球队'});return;}
+   if(club===this.meta.clubs[team]){reply({ok:true});return;}
+   this.meta.clubs[team]=club;
+   const {homeClub,opponent}=this.fixture();
+   this.meta.lineups[team]=defaultSelection(team,opponent,homeClub);
+   this.meta.ready=seatFlags();
+   // Both seats confirm the actual matchup. Changing either club makes those confirmations stale.
+   this.meta.confirmed=seatFlags();
+   await this.persist();this.broadcast(true);reply({ok:true});return;
+  }
+  if(packet.type==='confirm'){
+   if(this.selectionsLocked()&&packet.confirmed===true){reply({ok:true});return;}
+   if(!this.meta.teamChoice||this.meta.started||this.selectionsLocked()){
+    reply({ok:false,error:'双方已确认，当前不能更改'});return;
+   }
+   if(packet.confirmed===true){
+    if(!this.hasSelectedClubs()){reply({ok:false,error:'请等双方选好球队'});return;}
+    if(TEAMS.some(side=>packet.clubs?.[side]!==this.meta.clubs[side])){
+     reply({ok:false,error:'对阵已更新，请重新确认'});return;
+    }
+   }
+   this.meta.confirmed[team]=packet.confirmed===true;
+   await this.persist();this.broadcast(true);reply({ok:true});return;
+  }
+  if(packet.type==='lineup'){
+   if(this.meta.started){reply({ok:false,error:'比赛已开始，请使用战术与替补'});return;}
+   if(this.selectionsLocked()){reply({ok:false,error:'双方已确认，请进入比赛后调整阵容'});return;}
+   if(this.meta.teamChoice&&!this.meta.clubs[team]){reply({ok:false,error:'请先选择球队'});return;}
+   const {homeClub,opponent}=this.fixture();
+   const checked=validateSelection(packet.selection,team,opponent,homeClub);
+   if(!checked.ok){reply(checked);return;}
+   this.meta.lineups[team]=checked.selection;this.meta.ready[team]=false;
+   if(this.meta.teamChoice)this.meta.confirmed[team]=false;
+   await this.persist();this.broadcast(true);reply({ok:true});return;
+  }
+  if(packet.type==='rules'){
+   if(team!=='home'||this.meta.started){reply({ok:false,error:'只有房主能在开球前调整赛制'});return;}
+   if(this.selectionsLocked()){reply({ok:false,error:'双方已确认，当前不能调整赛制'});return;}
+   this.meta.rules=normalizeRules(packet.rules);this.meta.ready=seatFlags();
+   if(this.meta.teamChoice)this.meta.confirmed=seatFlags();
+   await this.persist();this.broadcast(true);reply({ok:true});return;
+  }
   if(packet.type==='continue'){if(this.sim?.state.phase!=='interval'){reply({ok:false,error:'当前不在中场休息'});return;}this.meta.intervalReady[team]=true;if(TEAMS.every(t=>this.meta.intervalReady[t]&&this.sockets.has(t))){this.meta.intervalReady={};this.pauses={home:false,away:false};this.sim.continuePeriod();this.refresh();}await this.persist();this.broadcast(true);reply({ok:true});return;}
   if(packet.type==='formation'||packet.type==='substitute'){if(!this.sim||this.sim.state.phase==='fulltime'){reply({ok:false,error:'当前不能调整比赛阵容'});return;}const result=packet.type==='formation'?this.sim.setFormation(team,packet.formation):this.sim.substitute(team,packet.outId,packet.inNumber);if(result.ok){if(this.sim.state.phase==='interval')this.meta.intervalReady[team]=false;if(packet.type==='formation')this.meta.lineups[team].formation=packet.formation;await this.persist();this.broadcast(true);}reply(result);return;}
-  if(packet.type==='ready'){this.meta.ready[team]=packet.ready===true;this.refresh();await this.persist();this.broadcast();return;}
+  if(packet.type==='ready'){
+   if(packet.ready===true&&this.meta.teamChoice&&(!this.hasSelectedClubs()||!this.selectionsLocked())){
+    if(packet.id!==undefined)reply({ok:false,error:'双方确认阵容后才能开球'});
+    return;
+   }
+   this.meta.ready[team]=packet.ready===true;this.refresh();await this.persist();this.broadcast();
+   if(packet.id!==undefined)reply({ok:true});
+   return;
+  }
   if(packet.type==='pause'){this.pauses[team]=packet.paused===true;if(packet.paused===true&&this.sim?.state.phase==='interval')this.meta.intervalReady[team]=false;this.refresh();await this.persist();this.broadcast();return;}
   if(packet.type==='leave'){await this.end('朋友已离开房间');return;}
   if(packet.type==='rematch'&&this.sim?.state.phase==='fulltime'){this.meta.ready[team]=true;if(this.meta.rematch?.[team])return;this.meta.rematch={...this.meta.rematch,[team]:true};if(TEAMS.every(t=>this.meta.rematch[t])){this.meta.rematch={};this.meta.intervalReady={};this.lastRoster=-1;this.sim=this.makeSimulation();this.pauses={home:false,away:false};this.meta.started=true;this.refresh();}await this.persist();this.broadcast();return;}
@@ -163,7 +247,9 @@ export class FootballRoom {
  }
  stopTimer(){if(this.timer!==null)clearInterval(this.timer);this.timer=null;this.timerEpoch++;}
  refresh(){if(!this.meta||this.meta.ended)return;const now=Date.now(),connected=TEAMS.every(t=>this.sockets.has(t)),ready=TEAMS.every(t=>this.meta.ready[t]);if(connected)this.meta.disconnectAt=null;else if(this.meta.started&&!this.meta.disconnectAt){this.meta.disconnectAt=now+GRACE;this.ctx.storage.setAlarm(Math.min(this.meta.expiresAt,this.meta.disconnectAt));}
-  if(connected&&ready&&!this.meta.started){this.sim=this.makeSimulation();this.meta.started=true;}
+  if(connected&&ready&&!this.meta.started&&this.hasSelectedClubs()&&(!this.meta.teamChoice||this.selectionsLocked())){
+   this.sim=this.makeSimulation();this.meta.started=true;
+  }
   const run=connected&&ready&&this.meta.started&&!TEAMS.some(t=>this.pauses[t])&&!['fulltime','interval'].includes(this.sim?.state.phase),wasRunning=this.running;this.running=!!run;if(this.sim)this.sim.setPaused(!run);
   if(!run){this.stopTimer();this.pendingTick=0;this.lastTick=now;return;}
   // An OPEN socket can outlive a lost/stalled callback. Heartbeats and room

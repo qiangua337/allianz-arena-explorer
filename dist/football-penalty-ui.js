@@ -4,7 +4,7 @@ import {writeHudAttribute,writeHudData,writeHudProperty} from './hud-write.js';
 export const penaltyKeeperWaiting = penalty =>
   penalty?.role === 'keeper' && penalty.stage === 'ready' && penalty.keeperReady === false;
 
-export function renderPenaltyScore(getElement,shootout,opponent) {
+export function renderPenaltyScore(getElement,shootout,opponent,homeName='拜仁') {
   const panel = getElement('game-penalty-score');
   writeHudProperty(panel,'hidden',!shootout);
   if (!shootout) return;
@@ -14,7 +14,7 @@ export function renderPenaltyScore(getElement,shootout,opponent) {
   const round = complete ? attempts : Math.min(home.length,away.length) + 1;
   const offset = Math.max(0,round - 5);
   writeHudProperty(getElement('game-penalty-round'),'textContent',`第 ${round} 轮`);
-  writeHudAttribute(panel,'aria-label',`点球大战 · 第 ${round} 轮 · 拜仁 ${home.filter(Boolean).length} · ${opponent} ${away.filter(Boolean).length}`);
+  writeHudAttribute(panel,'aria-label',`点球大战 · 第 ${round} 轮 · ${homeName} ${home.filter(Boolean).length} · ${opponent} ${away.filter(Boolean).length}`);
   for (const [side,results] of Object.entries({home,away})) {
     for (let slot=0; slot<5; slot++) {
       const attempt = offset + slot;

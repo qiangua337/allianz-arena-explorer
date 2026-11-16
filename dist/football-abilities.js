@@ -1,10 +1,10 @@
-import {footballTeams} from './football-teams.js';
+import {defaultHomeClub,footballTeams} from './football-teams.js';
 import {footballFormations} from './football-squads.js';
 
 // Gameplay values tuned for this simulation. Each row is pace, dribbling,
 // passing, finishing, defending, and optionally goalkeeping.
 const ratings={
- home:{
+ [defaultHomeClub]:{
   1:[51,65,85,30,25,91],26:[44,51,67,26,25,78],40:[51,60,77,27,25,83],
   2:[84,70,77,52,88],3:[80,65,72,48,87],4:[74,62,76,49,89],11:[87,80,76,64,75],
   19:[96,86,78,68,78],21:[77,69,78,55,82],23:[88,76,72,58,78],44:[76,72,78,58,84],
@@ -73,12 +73,12 @@ for(const roster of Object.values(ratings))for(const number of Object.keys(roste
  specialties.set(values,labelFor(values));
 }
 
-export function footballAbilities(team,opponent,number){
- return ratings[team==='home'?'home':opponent]?.[number]??neutral;
+export function footballAbilities(team,opponent,number,homeClub=defaultHomeClub){
+ return ratings[team==='home'?homeClub:opponent]?.[number]??neutral;
 }
-export const playerAbilities=player=>footballAbilities(player?.team,player?.abilityClub,player?.number);
+export const playerAbilities=player=>ratings[player?.abilityClub??(player?.team==='home'?defaultHomeClub:undefined)]?.[player?.number]??neutral;
 export const abilityFactor=(rating,weight,baseline=80)=>1+(rating-baseline)*weight;
-export function playerSpecialties(team,opponent,number,keeper=false){
- const values=footballAbilities(team,opponent,number);
+export function playerSpecialties(team,opponent,number,keeper=false,homeClub){
+ const values=footballAbilities(team,opponent,number,homeClub);
  return keeper?(values.goalkeeping>=values.passing?'扑救 · 传球':'传球 · 扑救'):specialties.get(values);
 }
