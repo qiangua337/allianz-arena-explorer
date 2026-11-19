@@ -23,6 +23,7 @@ import {shellProfileSampler,installEtfeSurface,seatingDetailLimits,buildRoofLini
 import {buildMatchBall} from './football-ball.js';
 import {seatHasSupporter} from './crowd-layout.js';
 import {buildArenaSeatMosaic} from './seat-mosaic.js';
+import {partitionBowlHardware} from './stadium-hardware.js';
 
 function buildRoofFloodlightBanks(parent,locations,faceColor){
  const root=new THREE.Group();root.name='Roof floodlights with recessed reflectors';parent.add(root);
@@ -215,12 +216,12 @@ export function buildStadium(scene){
   }
   compactGroup(detailed);compactGroup(distant);dugouts.push({position:g.position,detailed,distant});
  }
- batch.flush({sectors:12});compactGroup(closeLabels);const pitchside=buildPitchsideDetails(bowl);const bowlLighting=buildBowlLighting(bowl),visibilityChanged=positionStateChanged(),stairwellOccluded=buildStairwellOcclusion();
+ batch.flush({sectors:12});compactGroup(closeLabels);const pitchside=buildPitchsideDetails(bowl);const hardware=partitionBowlHardware(structural,seatingTiers.slice(1).map(tier=>tier.y));const bowlLighting=buildBowlLighting(bowl),visibilityChanged=positionStateChanged(),stairwellOccluded=buildStairwellOcclusion();
  root.updateWorldMatrix(true,true);circulation.root.updateWorldMatrix(true,true);
  // Keep box culling limited to fixed children without independent visibility.
  // Their parent still controls room, roof, and bowl visibility.
  const staticSurfaces=[...(decks?.children??[]),...(trussSectors?.children??[]),...roofLining.children,...floodlightBanks.children,...aisleRails.children.flatMap(group=>group.children)];
- const cameraFrustum=buildWalkFrustum(),facesUpperBowl=buildUpperRevealView(),facesVisitorPortal=buildVisitorBowlView(cameraFrustum),cullStaticBatches=buildStaticBatchCulling([...structural.children,...circulation.root.children,...seatInstances.map(({inst})=>inst)],staticSurfaces);
+ const cameraFrustum=buildWalkFrustum(),facesUpperBowl=buildUpperRevealView(),facesVisitorPortal=buildVisitorBowlView(cameraFrustum),cullStaticBatches=buildStaticBatchCulling([...structural.children.filter(mesh=>!hardware.covered.has(mesh)),...circulation.root.children,...seatInstances.map(({inst})=>inst)],staticSurfaces);
  const shellBounds=shellMeshes.map(shell=>shell.geometry.boundingBox.clone().applyMatrix4(shell.matrixWorld).expandByScalar(.18));
  const suspendBowl=suspendMatrixTraversal(bowl),suspendRoof=suspendMatrixTraversal(roof);
  const seatOrigin=v();let seatState=-1,seatRangeSquared=0,stairwellHidden=false,groundsBehindUpperBowl=false;
@@ -264,6 +265,9 @@ export function buildStadium(scene){
   if(!playing&&circulation.root.visible!==showArcade)circulation.root.visible=showArcade;
   suspendBowl(!showBowl);suspendRoof(stairwellHidden);
   cullStaticBatches(stadiumWalking&&!stairwellHidden,view);
+  const cullHardware=stadiumWalking&&!stairwellHidden;
+  const upperHardware=cullHardware&&position.y>upperThresholdLanding.y+.4&&position.y<upperTierThreshold.top+3.05;
+  hardware.update(cullHardware,upperHardware,view);
   const moved=visibilityChanged(position,state);
   if(moved||stadiumWalking&&view.changed){
    const showShell=!stairwellHidden&&!enclosedPlayerPosition(position);

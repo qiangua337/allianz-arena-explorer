@@ -34,6 +34,11 @@ export function waypointReached(position,target,anchor,next,isFinal=false){
  return false;
 }
 const doorRooms={homeDoor:['homeRoom','主队更衣室'],guestRoomDoor:['guestRoom','客队更衣室'],pressDoor:['press','新闻发布厅'],storeDoor:['store','球迷商店'],museumDoor:['museum','荣誉展厅'],loungeDoor:['lounge','贵宾包厢']};
+const galleryReturnNext={
+ upperBridgeStart:'upperGalleryOuter',
+ upperGalleryOuter:'upperGalleryFront',
+ upperGalleryFront:'landing3'
+};
 export function movementInstruction(position,yaw,target,next,goal){
  const distance=Math.hypot(target.x-position.x,target.z-position.z),angle=relativeBearing(position,yaw,target),height=target.y-position.y;
  let action=height>1.5?'沿楼梯上行':height<-1.5?'沿楼梯下行':/^lower\d+$/.test(target.id)?'沿入口环廊前行':/^upper\d+$/.test(target.id)?'沿公共大厅前行':target.label;
@@ -77,8 +82,10 @@ export function movementInstruction(position,yaw,target,next,goal){
   }else if(next?.id?.startsWith('outside')){
    action='前往球场外环步道';hint='出大厅后沿外环跟随地线，前往室外楼梯。';
   }else if(next&&next.z>target.z){
-   action=target.id==='door'?'走出接待大厅':'前往南侧正门';
-   hint='沿中央开放通道离开大厅，然后跟随地线。';
+   const leavingHall=target.id==='door';
+   action=leavingHall?'走出接待大厅':'前往南侧正门';
+   hint=leavingHall?'沿中央开放通道离开大厅，然后跟随地线。':
+    target.id==='forecourt'?'走出大厅后，沿南广场步道前往正门。':'沿南广场中央步道穿过验票通道。';
   }else{
    action='进入接待大厅';hint='沿中央开放通道进入大厅，抵达后跟随所选目的地。';
   }
@@ -91,6 +98,10 @@ export function movementInstruction(position,yaw,target,next,goal){
  else if(target.id==='upperAisleEntry'){const leaving=next?.id==='upperThresholdFoot';action=leaving?'沿座席台阶上行':'前往座席过道';hint=leaving?'沿座席之间的台阶上行，在平台转向连廊入口。':'在平台转弯，沿座席之间的台阶下行。';}
  else if(target.id==='upperStands'&&position.y-target.y>1){action='沿台阶进入上层看台';hint='走到台阶后的座席过道。';}
  else if(target.id==='upperBridgeStart'&&next?.id==='upperThreshold'){action='走到上层连廊转角';hint='走到连廊尽头，再转向看台门洞。';}
+ else if(next?.id&&galleryReturnNext[target.id]===next.id){
+  action='沿连廊返回楼梯间';
+  hint=target.id==='upperGalleryFront'?'走到连廊转角，再沿地线进入楼梯间。':'沿连廊走到前方转角，继续跟随地线。';
+ }
  else if(target.id.includes('Bridge'))hint='沿带扶手的连廊通行，到转角后继续跟随地线。';
  else if(target.id==='coreFront'&&next?.id==='coreApproach'){action='走出楼梯间';hint='穿过开放门洞，在入口环廊继续跟随地线。';}
  else if(target.id==='coreApproach'&&/^lower\d+$/.test(next?.id??'')){action='返回入口环廊';hint='转入环廊，沿地线前往接待大厅。';}

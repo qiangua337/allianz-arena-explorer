@@ -29,6 +29,41 @@ test('the divided static rings keep their triangles and shared depth material',(
  assert.equal(stadium.matchBall.isMesh,true);assert.ok(stadium.matchBall.geometry.attributes.position.count>1000,'dynamic ball is not spatially divided');
 });
 
+test('the upper mobile aisle keeps visible hardware with the same number of draws',()=>{
+ const saved=globalThis.innerWidth;globalThis.innerWidth=390;
+ const camera=new THREE.PerspectiveCamera(66,390/844,.06,4500);
+ camera.position.set(100.438,39.14,-35.175);
+ camera.rotation.set(-.288,1.91,0,'YXZ');
+ const fittings=stadium.bowl.getObjectByName('Bowl concrete steps and metal fittings');
+ const tierParts=fittings.getObjectByName('Visible hardware by seating tier').children;
+ const originals=fittings.children.filter(mesh=>mesh.isInstancedMesh);
+ const frustum=new THREE.Frustum();
+ const drawn=meshes=>meshes.filter(mesh=>mesh.visible&&frustum.intersectsObject(mesh));
+ const submitted=meshes=>meshes.reduce((n,mesh)=>n+triangles(mesh)*mesh.count,0);
+ try{
+  camera.updateMatrixWorld(true);
+  frustum.setFromProjectionMatrix(new THREE.Matrix4().multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse));
+  const coarse=originals.filter(mesh=>(mesh.count<150||frustum.intersectsBox(mesh.boundingBox.clone().applyMatrix4(mesh.matrixWorld).expandByScalar(.18)))&&frustum.intersectsObject(mesh));
+  stadium.update(camera,'walk');
+  const fine=drawn(originals.concat(tierParts));
+  assert.equal(fine.length,coarse.length);
+  assert.ok(submitted(coarse)-submitted(fine)>20000,'off-screen hardware need not submit its triangles');
+  for(const base of originals){
+   const parts=tierParts.filter(part=>part.instanceMatrix.array.buffer===base.instanceMatrix.array.buffer);
+   if(!parts.length)continue;
+   assert.equal(parts.reduce((n,part)=>n+part.count,0),base.count);
+   assert.ok(parts.every(part=>part.geometry===base.geometry&&part.material===base.material));
+   if(parts.some(part=>part.visible)){
+    assert.equal(base.visible,false);
+    assert.equal(parts.filter(part=>part.visible).length,1);
+    for(const part of parts.filter(part=>!part.visible))assert.equal(frustum.intersectsBox(part.boundingBox.clone().applyMatrix4(part.matrixWorld)),false);
+   }
+  }
+  stadium.update(camera,'orbit',true,true,true,true);
+  assert.ok(tierParts.every(part=>!part.visible)&&originals.every(mesh=>mesh.visible),'full-quality orbit and match use the original batches');
+ }finally{if(saved===undefined)delete globalThis.innerWidth;else globalThis.innerWidth=saved;}
+});
+
 test('ETFE fragment work stays out of the high roof but keeps every opening in color and shadows',()=>{
  const facade=meshes(stadium.root).find(mesh=>mesh.name.startsWith('ETFE exterior facade'));
  for(const [material,program] of [[facade.material,'standard'],[facade.customDepthMaterial,'depth']]){
@@ -217,7 +252,9 @@ test('crossing the upper stairwell doorway never reveals a lower floor opening',
 test('phone walking rejects offscreen batch boxes and restores ordinary visibility on turning or changing view',()=>{
  const width=globalThis.innerWidth;globalThis.innerWidth=390;
  const camera=new THREE.PerspectiveCamera(66,390/844,.06,2500);
- const batches=[...meshes(stadium.bowl.getObjectByName('Bowl concrete steps and metal fittings')),
+ const fittings=stadium.bowl.getObjectByName('Bowl concrete steps and metal fittings');
+ const tierParts=fittings.getObjectByName('Visible hardware by seating tier').children;
+ const batches=[...fittings.children,
   ...stadium.circulation.root.children,...stadium.bowl.children];
  const candidates=batches.filter(o=>o.isInstancedMesh&&o.count>=150);
  const frustum=new THREE.Frustum(),projection=new THREE.Matrix4();
@@ -229,7 +266,10 @@ test('phone walking rejects offscreen batch boxes and restores ordinary visibili
    assert.equal(stadium.bowl.visible,true,'open or grazing threshold keeps the bowl');
    const hidden=candidates.filter(o=>!o.visible&&frustum.intersectsObject(o));
    for(const mesh of hidden){
-    assert.equal(frustum.intersectsBox(mesh.boundingBox.clone().applyMatrix4(mesh.matrixWorld)),false,'even conservative world bounds miss the view');
+    const parts=tierParts.filter(part=>part.instanceMatrix.array.buffer===mesh.instanceMatrix.array.buffer);
+    for(const part of (parts.length?parts.filter(part=>!part.visible):[mesh])){
+     assert.equal(frustum.intersectsBox(part.boundingBox.clone().applyMatrix4(part.matrixWorld)),false,'even conservative world bounds miss the view');
+    }
     visiblePool.add(mesh);
    }
   }
@@ -355,7 +395,7 @@ test('lower reception skips bowl transforms and the visitor stairs restore the s
 });
 
 test('bowl fittings retain every box and cull the opposite stand from match cameras',()=>{
- const fittings=meshes(stadium.bowl.getObjectByName('Bowl concrete steps and metal fittings'));
+ const fittings=stadium.bowl.getObjectByName('Bowl concrete steps and metal fittings').children.filter(part=>part.isMesh);
  assert.ok(fittings.every(o=>o.isInstancedMesh&&o.castShadow&&o.receiveShadow));
  assert.ok(fittings.length<=26);
  const all=fittings.reduce((n,o)=>n+o.count,0);

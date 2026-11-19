@@ -101,6 +101,28 @@ test('the stairs and gallery tell the visitor what is around the actual corner',
  assert.equal(fromGallery.action,'走到上层连廊转角');
  assert.match(fromGallery.hint,/转向看台门洞/);
 });
+
+test('upper gallery return and south exit instructions follow the direction of travel',()=>{
+ const {upperThreshold,upperBridgeStart,upperGalleryOuter,upperGalleryFront,landing3,forecourt,security,entrance}=tourNodes;
+ const facing=(from,to)=>Math.atan2(from.x-to.x,from.z-to.z);
+ const returnLegs=[
+  [{...upperThreshold,x:upperThreshold.x-1},upperBridgeStart,upperGalleryOuter],
+  [upperBridgeStart,upperGalleryOuter,upperGalleryFront],
+  [upperGalleryOuter,upperGalleryFront,landing3]
+ ];
+ for(const [position,target,next] of returnLegs){
+  const instruction=movementInstruction(position,facing(position,target),target,next,'entrance');
+  assert.equal(instruction.action,'沿连廊返回楼梯间');
+  assert.doesNotMatch(instruction.hint,/前往看台入口/);
+  assert.equal(instruction.landmark,'转角');
+ }
+ const towardSeats=movementInstruction(landing3,facing(landing3,upperGalleryFront),upperGalleryFront,upperGalleryOuter,'upperStands');
+ assert.match(towardSeats.hint,/前往看台入口/);
+ const outside=movementInstruction(forecourt,facing(forecourt,security),security,entrance,'entrance');
+ assert.match(outside.hint,/沿南广场中央步道穿过验票通道/);
+ assert.doesNotMatch(outside.hint,/离开大厅/);
+});
+
 test('outdoor stair directions match the physical number on the rail sign and the travel direction',()=>{
  const {T3Bottom,T3Middle,T3Top,forecourt,outside9}=tourNodes;
  assert.match(movementInstruction(T3Bottom,0,T3Middle,T3Top).action,/沿 T3 楼梯上行/);

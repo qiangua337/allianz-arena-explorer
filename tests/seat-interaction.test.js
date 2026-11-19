@@ -82,3 +82,20 @@ test('the south visitor stairs cannot focus or enter a nearby seat through the s
  assert.equal(interactions.activate(),false);
  assert.equal(seatChanges,0);
 });
+
+test('the enclosed upper gallery keeps nearby stand seats from taking over the interaction',()=>{
+ const elements=documentFixture(),camera=new THREE.PerspectiveCamera(),picker=createSeatInteraction(stadium.seatPositions);
+ let seat;
+ for(let z=-37.5;z<=-35.4&&!seat;z+=.2){
+  camera.position.set(103,41.7,z);
+  seat=picker.nearest(camera.position);
+ }
+ assert.ok(seat,'a real seat is within the interaction radius of the gallery');
+ camera.lookAt(seat.target.x,seat.target.y,seat.target.z);
+ let activated=0;
+ const interactions=buildInteractions(new THREE.Scene(),{},{toast(){},showInfo(){},seats:stadium.seatPositions,onFocusSeat(){activated++;},onSit(){activated++;}});
+ interactions.update(camera.position,.016,'walk',camera);
+ assert.equal(elements.get('interact').hidden,true);
+ assert.equal(interactions.activate(),false);
+ assert.equal(activated,0);
+});

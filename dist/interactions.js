@@ -6,7 +6,8 @@ import {openMuseumCatalog,openMuseumClubExhibit,openMuseumExhibit} from './museu
 import {THREE,v,mat,mesh,box,sign,Batches,compactGroup} from './kit.js';
 import {buildShopDisplay} from './shop-display.js';
 import {doorCollider,updateAutomaticDoor} from './automatic-door.js';
-import {roomSpecs} from './building-layout.js';
+import {coreLevels,inCoreShaft,onUpperGalleryFloor,roomSpecs} from './building-layout.js';
+import {EYE_HEIGHT} from './navigation.js';
 import {tacticalBoardTarget,tacticalFormations} from './tactical-layout.js';
 import {inVisitorPassage} from './tour-route.js';
 export function buildInteractions(scene,interiors,{toast,navigate,showInfo,setEye,serviceRooms,seats=[],onSit,onStand,onFocusSeat,openPersonal=openMuseumExhibit,openClub=openMuseumClubExhibit,openCatalogue=openMuseumCatalog}){
@@ -52,10 +53,12 @@ export function buildInteractions(scene,interiors,{toast,navigate,showInfo,setEy
   if(currentMode==='walk'&&currentPosition){selected=seating.session?{id:seating.session.id,label:'起身继续参观',act:()=>{seating.stand();toast('已起身。');}}:chooseInteraction(items,currentPosition,currentCamera?direction:null);
    if(!selected){const d=doors.find(d=>Math.hypot(currentPosition.x-d.x,currentPosition.z-d.z)<3&&Math.abs(currentPosition.y-d.y-1.7)<1.8&&(!currentCamera||pointAhead(currentPosition,direction,{x:d.x,y:d.y+1.5,z:d.z})));if(d)selected={door:d,label:d.hold?'恢复感应自动门':'让自动门保持开启'};}
    if(!selected&&serviceRooms){const d=serviceRooms.nearest(currentPosition);if(d&&(!currentCamera||pointAhead(currentPosition,direction,{x:d.x,y:d.y+1.5,z:d.z})))selected={id:d.id,label:d.open?'关闭服务间双门':'打开服务间双门',act:()=>toast(serviceRooms.toggle(d)?'服务间双门已打开，可以走进去查看。':'服务间双门将关闭。')};}
-   // A nearby bowl chair behind skybox glazing or a room wall is not an
-   // entrance. Exhibits and working doors keep priority over seat discovery.
+   // Glazing, room walls and the enclosed upper approach block seat access.
+   // Exhibits and working doors keep priority over seat discovery.
    const insideRoom=Object.values(roomSpecs).some(s=>Math.abs(currentPosition.x-s.x)<s.w/2+.05&&Math.abs(currentPosition.z-s.z)<s.d/2+.05&&Math.abs(currentPosition.y-s.y-1.7)<2.6);
-   const insidePassage=currentPosition.y<2&&inVisitorPassage(currentPosition.x,currentPosition.z);
+   const {x,y,z}=currentPosition,feet=y-EYE_HEIGHT;
+   const insidePassage=y<2&&inVisitorPassage(x,z)||onUpperGalleryFloor({x,y:feet,z})||
+    feet>=coreLevels[0]-.2&&feet<=coreLevels.at(-1)+.35&&inCoreShaft(x,z);
    if(!selected&&!insideRoom&&!insidePassage){const seat=seating.pick(currentPosition,currentCamera?direction:null);if(seat)selected={...seat,label:'坐下观看球场',act:()=>seating.sit(seat,currentPosition)};
     else if(onFocusSeat){const nearby=seating.nearest(currentPosition);if(nearby)selected={id:'focus-'+nearby.id,label:'附近座位 · 看过去',act:()=>onFocusSeat({seat:nearby.seat,target:nearby.target})};}
    }
