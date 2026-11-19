@@ -24,6 +24,31 @@ import {buildMatchBall} from './football-ball.js';
 import {seatHasSupporter} from './crowd-layout.js';
 import {buildArenaSeatMosaic} from './seat-mosaic.js';
 
+function buildRoofFloodlightBanks(parent,locations,steel,lightMaterial){
+ const root=new THREE.Group();root.name='Roof floodlights with recessed reflectors';parent.add(root);
+ const housing=mat(0x485459,{metalness:.48,roughness:.58});
+ const reflector=mat(0xb9c7ca,{metalness:.68,roughness:.28});
+ const parts=[
+  [new THREE.BoxGeometry(.66,.28,.48),housing,0],
+  [new THREE.PlaneGeometry(.60,.42).rotateX(Math.PI/2),reflector,-.147],
+  [new THREE.PlaneGeometry(.49,.31).rotateX(Math.PI/2),lightMaterial,-.162]
+ ];
+ const transform=new THREE.Object3D(),local=new THREE.Matrix4(),combined=new THREE.Matrix4();
+ for(const [geometry,material,offset]of parts){
+  const instances=new THREE.InstancedMesh(geometry,material,locations.length);
+  for(const [i,p]of locations.entries()){
+   transform.position.set(p.x,p.y,p.z);transform.rotation.set(.64,p.yaw,0,'YXZ');transform.updateMatrix();
+   local.makeTranslation(0,offset,0);instances.setMatrixAt(i,combined.multiplyMatrices(transform.matrix,local));
+  }
+  instances.computeBoundingSphere();root.add(instances);
+ }
+ const brackets=new Batches(root);
+ for(const p of locations)for(const side of[-1,1]){
+  brackets.add(.035,.26,.035,p.x+Math.cos(p.yaw)*side*.33,p.y+.18,p.z-Math.sin(p.yaw)*side*.33,steel,p.yaw);
+ }
+ brackets.flush();
+}
+
 export function buildStadium(scene){
  const root=new THREE.Group();root.name='Allianz Arena | metres';scene.add(root);
  const roof=new THREE.Group();roof.name='Roof and trusses';root.add(roof);
@@ -37,7 +62,7 @@ export function buildStadium(scene){
  const theta=(u)=>{let d=((u%1+1)%1)*distance,lo=0,hi=arc.length-1;while(hi-lo>1){const m=(lo+hi)>>1;if(arc[m].d<d)lo=m;else hi=m;}return THREE.MathUtils.lerp(arc[lo].t,arc[hi].t,(d-arc[lo].d)/(arc[hi].d-arc[lo].d));};
  const shellProfile=shellProfileSampler(cross);
  function surface(u,w){const {r,y}=shellProfile(w),p=superpoint(113.5*r,129*r,theta(u),2.65);p.y=y;return p;}
- const shellMaterials=[mat(0xe5e8e4,{roughness:.42,metalness:.08,side:THREE.DoubleSide,vertexColors:true}),mat(0xf4f4ed,{roughness:.52,metalness:.05,side:THREE.DoubleSide,vertexColors:true})];
+ const shellMaterials=[mat(0xe5e8e4,{roughness:.72,metalness:.02,side:THREE.DoubleSide,vertexColors:true}),mat(0xf4f4ed,{roughness:.76,metalness:.01,side:THREE.DoubleSide,vertexColors:true})];
  // Clip the entire inflated panel surface at the stair portals, including its
  // corners and shadow pass. Dropping panel centres leaves diamond-shaped obstructions.
  const portalCuts=accessStairs.map((s,i)=>`{vec2 delta=vPortalPosition.xz-vec2(${s.x.toFixed(5)},${s.z.toFixed(5)});float along=-dot(delta,vec2(${s.nx.toFixed(6)},${s.nz.toFixed(6)}));float side=dot(delta,vec2(${s.nz.toFixed(6)},${(-s.nx).toFixed(6)}));float floorY=${ACCESS_BASE.toFixed(3)}+along*${((ACCESS_TOP-ACCESS_BASE)/s.run).toFixed(6)};if(abs(side)<${(s.width/2+.34).toFixed(3)}&&along>-.3&&along<${(s.run+1.8).toFixed(3)}&&vPortalPosition.y>floorY-.45&&vPortalPosition.y<floorY+4.15)discard;}`).join('\n');
@@ -49,13 +74,13 @@ export function buildStadium(scene){
   const u=(col+.5+(row%2)*.5)/116,w=(row+.5)/24,section=row>=18?1:row>=12?2:0,b=buffers[section],start=b.p.length/3,center=surface(u,w);
   const du=surface(u+.0002,w).sub(center),dv=surface(u,w+.0002).sub(center);let normal=new THREE.Vector3().crossVectors(dv,du).normalize();
   if(normal.dot(v(center.x/113.5,w>.5?2:0,center.z/129))<0)normal.negate();
-  const shade=.88+rand()*.12;
+  const shade=.94+rand()*.06;
   const put=(p,k)=>{b.p.push(p.x,p.y,p.z);b.c.push(shade*k,shade*k,shade*k);};
-  put(center.clone().addScaledVector(normal,.32),1.04);
+  put(center.clone().addScaledVector(normal,.32),1.015);
   for(let rr=1;rr<=rings;rr++)for(let k=0;k<samples;k++){
    const edge=k/4,side=Math.floor(edge),t=edge-side;const vertices=[[0,-1],[1,0],[0,1],[-1,0]];const a=vertices[side],c=vertices[(side+1)%4],r=rr/rings;
-   const dx=THREE.MathUtils.lerp(a[0],c[0],t)*.5/116*r*.986,dy=THREE.MathUtils.lerp(a[1],c[1],t)/24*r*.986;
-   const p=surface(u+dx,w+dy).addScaledVector(normal,.32*(1-r*r));put(p,1-.30*r*r);
+   const dx=THREE.MathUtils.lerp(a[0],c[0],t)*.5/116*r*.996,dy=THREE.MathUtils.lerp(a[1],c[1],t)/24*r*.996;
+   const p=surface(u+dx,w+dy).addScaledVector(normal,.32*(1-r*r));put(p,1-.18*r*r);
   }
   for(let k=0;k<samples;k++)b.i.push(start,start+1+(k+1)%samples,start+1+k);
   for(let rr=1;rr<rings;rr++)for(let k=0;k<samples;k++){const a=start+1+(rr-1)*samples+k,c=start+1+(rr-1)*samples+(k+1)%samples,d=start+1+rr*samples+k,e=start+1+rr*samples+(k+1)%samples;b.i.push(a,c,d,c,e,d);}
@@ -120,14 +145,14 @@ export function buildStadium(scene){
  }
  const nearSeats=buildNearSeatDetails(bowl,seats,seatMat);
  // Roof compression ring, radial cantilever trusses and suspended floodlights.
- const roofBatch=new Batches(roofDetails),trussGeometries=[];const trussBeam=(a,b,r=.13)=>{const delta=b.clone().sub(a),g=new THREE.CylinderGeometry(r,r,delta.length(),5);g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(v(0,1,0),delta.normalize()));g.translate((a.x+b.x)/2,(a.y+b.y)/2,(a.z+b.z)/2);trussGeometries.push(g);};
+ const floodlights=[],trussGeometries=[];const trussBeam=(a,b,r=.13)=>{const delta=b.clone().sub(a),g=new THREE.CylinderGeometry(r,r,delta.length(),5);g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(v(0,1,0),delta.normalize()));g.translate((a.x+b.x)/2,(a.y+b.y)/2,(a.z+b.z)/2);trussGeometries.push(g);};
  for(let j=0;j<72;j++){
   const t=j/72*TAU,p=superpoint(66.8,77.8,t,2.65),q=superpoint(105,121,t,2.65);p.y=46.5;q.y=44.8;trussBeam(p,q,.14);const lower=p.clone();lower.y-=2.6;trussBeam(lower,q,.13);trussBeam(p,lower,.1);
   for(let k=1;k<5;k++){const a=p.clone().lerp(q,k/5),b=p.clone().lerp(q,(k-1)/5);b.y-=2.6*(1-(k-1)/5);trussBeam(a,b,.08);}
-  const lum=p.clone().lerp(q,.08),n=supernormal(66,78,t,2.65),yaw=Math.atan2(n.x,n.z);for(let k=0;k<(j%9===0?5:4);k++)roofBatch.add(.6,.23,.4,lum.x+n.z*(k-1.5)*.72,lum.y-1.25,lum.z-n.x*(k-1.5)*.72,lightMaterial,yaw);
+  const lum=p.clone().lerp(q,.08),n=supernormal(66,78,t,2.65),yaw=Math.atan2(n.x,n.z);for(let k=0;k<(j%9===0?5:4);k++)floodlights.push({x:lum.x+n.z*(k-1.5)*.72,y:lum.y-1.25,z:lum.z-n.x*(k-1.5)*.72,yaw});
  }
  for(const [a,b,y,r]of[[66.6,77.6,46.4,.22],[83,97,48.2,.14],[104,120,44.5,.18]]){const pts=[];for(let j=0;j<256;j++){const p=superpoint(a,b,j/256*TAU,2.65);p.y=y;pts.push(p);}trussGeometries.push(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts,true,'centripetal'),384,r,6,true));}
- roofBatch.flush();const trusses=mesh(mergeGeometry(trussGeometries),steel,roofDetails);trusses.name='Radial roof trusses and compression rings';const trussSectors=partitionStaticMesh(trusses);
+ buildRoofFloodlightBanks(roofDetails,floodlights,steel,lightMaterial);const trusses=mesh(mergeGeometry(trussGeometries),steel,roofDetails);trusses.name='Radial roof trusses and compression rings';const trussSectors=partitionStaticMesh(trusses);
  const rim=[];for(let j=0;j<=384;j++){const p=superpoint(66.8,77.8,j/384*TAU,2.65);p.y=47.1;rim.push(p);}curveLine(roofDetails,rim,0xff274a);
  const logo=sign(root,'Allianz Arena',40,5.4,0,26.7,129.7,{fg:'#164c94',w:2048,h:256,font:185,weight:650,unique:true});
  const logoBack=sign(root,'Allianz Arena',40,5.4,0,26.7,-129.7,{fg:'#164c94',w:2048,h:256,font:185,weight:650,unique:true});logoBack.rotation.y=Math.PI;const logoDayMap=logo.material.map,logoNightMap=textTexture('Allianz Arena',{fg:'#ffffff',w:2048,h:256,font:185,weight:650});
@@ -228,7 +253,7 @@ export function buildStadium(scene){
   // Keep detailed chairs at the landing but use the distant seat silhouette
   // through the narrow opening and until the visitor clears the stair apron.
   updateSeatSectors(position,high,low,playing,filled,compactWalk,groundsBehindUpperBowl||visitorReveal);
- },night(n){bowlLighting.night(n);circulation.night(n);shellMaterials[0].color.set(n?0xe52a49:0xe5e8e4);shellMaterials[0].emissive.set(n?0xd7082c:0x000000);shellMaterials[0].emissiveIntensity=n?.72:0;shellMaterials[0].roughness=n?.76:.58;shellMaterials[1].color.set(n?0xcfc0c4:0xf4f4ed);shellMaterials[1].emissive.set(n?0x9d1736:0x000000);shellMaterials[1].emissiveIntensity=n?.22:0;lightMaterial.color.set(n?0xf7fbff:0xb9c6cb);logo.material.map=logoBack.material.map=n?logoNightMap:logoDayMap;}};
+ },night(n){bowlLighting.night(n);circulation.night(n);shellMaterials[0].color.set(n?0xe52a49:0xe5e8e4);shellMaterials[0].emissive.set(n?0xd7082c:0x000000);shellMaterials[0].emissiveIntensity=n?.72:0;shellMaterials[0].roughness=n?.78:.72;shellMaterials[1].color.set(n?0xcfc0c4:0xf4f4ed);shellMaterials[1].emissive.set(n?0x9d1736:0x000000);shellMaterials[1].emissiveIntensity=n?.22:0;lightMaterial.color.set(n?0xf7fbff:0xb9c6cb);logo.material.map=logoBack.material.map=n?logoNightMap:logoDayMap;}};
 }
 
 function buildPitch(root,batch,{white,dark,red,steel}){

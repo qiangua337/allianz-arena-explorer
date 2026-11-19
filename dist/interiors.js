@@ -2,6 +2,7 @@ import {pressLayout,pressFloorRise,pressCameras,pressFloorSegments} from './faci
 import {hospitalityTables,hospitalityBar} from './hospitality-layout.js';
 import {buildBroadcastCamera,buildTreatmentTable} from './facility-equipment.js';
 import {buildRoomDetail} from './room-detail.js';
+import {buildConcourseDetails,buildConcessionEquipment} from './interior-details.js';
 import {positionStateChanged} from './position-state.js';
 import {buildTacticalBoard} from './tactical-board.js';
 import {buildShopFixtures} from './shop-fixtures.js';
@@ -133,16 +134,16 @@ export function buildInteriors(scene,circulation){
   for(const table of hospitalityTables){const{x,z,radius,height}=table;cylinder(g,radius,.08,x,height-.04,z,wood,24);cylinder(g,.07,height-.08,x,(height-.08)/2,z,metal,8);for(const offset of[-.32,.32]){cylinder(g,.018,.15,x+offset,.97,z,metal,6);cylinder(g,.055,.03,x+offset,1.06,z,white,10);}}
   finishHospitality(g,spec,{wood,metal});for(let j=0;j<9;j++)bottle(g,hospitalityBar.x-.1,.98,-7+j*1.8);for(const z of[-9,0,9]){b.add(1.2,.04,2,0,3.6,z,lightMat);const l=new THREE.PointLight(0xffe0b2,30,15,2);l.position.set(0,4,z);g.add(l);lights.push(l);}const brand=sign(g,'MIA SAN MIA',8,.8,4.86,2.6,0,{fg:'#802036',font:100,h:160});brand.rotation.y=-Math.PI/2;b.flush();}
  // Trophy gallery: modelled silver and gold cups, glass cases, lit plinths and historical year panels.
- {const{g}=roomBase('museum',dark,blackFloor);buildTrophyGallery(g,{dark,red,lightMat});}
+ {const{g}=roomBase('museum',dark,blackFloor);buildTrophyGallery(g,{dark});}
  // Level-two circulation ring, with kiosks, gates, columns and repeated wayfinding.
  {const g=new THREE.Group();g.name='Public concourse';root.add(g);rooms.concourse=g;mesh(accessRingGeometry(85,103,105,122,12.2),tile,g);const ceiling=mesh(accessRingGeometry(85,103,105,122,16.8),mat(0xc5c8c5,{side:THREE.DoubleSide}),g);ceilings.push(ceiling);const b=new Batches(g);
   const inner=[];for(let j=0;j<256;j++){const p=superpoint(85,103,j/256*TAU,2.8),q=superpoint(85,103,(j+1)/256*TAU,2.8);if(publicWallOpening((p.x+q.x)/2,(p.z+q.z)/2))continue;inner.push(p.x,12.2,p.z,q.x,12.2,q.z,p.x,16.8,p.z,q.x,12.2,q.z,q.x,16.8,q.z,p.x,16.8,p.z);}const ig=new THREE.BufferGeometry();ig.setAttribute('position',new THREE.Float32BufferAttribute(inner,3));ig.computeVertexNormals();mesh(ig,mat(0xb8bfba,{side:THREE.DoubleSide}),g);
   const wallPos=[];for(let j=0;j<256;j++){const p=superpoint(105,122,j/256*TAU,2.8),q=superpoint(105,122,(j+1)/256*TAU,2.8);if(publicWallOpening((p.x+q.x)/2,(p.z+q.z)/2))continue;wallPos.push(p.x,12.2,p.z,q.x,12.2,q.z,p.x,16.8,p.z,q.x,12.2,q.z,q.x,16.8,q.z,p.x,16.8,p.z);}const wallG=new THREE.BufferGeometry();wallG.setAttribute('position',new THREE.Float32BufferAttribute(wallPos,3));wallG.computeVertexNormals();mesh(wallG,mat(0x8b9698,{side:THREE.DoubleSide}),g);
-  for(let i=0;i<32;i++){const t=(i+.5)/32*TAU,p=superpoint(100,116,t,2.8),n=supernormal(100,116,t,2.8),yaw=Math.atan2(n.x,n.z)+Math.PI;if(clearCore(p.x,p.z)||roomFootprint(p.x,p.z,4))continue;const k=new THREE.Group();k.position.set(p.x,12.2,p.z);k.rotation.y=yaw;g.add(k);const kb=new Batches(k);kb.add(5.8,3.8,.18,0,1.9,-1.3,dark);kb.add(5.8,1.1,1.4,0,.55,.45,red);kb.add(6,.08,1.6,0,1.14,.45,metal);kb.add(6.1,.72,.25,0,3.1,1.1,redTrim);kb.add(.1,1.7,.12,-3,2,1.1,metal);kb.add(.1,1.7,.12,3,2,1.1,metal);for(let j=0;j<5;j++){kb.add(.5,.08,.35,-2+j,1.22,.45,white);kb.add(.35,.6,.35,-2+j,1.5,-.65,j%2?redTrim:cream);}kb.flush();const cp=superpoint(89,107,t,2.8);b.add(.55,4.5,.55,cp.x,14.45,cp.z,white);const lamp=box(g,.12,.03,4,cp.x+n.x*7,16.62,cp.z+n.z*7,lightMat);lamp.rotation.y=yaw;}
+  for(let i=0;i<32;i++){const t=(i+.5)/32*TAU,p=superpoint(100,116,t,2.8),n=supernormal(100,116,t,2.8),yaw=Math.atan2(n.x,n.z)+Math.PI;if(clearCore(p.x,p.z)||roomFootprint(p.x,p.z,4))continue;const k=new THREE.Group();k.position.set(p.x,12.2,p.z);k.rotation.y=yaw;g.add(k);const kb=new Batches(k);kb.add(5.8,3.8,.18,0,1.9,-1.3,dark);kb.add(5.8,1.1,1.4,0,.55,.45,red);kb.add(6,.08,1.6,0,1.14,.45,metal);kb.add(6.1,.72,.25,0,3.1,1.1,redTrim);kb.add(.1,1.7,.12,-3,2,1.1,metal);kb.add(.1,1.7,.12,3,2,1.1,metal);for(let j=0;j<5;j++){kb.add(.5,.08,.35,-2+j,1.22,.45,white);kb.add(.35,.6,.35,-2+j,1.5,-.65,j%2?redTrim:cream);}kb.flush();buildConcessionEquipment(k);const cp=superpoint(89,107,t,2.8);b.add(.55,4.5,.55,cp.x,14.45,cp.z,white);const lamp=box(g,.12,.03,4,cp.x+n.x*7,16.62,cp.z+n.z*7,lightMat);lamp.rotation.y=yaw;}
   for(let i=0;i<12;i++){const p=superpoint(91,109,i/12*TAU,2.8);const l=new THREE.PointLight(0xffeee0,25,22,2);l.position.set(p.x,15.7,p.z);g.add(l);lights.push(l);}b.flush();}
  // A representative FC Bayern shop, with shirt rails, scarf displays and a checkout.
  {const{g}=roomBase('store',white,tile);addCrest(g,2.1,0,2.5,-6.8);sign(g,'FC BAYERN STORE',10,.7,0,3.7,-6.75,{font:115,h:160,fg:'#bb1834'});buildShopFixtures(g,{wood,metal,redTrim,white,dark,red,lightMat,jersey});}
- circulation.decorateConcourse(rooms.concourse);
+ circulation.decorateConcourse(rooms.concourse);buildConcourseDetails(rooms.concourse);
  finishDisplayHardware(rooms,{metal});const roomDetail=buildRoomDetail(rooms);roomDetail.update();
  for(const key of ['store','museum','press'])finishFixtureShadows(rooms[key],roomSpecs[key],key);
  for(const f of furniture)wallCollider(colliders,f.x,f.z,f.w,f.d,f.y0,f.y1,f.owner);

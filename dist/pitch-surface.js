@@ -24,19 +24,25 @@ export function buildPitchSurface(root,turf){
  // Continue the original seed after its fibre strokes, so loading a normal
  // map or using the fallback places the grass blades at identical positions.
  const random=seeded(310691192),count=26000,offsets=new Float32Array(count*3);for(let i=0;i<count;i++){offsets[i*3]=(random()-.5)*8;offsets[i*3+1]=(random()-.5)*8;offsets[i*3+2]=random()*Math.PI*2;}blade.setAttribute('bladeOffset',new THREE.InstancedBufferAttribute(offsets,3));blade.instanceCount=16000;
- const center={value:new THREE.Vector2()},material=mat(0xffffff,{map:turf,roughness:1,side:THREE.DoubleSide});
+ const center={value:new THREE.Vector2()},material=mat(0xffffff,{map:turf,roughness:.96,side:THREE.DoubleSide});
  material.userData.arenaPitch=true;
- material.onBeforeCompile=shader=>{shader.uniforms.bladeCenter=center;shader.vertexShader='attribute vec3 bladeOffset;uniform vec2 bladeCenter;varying float bladeFade;\n'+shader.vertexShader;shader.vertexShader=shader.vertexShader.replace('#include <beginnormal_vertex>',`#include <beginnormal_vertex>
+ material.onBeforeCompile=shader=>{shader.uniforms.bladeCenter=center;shader.vertexShader='attribute vec3 bladeOffset;uniform vec2 bladeCenter;varying float bladeFade;varying float bladeTint;\n'+shader.vertexShader;shader.vertexShader=shader.vertexShader.replace('#include <beginnormal_vertex>',`#include <beginnormal_vertex>
 float bladeCos=cos(bladeOffset.z),bladeSin=sin(bladeOffset.z);
 objectNormal.xz=mat2(bladeCos,bladeSin,-bladeSin,bladeCos)*objectNormal.xz;`);shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>',`#include <begin_vertex>
 // A moving, faded window over an 8 m world-space tile. Only already invisible
 // blades wrap at its edge; the grass at the visitor's feet stays rooted.
 vec2 localOffset=mod(bladeOffset.xy-bladeCenter+4.,8.)-4.;
 vec2 p=vec2(bladeCos*position.x-bladeSin*position.z,bladeSin*position.x+bladeCos*position.z)+localOffset+bladeCenter;
-transformed=vec3(p.x,position.y+.008,p.y);vMapUv=vec2(p.x/72.+.5,.5-p.y/111.);bladeFade=1.-smoothstep(2.2,3.8,length(localOffset));
+float grassTip=clamp(position.y/.036,0.,1.);
+float bladeHeight=.74+.26*abs(sin(bladeOffset.z*2.41));
+transformed=vec3(p.x,position.y*bladeHeight+.008,p.y);
+// Slightly different lengths and a shaded root keep the tufts from reading as
+// equally sized plastic spikes. Their colour still comes from the pitch map.
+bladeTint=mix(.76,1.10,grassTip)+.035*bladeSin;
+vMapUv=vec2(p.x/72.+.5,.5-p.y/111.);bladeFade=1.-smoothstep(2.2,3.8,length(localOffset));
 // The same fade test applies to every vertex of a blade. Collapse the fully
 // discarded blades before rasterization instead of shading invisible grass.
-transformed*=step(.15,bladeFade);`);shader.fragmentShader='varying float bladeFade;\n'+shader.fragmentShader;shader.fragmentShader=shader.fragmentShader.replace('#include <clipping_planes_fragment>','#include <clipping_planes_fragment>\nif(vMapUv.x<.006||vMapUv.x>.994||vMapUv.y<.006||vMapUv.y>.994||bladeFade<.15)discard;');};material.customProgramCacheKey=()=> 'local-grass-fibres-v2';const tufts=mesh(blade,material,root);tufts.name='Nearby turf blades';tufts.frustumCulled=false;
+transformed*=step(.15,bladeFade);`);shader.fragmentShader='varying float bladeFade;varying float bladeTint;\n'+shader.fragmentShader;shader.fragmentShader=shader.fragmentShader.replace('#include <clipping_planes_fragment>','#include <clipping_planes_fragment>\nif(vMapUv.x<.006||vMapUv.x>.994||vMapUv.y<.006||vMapUv.y>.994||bladeFade<.15)discard;');shader.fragmentShader=shader.fragmentShader.replace('#include <map_fragment>','#include <map_fragment>\ndiffuseColor.rgb*=bladeTint;');};material.customProgramCacheKey=()=> 'local-grass-fibres-v3';const tufts=mesh(blade,material,root);tufts.name='Nearby turf blades';tufts.frustumCulled=false;
  return{ground,update(camera,high=false,low=false,mobile=false){
   tufts.visible=!low&&camera.position.y<5&&camera.position.y>.3&&Math.abs(camera.position.x)<43&&Math.abs(camera.position.z)<62;
   // At phone resolution the baked grass remains visible between the closest

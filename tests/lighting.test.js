@@ -4,7 +4,7 @@ import {registerHooks} from 'node:module';
 registerHooks({resolve(s,c,next){return s==='three'?{url:new URL('../dist/vendor/three.module.js',import.meta.url).href,shortCircuit:true}:next(s,c);}});
 const {THREE}=await import('../dist/kit.js');
 const {buildLightBudget}=await import('../dist/performance.js');
-const {roomAmbientOcclusion,installInteriorShading}=await import('../dist/interior-shading.js');
+const {roomAmbientOcclusion,publicAmbientOcclusion,installInteriorShading}=await import('../dist/interior-shading.js');
 const {lightingProfile,updateSceneLighting}=await import('../dist/lighting-profile.js');
 const {buildBowlLighting}=await import('../dist/stadium-lighting.js');
 const {buildNightGroundSpill}=await import('../dist/landscape-finishes.js');
@@ -48,6 +48,22 @@ test('room corner occlusion remains bounded, respects the actual floor and leave
 test('night lighting separates the exterior from the pitch and intensity transitions are independent of frame rate',()=>{
  const field=lightingProfile({night:true}),outside=lightingProfile({night:true,position:{x:0,y:0,z:214}}),day=lightingProfile();assert.ok(outside.key<field.key&&outside.hemi<field.hemi);assert.ok(day.key>field.key);assert.equal(lightingProfile({night:true,enclosed:true}).key,lightingProfile({night:false,enclosed:true}).key);
  const lights=()=>({hemi:new THREE.HemisphereLight(),ambient:new THREE.AmbientLight(),dayLight:new THREE.DirectionalLight(),arenaFill:new THREE.DirectionalLight()}),a=lights(),b=lights();for(let i=0;i<60;i++)updateSceneLighting(a,outside,1/60);for(let i=0;i<30;i++)updateSceneLighting(b,outside,1/30);assert.ok(Math.abs(a.dayLight.intensity-b.dayLight.intensity)<1e-10);
+});
+
+test('public circulation contacts follow the curved wall and fade toward the open apron',()=>{
+ const sample=(x,y,z)=>publicAmbientOcclusion({x,y,z});
+ assert.ok(sample(0,-2.89,104.1)<sample(0,-2.89,113),'the arcade wall has a grounded contact');
+ assert.ok(sample(0,12.21,103.1)<sample(0,12.21,112),'the upper concourse follows its own floor');
+ assert.ok(sample(-94.1,-2.89,0)<sample(-102,-2.89,0),'the west enclosure follows the wider player area');
+ assert.equal(sample(0,-2.9,145),1);
+ assert.equal(sample(0,0,0),1);
+ assert.equal(sample(90,40,-35),1);
+ for(let z=104;z<=134;z+=.2)for(const y of[-2.9,0,5.4,12.2,14,16.8]){
+  const shade=sample(0,y,z);
+  assert.ok(Number.isFinite(shade)&&shade>=.65&&shade<=1);
+ }
+ const before=sample(0,-2.9,131.99),after=sample(0,-2.9,132.01);
+ assert.ok(Math.abs(before-after)<.001,'contact shade ends smoothly at the open roof edge');
 });
 
 test('the bowl light fill preserves authored shaders and switches day/night without new material programs',()=>{

@@ -74,12 +74,13 @@ function pokal(g,gold,gem){
 export function addClubAward(display,kind,{silver,gold,dark,gem}){
  if(kind==='europe'){cup(display,silver);display.scale.setScalar(.628);}else if(kind==='shield'){shield(display,silver,dark,gem);display.scale.setScalar(.68);}else{pokal(display,gold,gem);display.scale.setScalar(.50);}return display;
 }
-export function buildTrophyGallery(g,{dark,red,lightMat}){
- const silver=mat(0xdce2e5,{metalness:1,roughness:.19,envMapIntensity:1.1}),gold=mat(0xe7bd61,{metalness:1,roughness:.24,envMapIntensity:1.05}),bronze=mat(0x9c8053,{metalness:.8,roughness:.38}),gem=mat(0x214d3e,{metalness:.3,roughness:.17}),glass=mat(0xc5dfe1,{transparent:true,opacity:.055,roughness:.15,depthWrite:false,envMapIntensity:.55});
- const caseMap=canvasTexture(128,256,c=>{const gradient=c.createLinearGradient(0,0,128,0);gradient.addColorStop(0,'#8196a1');gradient.addColorStop(.38,'#d0e0e8');gradient.addColorStop(.65,'#c2d8e2');gradient.addColorStop(1,'#718e9f');c.fillStyle=gradient;c.fillRect(0,0,128,256);}),caseMaterial=new THREE.MeshBasicMaterial({map:caseMap,color:0xc3d1d6,toneMapped:false}),frame=mat(0x7f8c91,{metalness:.8,roughness:.33});
+export function buildTrophyGallery(g,{dark}){
+ const silver=mat(0xdce2e5,{metalness:.96,roughness:.28,envMapIntensity:.82}),gold=mat(0xe7bd61,{metalness:.96,roughness:.30,envMapIntensity:.85}),bronze=mat(0x9c8053,{metalness:.8,roughness:.38}),gem=mat(0x214d3e,{metalness:.3,roughness:.17}),glass=mat(0xe0e7e4,{transparent:true,opacity:.04,roughness:.17,depthWrite:false,envMapIntensity:.3});
+ const caseMap=canvasTexture(128,256,c=>{const gradient=c.createLinearGradient(0,0,128,0);gradient.addColorStop(0,'#a8aeaa');gradient.addColorStop(.38,'#d8dcd4');gradient.addColorStop(.65,'#d0d5cd');gradient.addColorStop(1,'#a2aaa5');c.fillStyle=gradient;c.fillRect(0,0,128,256);}),caseMaterial=mat(0xf0f0e6,{map:caseMap,metalness:.12,roughness:.58,envMapIntensity:.24}),frame=mat(0x87928e,{metalness:.66,roughness:.40});
+ const displayTop=mat(0xe6e3d9,{roughness:.62,metalness:.08,envMapIntensity:.2});
  const b=new Batches(g);sign(g,'FC BAYERN MUSEUM',9.5,.55,0,3.15,-12.28,{font:95,h:160,fg:'#e9eceb'});sign(g,'VIA TRIUMPHALIS · 荣耀之路',8,.32,0,2.57,-12.26,{font:70,h:128,fg:'#e4e0d4'});sign(g,'8 CLUB EXHIBITS   /   10 INDIVIDUAL COLLECTIONS',8,.20,0,2.13,-12.25,{font:60,h:128,fg:'#a69c87'});
  for(const[hIndex,h]of honours.entries()){
-  const{x,z}=h;finishedBox(g,1.7,1.22,1.7,x,.61,z,caseMaterial,.018);b.add(1.74,.035,1.74,x,1.24,z,frame);b.add(1.60,.015,1.60,x,1.26,z,lightMat);b.add(1.74,.07,1.74,x,.035,z,frame);
+  const{x,z}=h;finishedBox(g,1.7,1.22,1.7,x,.61,z,caseMaterial,.018);b.add(1.74,.035,1.74,x,1.24,z,frame);b.add(1.60,.015,1.60,x,1.26,z,displayTop);b.add(1.74,.07,1.74,x,.035,z,frame);
   // Four separate glass sides, leaving a clear, undoubled view through each case.
   for(const side of[-1,1]){box(g,1.68,1.25,.008,x,1.9,z+side*.849,glass);box(g,.008,1.25,1.68,x+side*.849,1.9,z,glass);}
   const display=new THREE.Group();display.position.set(x,1.295,z);display.rotation.y=x<0?Math.PI/2:-Math.PI/2;g.add(display);

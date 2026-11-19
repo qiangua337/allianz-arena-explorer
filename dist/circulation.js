@@ -1,4 +1,5 @@
 import {compactStaticMeshes} from './scene-budget.js';
+import {surfaceMaps} from './visual-assets.js';
 import {positionStateChanged} from './position-state.js';
 import {finishReception,finishedBox,contactShadow} from './finishes.js';
 import {inCoreShaft,publicWallOpening,clearCore,roomFootprint,roomSpecs} from './building-layout.js';
@@ -73,8 +74,8 @@ export function buildCirculation(parent){
  const root=new THREE.Group();root.name='Detailed entrance arcade and eight access stairs';parent.add(root);
  const roof=new THREE.Group();roof.name='Entrance arcade ceiling';root.add(roof);
  const atlas=new SignAtlas(),batch=new Batches(root),roofBatch=new Batches(roof),colliders=[],lamps=[],stairSlabs=[];let lightingNight=false;
- const floor=mat(0xf1f2ed,{map:repeatTex(architecturalTexture('floor'),1,1),roughness:.86,bumpMap:null,side:THREE.DoubleSide});
- const wall=mat(0xe3e6e1,{map:repeatTex(architecturalTexture('wall'),2,2),roughness:.9,bumpMap:floor.map,bumpScale:.008,side:THREE.DoubleSide});
+ const floor=mat(0xf1f2ed,{map:repeatTex(architecturalTexture('floor'),1,1),roughness:.86,side:THREE.DoubleSide,...surfaceMaps('concrete',{channel:1,repeat:[.55,.55],strength:.12})});
+ const wall=mat(0xe3e6e1,{map:repeatTex(architecturalTexture('wall'),2,2),roughness:.9,side:THREE.DoubleSide,...surfaceMaps('concrete',{channel:1,repeat:[.5,.5],strength:.16})});
  const column=mat(0xadb3ac,{roughness:.87}),edge=mat(0x555f63,{roughness:.6}),metal=mat(0x9faeb1,{metalness:.65,roughness:.35}),red=mat(0xb41b36,{roughness:.48}),pale=mat(0xe1e0d5),dark=mat(0x26343e),wood=mat(0xffffff,{map:repeatTex(floorTexture('wood'),2,1),roughness:.7});
  const glass=mat(0xb3d0d8,{transparent:true,opacity:.24,depthWrite:false,metalness:.18,roughness:.14,side:THREE.DoubleSide});
  const glow=new THREE.MeshBasicMaterial({color:0xfff1d5,toneMapped:false}),green=new THREE.MeshBasicMaterial({color:0x76d7a8,toneMapped:false});
@@ -85,15 +86,21 @@ export function buildCirculation(parent){
  mesh(ringGeometry(116,133,116.5,133.5,ACCESS_BASE+.027),edge,root);
  const soffit=mat(0xd5d8d0,{roughness:.96,emissive:0x5c5c52,emissiveIntensity:.22,side:THREE.DoubleSide});
  mesh(accessRingGeometry(86,104,116,132,5.4),soffit,roof).name='Closed double-sided entrance soffit';
- const innerWall=[],wallAngles=Array.from({length:385},(_,i)=>i/384*TAU);
+ const innerWall=[],wallUV=[],wallAngles=Array.from({length:385},(_,i)=>i/384*TAU);
  for(const x of[visitorPassage.x-visitorPassage.width/2,visitorPassage.x+visitorPassage.width/2])wallAngles.push(Math.acos(Math.sign(x)*Math.abs(x/86)**1.4));wallAngles.sort((a,b)=>a-b);
+ let wallDistance=0;
  for(let i=0;i<wallAngles.length-1;i++){
   const t=wallAngles[i],u=wallAngles[i+1],p=arcadeInnerPoint(t),q=arcadeInnerPoint(u),cx=(p.x+q.x)/2,cz=(p.z+q.z)/2,y0=visitorWallOpening(cx,cz)?visitorPassage.head:playerPublicOpening(cx,cz)?1:ACCESS_BASE,y1=5.4;
   innerWall.push(p.x,y0,p.z,q.x,y0,q.z,p.x,y1,p.z,q.x,y0,q.z,q.x,y1,q.z,p.x,y1,p.z);
+  // Measure along the curved wall, so formwork joints retain their width
+  // when the promenade turns through a corner.
+  const nextDistance=wallDistance+Math.hypot(q.x-p.x,q.z-p.z);
+  wallUV.push(wallDistance/6,y0/4,nextDistance/6,y0/4,wallDistance/6,y1/4,nextDistance/6,y0/4,nextDistance/6,y1/4,wallDistance/6,y1/4);
+  wallDistance=nextDistance;
   colliders.push(orientedCollider(cx,cz,Math.hypot(p.x-q.x,p.z-q.z)+.02,.18,y0,y1,Math.atan2(q.z-p.z,p.x-q.x)*-1));
  }
  const wallGeometry=new THREE.BufferGeometry();wallGeometry.setAttribute('position',new THREE.Float32BufferAttribute(innerWall,3));
- const wallUV=[];for(let i=0;i<innerWall.length;i+=3)wallUV.push((innerWall[i]+innerWall[i+2])/6,innerWall[i+1]/4);wallGeometry.setAttribute('uv',new THREE.Float32BufferAttribute(wallUV,2));wallGeometry.computeVertexNormals();mesh(wallGeometry,wall,root).name='Continuous enclosure below the seating bowl';
+ wallGeometry.setAttribute('uv',new THREE.Float32BufferAttribute(wallUV,2));wallGeometry.computeVertexNormals();mesh(wallGeometry,wall,root).name='Continuous enclosure below the seating bowl';
 
  const frames=perimeterFrames(105,120,66),entries=new Set([0,5,16,27,38,49,60]);
  const services=['INFORMATION','ARENA TOUR','FAN SERVICE','WC','GETRÄNKE','FAN SHOP'];
