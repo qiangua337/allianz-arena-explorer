@@ -68,7 +68,7 @@ const walkFrameRate=createWalkFrameRate();
 const matchRafGaps=new Uint16Array(101),matchDrawGaps=new Uint16Array(101);let previousRaf=0,previousDraw=0;
 let building,lightBudget,interactions,serviceRooms,serviceDoorColliders,staticWalkCollision,walkGeometry,matchday,setExplorationMatchMode,setObscuredExploration,setObscuredGrounds,matchSnapshot=null,matchStarting=false,qualityScale=1,recoveryFrames=0;
 let visualAssets,renderer,scene,camera,controls,stadium,world,interiors,walkGuide,sky,stars,dayLight,arenaFill,hemi,ambient;
-let active='exterior',mode='orbit',night=false,transition=null,tourOn=false,tourElapsed=0,tourIndex=0,toastTimer;
+let active='exterior',mode='orbit',night=false,environmentRequest=0,transition=null,tourOn=false,tourElapsed=0,tourIndex=0,toastTimer;
 let yaw=0,pitch=0,dragging=false,lastPointer=null,walkReady=false,clock={time:performance.now(),getDelta(){const now=performance.now(),d=(now-this.time)/1000;this.time=now;return d;}},elapsed=0,frames=0,lastPerf=0,frameMs=0;
 let desiredEye=EYE_HEIGHT,walkFeet=null,pointerLockPending=false,seatStanding=null;const keys=new Set(),moveFlags=new Set(),movementPointers=new Map();const forward=v(),right=v(),step=v(),temp=v(),walkPosition=v();const ray=new THREE.Raycaster();
 const mediaReduced=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -92,7 +92,7 @@ export async function startArena({hub, initial, nightAtStart}){
  controls.addEventListener('start',()=>{transition=null;if(tourOn)stopTour();});
  hemi=new THREE.HemisphereLight(0xdae9ff,0x686f54,2.1);ambient=new THREE.AmbientLight(0xffffff,.45);dayLight=new THREE.DirectionalLight(0xffeed5,3.1);dayLight.position.set(-180,270,170);dayLight.castShadow=true;dayLight.shadow.mapSize.set(2048,2048);Object.assign(dayLight.shadow.camera,{left:-165,right:165,top:180,bottom:-170,near:1,far:750});dayLight.shadow.bias=-.0003;dayLight.shadow.normalBias=.15;dayLight.target.position.set(0,0,0);scene.add(hemi,ambient,dayLight,dayLight.target);
  arenaFill=new THREE.DirectionalLight(0xdce7f5,.25);arenaFill.position.set(130,110,-150);scene.add(arenaFill);buildSky();
- $('load-status').textContent='正在加载材质与环境光…';const assetResults=await Promise.all([loadBrandAssets(),loadVisualAssets(renderer,{progress:(n,total)=>{$('load-status').textContent='正在加载材质与环境光 '+n+' / '+total;}})]);visualAssets=assetResults[1];if(visualAssets.environments.indoor)setMaterialEnvironment(visualAssets.environments.indoor);else prepareMaterialLighting(renderer);document.body.dataset.surfaceResolution=visualAssets.resolution;document.body.dataset.assetFailures=visualAssets.failed.length;
+ $('load-status').textContent='正在加载材质与环境光…';const assetResults=await Promise.all([loadBrandAssets(),loadVisualAssets(renderer,{night:nightAtStart,progress:(n,total)=>{$('load-status').textContent='正在加载材质与环境光 '+n+' / '+total;}})]);visualAssets=assetResults[1];if(visualAssets.environments.indoor)setMaterialEnvironment(visualAssets.environments.indoor);else prepareMaterialLighting(renderer);document.body.dataset.surfaceResolution=visualAssets.resolution;document.body.dataset.assetFailures=visualAssets.failed.length;
  world=buildWorld(scene);stadium=buildStadium(scene);interiors=buildInteriors(scene,stadium.circulation);
  walkGeometry={tiers:stadium.tiers,rooms:roomSpecs};building=buildWalkBuilding(scene);serviceRooms=buildServiceRooms(scene);walkGuide=buildWalkGuide(scene,walkGeometry,{obstacles:{world:world.colliders,building:building.colliders,interiors:interiors.colliders,circulation:stadium.circulation.colliders,service:serviceRooms.walls},onChoose:()=>setNavOpen(true),onSelect:id=>{stopTour();goPlace(id,false);},onWalk:followDestination,onTeleport:teleportToDestination,onContinue:advanceWalkingTourFromGuide,onOrient:faceWalkWaypoint,nextDestination:upcomingWalkDestination});interactions=buildInteractions(scene,interiors,{toast,serviceRooms,navigate:id=>goPlace(id),setEye:y=>desiredEye=y,seats:stadium.seatPositions,onSit:seatIntoView,onStand:standFromSeat,onFocusSeat:focusArenaSeat,showInfo:showInteractiveInfo});lightBudget=buildLightBudget(scene);matchday=buildMatchdayExperience({scene,stadium,reducedMotion:mediaReduced,mobile:innerWidth<=1024,toast,onBegin:beginMatchday,onPose:applyEntrancePose,onFinish:finishMatchdayEntrance,onVisitBench:visitMatchdayBench,onGameCamera:applyGameCamera,onGameView:updateGameView,onReadGameInput:()=>gameInput(0),getGameRenderCamera:()=>qualityMode==='high'?null:camera,onExit:restoreFromMatchday,onPrepare:root=>{applySurfaceQuality(root,qualityMode);return renderer.compileAsync(root,camera,scene);},onPause:value=>{clearWalkInput();setWalkReady(!value);}});
  matchday.setQuality(qualityMode,qualityScale);visualAssets.registerOutdoor(world.group,stadium.root);applyArchitecturalUV(stadium.root);applyArchitecturalUV(stadium.circulation.root);applyArchitecturalUV(interiors.root);applyArchitecturalUV(building.root);applyArchitecturalUV(world.group);installInteriorShading(interiors.root);installInteriorShading(stadium.circulation.root,{publicOnly:true});
@@ -102,7 +102,7 @@ export async function startArena({hub, initial, nightAtStart}){
  setExplorationMatchMode=suspendExplorationRoots([building.root,stadium.circulation.root]);
  setObscuredExploration=suspendExplorationRoots([interiors.root,serviceRooms.root]);
  setObscuredGrounds=suspendExplorationRoots([world.group]);
- freezeArchitecture(world.group,[world.rotor]);freezeArchitecture(stadium.root,[stadium.matchBall]);freezeArchitecture(stadium.circulation.root);freezeArchitecture(interiors.root);freezeArchitecture(building.root);destinationMenu=buildDestinationMenu({onDismiss:()=>setNavOpen(false)});buildHotspots();bindUI();setNavOpen(false);document.body.dataset.mode=mode;setDayNight(nightAtStart);applySurfaceQuality(scene,qualityMode);clock.time=performance.now();document.body.dataset.version='11.2.7';document.body.dataset.seats=stadium.seatCount;document.body.dataset.panels=stadium.panelCount;
+ freezeArchitecture(world.group,[world.rotor]);freezeArchitecture(stadium.root,[stadium.matchBall]);freezeArchitecture(stadium.circulation.root);freezeArchitecture(interiors.root);freezeArchitecture(building.root);destinationMenu=buildDestinationMenu({onDismiss:()=>setNavOpen(false)});buildHotspots();bindUI();setNavOpen(false);document.body.dataset.mode=mode;setDayNight(nightAtStart);applySurfaceQuality(scene,qualityMode);clock.time=performance.now();document.body.dataset.version='11.2.8';document.body.dataset.seats=stadium.seatCount;document.body.dataset.panels=stadium.panelCount;
  const requestedPlace=initial.get('place'),requestedTour=walkingTourFromSearch(initial);
  if(requestedTour||initial.get('view')==='walk'){
   const place=requestedPlace&&(places[requestedPlace]||tourGoals[requestedPlace])?requestedPlace:requestedTour?.stops[0]||'arcade';
@@ -177,7 +177,43 @@ function buildSky(){
  const random=seeded(49),pos=[];for(let i=0;i<1500;i++){const t=random()*TAU,y=random(),r=Math.sqrt(1-y*y)*1900;pos.push(Math.cos(t)*r,y*1900,Math.sin(t)*r);}const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));stars=new THREE.Points(g,new THREE.PointsMaterial({color:0xd9e6f9,size:1.35,sizeAttenuation:false,transparent:true,opacity:.7,depthWrite:false}));stars.visible=false;scene.add(stars);
 }
 
-function setDayNight(n){frameBudget.invalidate();night=n;document.body.dataset.environment=n?'night':'day';$('day').classList.toggle('active',!n);$('night').classList.toggle('active',n);$('day').setAttribute('aria-pressed',String(!n));$('night').setAttribute('aria-pressed',String(n));hemi.intensity=n?.72:1.25;hemi.color.set(n?0x9aadc5:0xdae9ff);hemi.groundColor.set(n?0x3e4539:0x686f54);ambient.intensity=n?.30:.22;dayLight.intensity=n?.22:2.65;dayLight.color.set(n?0x7497d1:0xffeed5);scene.fog.color.set(n?0x081423:0xb8cbd6);scene.fog.density=n?.0016:.00082;sky.material.uniforms.top.value.set(n?0x020817:0x7e9db4);sky.material.uniforms.bottom.value.set(n?0x14243b:0xdfe8e6);sky.material.uniforms.night.value=n?1:0;const hdrReady=visualAssets?.setTime(scene,n);sky.visible=!hdrReady;stars.visible=n&&!hdrReady;renderer.toneMappingExposure=n?1.04:.98;stadium.night(n);world.night(n);interiors.night(n);matchday?.night(n);}
+function applySky(n){
+ const ready=visualAssets.setTime(scene,n);
+ sky.visible=!ready;
+ stars.visible=n&&!ready;
+ frameBudget.invalidate();
+ return ready;
+}
+
+function setDayNight(n){
+ night=n;
+ const request=++environmentRequest;
+ document.body.dataset.environment=n?'night':'day';
+ $('day').classList.toggle('active',!n);
+ $('night').classList.toggle('active',n);
+ $('day').setAttribute('aria-pressed',String(!n));
+ $('night').setAttribute('aria-pressed',String(n));
+ hemi.intensity=n?.72:1.25;
+ hemi.color.set(n?0x9aadc5:0xdae9ff);
+ hemi.groundColor.set(n?0x3e4539:0x686f54);
+ ambient.intensity=n?.30:.22;
+ dayLight.intensity=n?.22:2.65;
+ dayLight.color.set(n?0x7497d1:0xffeed5);
+ scene.fog.color.set(n?0x081423:0xb8cbd6);
+ scene.fog.density=n?.0016:.00082;
+ sky.material.uniforms.top.value.set(n?0x020817:0x7e9db4);
+ sky.material.uniforms.bottom.value.set(n?0x14243b:0xdfe8e6);
+ sky.material.uniforms.night.value=n?1:0;
+ if(!applySky(n))visualAssets.prepareTime(n).then(ready=>{
+  document.body.dataset.assetFailures=visualAssets.failed.length;
+  if(ready&&request===environmentRequest)applySky(n);
+ });
+ renderer.toneMappingExposure=n?1.04:.98;
+ stadium.night(n);
+ world.night(n);
+ interiors.night(n);
+ matchday?.night(n);
+}
 
 function beginMatchday({cinematic,playing=false}){
  matchStarting=true;clearTimeout(toastTimer);$('toast').classList.remove('visible');

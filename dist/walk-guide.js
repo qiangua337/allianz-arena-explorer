@@ -3,7 +3,7 @@ import {THREE,v} from './kit.js';
 import {EYE_HEIGHT} from './navigation.js';
 import {inCoreShaft,coreLevels,onUpperGalleryFloor,roomAt,roomSpecs} from './building-layout.js';
 import {inVisitorPassage,tourGoals,tourNodes,visitorPassage} from './tour-route.js';
-import {waypointReached,movementInstruction} from './wayfinding.js';
+import {waypointReached,movementInstruction,relativeBearing} from './wayfinding.js';
 import {directWalkDestination,planWalkPath,navigationObstacles,walkSegmentClear} from './walk-path.js';
 import {normalizeDestination} from './arrivals.js';
 import {destinationName} from './destinations.js';
@@ -100,6 +100,10 @@ export function buildWalkGuide(scene,geometry,{obstacles={},onChoose,onSelect,on
  };
  const writeText=(element,value)=>writeHudProperty(element,'textContent',value);
  const setHint=(key,value)=>writeHudData(document.body,key,value);
+ function updateArrow(angle){
+  const degrees=Math.round(angle*90/Math.PI)*2;
+  writeHudProperty(arrow.style,'transform',degrees?`rotate(${degrees}deg)`:'none');
+ }
  function refresh(yaw=lastYaw){
   lastYaw=yaw;
   writeHudProperty(panel,'hidden',suppressed||tourPaused||lastMode!=='walk'&&!selected);
@@ -137,13 +141,15 @@ export function buildWalkGuide(scene,geometry,{obstacles={},onChoose,onSelect,on
    const target=path[0],instruction=movementInstruction(p,yaw,target,path[1],goal),summary=routeSummary(p,path);
    action=instruction.action;symbol='↑';angle=instruction.angle;
    subline='还有 '+summary.metres+' 米 · '+floorLabel(p.y,p);
-   hint=instruction.hint+' 下一转向点约 '+Math.round(instruction.distance)+' 米。';
+   const metres=Math.round(instruction.distance);
+   hint=instruction.hint??'';
+   if(instruction.landmark&&metres>0)hint+=' 距'+instruction.landmark+'约 '+metres+' 米。';
    setHint('routeMetres',summary.metres);setHint('guideTarget',target.id);setHint('guidePoint',target.x+','+target.y+','+target.z);
   }
   writeHudProperty(alternate,'hidden',!other);
   if(action){
    writeText(title,action);writeHudProperty(title,'title',action);writeText(detail,hint);writeText(distanceText,subline);writeText(arrow,symbol);
-   const transform=angle?`rotate(${angle}rad)`:'none';if(arrow.style.transform!==transform)arrow.style.transform=transform;
+   updateArrow(angle);
   }
  }
  function draw(p){
@@ -178,7 +184,16 @@ export function buildWalkGuide(scene,geometry,{obstacles={},onChoose,onSelect,on
   lastDraw={...p};
  }
  function update(position,yaw,dt,mode,currentEyeHeight=EYE_HEIGHT){
-  eyeHeight=currentEyeHeight;lastPosition.copy(position);lastMode=mode;lastYaw=yaw;if(suppressed||tourPaused){panel.hidden=true;group.visible=false;return;}timer+=dt;planClock+=dt;if(timer<.12)return;timer=0;const p=feet(position);
+  const turned=yaw!==lastYaw;
+  eyeHeight=currentEyeHeight;lastPosition.copy(position);lastMode=mode;lastYaw=yaw;
+  if(suppressed||tourPaused){panel.hidden=true;group.visible=false;return;}
+  timer+=dt;planClock+=dt;
+  if(timer<.12){
+   // Turning the camera updates the indicator without checking the route.
+   if(turned&&canOrient())updateArrow(relativeBearing(position,yaw,path[0]));
+   return;
+  }
+  timer=0;const p=feet(position);
   if(!anchor)reset(position);
   if(mode!=='walk'){refresh(yaw);return;}
   // Static route clearance cannot change when the visitor only turns on the

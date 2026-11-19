@@ -420,6 +420,11 @@ test('free visit can choose the pitch in reception and look toward the first way
   assert.equal(guide.getRoute().at(-1).id,'pitch');assert.equal(alternate.hidden,true);
   const orient=nodes.get('guide-orient');assert.equal(orient.hidden,true);
   assert.equal(bearing.disabled,false);
+  const indicator=nodes.get('guide-arrow'),initialBearing=indicator.style.transform;
+  const activeRoute=guide.getRoute();
+  guide.update(position,.55,1/60,'walk');
+  assert.notEqual(indicator.style.transform,initialBearing,'a short stationary turn updates the arrow before route sampling');
+  assert.equal(guide.getRoute(),activeRoute,'the bearing update retains the current route');
   const touch={pointerType:'touch',isPrimary:true,pointerId:1,clientX:160,clientY:802};
   bearing.onpointerdown(touch);
   bearing.onpointerup({...touch,clientX:182});

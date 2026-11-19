@@ -26,7 +26,7 @@ export function waypointReached(position,target,anchor,next,isFinal=false){
  }
  const controlledTurn=coreTurn(target.id)||galleryTurn(target.id);
  const tight=target.level==='core'||target.level==='clearance'||controlledTurn||/^landing|Door|Start|Out|Turn|End/.test(target.id),radius=tight?.65:/^(lower|upper)\d+$/.test(target.id)?3:1.4;
- if(distance<=radius)return true;
+ if(distance<=radius)return !controlledTurn||vertical<=.4;
  if(controlledTurn)return vertical<.35&&passedCorner(position,target,anchor,.44,1.08);
  if(anchor&&Math.abs(anchor.y-target.y)<.45){const dx=target.x-anchor.x,dz=target.z-anchor.z,length=Math.hypot(dx,dz);if(length>2){const along=((position.x-anchor.x)*dx+(position.z-anchor.z)*dz)/(length*length),cross=Math.abs((position.x-anchor.x)*dz-(position.z-anchor.z)*dx)/length;if(along>1&&cross<(tight?.55:1.7))return true;}}
  // A visitor already following the next corridor need not return to its exact corner.
@@ -123,5 +123,7 @@ export function movementInstruction(position,yaw,target,next,goal){
   }
  }
  if(Math.abs(angle)>2.35)action='转身，'+action;else if(angle>.65)action='右转，'+action;else if(angle<-.65)action='左转，'+action;
- return{angle,distance,action,hint};
+ const doorway=door||['coreFront','corePublicFront','upperThreshold'].includes(target.id);
+ const landmark=doorway?'门口':gallery?'转角':upperLanding||coreTurn(target.id)?'平台':null;
+ return{angle,distance,action,hint,landmark};
 }

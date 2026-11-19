@@ -1,11 +1,13 @@
 import {floorHeight,MAX_STEP,EYE_HEIGHT,canStandAt} from './navigation.js';
-import {core,coreLevels,upperGalleryRooms,upperThresholdLanding} from './building-layout.js';
+import {core,coreLevels,roomSpecs,upperGalleryRooms,upperThresholdLanding} from './building-layout.js';
 import {inVisitorPassage,visitorPassage} from './tour-route.js';
 
 const upperGallery=Object.values(upperGalleryRooms);
 
 export function inTightWalkSpace(x,y,z){
  if(y>=visitorPassage.base-.2&&y<.4&&inVisitorPassage(x,z))return true;
+ const museum=roomSpecs.museum;
+ if(Math.abs(y-museum.y)<.45&&Math.abs(x-(museum.x+museum.w/2))<2.4&&Math.abs(z-museum.z)<1.5)return true;
  if(y<coreLevels[0]-.2||y>coreLevels.at(-1)+.4)return false;
  if(x>core.minX&&x<core.maxX&&z>core.front-1&&z<10)return true;
  if(y<upperThresholdLanding.y-1.7)return false;

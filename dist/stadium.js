@@ -247,10 +247,10 @@ export function buildStadium(scene){
   suspendBowl(!showBowl);suspendRoof(stairwellHidden);
   cullStaticBatches(stadiumWalking&&!stairwellHidden,view);
   const moved=visibilityChanged(position,state);
-  if(moved||groundWalking&&view.changed){
+  if(moved||stadiumWalking&&view.changed){
    const showShell=!stairwellHidden&&!enclosedPlayerPosition(position);
    for(const [i,shell] of shellMeshes.entries()){
-    const visible=showShell&&(!groundWalking||view.frustum.intersectsBox(shellBounds[i]))&&(shell.userData.shellSection===1||facadeSectorVisible(position,shell.userData.sectorCenter));
+    const visible=showShell&&(!stadiumWalking||view.frustum.intersectsBox(shellBounds[i]))&&(shell.userData.shellSection===1||facadeSectorVisible(position,shell.userData.sectorCenter));
     if(shell.visible!==visible)shell.visible=visible;
    }
   }

@@ -31,6 +31,7 @@ test('a hurried visitor can pass a stair or corridor corner only on its actual a
  const belowStairCorner={...flight2Out,y:flight2Out.y-.492};
  assert.equal(waypointReached({...flight2Out,z:flight2Out.z+.82},flight2Out,flight2Start,flight2Turn),true);
  assert.equal(waypointReached({...belowStairCorner,z:flight2Out.z+.82},flight2Out,flight2Start,flight2Turn),false);
+ assert.equal(waypointReached(belowStairCorner,flight2Out,flight2Start,flight2Turn),false,'being within the horizontal radius does not advance a turn before the landing');
  assert.equal(waypointReached({...upperBridgeStart,x:upperBridgeStart.x-.9},upperBridgeStart,upperGalleryOuter,upperThreshold),false);
  assert.equal(waypointReached({...upperBridgeStart,z:upperBridgeStart.z-.8},upperBridgeStart,upperGalleryOuter,upperThreshold),true);
  assert.equal(waypointReached({...upperThresholdFoot,z:upperThresholdFoot.z-.33},upperThresholdFoot,upperAisleEntry,upperThreshold),true);
@@ -91,6 +92,7 @@ test('the stairs and gallery tell the visitor what is around the actual corner',
  const beforeDoor={...corePublicFront,x:corePublicFront.x-2};
  const enter=movementInstruction(beforeDoor,look(beforeDoor,corePublicFront),corePublicFront,landing1);
  assert.equal(enter.action,'到平台后右转');
+ assert.equal(enter.landmark,'门口');
  assert.match(enter.hint,/穿过门洞/);
  assert.equal(waypointReached(beforeDoor,corePublicFront,corePublicApproach,landing1),false);
  const fromGallery=movementInstruction(upperGalleryOuter,look(upperGalleryOuter,upperBridgeStart),upperBridgeStart,upperThreshold);

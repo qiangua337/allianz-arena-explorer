@@ -115,7 +115,9 @@ test('phone stairwell occlusion restores the visible bowl at an opening or immed
   assert.equal(stadium.bowl.visible,true,'turning in place restores portal views');
   assert.equal(stadium.circulation.root.visible,true);
   assert.equal(lining.visible,true);
-  assert.ok(upper.every(mesh=>mesh.visible));
+  const frustum=new THREE.Frustum().setFromProjectionMatrix(new THREE.Matrix4().multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse));
+  const visibleRoof=upper.filter(mesh=>frustum.intersectsBox(mesh.geometry.boundingBox.clone().applyMatrix4(mesh.matrixWorld).expandByScalar(.18)));
+  assert.ok(visibleRoof.length>0&&visibleRoof.every(mesh=>mesh.visible),'turning toward the opening restores the roof in view');
   face(100,30.1,2,'walk',true);
   assert.equal(stadium.bowl.visible,true);
   face(100,30.1,2,'orbit');
@@ -236,6 +238,36 @@ test('mobile roof and seating deck sectors use padded world boxes as well as sph
   assert.ok(candidates.every(mesh=>mesh.visible),'the normal wide view restores the sector flags');
  }finally{if(width===undefined)delete globalThis.innerWidth;else globalThis.innerWidth=width;}
 });
+
+test('the mobile upper view skips shell triangles beyond the viewport and restores them on rotation',()=>{
+ const width=globalThis.innerWidth;globalThis.innerWidth=390;
+ const camera=new THREE.PerspectiveCamera(66,390/844,.06,2500);
+ const shell=meshes(stadium.root).filter(mesh=>mesh.name.startsWith('ETFE '));
+ const frustum=new THREE.Frustum(),projection=new THREE.Matrix4();
+ const rejected=[];
+ try{
+  camera.position.set(103.8,41.7,-36.4);
+  camera.rotation.set(0,14,0,'YXZ');
+  stadium.update(camera,'walk');
+  assert.ok(stadium.bowl.visible&&lining.visible,'the upper opening retains the bowl and its roof');
+  frustum.setFromProjectionMatrix(projection.multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse));
+  for(const mesh of shell){
+   if(mesh.visible||!frustum.intersectsObject(mesh))continue;
+   const bounds=mesh.geometry.boundingBox.clone().applyMatrix4(mesh.matrixWorld).expandByScalar(.18);
+   assert.equal(frustum.intersectsBox(bounds),false,'a rejected sphere has no triangles inside the view');
+   rejected.push(mesh);
+  }
+  assert.ok(rejected.reduce((count,mesh)=>count+triangles(mesh),0)>10000);
+  for(let turn=1;turn<24&&rejected.every(mesh=>!mesh.visible);turn++){
+   camera.rotation.y=14+turn*Math.PI/12;
+   stadium.update(camera,'walk');
+  }
+  assert.ok(rejected.some(mesh=>mesh.visible),'yaw alone restores a newly visible shell sector');
+  stadium.update(camera,'walk',true);
+  assert.ok(shell.every(mesh=>mesh.visible),'the ordinary high-quality state restores every upper shell sector');
+ }finally{if(width===undefined)delete globalThis.innerWidth;else globalThis.innerWidth=width;}
+});
+
 test('phone stairwell matrix traversal skips the obscured roof and seats and resumes through an opening',()=>{
  const width=globalThis.innerWidth;globalThis.innerWidth=390;
  const camera=new THREE.PerspectiveCamera(66,390/844,.06,2500);
