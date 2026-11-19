@@ -24,11 +24,16 @@ export function surfaceMaps(name,{channel=0,repeat=[1,1],strength=.2,albedo=fals
 export async function loadVisualAssets(renderer,{width=innerWidth,progress=()=>{}}={}){
  const manager=new THREE.LoadingManager(),loader=new THREE.TextureLoader(manager),hdr=new HDRLoader(manager),environments={},backgrounds={};let loaded=0;
  const entries=Object.entries(surfaceBundle).flatMap(([name,channels])=>channels.map(kind=>[name,kind]));
+ const size=textureResolution(width),anisotropy=Math.min(4,renderer.capabilities.getMaxAnisotropy());
  const total=entries.length+3,failed=[];const done=()=>progress(++loaded,total);
  const tasks=entries.map(async([name,kind])=>{
-  try{const texture=await loader.loadAsync(new URL('./assets/pbr/'+name+'-'+kind+'.jpg',import.meta.url).href);
-   const size=textureResolution(width);if(texture.image.width>size&&typeof createImageBitmap==='function')texture.image=await createImageBitmap(texture.image,{resizeWidth:size,resizeHeight:size,resizeQuality:'high'});
-   texture.colorSpace=kind==='diff'?THREE.SRGBColorSpace:THREE.NoColorSpace;texture.wrapS=texture.wrapT=THREE.RepeatWrapping;texture.anisotropy=Math.min(4,renderer.capabilities.getMaxAnisotropy());texture.needsUpdate=true;textures.set(name+'-'+kind,texture);
+  const stem=name+'-'+kind,source=new URL('./assets/pbr/'+stem+'.jpg',import.meta.url).href;
+  try{
+   const texture=size===512
+    ?await loader.loadAsync(new URL('./assets/pbr/mobile/'+stem+'.webp',import.meta.url).href).catch(()=>loader.loadAsync(source))
+    :await loader.loadAsync(source);
+   if(texture.image.width>size&&typeof createImageBitmap==='function')texture.image=await createImageBitmap(texture.image,{resizeWidth:size,resizeHeight:size,resizeQuality:'high'});
+   texture.colorSpace=kind==='diff'?THREE.SRGBColorSpace:THREE.NoColorSpace;texture.wrapS=texture.wrapT=THREE.RepeatWrapping;texture.anisotropy=anisotropy;texture.needsUpdate=true;textures.set(stem,texture);
   }catch{failed.push(name+'-'+kind);}finally{done();}
  });
  const pmrem=new THREE.PMREMGenerator(renderer);pmrem.compileEquirectangularShader();

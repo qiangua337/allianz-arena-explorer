@@ -18,6 +18,23 @@ test('every locally shipped PBR and HDR source has its declared checksum, licens
  for(const[name,channel]of required){const asset=manifest.assets[name],entry=asset.maps[channel],path=new URL('../dist/assets/pbr/'+entry.file,import.meta.url);assert.equal(asset.license,'CC0-1.0');assert.equal(statSync(path).size,entry.bytes);assert.equal(createHash('md5').update(readFileSync(path)).digest('hex'),entry.md5);bytes+=entry.bytes;}
  assert.ok(bytes<12*1048576);assert.equal(textureResolution(390),512);assert.equal(textureResolution(1024),512);assert.equal(textureResolution(1280),1024);
 });
+test('mobile surface maps cover every material channel and ship at less than one third of the original size',()=>{
+ const directory=new URL('../dist/assets/pbr/',import.meta.url);
+ const original=JSON.parse(readFileSync(new URL('manifest.json',directory)));
+ const compact=JSON.parse(readFileSync(new URL('mobile/manifest.json',directory)));
+ assert.equal(compact.resolution,textureResolution(390));
+ let before=0,after=0;
+ for(const [surface,channels] of Object.entries(surfaceBundle))for(const channel of channels){
+  const source=original.assets[surface].maps[channel],entry=compact.maps[source.file];
+  const file=readFileSync(new URL('mobile/'+entry.file,directory));
+  assert.equal(file.subarray(8,12).toString(),'WEBP');
+  assert.equal(file.length,entry.bytes);
+  assert.equal(createHash('md5').update(file).digest('hex'),entry.md5);
+  before+=source.bytes;
+  after+=entry.bytes;
+ }
+ assert.ok(after<before/3);
+});
 test('real roughness and normal maps receive metre UVs even with no colour texture',()=>{
  const material=new THREE.MeshStandardMaterial(),normal=new THREE.Texture();normal.channel=1;material.normalMap=normal;const group=new THREE.Group(),g=new THREE.BoxGeometry(3,2,1),mesh=new THREE.Mesh(g,material);mesh.position.set(20,2,-7);group.add(mesh);applyArchitecturalUV(group);assert.equal(g.attributes.uv1.count,g.attributes.position.count);assert.ok([...g.attributes.uv1.array].some(n=>n>=18));
  const environment=new THREE.Texture();setMaterialEnvironment(environment);assert.equal(mat(0xffffff).envMap,environment);assert.equal(mat(0xffffff,{envMapIntensity:.8}).envMapIntensity,.8);setMaterialEnvironment(undefined);

@@ -18,13 +18,29 @@ const upper=meshes(stadium.roof).filter(o=>o.name.startsWith('ETFE upper roof se
 const decks=stadium.bowl.getObjectByName('Seating decks and risers'),lining=stadium.roof.getObjectByName('Continuous ribbed inner roof canopy'),trusses=stadium.roof.getObjectByName('Radial roof trusses and compression rings'),rails=stadium.bowl.getObjectByName('Continuous stair handrails beside clear walking aisles');
 const ringMeshes=[...upper,...meshes(decks),...meshes(lining),...meshes(trusses),...meshes(rails)];
 
-test('only the six intended static rings are divided; the ring and depth material budgets remain stable',()=>{
+test('the divided static rings keep their triangles and shared depth material',()=>{
  assert.equal(upper.length,32);assert.equal(upper.reduce((n,o)=>n+triangles(o),0),111360);
  for(const [group,count]of [[decks,67750],[lining,10208],[trusses,23904],[rails,48096]]){assert.ok(group);assert.equal(meshes(group).length,16);assert.equal(meshes(group).reduce((n,o)=>n+triangles(o),0),count);}
  assert.equal(ringMeshes.reduce((n,o)=>n+triangles(o),0),261318);
  assert.ok(upper.every(o=>o.castShadow&&o.customDepthMaterial===upper[0].customDepthMaterial));assert.ok(meshes(lining).every(o=>o.castShadow&&o.receiveShadow));
  const plainSeats=stadium.bowl.children.filter(o=>o.isInstancedMesh&&o.instanceColor&&o.count>384);assert.equal(plainSeats.length,24,'the existing seat sectors are untouched');
  assert.equal(stadium.matchBall.isMesh,true);assert.ok(stadium.matchBall.geometry.attributes.position.count>1000,'dynamic ball is not spatially divided');
+});
+test('near the field, lighting banks keep every fixture but only submit the arcs within the view',()=>{
+ const saved=globalThis.innerWidth;globalThis.innerWidth=390;
+ const camera=new THREE.PerspectiveCamera(66,390/844,.06,2500);
+ const banks=meshes(stadium.roof.getObjectByName('Roof floodlights with recessed reflectors'));
+ const countLensVertices=banks.reduce((total,part)=>total+part.geometry.attributes.arenaLensFace.array.reduce((sum,hasLens)=>sum+hasLens,0),0);
+ assert.equal(countLensVertices,296*6,'every fixture retains its two lens triangles');
+ assert.equal(new Set(banks.map(bank=>bank.material)).size,1,'housing and light face use the same render pass');
+ try{
+  camera.position.set(5,1.7,42);
+  camera.lookAt(0,40,-50);
+  stadium.update(camera,'walk');
+  const drawn=banks.filter(bank=>bank.visible);
+  assert.ok(drawn.length>0&&drawn.length<=4);
+  assert.ok(drawn.reduce((n,bank)=>n+triangles(bank),0)<6000,'field view skips the offscreen banks');
+ }finally{if(saved===undefined)delete globalThis.innerWidth;else globalThis.innerWidth=saved;}
 });
 test('sector boundaries keep real seating floors and a complete roof around all directions',()=>{
  scene.updateMatrixWorld(true);let floorHits=0,roofHits=0;
@@ -322,7 +338,7 @@ test('walking sector detail stays exact on distance boundaries and avoids rechec
  const position=camera.position,originalDistance=position.distanceTo;let checks=0;
  position.distanceTo=function(v){if(nearby.some(o=>o.boundingSphere.center===v))checks++;return originalDistance.call(this,v);};
  try{
-  const triangleCount=(position,mesh)=>{const d=originalDistance.call(position,mesh.boundingSphere.center);return stadium.groundsBehindUpperBowl||d>100?2:d>32?4:24;};
+  const triangleCount=(position,mesh)=>{const d=originalDistance.call(position,mesh.boundingSphere.center);return stadium.groundsBehindUpperBowl||d>100?2:d>32?4:12;};
   for(let i=0;i<201;i++){
    camera.position.set(106-i*.10,40-i*.022,-36.5+i*.016);camera.lookAt(0,10,0);stadium.update(camera,'walk');
    assert.equal(stadium.bowl.visible,true);

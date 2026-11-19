@@ -43,7 +43,7 @@ test('a phone walking view uses solid lighter seat sectors and keeps the detaile
   const desktopTriangles=visibleSectors.reduce((sum,mesh)=>sum+triangles(mesh),0),count=base.reduce((sum,mesh)=>sum+mesh.count,0);
   stadium.update(phoneCamera,'walk',false,false,false);
   const phoneTriangles=visibleSectors.reduce((sum,mesh)=>sum+triangles(mesh),0);
-  const lighterSectors=visibleSectors.filter(mesh=>triangles(mesh)===mesh.count*24);
+  const lighterSectors=visibleSectors.filter(mesh=>triangles(mesh)===mesh.count*12);
   assert.ok(lighterSectors.length>=1);
   assert.ok(phoneTriangles<desktopTriangles*.65,`${phoneTriangles}/${desktopTriangles} seat triangles`);
   assert.equal(base.reduce((sum,mesh)=>sum+mesh.count,0),count);

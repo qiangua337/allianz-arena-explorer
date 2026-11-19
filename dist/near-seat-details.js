@@ -13,6 +13,26 @@ export function seatShellGeometry(steps){
  const back=solidGrid((u,v)=>{const x=u*2-1;return{x:x*.2175*(.88+.12*v),y:.27+.49*v-.022*Math.abs(x)**6*v**5,z:.17+.05*v-.045*x*x};},'z',.026,steps);
  return mergeGeometry([pan,back]);
 }
+// The mobile mid-distance fallback needs the moulded outline and the crease
+// at the centre. Only the nearby replacement needs the fully closed shell.
+export function foldedSeatGeometry(){
+ const position=[
+  -.196,.24,-.2, 0,.23,-.2, .196,.24,-.2,
+  -.214,.25,.19, 0,.235,.19, .214,.25,.19,
+  -.192,.27,.135, 0,.27,.18, .192,.27,.135,
+  -.214,.735,.17, 0,.76,.22, .214,.735,.17,
+  -.206,.215,-.15, .206,.215,-.15,
+  -.213,.40,.142, .213,.40,.142
+ ];
+ const geometry=new THREE.BufferGeometry();
+ geometry.setAttribute('position',new THREE.Float32BufferAttribute(position,3));
+ geometry.setIndex([
+  0,3,1, 1,3,4, 1,4,2, 2,4,5, 0,12,3, 2,5,13,
+  6,7,9, 7,10,9, 7,8,10, 8,11,10, 6,9,14, 8,15,11
+ ]);
+ geometry.computeVertexNormals();
+ return geometry;
+}
 export function detailedSeatGeometry(steps=6){
  const shell=seatShellGeometry(steps),parts=[];for(const[w,h,d,x,y,z]of[[.34,.025,.12,0,-.17,.13],[.06,.38,.06,0,.025,.13],[.38,.035,.055,0,.19,.13],[.028,.2,.03,-.18,.34,.20],[.028,.2,.03,.18,.34,.20]])parts.push(new THREE.BoxGeometry(w,h,d).translate(x,y,z));
  return{shell,frame:mergeGeometry(parts)};

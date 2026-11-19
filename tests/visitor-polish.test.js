@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {registerHooks} from 'node:module';
 registerHooks({resolve(s,c,next){return s==='three'?{url:new URL('../dist/vendor/three.module.js',import.meta.url).href,shortCircuit:true}:next(s,c);}});
 const {THREE}=await import('../dist/kit.js');
-const {partitionGeometry,spatializeArchitecture,facadeSectorVisible,updateArchitectureSectors}=await import('../dist/spatial-batches.js');
+const {buildMobileArcadeBatches,partitionGeometry,spatializeArchitecture,facadeSectorVisible,updateArchitectureSectors}=await import('../dist/spatial-batches.js');
 const {applyArchitecturalUV}=await import('../dist/surface-finishes.js');
 const {walkingTours,createWalkingTour,routeSummary}=await import('../dist/walk-tours.js');
 const {createWalkCheckpoint,safeCheckpointFloor}=await import('../dist/walk-checkpoint.js');
@@ -22,6 +22,37 @@ test('sector batching preserves every triangle, secondary UVs and indexed vertex
 });
 test('spatial batching retains controlled roofs and object placement',()=>{
  const root=new THREE.Group(),material=new THREE.MeshBasicMaterial(),g=new THREE.TorusGeometry(100,2,8,256),floor=new THREE.Mesh(g,material),roof=new THREE.Mesh(g.clone(),material);floor.position.y=12;roof.position.y=17;roof.userData.visibilityManaged=true;root.add(floor,roof);spatializeArchitecture(root);assert.equal(roof.parent,root);assert.ok(root.children.length>3);roof.visible=false;assert.equal(roof.visible,false);assert.ok(root.children.filter(c=>c!==roof).every(c=>c.position.y===12));
+});
+test('mobile arcade views draw visible sectors and restore the original batch on exit',()=>{
+ const root=new THREE.Group(),geometry=new THREE.BoxGeometry(),material=new THREE.MeshBasicMaterial();
+ const original=new THREE.InstancedMesh(geometry,material,144),matrix=new THREE.Matrix4();
+ for(let i=0;i<original.count;i++){
+  const x=i<72?106:-106,z=(i%72-35.5)*.2;
+  original.setMatrixAt(i,matrix.makeTranslation(x,0,z));
+ }
+ root.add(original);
+ const update=buildMobileArcadeBatches([root]),camera=new THREE.PerspectiveCamera(55,390/844,.1,450);
+ const frustum=new THREE.Frustum(),projection=new THREE.Matrix4(),view={frustum,changed:true};
+ function rendered(){
+  const batches=[];
+  root.traverseVisible(object=>{if(object.isInstancedMesh)batches.push(object);});
+  return batches;
+ }
+ assert.deepEqual(rendered(),[original]);
+ for(const x of [-106,106]){
+  camera.lookAt(x,0,0);camera.updateMatrixWorld(true);
+  frustum.setFromProjectionMatrix(projection.multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse));
+  update(true,view);
+  const batches=rendered();
+  assert.equal(batches.reduce((count,part)=>count+part.count,0),72);
+  assert.ok(batches.every(part=>part.geometry===geometry&&part.material===material));
+  for(const part of batches)for(let i=0;i<part.count;i++){
+   part.getMatrixAt(i,matrix);
+   assert.equal(matrix.elements[12],x);
+  }
+ }
+ update(false,null);
+ assert.deepEqual(rendered(),[original]);
 });
 test('the opaque far facade can be omitted outside but remains complete from inside and above',()=>{
  assert.equal(facadeSectorVisible({x:0,y:2,z:214},{x:0,z:129}),true);assert.equal(facadeSectorVisible({x:0,y:2,z:214},{x:0,z:-129}),false);assert.equal(facadeSectorVisible({x:0,y:2,z:0},{x:0,z:-129}),true);assert.equal(facadeSectorVisible({x:0,y:150,z:214},{x:0,z:-129}),true);

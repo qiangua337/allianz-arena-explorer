@@ -5,7 +5,7 @@ import {createGoalNetMaterial,goalFeedbackController} from './goal-feedback.js';
 import {buildGoalNetGeometry} from './goal-net.js';
 import {fitoutShaderCuts} from './room-volumes.js';
 import {surfaceMaps} from './visual-assets.js';
-import {buildNearSeatDetails,seatShellGeometry} from './near-seat-details.js';
+import {buildNearSeatDetails,foldedSeatGeometry,seatShellGeometry} from './near-seat-details.js';
 import {buildBowlLighting} from './stadium-lighting.js';
 import {positionStateChanged} from './position-state.js';
 import {THREE,TAU,v,mat,mesh,box,beam,sign,cylinder,canvasTexture,textTexture,superpoint,supernormal,ringGeometry,curveLine,mergeGeometry,compactGroup,Batches,addCrest,getCrestImage,seeded} from './kit.js';
@@ -24,29 +24,51 @@ import {buildMatchBall} from './football-ball.js';
 import {seatHasSupporter} from './crowd-layout.js';
 import {buildArenaSeatMosaic} from './seat-mosaic.js';
 
-function buildRoofFloodlightBanks(parent,locations,steel,lightMaterial){
+function buildRoofFloodlightBanks(parent,locations,faceColor){
  const root=new THREE.Group();root.name='Roof floodlights with recessed reflectors';parent.add(root);
- const housing=mat(0x485459,{metalness:.48,roughness:.58});
- const reflector=mat(0xb9c7ca,{metalness:.68,roughness:.28});
- const parts=[
-  [new THREE.BoxGeometry(.66,.28,.48),housing,0],
-  [new THREE.PlaneGeometry(.60,.42).rotateX(Math.PI/2),reflector,-.147],
-  [new THREE.PlaneGeometry(.49,.31).rotateX(Math.PI/2),lightMaterial,-.162]
+ const metal=mat(0xffffff,{vertexColors:true,metalness:.53,roughness:.48});
+ // Use one material for framing and lenses. The lights' white faces keep
+ // their original colour after tone mapping without another draw per arc.
+ metal.onBeforeCompile=shader=>{
+  shader.uniforms.arenaLensColor={value:faceColor};
+  shader.vertexShader='attribute float arenaLensFace;varying float vArenaLensFace;\n'+shader.vertexShader;
+  shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nvArenaLensFace=arenaLensFace;');
+  shader.fragmentShader='uniform vec3 arenaLensColor;varying float vArenaLensFace;\n'+shader.fragmentShader;
+  shader.fragmentShader=shader.fragmentShader.replace('#include <tonemapping_fragment>','#include <tonemapping_fragment>\ngl_FragColor.rgb=mix(gl_FragColor.rgb,arenaLensColor,vArenaLensFace);');
+ };
+ metal.customProgramCacheKey=()=> 'arena-floodlight-lens-v1';
+ function tint(geometry,hex){
+  const color=new THREE.Color(hex),values=new Float32Array(geometry.attributes.position.count*3);
+  for(let i=0;i<values.length;i+=3)color.toArray(values,i);
+  geometry.setAttribute('color',new THREE.BufferAttribute(values,3));return geometry;
+ }
+ const lens=new THREE.PlaneGeometry(.49,.31).rotateX(Math.PI/2).translate(0,-.162,0);
+ lens.setAttribute('arenaLensFace',new THREE.Float32BufferAttribute([1,1,1,1],1));
+ const shellParts=[
+  tint(new THREE.BoxGeometry(.66,.28,.48),0x485459),
+  tint(new THREE.PlaneGeometry(.60,.42).rotateX(Math.PI/2).translate(0,-.147,0),0xb9c7ca),
+  lens
  ];
- const transform=new THREE.Object3D(),local=new THREE.Matrix4(),combined=new THREE.Matrix4();
- for(const [geometry,material,offset]of parts){
-  const instances=new THREE.InstancedMesh(geometry,material,locations.length);
-  for(const [i,p]of locations.entries()){
-   transform.position.set(p.x,p.y,p.z);transform.rotation.set(.64,p.yaw,0,'YXZ');transform.updateMatrix();
-   local.makeTranslation(0,offset,0);instances.setMatrixAt(i,combined.multiplyMatrices(transform.matrix,local));
+ const bracket=tint(new THREE.BoxGeometry(.035,.26,.035),0xb9c2c5);
+ const sectors=Array.from({length:8},()=>[]);
+ const transform=new THREE.Object3D();
+ for(const p of locations){
+  const sector=sectors[Math.floor((Math.atan2(p.z,p.x)+Math.PI)/TAU*8)%8];
+  transform.position.set(p.x,p.y,p.z);transform.rotation.set(.64,p.yaw,0,'YXZ');transform.updateMatrix();
+  for(const geometry of shellParts)sector.push(geometry.clone().applyMatrix4(transform.matrix));
+  transform.rotation.set(0,p.yaw,0,'YXZ');
+  for(const side of [-1,1]){
+   transform.position.set(p.x+Math.cos(p.yaw)*side*.33,p.y+.18,p.z-Math.sin(p.yaw)*side*.33);
+   transform.updateMatrix();
+   sector.push(bracket.clone().applyMatrix4(transform.matrix));
   }
-  instances.computeBoundingSphere();root.add(instances);
  }
- const brackets=new Batches(root);
- for(const p of locations)for(const side of[-1,1]){
-  brackets.add(.035,.26,.035,p.x+Math.cos(p.yaw)*side*.33,p.y+.18,p.z-Math.sin(p.yaw)*side*.33,steel,p.yaw);
+ for(const [index,sector] of sectors.entries()){
+  if(!sector.length)continue;
+  const bank=mesh(mergeGeometry(sector),metal,root);
+  bank.name='Floodlight bank · sector '+index;
  }
- brackets.flush();
+ return root;
 }
 
 export function buildStadium(scene){
@@ -54,7 +76,7 @@ export function buildStadium(scene){
  const roof=new THREE.Group();roof.name='Roof and trusses';root.add(roof);
  const bowl=new THREE.Group();bowl.name='Interior bowl hidden by opaque exterior';root.add(bowl);const roofDetails=new THREE.Group();roof.add(roofDetails);const structural=new THREE.Group();structural.name='Bowl concrete steps and metal fittings';bowl.add(structural);const batch=new Batches(structural);
  const concrete=mat(0x8c9193,{side:THREE.DoubleSide,...surfaceMaps('concrete',{channel:1,repeat:[.3,.3],strength:.16})}),darkConcrete=mat(0x454d52),steel=mat(0xb9c2c5,{metalness:.55,roughness:.42}),red=mat(0xc71936,{side:THREE.DoubleSide}),white=mat(0xf2f1ed),dark=mat(0x1b252e);
- const lightMaterial=new THREE.MeshBasicMaterial({color:0xb9c6cb,toneMapped:false});
+ const floodlightFaces=new THREE.Color(0xb9c6cb);
  // The cross-section follows the rolled ETFE shell, from its lower lip to the roof opening.
  const cross=[[.885,5.8],[.948,10.2],[.985,18.5],[1,27],[.99,35.5],[.947,42.6],[.874,48.7],[.779,51.4],[.686,50.3],[.589,47.8]];
  const arc=[];let distance=0,previous=superpoint(113.5,129,0,2.65);arc.push({t:0,d:0});
@@ -134,7 +156,7 @@ export function buildStadium(scene){
  });
  const steps=mesh(mergeGeometry(rowGeometries),concrete,bowl);steps.name='Seating decks and risers';steps.castShadow=true;
  const decks=partitionStaticMesh(steps);compactGroup(aisleRails);for(const part of [...aisleRails.children])if(part.isMesh)partitionStaticMesh(part);
- const seatGeom=seatShellGeometry(2),compactSeat=seatShellGeometry(1);
+ const seatGeom=seatShellGeometry(2),compactSeat=foldedSeatGeometry();
  const farSeat=new THREE.PlaneGeometry(.435,.77).rotateX(-.35).translate(0,.43,.12),coarseSeat=mergeGeometry([new THREE.PlaneGeometry(.435,.4).rotateX(-Math.PI/2).translate(0,.23,0),new THREE.PlaneGeometry(.435,.49).translate(0,.49,.17)]),seatMat=mat(0xffffff,{roughness:.53,metalness:.04,side:THREE.DoubleSide});const dummy=new THREE.Object3D(),seatInstances=[];
  const emptyBySector=Array.from({length:24},()=>[]),filledBySector=Array.from({length:24},()=>[]);
  seats.forEach((seat,index)=>(seatHasSupporter(index)?filledBySector:emptyBySector)[seat.sector].push(seat));
@@ -152,7 +174,7 @@ export function buildStadium(scene){
   const lum=p.clone().lerp(q,.08),n=supernormal(66,78,t,2.65),yaw=Math.atan2(n.x,n.z);for(let k=0;k<(j%9===0?5:4);k++)floodlights.push({x:lum.x+n.z*(k-1.5)*.72,y:lum.y-1.25,z:lum.z-n.x*(k-1.5)*.72,yaw});
  }
  for(const [a,b,y,r]of[[66.6,77.6,46.4,.22],[83,97,48.2,.14],[104,120,44.5,.18]]){const pts=[];for(let j=0;j<256;j++){const p=superpoint(a,b,j/256*TAU,2.65);p.y=y;pts.push(p);}trussGeometries.push(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts,true,'centripetal'),384,r,6,true));}
- buildRoofFloodlightBanks(roofDetails,floodlights,steel,lightMaterial);const trusses=mesh(mergeGeometry(trussGeometries),steel,roofDetails);trusses.name='Radial roof trusses and compression rings';const trussSectors=partitionStaticMesh(trusses);
+ const floodlightBanks=buildRoofFloodlightBanks(roofDetails,floodlights,floodlightFaces);const trusses=mesh(mergeGeometry(trussGeometries),steel,roofDetails);trusses.name='Radial roof trusses and compression rings';const trussSectors=partitionStaticMesh(trusses);
  const rim=[];for(let j=0;j<=384;j++){const p=superpoint(66.8,77.8,j/384*TAU,2.65);p.y=47.1;rim.push(p);}curveLine(roofDetails,rim,0xff274a);
  const logo=sign(root,'Allianz Arena',40,5.4,0,26.7,129.7,{fg:'#164c94',w:2048,h:256,font:185,weight:650,unique:true});
  const logoBack=sign(root,'Allianz Arena',40,5.4,0,26.7,-129.7,{fg:'#164c94',w:2048,h:256,font:185,weight:650,unique:true});logoBack.rotation.y=Math.PI;const logoDayMap=logo.material.map,logoNightMap=textTexture('Allianz Arena',{fg:'#ffffff',w:2048,h:256,font:185,weight:650});
@@ -179,7 +201,7 @@ export function buildStadium(scene){
  root.updateWorldMatrix(true,true);circulation.root.updateWorldMatrix(true,true);
  // Keep box culling limited to fixed children without independent visibility.
  // Their parent still controls room, roof, and bowl visibility.
- const staticSurfaces=[...(decks?.children??[]),...(trussSectors?.children??[]),...roofLining.children,...aisleRails.children.flatMap(group=>group.children)];
+ const staticSurfaces=[...(decks?.children??[]),...(trussSectors?.children??[]),...roofLining.children,...floodlightBanks.children,...aisleRails.children.flatMap(group=>group.children)];
  const cameraFrustum=buildWalkFrustum(),facesUpperBowl=buildUpperRevealView(),facesVisitorPortal=buildVisitorBowlView(cameraFrustum),cullStaticBatches=buildStaticBatchCulling([...structural.children,...circulation.root.children,...seatInstances.map(({inst})=>inst)],staticSurfaces);
  const shellBounds=shellMeshes.map(shell=>shell.geometry.boundingBox.clone().applyMatrix4(shell.matrixWorld).expandByScalar(.18));
  const suspendBowl=suspendMatrixTraversal(bowl),suspendRoof=suspendMatrixTraversal(roof);
@@ -213,6 +235,7 @@ export function buildStadium(scene){
   const visitorReveal=groundWalking&&position.y<2.1&&Math.abs(position.x-visitorPassage.x)<visitorPassage.width/2+3&&position.z>visitorPassage.exitZ-5&&position.z<=visitorPassage.backZ;
   const view=stadiumWalking?cameraFrustum(camera):null;
   stairwellHidden=mobileWalking&&stairwellOccluded(camera,view);
+  circulation.setMobileView(stadiumWalking&&!stairwellHidden,view);
   const {bridge}=upperGalleryRooms;
   const revealing=stadiumWalking&&position.y>upperThresholdLanding.y+.75&&position.y<upperTierThreshold.top+3.05&&
    position.x>=upperThresholdLanding.x0-.2&&position.x<bridge.maxX&&position.z>bridge.minZ&&position.z<upperThresholdLanding.z1+.3;
@@ -253,7 +276,7 @@ export function buildStadium(scene){
   // Keep detailed chairs at the landing but use the distant seat silhouette
   // through the narrow opening and until the visitor clears the stair apron.
   updateSeatSectors(position,high,low,playing,filled,compactWalk,groundsBehindUpperBowl||visitorReveal);
- },night(n){bowlLighting.night(n);circulation.night(n);shellMaterials[0].color.set(n?0xe52a49:0xe5e8e4);shellMaterials[0].emissive.set(n?0xd7082c:0x000000);shellMaterials[0].emissiveIntensity=n?.72:0;shellMaterials[0].roughness=n?.78:.72;shellMaterials[1].color.set(n?0xcfc0c4:0xf4f4ed);shellMaterials[1].emissive.set(n?0x9d1736:0x000000);shellMaterials[1].emissiveIntensity=n?.22:0;lightMaterial.color.set(n?0xf7fbff:0xb9c6cb);logo.material.map=logoBack.material.map=n?logoNightMap:logoDayMap;}};
+ },night(n){bowlLighting.night(n);circulation.night(n);shellMaterials[0].color.set(n?0xe52a49:0xe5e8e4);shellMaterials[0].emissive.set(n?0xd7082c:0x000000);shellMaterials[0].emissiveIntensity=n?.72:0;shellMaterials[0].roughness=n?.78:.72;shellMaterials[1].color.set(n?0xcfc0c4:0xf4f4ed);shellMaterials[1].emissive.set(n?0x9d1736:0x000000);shellMaterials[1].emissiveIntensity=n?.22:0;floodlightFaces.set(n?0xf7fbff:0xb9c6cb);logo.material.map=logoBack.material.map=n?logoNightMap:logoDayMap;}};
 }
 
 function buildPitch(root,batch,{white,dark,red,steel}){

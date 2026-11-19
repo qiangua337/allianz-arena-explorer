@@ -1,4 +1,5 @@
 import {compactStaticMeshes} from './scene-budget.js';
+import {buildMobileArcadeBatches} from './spatial-batches.js';
 import {surfaceMaps} from './visual-assets.js';
 import {positionStateChanged} from './position-state.js';
 import {finishReception,finishedBox,contactShadow} from './finishes.js';
@@ -337,6 +338,7 @@ export function buildCirculation(parent){
  finishReception(root,batch,atlas,{floorY:ACCESS_BASE,pale,red,metal,dark});colliders.push(orientedCollider(4,110,.74,.62,ACCESS_BASE,ACCESS_BASE+1.8));
  atlas.add(root,'↑ 室内公共楼梯','公共大厅 · 商店 · 展厅 · 包厢 · 看台',6.4,.9,95.8,.8,10,0,{bg:'#996e24'});
  batch.flush();roofBatch.flush();atlas.finish(root);compactStaticMeshes(root,[roof]);compactStaticMeshes(roof);
+ const setMobileView=buildMobileArcadeBatches([root,roof]);
  root.add(junctionSigns,stairWayfinding);
 
  function decorateConcourse(g){
@@ -390,5 +392,5 @@ export function buildCirculation(parent){
   const nearby=position.y<9&&((Math.abs(position.x)/122)**2.8+(Math.abs(position.z)/140)**2.8<1.2);
   for(const light of lamps)light.visible=lightingNight&&nearby&&light.position.distanceTo(position)<32;
  }
- return{root,roof,colliders,decorateConcourse,update,night(on){lightingNight=on;glow.color.set(on?0xffe0ad:0xfff3dd);lamps.forEach(l=>l.intensity=on?68:28);},setRoof(on){roof.visible=on;},stats:{entranceBays:66,accessStairs:8,sharedSignTextures:1}};
+ return{root,roof,colliders,decorateConcourse,update,setMobileView,night(on){lightingNight=on;glow.color.set(on?0xffe0ad:0xfff3dd);lamps.forEach(l=>l.intensity=on?68:28);},setRoof(on){roof.visible=on;},stats:{entranceBays:66,accessStairs:8,sharedSignTextures:1}};
 }

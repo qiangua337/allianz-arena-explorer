@@ -1,0 +1,70 @@
+{
+  "resolution": 512,
+  "maps": {
+    "concrete-normal.jpg": {
+      "file": "concrete-normal.webp",
+      "bytes": 224832,
+      "md5": "e44974619c01d6d8ffaac7fea8e317fa"
+    },
+    "concrete-rough.jpg": {
+      "file": "concrete-rough.webp",
+      "bytes": 9680,
+      "md5": "430aca8173cc1dd0903f7e574431ba67"
+    },
+    "wood-diff.jpg": {
+      "file": "wood-diff.webp",
+      "bytes": 41712,
+      "md5": "1d9c3b4a77b464b0053fd8a547859e3f"
+    },
+    "wood-normal.jpg": {
+      "file": "wood-normal.webp",
+      "bytes": 65602,
+      "md5": "2088e93cb96c7ffb310269cf96348be6"
+    },
+    "wood-rough.jpg": {
+      "file": "wood-rough.webp",
+      "bytes": 47180,
+      "md5": "0fa564718d8ef67aaa3c2fee6f99e9bc"
+    },
+    "fabric-normal.jpg": {
+      "file": "fabric-normal.webp",
+      "bytes": 506010,
+      "md5": "9aa0b9aac0095d9dc75065cc6a42e8e9"
+    },
+    "fabric-rough.jpg": {
+      "file": "fabric-rough.webp",
+      "bytes": 94470,
+      "md5": "2e866847cb7f1179fb3b903492ba6c90"
+    },
+    "rubber-normal.jpg": {
+      "file": "rubber-normal.webp",
+      "bytes": 203124,
+      "md5": "7a073981b7b59f4414c362f8f179aa0a"
+    },
+    "rubber-rough.jpg": {
+      "file": "rubber-rough.webp",
+      "bytes": 19324,
+      "md5": "e0c8afd91dfe5f3b1fbd31e0445c2263"
+    },
+    "plaster-normal.jpg": {
+      "file": "plaster-normal.webp",
+      "bytes": 374616,
+      "md5": "e136614032b878795a67155a8a9f084b"
+    },
+    "plaster-rough.jpg": {
+      "file": "plaster-rough.webp",
+      "bytes": 1576,
+      "md5": "154455db69755a52d20ec41ca098fecc"
+    },
+    "grass-normal.jpg": {
+      "file": "grass-normal.webp",
+      "bytes": 529666,
+      "md5": "d423794a951f50c2c9a476160999ffe0"
+    },
+    "grass-rough.jpg": {
+      "file": "grass-rough.webp",
+      "bytes": 1234,
+      "md5": "5c5566f38e9b3c195f21cf4e09d63df0"
+    }
+  }
+}

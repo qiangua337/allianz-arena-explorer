@@ -1,10 +1,73 @@
 import {THREE} from './kit.js';
 
+const angleSector=(x,z,sectors)=>Math.min(sectors-1,Math.floor((Math.atan2(z,x)+Math.PI)/(2*Math.PI)*sectors));
+
+// From the arcade only a fraction of the ring is visible. Keep the global
+// instance draw for distant views, and use tight sector bounds while walking.
+export function buildMobileArcadeBatches(roots,sectors=6){
+ const representations=[],matrix=new THREE.Matrix4(),color=new THREE.Color();
+ for(const root of roots){
+  root.updateWorldMatrix(true,true);
+  for(const original of root.children.slice()){
+   if(!original.isInstancedMesh||original.count<sectors*24)continue;
+   const bins=Array.from({length:sectors},()=>[]);
+   for(let i=0;i<original.count;i++){
+    original.getMatrixAt(i,matrix);
+    bins[angleSector(matrix.elements[12],matrix.elements[14],sectors)].push(i);
+   }
+   const clusters=bins.filter(bin=>bin.length);
+   if(clusters.length<2)continue;
+   const group=new THREE.Group();
+   group.name='Arcade fixtures and stairs';
+   root.add(group);
+   group.add(original);
+   const parts=clusters.map(indices=>{
+    const instance=new THREE.InstancedMesh(original.geometry,original.material,indices.length);
+    instance.position.copy(original.position);
+    instance.quaternion.copy(original.quaternion);
+    instance.scale.copy(original.scale);
+    instance.castShadow=original.castShadow;
+    instance.receiveShadow=original.receiveShadow;
+    instance.layers.mask=original.layers.mask;
+    instance.renderOrder=original.renderOrder;
+    instance.frustumCulled=false;
+    instance.visible=false;
+    for(const [next,previous] of indices.entries()){
+     original.getMatrixAt(previous,matrix);
+     instance.setMatrixAt(next,matrix);
+     if(original.instanceColor){
+      original.getColorAt(previous,color);
+      instance.setColorAt(next,color);
+     }
+    }
+    group.add(instance);
+    instance.updateWorldMatrix(true,false);
+    instance.computeBoundingBox();
+    const bounds=instance.boundingBox.clone().applyMatrix4(instance.matrixWorld).expandByScalar(.18);
+    return {instance,bounds};
+   });
+   representations.push({original,parts});
+  }
+ }
+ let active=false;
+ return (mobileView,view)=>{
+  if(mobileView===active&&(!active||!view.changed))return;
+  active=mobileView;
+  for(const {original,parts} of representations){
+   if(original.visible===active)original.visible=!active;
+   for(const {instance,bounds} of parts){
+    const show=active&&view.frustum.intersectsBox(bounds);
+    if(instance.visible!==show)instance.visible=show;
+   }
+  }
+ };
+}
+
 // Preserve vertex indices and every attribute while splitting a static ring.
 // Each sector then gets a useful frustum bound instead of one stadium-wide box.
 export function partitionGeometry(geometry,sectors=16){
  const p=geometry.attributes.position,index=geometry.index,attributes=Object.entries(geometry.attributes),bins=new Map();
- for(let t=0;t<(index?.count??p.count);t+=3){const ids=[0,1,2].map(j=>index?index.getX(t+j):t+j),x=ids.reduce((s,i)=>s+p.getX(i),0),z=ids.reduce((s,i)=>s+p.getZ(i),0),sector=Math.min(sectors-1,Math.floor(((Math.atan2(z,x)+Math.PI)/(2*Math.PI))*sectors));let bin=bins.get(sector);
+ for(let t=0;t<(index?.count??p.count);t+=3){const ids=[0,1,2].map(j=>index?index.getX(t+j):t+j),x=ids.reduce((s,i)=>s+p.getX(i),0),z=ids.reduce((s,i)=>s+p.getZ(i),0),sector=angleSector(x,z,sectors);let bin=bins.get(sector);
   if(!bin){bin={sector,vertices:new Map(),index:[],arrays:Object.fromEntries(attributes.map(([key])=>[key,[]]))};bins.set(sector,bin);}
   for(const id of ids){let next=bin.vertices.get(id);if(next===undefined){next=bin.vertices.size;bin.vertices.set(id,next);for(const[key,a]of attributes)for(let j=0;j<a.itemSize;j++)bin.arrays[key].push(a.array[id*a.itemSize+j]);}bin.index.push(next);}
  }
