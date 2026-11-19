@@ -16,7 +16,7 @@ const {floorHeight,hitsWall}=await import('../dist/navigation.js');
 const {buildInteractions}=await import('../dist/interactions.js');
 const {furnitureBlocksSegment}=await import('../dist/furniture-layout.js');
 const {buildWalkGuide,floorLabel}=await import('../dist/walk-guide.js');
-const {planWalkPath,navigationObstacles,walkSegmentClear,routeOnCurrentLevel,segmentHitsObstacle}=await import('../dist/walk-path.js');
+const {planWalkPath,navigationObstacles,prepareWalkObstacles,walkSegmentClear,routeOnCurrentLevel,segmentHitsObstacle}=await import('../dist/walk-path.js');
 const {destinationArrival}=await import('../dist/arrivals.js');
 const {canStandAt}=await import('../dist/navigation.js');
 const {advanceWalker}=await import('../dist/walk-motion.js');
@@ -32,6 +32,19 @@ const {playerCorridor,playerShower}=await import('../dist/player-area-layout.js'
 await loadBrandAssets();const scene=new THREE.Scene(),world=buildWorld(scene),stadium=buildStadium(scene),interiors=buildInteriors(scene,stadium.circulation),building=buildWalkBuilding(scene),geometry={rooms:roomSpecs,tiers:stadium.tiers};
 const obstacleGroups={world:world.colliders,building:building.colliders,interiors:interiors.colliders,circulation:stadium.circulation.colliders};
 const service=buildServiceRooms(scene);obstacleGroups.service=service.walls;
+
+test('local guide wall queries preserve the actual upper gallery and return stairs paths',()=>{
+ const nearby=prepareWalkObstacles(obstacleGroups);
+ const stops=['upperStands','upperAisleEntry','upperThresholdFoot','upperThreshold','upperBridgeStart','upperGalleryOuter','upperGalleryFront','landing3','flight2Start','flight2Out','flight2Turn','flight2End','landing2'];
+ for(const id of stops){
+  const point=tourNodes[id],from={x:point.x+.05,y:point.y,z:point.z+.04};
+  const exact=planWalkPath(from,'entrance',geometry,obstacleGroups);
+  const indexed=planWalkPath(from,'entrance',geometry,obstacleGroups,nearby);
+  assert.deepEqual(indexed,exact,id);
+ }
+ const x=101.5,z=-10;
+ assert.ok(nearby.inBounds(x-1,z-1,x+1,z+1).size<nearby.walls.length/10,'a landing check need not scan all remote walls');
+});
 
 test('fixed collision bins preserve actual walls across entrance, gallery and stairs',()=>{
  const fixed=Object.values(obstacleGroups).flat();

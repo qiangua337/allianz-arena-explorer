@@ -201,7 +201,13 @@ test('crossing the upper stairwell doorway never reveals a lower floor opening',
    assert.equal(lining.visible,false);
   }
   face(101.5,25.3,-13.1,0);
-  assert.equal(stadium.bowl.visible,true,'actual lower-floor doorway still opens its view');
+  assert.equal(stadium.bowl.visible,false,'the middle front opening faces the enclosed dogleg');
+  assert.equal(stadium.circulation.root.visible,false);
+  face(101.5,25.3,-10.5,Math.PI/2);
+  assert.equal(stadium.bowl.visible,true,'the independent lounge door still opens its view');
+  assert.equal(stadium.circulation.root.visible,true);
+  face(90,25.3,-30.1,Math.PI/2);
+  assert.equal(stadium.bowl.visible,true,'the far gallery mouth still opens onto the seats');
   assert.equal(stadium.circulation.root.visible,true);
   face(103.3,41.7,-36.5,Math.PI/2);
   assert.equal(stadium.bowl.visible,true,'the actual upper seating doorway still opens its view');

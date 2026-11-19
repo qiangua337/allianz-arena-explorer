@@ -1,6 +1,6 @@
 import {THREE,compactGroup} from './kit.js';
 import {tunnelHasBowlView,enclosedPlayerPosition} from './player-area-layout.js';
-import {core,coreLevels,upperGalleryRooms,upperTierThreshold} from './building-layout.js';
+import {bridges,core,coreLevels,upperGalleryRooms,upperTierThreshold} from './building-layout.js';
 import {inVisitorPassage,visitorPassage} from './tour-route.js';
 
 // Keep hardware instances and independently controlled subtrees intact while
@@ -111,18 +111,30 @@ export function buildStairwellOcclusion(walkFrustum=buildWalkFrustum()){
   acrossX(aisle.minX,bridge.minZ,bridge.maxZ),
   acrossX(bridge.minX,bridge.minZ,bridge.maxZ)
  ];
- const openings=coreLevels.slice(0,-1).flatMap((floor,i)=>[
-  portal([i===2?front.minX:core.minX-.2,floor,frontZ],[i===2?front.maxX:core.maxX+.2,floor+height,frontZ]),
-  portal([core.minX-.12,floor,-11.95],[core.minX-.12,floor+height,-9.05])
+ // The middle door opens into a corridor, which turns left before its
+ // seating exit. Its near opening alone doesn't expose the venue.
+ const middleGallery=bridges.find(item=>item.id==='middleGallery');
+ const middleBridge=bridges.find(item=>item.id==='middleBridge');
+ const [middleX,middleY,middleZ]=middleGallery.b;
+ const mouthX=middleBridge.b[0],nearX=middleX-middleGallery.width/2;
+ const z0=middleZ-middleBridge.width/2,z1=middleZ+middleBridge.width/2;
+ const middlePortals=[
+  portal([nearX,middleY,frontZ],[middleX+middleGallery.width/2,middleY+height,frontZ]),
+  portal([nearX,middleY,z0],[nearX,middleY+height,z1]),
+  portal([mouthX,middleY,z0],[mouthX,middleY+height,z1])
+ ];
+ const corePaths=coreLevels.slice(0,-1).flatMap(floor=>[
+  floor===middleY?middlePortals:[portal([core.minX-.2,floor,frontZ],[core.maxX+.2,floor+height,frontZ])],
+  [portal([core.minX-.12,floor,-11.95],[core.minX-.12,floor+height,-9.05])]
  ]);
- const corePaths=openings.map(opening=>[opening]).concat([galleryPortals]);
  const galleryPaths=galleryPortals.slice(1).map((_,i)=>{
   const towardCore=galleryPortals.slice(0,i+1).reverse();
-  return [...openings.map(opening=>[...towardCore,opening]),galleryPortals.slice(i+1)];
+  return [...corePaths.map(path=>[...towardCore,...path]),galleryPortals.slice(i+1)];
  });
+ corePaths.push(galleryPortals);
  const hasLineOfSight=(frustum,path,position)=>{
   const {x,y,z}=position,first=path[0],dx=(first.min.x+first.max.x)*.5-x,dz=(first.min.z+first.max.z)*.5-z;
-  let lo=-Infinity,hi=Infinity;
+  let lo=-Infinity,hi=Infinity,lowElevation=-Infinity,highElevation=Infinity;
   // The frustum must be able to see every doorway along the corridor, and
   // those doorways must overlap in direction for an unbroken sightline.
   for(const opening of path){
@@ -134,10 +146,14 @@ export function buildStairwellOcclusion(walkFrustum=buildWalkFrustum()){
    if(path.length===1)continue;
    const a=min.x-x,b=max.x-x,c=min.z-z,d=max.z-z;
    const ac=a*dx+c*dz,ad=a*dx+d*dz,bc=b*dx+c*dz,bd=b*dx+d*dz;
-   if(Math.min(ac,ad,bc,bd)<=0)continue;
+   const closest=Math.min(ac,ad,bc,bd),furthest=Math.max(ac,ad,bc,bd);
+   if(closest<=0)continue;
    const l=(a*dz-c*dx)/ac,m=(a*dz-d*dx)/ad,n=(b*dz-c*dx)/bc,o=(b*dz-d*dx)/bd;
    lo=Math.max(lo,Math.min(l,m,n,o));hi=Math.min(hi,Math.max(l,m,n,o));
-   if(lo>hi)return false;
+   const bottom=min.y-y,top=max.y-y;
+   lowElevation=Math.max(lowElevation,bottom/(bottom<0?closest:furthest));
+   highElevation=Math.min(highElevation,top/(top>0?closest:furthest));
+   if(lo>hi||lowElevation>highElevation)return false;
   }
   return true;
  };

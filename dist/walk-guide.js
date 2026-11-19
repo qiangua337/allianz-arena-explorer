@@ -4,7 +4,7 @@ import {EYE_HEIGHT} from './navigation.js';
 import {inCoreShaft,coreLevels,onUpperGalleryFloor,roomAt,roomSpecs} from './building-layout.js';
 import {inVisitorPassage,tourGoals,tourNodes,visitorPassage} from './tour-route.js';
 import {waypointReached,movementInstruction,relativeBearing} from './wayfinding.js';
-import {directWalkDestination,planWalkPath,navigationObstacles,walkSegmentClear} from './walk-path.js';
+import {directWalkDestination,planWalkPath,prepareWalkObstacles,walkSegmentClear} from './walk-path.js';
 import {normalizeDestination} from './arrivals.js';
 import {destinationName} from './destinations.js';
 import {ribbonPoints} from './ribbon-path.js';
@@ -41,6 +41,7 @@ function nearCompletedDestination(p,goal){
 }
 
 export function buildWalkGuide(scene,geometry,{obstacles={},onChoose,onSelect,onWalk,onTeleport,onContinue,onOrient,nextDestination}={}){
+ const walls=prepareWalkObstacles(obstacles);
  const $=id=>document.getElementById(id),panel=$('walk-guide'),select=$('guide-goal'),arrow=$('guide-arrow'),title=$('guide-title'),detail=$('guide-detail'),next=$('guide-next');
  const walkButton=$('guide-walk'),teleportButton=$('guide-teleport'),goalName=$('guide-goal-name'),distanceText=$('guide-distance');
  const alternate=$('guide-alternate'),orient=$('guide-orient'),bearing=$('guide-bearing'),collapse=$('guide-collapse');
@@ -59,7 +60,7 @@ export function buildWalkGuide(scene,geometry,{obstacles={},onChoose,onSelect,on
  function reset(position=lastPosition){
   lastPosition.copy(position);
   anchor=feet(position);
-  const result=planWalkPath(anchor,goal,geometry,obstacles);
+  const result=planWalkPath(anchor,goal,geometry,obstacles,walls);
   path=result.path;blocked=result.blocked;arrived=false;planClock=0;
   lastDraw=lastCheckedPosition=lastPlannedPosition=null;
   ribbonSegments.clear();geo.setDrawRange(0,0);
@@ -200,8 +201,6 @@ export function buildWalkGuide(scene,geometry,{obstacles={},onChoose,onSelect,on
   // spot. Moving doors are excluded from these path checks.
   const shouldReplan=planClock>1.2&&!arrived&&!samePosition(lastPlannedPosition,p);
   if(!shouldReplan&&samePosition(lastCheckedPosition,p)){refresh(yaw);return;}
-  let walls;
-  const getWalls=()=>walls??=navigationObstacles(p,obstacles);
   // A visitor may take another open aisle instead of visiting every old node.
   // Arrival still requires the same floor and an unobstructed final segment.
   const destination=tourNodes[goal],remaining=Math.hypot(p.x-destination.x,p.z-destination.z);
@@ -209,7 +208,7 @@ export function buildWalkGuide(scene,geometry,{obstacles={},onChoose,onSelect,on
   const museumDoorPending=goal==='museum'&&roomAt(p)!=='museum'&&path.some(node=>node.id==='museumDoor');
   const approachPending=stairPending||museumDoorPending;
   if(!arrived&&!approachPending&&remaining<8&&Math.abs(p.y-destination.y)<(goal==='upperStands'?.65:1)){
-   if(walkSegmentClear(p,destination,geometry,getWalls())){
+   if(walkSegmentClear(p,destination,geometry,walls)){
     blocked=false;
     if(remaining<(goal==='upperStands'?1.45:2.3)){path=[];arrived=true;lastDraw=null;}
     else if(path.length!==1||path[0].id!==goal){anchor={...p};path=[destination];lastDraw=null;}
@@ -219,16 +218,16 @@ export function buildWalkGuide(scene,geometry,{obstacles={},onChoose,onSelect,on
   }
   // Advance intermediate waypoints only. The final destination uses the
   // clear-segment check above, even when it is just on the other side of a wall.
-  while(path.length>1&&waypointReached(p,path[0],anchor,path[1])&&walkSegmentClear(p,path[1],geometry,getWalls())){
+  while(path.length>1&&waypointReached(p,path[0],anchor,path[1])&&walkSegmentClear(p,path[1],geometry,walls)){
    anchor=path.shift();ribbonSegments.delete(anchor);lastDraw=null;
   }
   if(!path.length&&!blocked&&!arrived)reset(position);
   if(shouldReplan&&!arrived&&planClock>1.2){
    planClock=0;
    const target=path[0],distance=Math.hypot(p.x-anchor.x,p.z-anchor.z);
-   if(!approachPending&&path.length>1&&distance>.7&&directWalkDestination(p,goal,geometry,getWalls())){
+   if(!approachPending&&path.length>1&&distance>.7&&directWalkDestination(p,goal,geometry,walls)){
     anchor=p;path=[destination];lastDraw=null;
-   }else if(blocked?distance>.7:target&&(!walkSegmentClear(p,target,geometry,getWalls())||distance>55))reset(position);
+   }else if(blocked?distance>.7:target&&(!walkSegmentClear(p,target,geometry,walls)||distance>55))reset(position);
    lastPlannedPosition=p;
   }
   lastCheckedPosition=p;

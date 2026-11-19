@@ -3,10 +3,16 @@ import {bridges,onBridge,roomAt,upperAisleEntry,upperThresholdLanding,upperTierT
 import {furnitureBlocksSegment} from './furniture-layout.js';
 import {serviceRoomAt,serviceWorld} from './service-layout.js';
 import {floorHeight,canStandAt,EYE_HEIGHT,MAX_STEP} from './navigation.js';
+import {indexWalkWallSegments} from './walk-collision-index.js';
 
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z,(a.y-b.y)*2);
+const fixedObstacles=groups=>[...(groups.world||[]),...(groups.building||[]),...(groups.interiors||[]),...(groups.service||[]),...(groups.circulation||[])].filter(wall=>!wall.dynamicDoor);
 export function navigationObstacles(position,groups){
- return [...(groups.world||[]),...(groups.building||[]),...(groups.interiors||[]),...(groups.service||[]),...(groups.circulation||[])].filter(b=>b.enabled!==false&&!b.dynamicDoor);
+ return fixedObstacles(groups).filter(wall=>wall.enabled!==false);
+}
+export function prepareWalkObstacles(groups){
+ const walls=fixedObstacles(groups);
+ return {walls,inBounds:indexWalkWallSegments(walls)};
 }
 function localBounds(b){
  if(b.cx===undefined)return b;
@@ -40,7 +46,9 @@ export function walkSegmentClear(a,b,geometry,obstacles){
  if(crossesUpperLanding(a,b))return false;
  const room=roomAt(a)||roomAt(b);if(room&&furnitureBlocksSegment(a,b,room))return false;
  const minX=Math.min(a.x,b.x),maxX=Math.max(a.x,b.x),minZ=Math.min(a.z,b.z),maxZ=Math.max(a.z,b.z);
- for(const wall of obstacles){
+ const candidates=obstacles.inBounds?.(minX,minZ,maxX,maxZ)??obstacles;
+ for(const wall of candidates){
+  if(wall.enabled===false)continue;
   if(wall.cx===undefined){
    if(wall.x1<=minX||wall.x0>=maxX||wall.z1<=minZ||wall.z0>=maxZ)continue;
   }else{
@@ -70,7 +78,7 @@ function obstacleCorners(w,y){const gap=.45;
 function detour(a,b,geometry,obstacles){
  if(Math.abs(a.y-b.y)>.85)return null;
  const bounds={x0:Math.min(a.x,b.x)-7,x1:Math.max(a.x,b.x)+7,z0:Math.min(a.z,b.z)-7,z1:Math.max(a.z,b.z)+7};
- const nearby=obstacles.filter(w=>{const r=localBounds(w);return r.x1>bounds.x0&&r.x0<bounds.x1&&r.z1>bounds.z0&&r.z0<bounds.z1&&a.y+EYE_HEIGHT>w.y0+.2&&a.y<w.y1;});
+ const nearby=(obstacles.walls??obstacles).filter(w=>{if(w.enabled===false)return false;const r=localBounds(w);return r.x1>bounds.x0&&r.x0<bounds.x1&&r.z1>bounds.z0&&r.z0<bounds.z1&&a.y+EYE_HEIGHT>w.y0+.2&&a.y<w.y1;});
  const corners=nearby.flatMap(w=>obstacleCorners(w,a.y)).filter(p=>p.x>bounds.x0&&p.x<bounds.x1&&p.z>bounds.z0&&p.z<bounds.z1&&canStandAt(p.x,p.z,p.y,geometry)&&!nearby.some(w=>segmentHitsObstacle(p,p,w))).sort((p,q)=>distance(a,p)+distance(p,b)-distance(a,q)-distance(q,b)).slice(0,96);
  const points=[a,b,...corners],costs=new Map([[0,0]]),previous=new Map(),open=[0],closed=new Set(),clearCache=new Map();
  const clear=(i,j)=>{const key=i<j?i+':'+j:j+':'+i;if(!clearCache.has(key))clearCache.set(key,walkSegmentClear(points[i],points[j],geometry,nearby));return clearCache.get(key);};
@@ -148,9 +156,8 @@ function connectTour(position,route,geometry,groups,obstacles){
  }
  return null;
 }
-export function planWalkPath(position,goal,geometry,groups={}){
- const service=serviceRoomAt(position);if(service){const door={...serviceWorld(service,0,.45),y:service.y},outside=serviceWorld(service,0,3.1),node=(p,id,label)=>({...p,y:service.y,id,level:'upper',label,hint:'按 F 或点击互动按钮打开服务间双门，再回到公共大厅。'}),obstacles=navigationObstacles(position,groups),prefix=walkSegmentClear(position,door,geometry,obstacles)?[]:detour(position,door,geometry,obstacles),tail=planWalkPath({...outside,y:service.y},goal,geometry,groups);if(!prefix)return{path:[],blocked:true};return{path:[...prefix,node(door,service.id+'Exit','走出服务间'),node(outside,service.id+'Outside','返回公共大厅'),...tail.path],blocked:tail.blocked};}
- const obstacles=navigationObstacles(position,groups);
+export function planWalkPath(position,goal,geometry,groups={},obstacles=navigationObstacles(position,groups)){
+ const service=serviceRoomAt(position);if(service){const door={...serviceWorld(service,0,.45),y:service.y},outside=serviceWorld(service,0,3.1),node=(p,id,label)=>({...p,y:service.y,id,level:'upper',label,hint:'按 F 或点击互动按钮打开服务间双门，再回到公共大厅。'}),prefix=walkSegmentClear(position,door,geometry,obstacles)?[]:detour(position,door,geometry,obstacles),tail=planWalkPath({...outside,y:service.y},goal,geometry,groups,obstacles);if(!prefix)return{path:[],blocked:true};return{path:[...prefix,node(door,service.id+'Exit','走出服务间'),node(outside,service.id+'Outside','返回公共大厅'),...tail.path],blocked:tail.blocked};}
  const thresholdRoute=routeFromUpperThresholdStairs(position,goal,geometry,groups,obstacles);
  if(thresholdRoute)return thresholdRoute;
  const direct=directWalkDestination(position,goal,geometry,obstacles);
