@@ -39,6 +39,7 @@ export function movementInstruction(position,yaw,target,next,goal){
  let action=height>1.5?'沿楼梯上行':height<-1.5?'沿楼梯下行':/^lower\d+$/.test(target.id)?'沿入口环廊前行':/^upper\d+$/.test(target.id)?'沿公共大厅前行':target.label;
  let hint=target.hint;
  const door=doorRooms[target.id];
+ const doorway=door||['coreFront','corePublicFront','upperThreshold'].includes(target.id);
  if(door){
   const entering=next&&(next.id===door[0]||next.id.startsWith(door[0]+'Walk')||door[0]==='press'&&next.id==='pressEntry');
   action=(entering?'进入':'走出')+door[1];
@@ -111,19 +112,20 @@ export function movementInstruction(position,yaw,target,next,goal){
  if(target.id==='tunnel'&&!next){action=target.label;hint='前方台阶通往草坪，通道另一端连接更衣区。';}
  const returningToLanding=target.id==='upperThresholdFoot'&&next?.id==='upperThreshold'&&height<-.28;
  if(returningToLanding){
-  action='退回连廊楼梯底部';hint='先下一级回到平台，沿地线走到连廊台阶正前方。';
+  action='退回连廊楼梯底部';hint='先回到下方平台，沿地线走到连廊台阶正前方。';
  }
  const upperLanding=upperLandingTurn(target.id),gallery=galleryTurn(target.id);
- if(!returningToLanding&&next&&distance>.43&&distance<3&&Math.abs(angle)<.48&&(upperLanding||gallery||coreTurn(target.id))){
+ const previewClearance=upperLanding?.24:.43;
+ if(!returningToLanding&&next&&distance>previewClearance&&distance<3&&Math.abs(angle)<.48&&(upperLanding||gallery||coreTurn(target.id))){
   const towardTarget=Math.atan2(position.x-target.x,position.z-target.z),turn=relativeBearing(target,towardTarget,next);
   if(Math.abs(turn)>.88&&Math.abs(turn)<2.45){
    const direction=turn>0?'右转':'左转';
-   action=(gallery?'到连廊转角后':'到平台后')+direction;
-   hint=(gallery?'沿地线走到转角':'沿地线走到平台')+'，再'+direction+'。'+(hint??'');
+   action=(doorway?'过门口后':gallery?'到连廊转角后':'到平台后')+direction;
+   const approach=doorway?'沿地线穿过门洞':gallery?'沿地线走到转角':Math.abs(height)>.45?'沿扶手与踏步到平台':'沿地线走到平台';
+   hint=approach+'，再'+direction+'。';
   }
  }
  if(Math.abs(angle)>2.35)action='转身，'+action;else if(angle>.65)action='右转，'+action;else if(angle<-.65)action='左转，'+action;
- const doorway=door||['coreFront','corePublicFront','upperThreshold'].includes(target.id);
  const landmark=doorway?'门口':gallery?'转角':upperLanding||coreTurn(target.id)?'平台':null;
  return{angle,distance,action,hint,landmark};
 }

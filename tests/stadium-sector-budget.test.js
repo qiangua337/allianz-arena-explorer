@@ -10,6 +10,8 @@ const {partitionStaticMesh}=await import('../dist/spatial-batches.js');
 const {freezeArchitecture}=await import('../dist/scene-budget.js');
 const {bowlOpening}=await import('../dist/tour-route.js');
 const {createCrowdLayout}=await import('../dist/crowd-layout.js');
+const {accessStairs,ACCESS_BASE,ACCESS_TOP}=await import('../dist/access-layout.js');
+const {fitoutVolumes}=await import('../dist/room-volumes.js');
 const {buildWalkBuilding}=await import('../dist/walk-building.js');
 const {upperAislePoint,upperAisleEntry,upperThresholdFoot,upperTierThreshold,upperAisleTreadHeight}=await import('../dist/building-layout.js');
 const scene=new THREE.Scene(),stadium=buildStadium(scene),triangles=o=>(o.geometry.index?.count??o.geometry.attributes.position.count)/3;
@@ -25,6 +27,26 @@ test('the divided static rings keep their triangles and shared depth material',(
  assert.ok(upper.every(o=>o.castShadow&&o.customDepthMaterial===upper[0].customDepthMaterial));assert.ok(meshes(lining).every(o=>o.castShadow&&o.receiveShadow));
  const plainSeats=stadium.bowl.children.filter(o=>o.isInstancedMesh&&o.instanceColor&&o.count>384);assert.equal(plainSeats.length,24,'the existing seat sectors are untouched');
  assert.equal(stadium.matchBall.isMesh,true);assert.ok(stadium.matchBall.geometry.attributes.position.count>1000,'dynamic ball is not spatially divided');
+});
+
+test('ETFE fragment work stays out of the high roof but keeps every opening in color and shadows',()=>{
+ const facade=meshes(stadium.root).find(mesh=>mesh.name.startsWith('ETFE exterior facade'));
+ for(const [material,program] of [[facade.material,'standard'],[facade.customDepthMaterial,'depth']]){
+  const source=THREE.ShaderLib[program];
+  const shader={vertexShader:source.vertexShader,fragmentShader:source.fragmentShader,uniforms:{}};
+  material.onBeforeCompile(shader);
+  const guards=[...shader.fragmentShader.matchAll(/if\(vPortalPosition\.y>([-\d.]+)&&vPortalPosition\.y<([-\d.]+)\)/g)].map(match=>match.slice(1).map(Number));
+  assert.equal(guards.length,2);
+  const [[stairMin,stairMax],[roomMin,roomMax]]=guards;
+  for(const {run} of accessStairs){
+   const slope=(ACCESS_TOP-ACCESS_BASE)/run;
+   assert.ok(stairMin<=ACCESS_BASE-.3*slope-.45&&stairMax>=ACCESS_TOP+1.8*slope+4.15);
+  }
+  for(const room of fitoutVolumes)assert.ok(roomMin<=room.minY&&roomMax>=room.maxY);
+  for(const mesh of upper)assert.ok(mesh.geometry.boundingBox.min.y>Math.max(stairMax,roomMax));
+  assert.equal((shader.fragmentShader.match(/float along=-dot\(delta/g)||[]).length,accessStairs.length);
+  assert.equal((shader.fragmentShader.match(/all\(greaterThan\(vPortalPosition/g)||[]).length,fitoutVolumes.length);
+ }
 });
 test('near the field, lighting banks keep every fixture but only submit the arcs within the view',()=>{
  const saved=globalThis.innerWidth;globalThis.innerWidth=390;

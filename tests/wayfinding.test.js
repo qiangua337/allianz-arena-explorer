@@ -42,9 +42,11 @@ test('arms the next turn from the current stair or gallery approach without redi
  const {flight2Out,flight2Turn,upperBridgeStart,upperThreshold,upperAisleEntry,upperThresholdFoot}=tourNodes;
  const core=movementInstruction({...flight2Out,z:flight2Out.z-1.8,y:flight2Out.y-.7},Math.PI,flight2Out,flight2Turn);
  assert.equal(core.action,'到平台后左转');assert.ok(Math.abs(core.angle)<.01);
+ assert.equal(core.hint,'沿扶手与踏步到平台，再左转。');
  const gallery=movementInstruction({...upperBridgeStart,z:upperBridgeStart.z+2},0,upperBridgeStart,upperThreshold);
  assert.equal(gallery.action,'到连廊转角后左转');assert.equal(gallery.angle,0);
- const landing=movementInstruction({...upperThresholdFoot,z:upperThresholdFoot.z+.68},0,upperThresholdFoot,upperThreshold);
+ assert.equal(gallery.hint,'沿地线走到转角，再左转。');
+ const landing=movementInstruction({...upperThresholdFoot,z:upperThresholdFoot.z+.31},0,upperThresholdFoot,upperThreshold);
  assert.equal(landing.action,'到平台后右转');assert.equal(landing.angle,0);
  const offAxis=movementInstruction({...upperAisleEntry,z:upperAisleEntry.z+.68},Math.PI/2,upperAisleEntry,upperThresholdFoot);
  assert.match(offAxis.action,/^右转，沿座席台阶上行$/);
@@ -91,9 +93,9 @@ test('the stairs and gallery tell the visitor what is around the actual corner',
  const look=(from,to)=>Math.atan2(from.x-to.x,from.z-to.z);
  const beforeDoor={...corePublicFront,x:corePublicFront.x-2};
  const enter=movementInstruction(beforeDoor,look(beforeDoor,corePublicFront),corePublicFront,landing1);
- assert.equal(enter.action,'到平台后右转');
+ assert.equal(enter.action,'过门口后右转');
  assert.equal(enter.landmark,'门口');
- assert.match(enter.hint,/穿过门洞/);
+ assert.equal(enter.hint,'沿地线穿过门洞，再右转。');
  assert.equal(waypointReached(beforeDoor,corePublicFront,corePublicApproach,landing1),false);
  const fromGallery=movementInstruction(upperGalleryOuter,look(upperGalleryOuter,upperBridgeStart),upperBridgeStart,upperThreshold);
  assert.equal(fromGallery.action,'走到上层连廊转角');

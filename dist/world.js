@@ -111,6 +111,18 @@ function addTreeBelt(parent,positions,leaf,random){
 
 export function buildWorld(scene){
  const group=new THREE.Group();group.name='Fröttmaning context | approximate surroundings';scene.add(group);const b=new Batches(group),colliders=[];
+ // Highway markings and sleepers span kilometres. Keep the same instances in
+ // local groups so a glimpse of one stretch does not submit every box.
+ const transportTiles=new Map(),tileSize=160;
+ function transportDetail(width,height,depth,x,y,z,material){
+  const key=Math.floor(x/tileSize)+','+Math.floor(z/tileSize);
+  let tile=transportTiles.get(key);
+  if(!tile){
+   const root=new THREE.Group();root.name='Road markings and rail sleepers · '+key;group.add(root);
+   tile=new Batches(root);transportTiles.set(key,tile);
+  }
+  tile.add(width,height,depth,x,y,z,material);
+ }
  const surfaces=landscapeMaterials(),concrete=surfaces.concrete,edge=mat(0x8b9294),grass=surfaces.grass,road=surfaces.road,pale=mat(0xd4d4c9),dark=mat(0x17252b),metal=mat(0x87959b,{metalness:.5,roughness:.55}),leaf=mat(0x40532c,{roughness:1,envMapIntensity:.02}),stripe=mat(0xc7ccbf),red=mat(0xc61935),blue=mat(0x173f75);
  const lightMat=new THREE.MeshBasicMaterial({color:0xfff0d0,toneMapped:false});
  const terrain=mesh(new THREE.PlaneGeometry(10000,10000),grass,group,0,-12.2,0);terrain.rotation.x=-Math.PI/2;
@@ -141,11 +153,11 @@ export function buildWorld(scene){
  // Roads: eastern A9, northern A99, the local stadium loop and west service road.
  b.add(42,.15,1700,197,-11.9,70,road);b.add(1500,.15,36,150,-11.8,-261,road);b.add(9,.2,900,-165,-11.8,210,road);
  b.add(1,.32,1700,197,-11.55,70,edge);
- for(let i=0;i<140;i++)for(const x of[182,188,205,211])b.add(.12,.025,4,x,-11.79,-770+i*12,stripe);
- for(let i=0;i<124;i++)for(const z of[-273,-266,-254,-247])b.add(4,.025,.12,-600+i*12,-11.68,z,stripe);
+ for(let i=0;i<140;i++)for(const x of[182,188,205,211])transportDetail(.12,.025,4,x,-11.79,-770+i*12,stripe);
+ for(let i=0;i<124;i++)for(const z of[-273,-266,-254,-247])transportDetail(4,.025,.12,-600+i*12,-11.68,z,stripe);
  const loop=[];for(let i=0;i<=256;i++){const p=superpoint(157,180,i/256*TAU,2.8);p.y=-10.8;loop.push(p);}const curve=new THREE.CatmullRomCurve3(loop,true);const loopTube=mesh(new THREE.TubeGeometry(curve,256,4,4,true),road,group);loopTube.scale.y=.05;loopTube.position.y=-10.3;
  // Rail depot and Fröttmaning underground station west of the esplanade.
- for(let j=0;j<8;j++){const x=-224-j*6;b.add(.13,.2,1100,x,-11.7,220,metal);b.add(.13,.2,1100,x+1.5,-11.7,220,metal);for(let i=0;i<80;i++)b.add(3,.08,.22,x+.75,-11.8,-320+i*14,edge);}
+ for(let j=0;j<8;j++){const x=-224-j*6;b.add(.13,.2,1100,x,-11.7,220,metal);b.add(.13,.2,1100,x+1.5,-11.7,220,metal);for(let i=0;i<80;i++)transportDetail(3,.08,.22,x+.75,-11.8,-320+i*14,edge);}
  for(let z=390;z<=520;z+=65){b.add(20,4.5,55,-204,-9.6,z,pale);b.add(21,.4,56,-204,-7.25,z,metal);for(let j=0;j<10;j++)b.add(.1,2.3,2,-193.9,-9.2,z-24+j*5,dark);}
  const station=sign(group,'U6   FRÖTTMANING',23,2,-193.6,-7.7,457,{fg:'#fff',bg:'#143d70',font:75,h:160});station.rotation.y=Math.PI/2;
  for(let track=0;track<2;track++)for(let c=0;c<6;c++){const x=-226-track*12,z=455+c*19;b.add(3.1,2.4,18,x,-10.3,z,blue);b.add(3.15,.6,14,x,-10,z,dark);b.add(3.2,.3,18,x,-8.9,z,pale);}
@@ -189,6 +201,7 @@ export function buildWorld(scene){
  // A belt of instanced trees keeps the surrounding open landscape visible at useful frame rates.
  const treePositions=[];for(let i=0;i<1350;i++){const x=(random()-.5)*1800,z=(random()-.5)*1900;if(Math.abs(x)<165&&z>-190&&z<710)continue;if(Math.abs(x-197)<35||Math.abs(z+261)<28||Math.abs(x+245)<48)continue;if(x<-175&&x>-385&&z>160&&z<600)continue;treePositions.push({x,z,s:2.5+random()*4,y:-12});}
  addTreeBelt(group,treePositions,leaf,random);
+ for(const tile of transportTiles.values())tile.flush();
  b.flush();
  const nightLights=[];for(const p of lampPositions.filter((_,i)=>i%5===0)){const l=new THREE.PointLight(0xffdda3,0,20,1.8);l.position.copy(p).add(v(0,6,0));group.add(l);nightLights.push(l);}
  const groundSpill=buildNightGroundSpill(group,lampPositions);groundSpill.setNight(false);let isNight=false;

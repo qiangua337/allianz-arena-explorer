@@ -3,7 +3,7 @@ import {drawPitchArtwork,drawApronArtwork} from './pitch-artwork.js';
 import {buildPitchsideDetails} from './pitchside-details.js';
 import {createGoalNetMaterial,goalFeedbackController} from './goal-feedback.js';
 import {buildGoalNetGeometry} from './goal-net.js';
-import {fitoutShaderCuts} from './room-volumes.js';
+import {fitoutShaderCuts,fitoutVolumes} from './room-volumes.js';
 import {surfaceMaps} from './visual-assets.js';
 import {buildNearSeatDetails,foldedSeatGeometry,seatShellGeometry} from './near-seat-details.js';
 import {buildBowlLighting} from './stadium-lighting.js';
@@ -88,7 +88,25 @@ export function buildStadium(scene){
  // Clip the entire inflated panel surface at the stair portals, including its
  // corners and shadow pass. Dropping panel centres leaves diamond-shaped obstructions.
  const portalCuts=accessStairs.map((s,i)=>`{vec2 delta=vPortalPosition.xz-vec2(${s.x.toFixed(5)},${s.z.toFixed(5)});float along=-dot(delta,vec2(${s.nx.toFixed(6)},${s.nz.toFixed(6)}));float side=dot(delta,vec2(${s.nz.toFixed(6)},${(-s.nx).toFixed(6)}));float floorY=${ACCESS_BASE.toFixed(3)}+along*${((ACCESS_TOP-ACCESS_BASE)/s.run).toFixed(6)};if(abs(side)<${(s.width/2+.34).toFixed(3)}&&along>-.3&&along<${(s.run+1.8).toFixed(3)}&&vPortalPosition.y>floorY-.45&&vPortalPosition.y<floorY+4.15)discard;}`).join('\n');
- function cutPortals(material){material.onBeforeCompile=shader=>{shader.vertexShader='varying vec3 vPortalPosition;\n'+shader.vertexShader;shader.vertexShader=shader.vertexShader.replace('#include <project_vertex>','#include <project_vertex>\nvPortalPosition=(modelMatrix*vec4(transformed,1.0)).xyz;');shader.fragmentShader='varying vec3 vPortalPosition;\n'+shader.fragmentShader;shader.fragmentShader=shader.fragmentShader.replace('#include <clipping_planes_fragment>','#include <clipping_planes_fragment>\n'+portalCuts+'\n'+fitoutShaderCuts);if(material.isMeshStandardMaterial)shader.fragmentShader=shader.fragmentShader.replace('#include <emissivemap_fragment>','#include <emissivemap_fragment>\n#if defined(USE_COLOR) || defined(USE_COLOR_ALPHA)\ntotalEmissiveRadiance*=pow(clamp(vColor.rgb,vec3(0.),vec3(1.)),vec3(2.2));\n#endif');};material.customProgramCacheKey=()=> 'arena-stair-portals-fitout-v3';return material;}
+ const steepest=Math.max(...accessStairs.map(stair=>(ACCESS_TOP-ACCESS_BASE)/stair.run));
+ // Widen the Y limits to whole metres, leaving the exact cuts unchanged.
+ // Roof pixels above all openings skip the individual stair and room tests.
+ const cutInHeight=(cuts,min,max)=>`if(vPortalPosition.y>${Math.floor(min).toFixed(1)}&&vPortalPosition.y<${Math.ceil(max).toFixed(1)}){\n${cuts}\n}`;
+ const shellCuts=[
+  cutInHeight(portalCuts,ACCESS_BASE-.3*steepest-.45,ACCESS_TOP+1.8*steepest+4.15),
+  cutInHeight(fitoutShaderCuts,Math.min(...fitoutVolumes.map(room=>room.minY)),Math.max(...fitoutVolumes.map(room=>room.maxY)))
+ ].join('\n');
+ function cutPortals(material){
+  material.onBeforeCompile=shader=>{
+   shader.vertexShader='varying vec3 vPortalPosition;\n'+shader.vertexShader;
+   shader.vertexShader=shader.vertexShader.replace('#include <project_vertex>','#include <project_vertex>\nvPortalPosition=(modelMatrix*vec4(transformed,1.0)).xyz;');
+   shader.fragmentShader='varying vec3 vPortalPosition;\n'+shader.fragmentShader;
+   shader.fragmentShader=shader.fragmentShader.replace('#include <clipping_planes_fragment>','#include <clipping_planes_fragment>\n'+shellCuts);
+   if(material.isMeshStandardMaterial)shader.fragmentShader=shader.fragmentShader.replace('#include <emissivemap_fragment>','#include <emissivemap_fragment>\n#if defined(USE_COLOR) || defined(USE_COLOR_ALPHA)\ntotalEmissiveRadiance*=pow(clamp(vColor.rgb,vec3(0.),vec3(1.)),vec3(2.2));\n#endif');
+  };
+  material.customProgramCacheKey=()=> 'arena-stair-portals-fitout-v4';
+  return material;
+ }
  shellMaterials.forEach(m=>{cutPortals(m);installEtfeSurface(m);});const shellDepth=cutPortals(new THREE.MeshDepthMaterial({depthPacking:THREE.RGBADepthPacking,side:THREE.DoubleSide}));
  const buffers=[{p:[],c:[],i:[]},{p:[],c:[],i:[]},{p:[],c:[],i:[]}];let panelCount=0;
  const rand=seeded(370);const samples=16,rings=3;
