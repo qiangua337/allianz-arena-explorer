@@ -64,6 +64,38 @@ test('the upper mobile aisle keeps visible hardware with the same number of draw
  }finally{if(saved===undefined)delete globalThis.innerWidth;else globalThis.innerWidth=saved;}
 });
 
+test('far phone roof cushions keep their full rim and restore the close-up mesh',()=>{
+ const saved=globalThis.innerWidth;globalThis.innerWidth=390;
+ const camera=new THREE.PerspectiveCamera(66,390/844,.06,4500);
+ camera.position.set(100.438,39.14,-35.175);camera.rotation.set(-.288,1.91,0,'YXZ');
+ stadium.update(camera,'orbit',true);
+ const full=upper.map(mesh=>mesh.geometry);
+ function boundary(geometry){
+  const edges=new Set(),index=geometry.index.array;
+  for(let i=0;i<index.length;i+=3)for(let k=0;k<3;k++){
+   const a=index[i+k],b=index[i+(k+1)%3];
+   const key=a<b?a+':'+b:b+':'+a;
+   if(!edges.delete(key))edges.add(key);
+  }
+  return edges;
+ }
+ try{
+  stadium.update(camera,'walk');
+  let savedTriangles=0,near=0;
+  for(const [i,mesh]of upper.entries()){
+   const original=full[i],current=mesh.geometry;
+   if(original===current){near++;continue;}
+   assert.ok(original.boundingBox.distanceToPoint(camera.position)>65);
+   for(const name of ['position','normal','color'])assert.equal(current.attributes[name],original.attributes[name]);
+   assert.deepEqual(boundary(current),boundary(original),'cushion rims and sector cuts are unchanged');
+   if(mesh.visible)savedTriangles+=(original.index.count-current.index.count)/3;
+  }
+  assert.ok(near>0&&savedTriangles>9000);
+  stadium.update(camera,'walk',true);
+  assert.ok(upper.every((mesh,i)=>mesh.geometry===full[i]));
+ }finally{if(saved===undefined)delete globalThis.innerWidth;else globalThis.innerWidth=saved;}
+});
+
 test('ETFE fragment work stays out of the high roof but keeps every opening in color and shadows',()=>{
  const facade=meshes(stadium.root).find(mesh=>mesh.name.startsWith('ETFE exterior facade'));
  for(const [material,program] of [[facade.material,'standard'],[facade.customDepthMaterial,'depth']]){

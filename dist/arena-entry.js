@@ -12,6 +12,21 @@ const body=document.body;
 const overlay=document.getElementById('loading');
 const status=document.getElementById('load-status');
 const actions=document.getElementById('load-actions');
+// Reload a partially constructed WebGL scene in a fresh document, returning
+// to the chosen activity. The retry belongs only to this history entry.
+const retry=history.state?.arenaRetry;
+if(retry){
+ const state={...history.state};
+ delete state.arenaRetry;
+ history.replaceState(state,'');
+}
+
+function retryScene(){
+ if(body.dataset.startup!=='error')return;
+ body.dataset.startup='loading';
+ try{history.replaceState({...history.state,arenaRetry:{mode:pendingMode??null}},'');}catch{}
+ location.reload();
+}
 
 function enter(mode){
  if(mode)pendingMode=mode;
@@ -20,9 +35,12 @@ function enter(mode){
   pendingMode=undefined;
   return;
  }
- if(loading)return;
+ if(loading){
+  if(body.dataset.startup==='error')queueMicrotask(retryScene);
+  return;
+ }
  body.dataset.startup='loading';
- loading=import('./app.js?v=11301')
+ loading=import('./app.js?v=11302')
   .then(({startArena})=>startArena({hub,initial,nightAtStart:night}))
   .then(api=>{
    arena=api;
@@ -70,8 +88,9 @@ const hub=buildExperienceHub({
 });
 
 document.getElementById('load-home').onclick=()=>hub.open();
-document.getElementById('load-retry').onclick=()=>location.reload();
-if(shouldOpenExperienceHub(initial)){
+document.getElementById('load-retry').onclick=retryScene;
+if(retry)enter(retry.mode);
+else if(shouldOpenExperienceHub(initial)){
  body.dataset.startup='home';
  hub.open();
 }else enter();

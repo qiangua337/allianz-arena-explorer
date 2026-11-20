@@ -116,6 +116,43 @@
   letter-spacing: 0;
 }
 
+#prematch-options { display: contents; }
+#opponent-picker > summary {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  min-height: 58px;
+  padding: 6px 10px;
+  border: 1px solid var(--rule);
+  border-radius: 7px;
+  background: var(--panel);
+  color: var(--ink);
+  cursor: pointer;
+  list-style: none;
+}
+#opponent-picker > summary::-webkit-details-marker { display: none; }
+#opponent-picker[open] > summary { margin-bottom: 10px; }
+#opponent-picker .fixture-choice { display: grid; gap: 2px; }
+#opponent-picker .fixture-choice small { color: var(--muted); font-size: 12px; }
+#opponent-picker .fixture-choice strong { font-size: 16px; line-height: 1.35; }
+#opponent-picker .fixture-edit {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--accent);
+  font-size: 12px;
+}
+#opponent-picker .fixture-edit::after {
+  width: 7px;
+  height: 7px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(45deg) translate(-1px, -1px);
+  content: '';
+}
+#opponent-picker[open] .fixture-edit::after { transform: rotate(225deg); }
+
 #match-dialog .opponent-options,
 #match-dialog .setup-row,
 #match-dialog .rules-modes,
@@ -547,6 +584,7 @@
       "intro intro"
       "tabs tabs"
       "teams rules"
+      "fps rules"
       "online start"
       "note note";
     column-gap: var(--match-gap);
@@ -557,6 +595,7 @@
   #match-dialog #match-intro-copy { grid-area: intro; }
   #match-dialog .match-page-tabs { grid-area: tabs; }
   #match-dialog .match-setup { grid-area: teams; }
+  #match-dialog .match-fps-row { grid-area: fps; }
   #match-dialog .match-rules-section { grid-area: rules; }
   #match-dialog #match-online { grid-area: online; }
   #match-dialog #match-play { grid-area: start; }
@@ -678,11 +717,31 @@
   padding: 7px 10px;
   font-size: 13px;
 }
-#match-dialog > .match-fps-row {
+#match-dialog #prematch-options > .match-fps-row {
   padding-block: 10px;
 }
-#match-dialog:not([data-panel=play]):not([data-panel=online]) > .match-fps-row {
+#match-dialog:not([data-panel=play]):not([data-panel=online]) #prematch-options > .match-fps-row {
   display: none;
+}
+
+@media (max-width: 779px), (max-height: 500px) and (max-width: 1000px) {
+  #match-dialog[open][data-panel=play]:not(.online-room-open) {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    scrollbar-gutter: auto;
+  }
+  #match-dialog[data-panel=play] > * { flex: none; }
+  #match-dialog[data-panel=play] #prematch-options {
+    display: block;
+    flex: 0 1 auto;
+    min-height: 0;
+    overflow: auto;
+    overscroll-behavior: contain;
+    padding: 3px;
+    scroll-padding-block: 4px;
+  }
+  #match-dialog[data-panel=play] #match-play { margin: 8px 3px 0; width: auto; }
 }
 .game-frame-rate {
   display: grid;

@@ -5,7 +5,8 @@ import {footballTeams,footballTeam,footballLeagues,opponentSquad,difficulties,ca
 export function buildMatchSetup(storage){
  const $=id=>document.getElementById(id);
  let options=loadMatchOptions(storage),league='all';
- const leagueList=$('opponent-leagues'),opponentList=$('opponent-options');
+ const leagueList=$('opponent-leagues'),opponentList=$('opponent-options'),picker=$('opponent-picker');
+ const pickerSummary=picker.querySelector('summary'),selectedKit=$('setup-opponent-kit');
  leagueList.innerHTML=[...footballLeagues].map(([id,label])=>`<button type="button" data-opponent-league="${id}" aria-pressed="false">${label}</button>`).join('');
  opponentList.innerHTML=footballTeams.map(t=>`<button type="button" class="opponent-card" data-opponent="${t.id}" data-pattern="${t.kit.pattern}" aria-label="选择${t.name}" aria-pressed="false"><span class="club-swatch" style="--shirt:${t.kit.shirt};--ink:${t.kit.ink};--stripe:${t.kit.stripe}">${t.code}</span><span><b>${t.name}</b><small>${t.style}</small></span><i aria-hidden="true">✓</i></button>`).join('');
  const leagueButtons=[...leagueList.querySelectorAll('button')];
@@ -33,6 +34,12 @@ export function buildMatchSetup(storage){
   for(const b of document.querySelectorAll('[data-match-difficulty]'))b.setAttribute('aria-pressed',String(b.dataset.matchDifficulty===options.difficulty));
   for(const b of document.querySelectorAll('[data-match-camera]'))b.setAttribute('aria-pressed',String(b.dataset.matchCamera===options.camera));
   const club=footballTeam(options.opponent),squad=opponentSquad(club.id),lineup=createTeamSheet(null,'away',club.id);
+  $('setup-opponent-name').textContent=club.name;
+  selectedKit.textContent=club.code;
+  pickerSummary.dataset.pattern=club.kit.pattern;
+  selectedKit.style.setProperty('--shirt',club.kit.shirt);
+  selectedKit.style.setProperty('--stripe',club.kit.stripe);
+  selectedKit.style.setProperty('--ink',club.kit.ink);
   const players=new Map([...squad.xi,...squad.bench].map(p=>[p.player.number,p.player.name]));
   const formation=footballFormations[lineup.formation].label;
   $('match-setup-summary').textContent='拜仁 × '+club.name+' · '+difficulties[options.difficulty].label+' · '+cameraLabels[options.camera]+'镜头 · '+rulesSummary(options.rules);
@@ -42,9 +49,13 @@ export function buildMatchSetup(storage){
   $('match-team-checked').textContent=club.checked;
  }
  for(const button of leagueButtons)button.onclick=()=>{league=button.dataset.opponentLeague;renderClubs();};
- for(const {team,button} of opponentCards)button.onclick=()=>{options.opponent=team.id;save();};
+ for(const {team,button} of opponentCards)button.onclick=()=>{
+  options.opponent=team.id;save();
+  picker.open=false;
+  pickerSummary.focus();
+ };
  for(const b of document.querySelectorAll('[data-match-difficulty]'))b.onclick=()=>{options.difficulty=b.dataset.matchDifficulty;save();};
  for(const b of document.querySelectorAll('[data-match-camera]'))b.onclick=()=>{options.camera=b.dataset.matchCamera;save();};
  render();
- return{get options(){return structuredClone(options);},refresh(){options=loadMatchOptions(storage);if(league!=='all'&&league!==footballTeam(options.opponent).league)league='all';render();}};
+ return{get options(){return structuredClone(options);},refresh(){options=loadMatchOptions(storage);if(league!=='all'&&league!==footballTeam(options.opponent).league)league='all';picker.open=false;$('prematch-options').scrollTop=0;render();}};
 }

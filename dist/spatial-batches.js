@@ -65,13 +65,13 @@ export function buildMobileArcadeBatches(roots,sectors=6){
 
 // Preserve vertex indices and every attribute while splitting a static ring.
 // Each sector then gets a useful frustum bound instead of one stadium-wide box.
-export function partitionGeometry(geometry,sectors=16){
+export function partitionGeometry(geometry,sectors=16,includeSourceIndices=false){
  const p=geometry.attributes.position,index=geometry.index,attributes=Object.entries(geometry.attributes),bins=new Map();
  for(let t=0;t<(index?.count??p.count);t+=3){const ids=[0,1,2].map(j=>index?index.getX(t+j):t+j),x=ids.reduce((s,i)=>s+p.getX(i),0),z=ids.reduce((s,i)=>s+p.getZ(i),0),sector=angleSector(x,z,sectors);let bin=bins.get(sector);
   if(!bin){bin={sector,vertices:new Map(),index:[],arrays:Object.fromEntries(attributes.map(([key])=>[key,[]]))};bins.set(sector,bin);}
   for(const id of ids){let next=bin.vertices.get(id);if(next===undefined){next=bin.vertices.size;bin.vertices.set(id,next);for(const[key,a]of attributes)for(let j=0;j<a.itemSize;j++)bin.arrays[key].push(a.array[id*a.itemSize+j]);}bin.index.push(next);}
  }
- return [...bins.values()].map(bin=>{const g=new THREE.BufferGeometry();for(const[key,a]of attributes)g.setAttribute(key,new THREE.BufferAttribute(new a.array.constructor(bin.arrays[key]),a.itemSize,a.normalized));g.setIndex(bin.index);g.computeBoundingBox();g.computeBoundingSphere();return{geometry:g,sector:bin.sector};});
+ return [...bins.values()].map(bin=>{const g=new THREE.BufferGeometry();for(const[key,a]of attributes)g.setAttribute(key,new THREE.BufferAttribute(new a.array.constructor(bin.arrays[key]),a.itemSize,a.normalized));g.setIndex(bin.index);g.computeBoundingBox();g.computeBoundingSphere();return{geometry:g,sector:bin.sector,sourceIndices:includeSourceIndices?bin.vertices:undefined};});
 }
 // Use only for explicitly selected, immutable surfaces. Keep their owning
 // group, transforms and visibility while giving each arc a useful frustum box.

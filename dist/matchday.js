@@ -29,6 +29,8 @@ export function buildMatchdayExperience({scene,stadium,onBegin,onPose,onFinish,o
  function cheer(){if(game.training||!active||pending||pausedNow()||worldTime-lastCheer<1.5)return false;lastCheer=worldTime;audio.cheer();crowd.react(worldTime,1);return true;}
  function renderUI(){
   const stopped=pausedNow(),sample=entranceSample(time,{reducedMotion}),state=!active?'off':pending?'loading':stopped?'paused':game.active?game.state.phase:cinematic?sample.phase:'free';
+  const ball=stadium.matchBall?.position;
+  writeHudProperty(document.body.dataset,'matchBall',ball?[ball.x,ball.y,ball.z].map(n=>n.toFixed(3)).join(','):'');
   // The entrance controls remain mounted during matches. Unchanged hidden
   // labels and body selectors must not invalidate style on every HUD tick.
   writeHudDataset(document.body,{matchday:state,matchProgress:(time/ENTRANCE_DURATION).toFixed(3),matchCrowd:active?crowd.count:0,matchCrowdNear:active?crowd.nearCount:0,matchCrowdVisitors:active?crowd.visitorCount:0,matchCrowdAsset:crowd.assetState,matchAudioSeconds:audio.duration.toFixed(2),matchPlayers:active?players.positions:''});
@@ -78,11 +80,23 @@ export function buildMatchdayExperience({scene,stadium,onBegin,onPose,onFinish,o
    // but freeze the soundscape and audience on both devices, including halftime.
    game.update(dt,{...input,yaw:input.yaw??yaw},position,visualFrame);const stopped=pausedNow();if(stopped!==lastGamePaused){lastGamePaused=stopped;audio.setPaused(stopped);onPause?.(stopped);renderUI();}
    if(!stopped){worldTime+=Math.min(dt,.25);audio.update(position,yaw,dt);if(visualFrame&&!game.training)crowd.update(worldTime,position);visualClock+=dt;if(visualClock>1/24){visualClock=0;redraw=true;}}
-   uiClock+=dt;if(uiClock>(stopped?1:.1)){uiClock=0;document.body.dataset.matchBall=stadium.matchBall?.position.toArray().map(v=>v.toFixed(3)).join(',')||'';renderUI();}return;}if(!paused){worldTime+=Math.min(dt,.25);if(!pending)playerSeconds+=Math.min(dt,.25);visualClock+=dt;if(visualClock>1/24){visualClock=0;redraw=true;}if(cinematic&&!pending){time=Math.min(ENTRANCE_DURATION,time+Math.min(dt,.25));const sample=entranceSample(time,{reducedMotion});onPose?.(sample,{dt});if(sample.countdown!==lastCountdown){lastCountdown=sample.countdown;audio.cue(sample.countdown);}if(sample.reveal>.57&&!roared){roared=true;audio.cheer();}if(sample.finished)finish();}
-   setting.update(dt);crowd.update(worldTime,position);const p=cinematic?entranceSample(time,{reducedMotion}):null,walked=lastPosition?Math.hypot(position.x-lastPosition.x,position.z-lastPosition.z):0,moving=p?p.moving:walked>.003;
-   if(walked<2&&moving)stepDistance+=walked;if(stepDistance>.79){stepDistance%=.79;audio.footstep(steps++);}lastPosition={x:position.x,y:position.y,z:position.z};lastYaw=yaw;$('match-kick').hidden=cinematic||!setting.nearBall(position);players.update(playerSeconds,worldTime,position);const inTunnel=position.x>-72.8&&position.x<-40.4&&Math.abs(position.z)<2.5&&position.y<4;players.root.visible=players.ready&&!pending&&(inTunnel||stadium.root.visible&&stadium.bowl.visible)&&Math.hypot(position.x,position.z)<110&&position.y<10;audio.update(position,yaw,dt);
+   uiClock+=dt;if(uiClock>(stopped?1:.1)){uiClock=0;renderUI();}return;
   }
-  document.body.dataset.matchBall=stadium.matchBall?.position.toArray().map(v=>v.toFixed(3)).join(',')||'';uiClock+=dt;if(uiClock>.1){uiClock=0;renderUI();}
+  if(!paused){
+   worldTime+=Math.min(dt,.25);if(!pending)playerSeconds+=Math.min(dt,.25);
+   visualClock+=dt;if(visualFrame&&visualClock>=1/24){visualClock%=1/24;redraw=true;}
+   if(cinematic&&!pending){time=Math.min(ENTRANCE_DURATION,time+Math.min(dt,.25));const sample=entranceSample(time,{reducedMotion});onPose?.(sample,{dt});if(sample.countdown!==lastCountdown){lastCountdown=sample.countdown;audio.cue(sample.countdown);}if(sample.reveal>.57&&!roared){roared=true;audio.cheer();}if(sample.finished)finish();}
+   setting.update(dt);
+   if(visualFrame){
+    crowd.update(worldTime,position);
+    const inTunnel=position.x>-72.8&&position.x<-40.4&&Math.abs(position.z)<2.5&&position.y<4;
+    players.root.visible=players.ready&&!pending&&(inTunnel||stadium.root.visible&&stadium.bowl.visible)&&Math.hypot(position.x,position.z)<110&&position.y<10;
+    if(players.root.visible)players.update(playerSeconds,worldTime,position);
+   }
+   const p=cinematic?entranceSample(time,{reducedMotion}):null,walked=lastPosition?Math.hypot(position.x-lastPosition.x,position.z-lastPosition.z):0,moving=p?p.moving:walked>.003;
+   if(walked<2&&moving)stepDistance+=walked;if(stepDistance>.79){stepDistance%=.79;audio.footstep(steps++);}lastPosition={x:position.x,y:position.y,z:position.z};lastYaw=yaw;$('match-kick').hidden=cinematic||!setting.nearBall(position);audio.update(position,yaw,dt);
+  }
+  uiClock+=dt;if(uiClock>.1){uiClock=0;renderUI();}
  }
  $('matchday-launch').onclick=launch;$('match-dialog-close').onclick=()=>dialog.close();$('match-start').onclick=()=>start(true);$('match-play').onclick=()=>start(false,true);$('match-manual').onclick=()=>start(false);$('match-pause').onclick=()=>setPaused(!pausedNow());$('match-skip').onclick=()=>cinematic?stopFollowing():launch();$('match-cheer').onclick=cheer;$('match-exit').onclick=exit;$('match-volume').oninput=e=>audio.setVolume(Number(e.target.value)/100);$('match-mute').onclick=()=>{if(audio.state==='unavailable')audio.start().then(()=>{if(pausedNow())audio.setPaused(true);});else audio.setMuted(!audio.muted);};
  $('match-more').onclick=()=>{const expanded=panel.classList.toggle('expanded');$('match-more').setAttribute('aria-expanded',String(expanded));};$('match-lineups').onclick=()=>{rosterWasPaused=paused;setPaused(true);$('match-roster-dialog').showModal();};$('match-roster-dialog').addEventListener('close',()=>{if(!rosterWasPaused)setPaused(false);});$('match-roster-close').onclick=()=>$('match-roster-dialog').close();$('match-kick').onclick=()=>{if(lastPosition)setting.kick(lastPosition,lastYaw);};

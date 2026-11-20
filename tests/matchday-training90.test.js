@@ -44,7 +44,7 @@ function fixture({prepareGate=null,onPrepare,audioStart=async()=>true}={}){
  globalThis.trainingLifecycleFactories={
   buildOnlineLobby:()=>({reset(){calls.lobbyResets++;},open(){}}),
   buildMatchdayCrowd:()=>{calls.crowdConstructed++;return crowd;},buildEntrancePlayers:()=>players,
-  createMatchdayAudio:()=>audio,buildMatchdaySet:()=>({setEnabled(){},isAnimating:()=>false}),
+  createMatchdayAudio:()=>audio,buildMatchdaySet:()=>({setEnabled(){},isAnimating:()=>false,nearBall:()=>false,update(){}}),
   buildMatchSetup:()=>({options:{opponent:'dortmund',rules:{mode:'league',duration:180}},refresh(){}})
  };
  const stadium={root:new THREE.Group(),bowl:new THREE.Group(),seatPositions:[],matchBall:new THREE.Mesh(),setMatchday(){},setMatchScore:s=>calls.scores.push(s.training?.id||'match')};
@@ -52,6 +52,26 @@ function fixture({prepareGate=null,onPrepare,audioStart=async()=>true}={}){
  const position=new THREE.Vector3(0,8,0),run=seconds=>{for(let i=0;i<Math.round(seconds*60);i++)experience.update(1/60,position,0,{});};
  return{experience,calls,node,players,crowd,run,position};
 }
+
+test('matchday touring samples visible actors on presentation frames and catches up on reentry',async()=>{
+ const {experience,players,crowd}=fixture();
+ const poses=[],audience=[];
+ players.update=(seconds,time)=>poses.push({seconds,time});
+ crowd.update=time=>audience.push(time);
+ await experience.start(false);
+ const location=new THREE.Vector3(0,2,0);
+ const tick=()=>{for(let i=1;i<=8;i++)experience.update(1/120,location,0,{},i%2===0);};
+ tick();
+ assert.equal(poses.length,4);
+ location.y=25;tick();
+ assert.equal(poses.length,4);
+ location.y=2;tick();
+ assert.equal(poses.length,8);
+ assert.equal(audience.length,12);
+ assert.ok(Math.abs(poses.at(-1).seconds-200-.2)<1e-8);
+ assert.ok(Math.abs(poses.at(-1).time-.2)<1e-8);
+ experience.exit();
+});
 
 test('training uses no crowd allocation or compile, completes from physical receptions and restarts the same lesson',async()=>{
  const {experience,calls,node,run}=fixture();

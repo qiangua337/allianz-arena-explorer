@@ -271,6 +271,22 @@ test('a charged shot releases exactly once, pointer cancellation and pausing dis
  const{game,node}=fixture();game.start();game.ready();run(game,3.1);const shoot=node('game-shoot');shoot.fire('pointerdown',{pointerId:9,preventDefault(){}});run(game,.3);shoot.fire('pointercancel',{pointerId:9});assert.equal(game.state.chargePower,0);assert.equal(game.state.stats.home.shots,0);assert.equal(game.releaseCharge(),false);assert.equal(game.beginCharge(),true);game.setPaused(true);game.setPaused(false);assert.equal(game.releaseCharge(),false);assert.equal(game.state.stats.home.shots,0);
 });
 
+test('a queued touch release uses the physical hold, even when offline frames arrive late',()=>{
+ for(const [hold,delay] of [[425,0],[85,810]]){
+  let time=2000;
+  const {game,node}=fixture(true,{now:()=>time});
+  game.start();game.ready();run(game,3.1);
+  const button=node('game-shoot'),touch={pointerId:7,pointerType:'touch',clientX:10,clientY:30,preventDefault(){}};
+  button.fire('pointerdown',{...touch,timeStamp:time});
+  time+=hold+delay;
+  if(delay)game.update(.05,{},{x:0,y:5,z:9});
+  button.fire('pointerup',{...touch,timeStamp:2000+hold});
+  assert.equal(game.state.stats.home.shots,1);
+  assert.ok(Math.abs(game.state.lastShot.power-(.25+.75*hold/850))<1e-9);
+  game.exit();
+ }
+});
+
 test('manual support play explains teammate possession and offers switching instead of an ineffective tackle',()=>{
  const{game,node}=fixture(true);game.start();game.ready();run(game,3.1);game.setControlMode('manual');const state=game.state,controlled=state.controlledId,mate=state.players.find(p=>p.team==='home'&&p.id!==controlled&&!p.keeper);
  Object.assign(state.ball,{ownerId:mate.id,x:mate.x,z:mate.z});game.setControlMode('manual');assert.equal(node('game-ball-hint').textContent,'队友控球 · 换控接管');assert.equal(node('game-tackle').disabled,true);assert.equal(node('game-pressure').disabled,true);assert.equal(node('action-switch').disabled,false);assert.equal(node('action-pass').disabled,true);

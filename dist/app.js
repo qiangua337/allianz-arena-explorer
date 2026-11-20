@@ -102,7 +102,7 @@ export async function startArena({hub, initial, nightAtStart}){
  setExplorationMatchMode=suspendExplorationRoots([building.root,stadium.circulation.root]);
  setObscuredExploration=suspendExplorationRoots([interiors.root,serviceRooms.root]);
  setObscuredGrounds=suspendExplorationRoots([world.group]);
- freezeArchitecture(world.group,[world.rotor]);freezeArchitecture(stadium.root,[stadium.matchBall]);freezeArchitecture(stadium.circulation.root);freezeArchitecture(interiors.root);freezeArchitecture(building.root);destinationMenu=buildDestinationMenu({onDismiss:()=>setNavOpen(false)});buildHotspots();bindUI();setNavOpen(false);document.body.dataset.mode=mode;setDayNight(nightAtStart);applySurfaceQuality(scene,qualityMode);clock.time=performance.now();document.body.dataset.version='11.3.1';document.body.dataset.seats=stadium.seatCount;document.body.dataset.panels=stadium.panelCount;
+ freezeArchitecture(world.group,[world.rotor]);freezeArchitecture(stadium.root,[stadium.matchBall]);freezeArchitecture(stadium.circulation.root);freezeArchitecture(interiors.root);freezeArchitecture(building.root);destinationMenu=buildDestinationMenu({onDismiss:()=>setNavOpen(false)});buildHotspots();bindUI();setNavOpen(false);document.body.dataset.mode=mode;setDayNight(nightAtStart);applySurfaceQuality(scene,qualityMode);clock.time=performance.now();document.body.dataset.version='11.3.2';document.body.dataset.seats=stadium.seatCount;document.body.dataset.panels=stadium.panelCount;
  const requestedPlace=initial.get('place'),requestedTour=walkingTourFromSearch(initial);
  if(requestedTour||initial.get('view')==='walk'){
   const place=requestedPlace&&(places[requestedPlace]||tourGoals[requestedPlace])?requestedPlace:requestedTour?.stops[0]||'arcade';
@@ -822,7 +822,7 @@ function bindUI(){
    if(penalty&&movement)matchday.nudgeGamePenaltyAim();
    if(movement&&matchday.online)matchday.flushGameInput();
    if(penalty&&code==='KeyX')matchday.centerGamePenaltyAim();
-   if(code==='KeyK'||code==='KeyF')matchday.beginGameCharge();const action={KeyJ:'pass',KeyL:'through',Space:'tackle',KeyQ:'switch'}[code];if(action)matchday.gameAction(action,{direction:gameInput(0)});if(code==='KeyZ')matchday.cycleShotKind();if(code==='KeyC')matchday.cycleGameCamera();if(code==='KeyG')matchday.cheer();if(!penalty&&(code==='KeyV'||code==='KeyP'))matchday.setGameView(matchday.gameView==='first'?'third':'first');if(code==='KeyN'){setDayNight(!night);updateLocationURL();}return;
+   if(code==='KeyK'||code==='KeyF')matchday.beginGameCharge(e.timeStamp);const action={KeyJ:'pass',KeyL:'through',Space:'tackle',KeyQ:'switch'}[code];if(action)matchday.gameAction(action,{direction:gameInput(0)});if(code==='KeyZ')matchday.cycleShotKind();if(code==='KeyC')matchday.cycleGameCamera();if(code==='KeyG')matchday.cheer();if(!penalty&&(code==='KeyV'||code==='KeyP'))matchday.setGameView(matchday.gameView==='first'?'third':'first');if(code==='KeyN'){setDayNight(!night);updateLocationURL();}return;
   }
   if(matchday?.cinematic){if(code==='Escape'||code==='Space')matchday.setPaused(!matchday.paused);if(movement||code==='Space'||code==='Escape')e.preventDefault();return;}if(code==='Escape'){if(!$('arena-map-panel').hidden){setMapOpen(false);$('map-toggle').focus({preventScroll:true});return;}if(!$('explore').hidden){setNavOpen(false);canvas.focus({preventScroll:true});}else if(mode==='walk'){document.exitPointerLock?.();setWalkReady(false);}return;}
   if(mode==='walk'&&['PageUp','PageDown'].includes(code)){e.preventDefault();if(!walkReady)beginWalk();pitch=THREE.MathUtils.clamp(pitch+(code==='PageUp'?.12:-.12),-1.44,1.44);camera.rotation.set(pitch,yaw,0,'YXZ');frameBudget.invalidate();return;}
@@ -834,7 +834,7 @@ function bindUI(){
   const code=keyCode(e),wasHeld=keys.delete(code);
   if(!matchday?.playing)return;
   if(wasHeld&&matchday.online)matchday.flushGameInput();
-  if(code==='KeyK'||code==='KeyF')matchday.releaseGameCharge();
+  if(code==='KeyK'||code==='KeyF')matchday.releaseGameCharge(null,e.timeStamp);
  });
  $('info-dialog').addEventListener('close',()=>{if(mode==='walk')beginWalk();});
  map.addEventListener('click',e=>{if(!lastMapView)return;const r=map.getBoundingClientRect(),point={x:(e.clientX-r.left)/r.width*map.width,y:(e.clientY-r.top)/r.height*map.height},id=mapDestinationAt(lastMapView,point);if(id)chooseMapPlace(id);else toast('点击地图上的地点圆点，选择步行目的地。');});

@@ -24,6 +24,7 @@ import {buildMatchBall} from './football-ball.js';
 import {seatHasSupporter} from './crowd-layout.js';
 import {buildArenaSeatMosaic} from './seat-mosaic.js';
 import {partitionBowlHardware} from './stadium-hardware.js';
+import {distantRoofCushions} from './roof-cushions.js';
 
 function buildRoofFloodlightBanks(parent,locations,faceColor){
  const root=new THREE.Group();root.name='Roof floodlights with recessed reflectors';parent.add(root);
@@ -127,7 +128,19 @@ export function buildStadium(scene){
   for(let rr=1;rr<rings;rr++)for(let k=0;k<samples;k++){const a=start+1+(rr-1)*samples+k,c=start+1+(rr-1)*samples+(k+1)%samples,d=start+1+rr*samples+k,e=start+1+rr*samples+(k+1)%samples;b.i.push(a,c,d,c,e,d);}
   panelCount++;
  }
- const shellMeshes=[];buffers.forEach((b,i)=>{const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(b.p,3));g.setAttribute('color',new THREE.Float32BufferAttribute(b.c,3));g.setIndex(b.i);g.computeVertexNormals();g.computeBoundingSphere();for(const part of partitionGeometry(g)){const o=mesh(part.geometry,shellMaterials[i===2?0:i],i?roof:root);o.name=(i?'ETFE upper roof section '+i:'ETFE exterior facade')+' · sector '+part.sector;o.customDepthMaterial=shellDepth;o.castShadow=true;o.userData.shellSection=i?1:0;o.userData.sectorCenter=part.geometry.boundingSphere.center.clone();shellMeshes.push(o);}g.dispose();});
+ const shellMeshes=[],roofDetail=new Map();
+ buffers.forEach((b,i)=>{
+  const g=new THREE.BufferGeometry();
+  g.setAttribute('position',new THREE.Float32BufferAttribute(b.p,3));g.setAttribute('color',new THREE.Float32BufferAttribute(b.c,3));g.setIndex(b.i);g.computeVertexNormals();
+  for(const part of partitionGeometry(g,16,i!==0)){
+   const o=mesh(part.geometry,shellMaterials[i===2?0:i],i?roof:root);
+   o.name=(i?'ETFE upper roof section '+i:'ETFE exterior facade')+' · sector '+part.sector;
+   o.customDepthMaterial=shellDepth;o.castShadow=true;o.userData.shellSection=i?1:0;
+   o.userData.sectorCenter=part.geometry.boundingSphere.center.clone();shellMeshes.push(o);
+   if(i)roofDetail.set(o,{near:part.geometry,far:distantRoofCushions(part.geometry,part.sourceIndices,samples,rings)});
+  }
+  g.dispose();
+ });
  // The pedestrian level stays present when the outer bowl is culled indoors.
  const circulation=buildCirculation(scene);
  const roofSurface=buildRoofLining(roof,surface);
@@ -274,6 +287,11 @@ export function buildStadium(scene){
    for(const [i,shell] of shellMeshes.entries()){
     const visible=showShell&&(!stadiumWalking||view.frustum.intersectsBox(shellBounds[i]))&&(shell.userData.shellSection===1||facadeSectorVisible(position,shell.userData.sectorCenter));
     if(shell.visible!==visible)shell.visible=visible;
+    const detail=roofDetail.get(shell);
+    if(moved&&detail){
+     const geometry=stadiumWalking&&shellBounds[i].distanceToPoint(position)>65?detail.far:detail.near;
+     if(shell.geometry!==geometry)shell.geometry=geometry;
+    }
    }
   }
   if(!moved)return;

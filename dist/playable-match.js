@@ -225,24 +225,23 @@ export function buildPlayableMatch({scene,stadium,players,audio,onCamera,onView,
   write('game-charge','hidden',true);
   writeHudAttribute($('game-shoot'),'aria-pressed','false');
  }
- function beginCharge(){
+ function beginCharge(inputAt){
   const s=simulation.state,penalty=penaltyContext(s,network?.team||'home');if(!active||pending||failed||s.paused||!['playing','penalties'].includes(s.phase)||charge||penalty&&(penalty.role!=='shooter'||!penaltyCanShoot(penalty)||pendingPenaltyAction('shoot',penalty)))return false;const receiving=s.receiveTarget,p=s.players.find(p=>p.id===(receiving?.playerId||s.controlledId));
   if(!receiving&&s.ball.ownerId!==p.id&&!looseKickAvailable(s,p)){s.message='没有控球 · 按住逼抢后择机抢断';render();return false;}
-  charge={elapsed:0,startedAt:now(),playerId:p.id,receiving:!!receiving,penalty:!!penalty};s.chargePower=penalty?penaltyStandardPower:.25;flushInput();render();return true;
+  charge={elapsed:0,startedAt:now(),inputAt,playerId:p.id,receiving:!!receiving,penalty:!!penalty};s.chargePower=penalty?penaltyStandardPower:.25;flushInput();render();return true;
  }
- function shotPower(){
+ function shotPower(releasedAt){
   if(shootPointer?.preview)return shootPointer.preview.power;
-  // A missed rendering frame cannot shorten the time a player held the button.
-  const elapsed=network?Math.max(charge.elapsed,(now()-charge.startedAt)/1000):charge.elapsed;
-  if(charge.penalty){
-   const held=Math.max(elapsed,(now()-charge.startedAt)/1000);
-   return penaltyStandardPower + Math.min(1,Math.max(0,held-.18)/.85)*(1-penaltyStandardPower);
-  }
+  // Event timestamps measure the actual hold even if both input handlers
+  // run late. While still aiming, keep the meter live between simulation ticks.
+  const timedRelease=Number.isFinite(releasedAt)&&Number.isFinite(charge.inputAt)&&releasedAt>=charge.inputAt;
+  const elapsed=timedRelease?(releasedAt-charge.inputAt)/1000:Math.max(charge.elapsed,(now()-charge.startedAt)/1000);
+  if(charge.penalty)return penaltyStandardPower + Math.min(1,Math.max(0,elapsed-.18)/.85)*(1-penaltyStandardPower);
   return .25+Math.min(1,elapsed/.85)*.75;
  }
- function releaseCharge(flick=null){
+ function releaseCharge(flick=null,releasedAt){
   if(!charge)return false;
-  const power=flick?.power??shotPower(),id=charge.playerId;
+  const power=flick?.power??shotPower(releasedAt),id=charge.playerId;
   const valid=id===simulation.state.controlledId||charge.receiving&&simulation.state.receiveTarget?.playerId===id;
   if(flick)penaltyControls.aimFlick(flick.aim);
   cancelCharge();
@@ -264,7 +263,7 @@ export function buildPlayableMatch({scene,stadium,players,audio,onCamera,onView,
  shoot.addEventListener('pointerdown',e=>{
   if(shootPointer!==null||e.pointerType==='mouse'&&e.button!==0)return;
   e.preventDefault();
-  if(beginCharge()){
+  if(beginCharge(e.timeStamp)){
    shootPointer={id:e.pointerId,x:e.clientX,y:e.clientY,at:e.timeStamp,allowFlick:charge.penalty&&e.pointerType!=='mouse',preview:null};
    shoot.setPointerCapture?.(e.pointerId);
   }
@@ -285,7 +284,7 @@ export function buildPlayableMatch({scene,stadium,players,audio,onCamera,onView,
   if(e.pointerId!==shootPointer?.id)return;
   updateSwipe(shootPointer,e);
   const flick=shootPointer.preview, isPenalty=charge?.penalty;
-  if(releaseCharge(flick)&&isPenalty)penaltyHaptic(13,e.pointerType);
+  if(releaseCharge(flick,e.timeStamp)&&isPenalty)penaltyHaptic(13,e.pointerType);
   $('scene').focus({preventScroll:true});
  });
  for(const event of['pointercancel','lostpointercapture'])shoot.addEventListener(event,e=>{
@@ -362,7 +361,11 @@ export function buildPlayableMatch({scene,stadium,players,audio,onCamera,onView,
    aimYaw=input.yaw??0;lastInput=input;
    if(!pending&&!failed){
     if(!simulation.state.paused)penaltyControls.move(input.penaltyAimAxis,Math.min(dt,.04));
-    if(charge&&!simulation.state.paused){charge.elapsed+=Math.min(dt,.25);simulation.state.chargePower=shotPower();}
+    if(charge&&!simulation.state.paused){
+     charge.elapsed+=Math.min(dt,.25);
+     simulation.state.chargePower=shotPower();
+     if(visualFrame&&!charge.penalty)write('game-power','value',simulation.state.chargePower);
+    }
     simulation.update(dt,{...input,defend:input.defend||pressurePointers.size>0,charging:!!charge});
     if(charge){const state=simulation.state,player=state.players.find(p=>p.id===charge.playerId);const awaiting=charge.receiving&&state.receiveTarget?.playerId===charge.playerId&&!state.ball.ownerId;if(!awaiting&&(state.controlledId!==charge.playerId||state.ball.ownerId&&state.ball.ownerId!==charge.playerId||!state.ball.ownerId&&(!player||Math.hypot(player.x-state.ball.x,player.z-state.ball.z)>5))||!['playing','penalties'].includes(state.phase))cancelCharge();}
     if(!simulation.state.paused)worldTime+=Math.min(dt,.25);
