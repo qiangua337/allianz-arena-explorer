@@ -28,14 +28,24 @@ export function drawBootTexture(c,w,h){
  const upper=c.createLinearGradient(0,0,0,256);
  upper.addColorStop(0,'#d5ded9');upper.addColorStop(.45,'#eef1ea');upper.addColorStop(1,'#b1bfba');
  c.fillStyle=upper;c.fillRect(0,0,256,256);
- c.fillStyle='#303b3f';c.fillRect(0,0,20,256);c.fillRect(178,0,78,256);
- c.fillStyle='#8b9691';c.fillRect(241,0,15,256);
+ c.fillStyle='#293438';c.fillRect(0,0,20,256);c.fillRect(180,0,18,256);c.fillRect(202,0,39,256);
+ c.fillStyle='#a7b6af';c.fillRect(241,0,15,256);
  // Both quarters rise at the heel. The tongue lies over the dorsal arch.
  c.fillStyle='#9eafa7';
  for(const direction of[-1,1]){
   c.beginPath();c.moveTo(99+direction*77,70);
   c.bezierCurveTo(99+direction*47,108,99+direction*37,162,99+direction*25,232);
   c.lineTo(99+direction*77,256);c.fill();
+ }
+ // The quarter panels follow the last, with punched ventilation behind the toe.
+ c.strokeStyle='#6f8885';c.lineWidth=3;
+ for(const direction of[-1,1]){
+  c.beginPath();c.moveTo(99+direction*63,106);
+  c.quadraticCurveTo(99+direction*49,153,99+direction*31,222);c.stroke();
+  c.fillStyle='#526e69';
+  for(let row=0;row<4;row++)for(let column=0;column<3;column++){
+   c.beginPath();c.arc(99+direction*(36+column*5.5+row*1.8),99+row*10,1.05,0,Math.PI*2);c.fill();
+  }
  }
  c.fillStyle='#bac9c3';c.beginPath();c.moveTo(87,103);c.lineTo(111,103);
  c.lineTo(124,204);c.lineTo(74,204);c.fill();

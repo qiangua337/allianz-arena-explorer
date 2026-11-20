@@ -1,6 +1,6 @@
 import {THREE} from './kit.js';
 import {entranceFloor} from './matchday-route.js';
-import {setFootballBootBounds,keepFootballBootsAboveFloor,placeFootballPoseFoot} from './football-kick-pose.js';
+import {setFootballBootBounds,keepFootballBootsAboveFloor,placeFootballPoseFoot,sampleFootballBoot} from './football-kick-pose.js';
 import {createFootballFootPlant} from './football-foot-plant.js';
 const forward=new THREE.Vector3(0,0,1);
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
@@ -30,6 +30,37 @@ function receiveApproach(ball,px,pz,dx,dz,dt){
  return near*(.35+.65*imminent)*playableHeight;
 }
 
+function guideDribbleFoot(bones,footPlant,ball,group,ankle,target){
+ const {x,y,z}=group.position,heading=group.rotation.y,scale=group.scale.x;
+ const cos=Math.cos(heading),sin=Math.sin(heading);
+ const lateral=((ball.x-x)*cos-(ball.z-z)*sin)/scale;
+ const depth=((ball.x-x)*sin+(ball.z-z)*cos)/scale;
+ const height=(ball.y-y)/scale;
+ if(depth<.25||depth>1.03||Math.abs(lateral)>.48||height>.33)return;
+
+ // Let the lifted foot brush the back of the ball. A distant sprint push
+ // or a ball outside the gait's reach keeps the original stride.
+ const edge=(1-THREE.MathUtils.smoothstep(Math.abs(lateral),.30,.48))*
+  THREE.MathUtils.smoothstep(depth,.25,.38)*(1-THREE.MathUtils.smoothstep(depth,.78,1.03))*
+  (1-THREE.MathUtils.smoothstep(height,.16,.33));
+ let best=-1,weight=0;
+ for(let side=0;side<2;side++){
+  const swing=footPlant.swingWeight(side);
+  if(swing<=0)continue;
+  const sole=sampleFootballBoot(bones,side,ankle);
+  const sideSign=side===0?1:-1;
+  const contactX=lateral+sideSign*.085,contactZ=depth-.275;
+  const lateralGap=Math.abs(contactX-ankle.x),depthGap=Math.abs(contactZ-ankle.z);
+  const reach=(1-THREE.MathUtils.smoothstep(lateralGap,.07,.28))*
+   (1-THREE.MathUtils.smoothstep(depthGap,.075,.31));
+  const amount=.67*edge*swing*reach*THREE.MathUtils.smoothstep(sole,.028,.11);
+  if(amount<=weight)continue;
+  best=side;weight=amount;
+  target.set(contactX,clamp(height+.018,.11,.19),contactZ);
+ }
+ if(weight>.004)placeFootballPoseFoot(bones,best,target,.105,best===0?-.23:.23,weight);
+}
+
 export function createFootballMotion(data,motion,bones,group,definition){
  setFootballBootBounds(bones,data.bootBounds);
  const footPlant=definition.role==='player'?createFootballFootPlant(bones):null;
@@ -38,6 +69,7 @@ export function createFootballMotion(data,motion,bones,group,definition){
  let lastHeading=0,bodyPitch=0,bodyRoll=0,counterTurn=0,carrying=0,receiveLoad=0;
  let receiveSide=-1;
  const receiveFoot=new THREE.Vector3();
+ const dribbleTarget=new THREE.Vector3();
  let keeperShufflePhase=0,keeperShuffleSpeed=0;
  let heightScale=definition.height/1.86;const walk=motion.clips.Walk_Loop,jog=motion.clips.Jog_Fwd_Loop||walk,sprint=motion.clips.Sprint_Loop||jog,idle=motion.clips[definition.seated?'Sitting_Idle_Loop':definition.role==='coach'?'Idle_Talking_Loop':'Idle_Loop'];
  const rootWalk=new THREE.Vector3(),rootIdle=new THREE.Vector3(),rootOffset=new THREE.Vector3(),rootJog=new THREE.Vector3(),rootSprint=new THREE.Vector3(),jogQ=new THREE.Quaternion(),sprintQ=new THREE.Quaternion();
@@ -173,6 +205,8 @@ export function createFootballMotion(data,motion,bones,group,definition){
   if(options&&field)options.receiveFootPlaced=placed;
   footPlant?.update(px,pz,heading,heightScale,phase,fast,dt,supported,penaltyKick||stair||definition.seated||px< -39.6||discontinuity||step>=2,(adaptivePlant?1:lateralBlend)*(1-run),adaptivePlant,placed?receiveSide:trapping?1:-1);
   if(placed)placeFootballPoseFoot(bones,receiveSide,receiveFoot,.035,receiveSide===0?.52:-.52,Math.min(.9,cushion));
+  if(natural&&!trapping&&validTravel&&supported&&travelSpeed>1.4&&gaitDirection===1&&!options.defending&&options.controlledBall)
+   guideDribbleFoot(bones,footPlant,options.controlledBall,group,ankle,dribbleTarget);
   // Interpolated clip rotations do not preserve the exporters' grounded soles.
   // Correct only mixed flat-ground poses; stairs retain their own real treads.
   if(footPlant&&!stair&&!definition.seated&&px>=-39.6&&(receiveLoad>.002||blend>.03&&blend<.995||run>.001&&run<.999||fast>.001&&fast<.999))keepFootballBootsAboveFloor(bones);

@@ -40,7 +40,7 @@ function enter(mode){
   return;
  }
  body.dataset.startup='loading';
- loading=import('./app.js?v=11303')
+ loading=import('./app.js?v=11304')
   .then(({startArena})=>startArena({hub,initial,nightAtStart:night}))
   .then(api=>{
    arena=api;

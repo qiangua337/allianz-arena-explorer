@@ -327,7 +327,7 @@ export function buildEntrancePlayers(scene,{mobile=false}={}){
     options.penaltyKeeper=p.id===penalty?.keeper;
     options.keeperLateralSpeed=options.penaltyKeeper?(p.vx||0)*Math.cos(yaw):0;
     options.onBall=state.ball.ownerId===p.id;options.holdingBall=!!p.keeper&&options.onBall&&state.ball.y>.64;options.incomingBall=!state.ball.ownerId&&state.ball.targetId===p.id?state.ball:null;
-    options.controlledBall=options.onBall&&action?.type==='trap'?state.ball:null;
+    options.controlledBall=options.onBall&&!p.keeper&&!penalty?state.ball:null;
     options.receiveFootPlaced=false;
     options.poseTime=time;options.action=action;
    }else if(d.role==='referee'&&card)action={type:'booking',elapsed:state.time-decision.at,duration:3};actor.pose(px,pz,yaw,time,moving,d.seated&&d.role==='assistant'?.45:0,action,options);actor.lastPoseTime=time;}else if(d.role==='player'||!actor.group.visible&&!controlled){actor.group.position.set(p.x,0,p.z);actor.group.rotation.y=heading;}

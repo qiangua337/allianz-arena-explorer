@@ -4,7 +4,7 @@ import {registerHooks} from 'node:module';
 registerHooks({resolve(s,c,next){return s==='three'?{url:new URL('../dist/vendor/three.module.js',import.meta.url).href,shortCircuit:true}:next(s,c);}});
 const {THREE}=await import('../dist/kit.js');
 const {createActorContactShadows,updateActorContactShadows,flushActorContactShadows}=await import('../dist/football-materials.js');
-const {buildPitchsideDetails}=await import('../dist/pitchside-details.js');
+const {buildDugoutShelter,buildPitchsideDetails}=await import('../dist/pitchside-details.js');
 const {buildGoalNetGeometry}=await import('../dist/goal-net.js');
 
 test('body and planted-foot contacts use one draw, stay on the floor and fade when the foot lifts',()=>{
@@ -69,4 +69,24 @@ test('the goal stays open at the front and its net sides meet the rear face with
  assert.ok(rearLeft>=2&&rearRight>=2,'the side and back nets use coincident rear corners');
  assert.ok(sag,'the top cloth dips gently between the posts and stanchions');
  assert.ok(points.count/2<600,'the full net is one small line draw');
+});
+
+test('curved dugouts keep the field-facing entrance open and the player tunnel clear',()=>{
+ const previous=globalThis.document,context=new Proxy({},{get:()=>()=>{}});
+ globalThis.document={createElement:()=>({getContext:()=>context})};
+ try{
+  const parent=new THREE.Group(),m=new THREE.MeshStandardMaterial();
+  for(const z of[-18,18]){
+   const shelter=buildDugoutShelter(parent,z,{dark:m,steel:m,red:m,glass:m});
+   const canopy=shelter.getObjectByName('Curved polycarbonate dugout canopy');
+   assert.ok(canopy);
+   const vertices=canopy.geometry.attributes.position;
+   for(let i=0;i<vertices.count;i++){
+    assert.ok(vertices.getX(i)<-1||vertices.getY(i)>2.65,'no glass crosses the open front');
+   }
+   const bounds=new THREE.Box3().setFromObject(shelter);
+   assert.ok(bounds.max.x<-35&& (bounds.min.z>8||bounds.max.z< -8));
+   assert.ok(shelter.children.length<=5,'framing is batched regardless of rib count');
+  }
+ }finally{globalThis.document=previous;}
 });

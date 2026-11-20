@@ -52,6 +52,11 @@ function readFootballBootFloor(bones,rig,side,ankle){
  return ankle.y+bootFloorOffset(rig.bounds,foot);
 }
 
+export function sampleFootballBoot(bones,side,ankle){
+ const rig=rigFor(bones);
+ return rig?readFootballBootFloor(bones,rig,side,ankle):0;
+}
+
 export function placeFootballSupportFoot(bones,side,target,weight){const rig=rigFor(bones);if(!rig)return;placeFoot(bones,rig.legs[side],rig,target,null,weight,0);}
 export function rememberKickSupport(bones,group,time,preparing){
  const rig=rigs.get(bones);

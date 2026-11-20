@@ -1,6 +1,6 @@
 import {buildBucketSeat} from './facility-equipment.js';
 import {drawPitchArtwork,drawApronArtwork} from './pitch-artwork.js';
-import {buildPitchsideDetails} from './pitchside-details.js';
+import {buildDugoutShelter,buildPitchsideDetails} from './pitchside-details.js';
 import {createGoalNetMaterial,goalFeedbackController} from './goal-feedback.js';
 import {buildGoalNetGeometry} from './goal-net.js';
 import {fitoutShaderCuts,fitoutVolumes} from './room-volumes.js';
@@ -267,9 +267,9 @@ export function buildStadium(scene){
  const {surface:pitchSurface,ball:matchBall,feedback}=buildPitch(bowl,batch,{white,dark,red,steel});
  // Double bank of dugouts with individual seats and transparent shelters.
  const dugouts=[];
+ const dugoutGlass=mat(0xa5c6d9,{transparent:true,opacity:.23,metalness:.16,roughness:.26,side:THREE.DoubleSide,depthWrite:false,forceSinglePass:true});
  for(const z0 of[-18,18]){
-  const g=new THREE.Group();g.name='Pitchside dugout shelter';g.position.set(-38.1,0,z0);bowl.add(g);const gb=new Batches(g);gb.add(3.2,.04,17,0,.02,0,dark);gb.add(1.6,.45,17,-.8,.265,0,dark);gb.flush();
-  const glass=mat(0xa5c6d9,{transparent:true,opacity:.21,metalness:.2,roughness:.2,side:THREE.DoubleSide,depthWrite:false});box(g,.08,2.5,17,-1.6,1.55,0,glass);box(g,3.3,.08,17,0,2.8,0,glass);for(let j=0;j<7;j++){const z=-8.5+j*17/6;beam(g,v(-1.65,.2,z),v(-1.65,2.8,z),.035,steel);beam(g,v(-1.65,2.8,z),v(1.65,2.8,z),.035,steel);}const a=sign(g,'FC BAYERN MÜNCHEN',15,.36,-1.71,2.65,0,{font:65,h:128});a.rotation.y=-Math.PI/2;compactGroup(g);
+  const g=buildDugoutShelter(bowl,z0,{dark,steel,red,glass:dugoutGlass});
   const detailed=new THREE.Group(),distant=new THREE.Group();detailed.name='Dugout upholstery and fittings';distant.name='Dugout seats at a distance';g.add(detailed,distant);distant.visible=false;
   for(let row=0;row<2;row++)for(let j=0;j<12;j++){
    const seat={x:.65-row*1.15,y:.4+row*.45,z:-7.1+j*1.28,yaw:Math.PI/2,red,metal:steel,dark};

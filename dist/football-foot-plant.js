@@ -4,7 +4,7 @@ const turn=(a,b)=>Math.atan2(Math.sin(b-a),Math.cos(b-a));
 export function createFootballFootPlant(bones){
  const feet=[0,1].map(side=>({side,active:false,weight:0,x:0,z:0,heading:0,release:0,ankle:new THREE.Vector3(),goal:new THREE.Vector3()}));
  function reset(){for(const foot of feet){foot.active=false;foot.weight=0;foot.release=0;}}
- return{reset,update(x,z,heading,scale,phase,fast,dt,enabled,hardReset=false,walk=0,adaptive=false,yieldSide=-1){
+ return{reset,swingWeight(side){return 1-THREE.MathUtils.smoothstep(feet[side].weight,.04,.32);},update(x,z,heading,scale,phase,fast,dt,enabled,hardReset=false,walk=0,adaptive=false,yieldSide=-1){
   // The walking clip has a longer real stance (.98 -> .60) than the run.
   // Reusing the jogging window released a side-step while its sole was down.
   if(hardReset){reset();return;}const cos=Math.cos(heading),sin=Math.sin(heading),landing=(.13+.07*fast)*(1-walk)+.02*walk,end=(.45-.01*fast)*(1-walk)+.62*walk;

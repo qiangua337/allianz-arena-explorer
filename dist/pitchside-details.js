@@ -1,6 +1,44 @@
 import {buildBroadcastCamera} from './facility-equipment.js';
-import {THREE,mat,mesh,box,beam,cylinder,v,compactGroup,Batches} from './kit.js';
+import {THREE,mat,mesh,box,beam,cylinder,sign,v,compactGroup,Batches} from './kit.js';
 import {finishedBox,contactShadow} from './finishes.js';
+
+export function buildDugoutShelter(parent,z,{dark,steel,red,glass}){
+ const shelter=new THREE.Group();shelter.name='Pitchside dugout shelter';
+ shelter.position.set(-38.1,0,z);parent.add(shelter);
+ box(shelter,3.2,.04,17,0,.02,0,dark);
+ box(shelter,1.6,.45,17,-.8,.265,0,dark);
+ box(shelter,.09,.76,17,-1.61,.42,0,dark);
+ box(shelter,.11,.065,17,-1.56,.80,0,red);
+
+ // A continuous curved roof wraps behind the seats, with an open front.
+ const profile=[[-1.62,.79],[-1.62,1.96],[-1.48,2.41],[-1.13,2.69],[-.59,2.81],[1.56,2.81]];
+ const positions=[],uvs=[],indices=[];
+ for(const [i,[x,y]] of profile.entries()){
+  positions.push(x,y,-8.5,x,y,8.5);
+  uvs.push(0,i/(profile.length-1),1,i/(profile.length-1));
+  const a=i*2;
+  if(i>0)indices.push(a-2,a-1,a,a-1,a+1,a);
+ }
+ const skin=new THREE.BufferGeometry();
+ skin.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));
+ skin.setAttribute('uv',new THREE.Float32BufferAttribute(uvs,2));
+ skin.setIndex(indices);skin.computeVertexNormals();
+ const glazing=mesh(skin,glass,shelter);
+ glazing.name='Curved polycarbonate dugout canopy';
+ for(let j=0;j<=6;j++){
+  const ribZ=17*(j/6-.5);
+  for(let i=1;i<profile.length;i++){
+   const [x0,y0]=profile[i-1],[x1,y1]=profile[i];
+   beam(shelter,v(x0,y0,ribZ),v(x1,y1,ribZ),.044,steel);
+  }
+ }
+ box(shelter,.16,.27,17.12,1.57,2.77,0,dark);
+ box(shelter,.17,.038,17.14,1.57,2.65,0,red);
+ const label=sign(shelter,z<0?'FC BAYERN MÜNCHEN':'GÄSTE / AWAY',5.6,.22,1.66,2.79,0,{fg:'#f3f1ec',font:85,h:128,weight:700});
+ label.rotation.y=Math.PI/2;
+ compactGroup(shelter,[glazing]);
+ return shelter;
+}
 
 // Decorative equipment sits beyond the touchlines and outside the two open
 // visitor/player entrances. It does not create new invisible colliders.

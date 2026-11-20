@@ -12,6 +12,7 @@ registerHooks({resolve(specifier, context, next) {
 const {THREE} = await import('../dist/kit.js');
 const {createFootballMotion,strikeFacing} = await import('../dist/football-motion.js');
 const {applyFootballAction} = await import('../dist/football-action-pose.js');
+const {carryFootball} = await import('../dist/football-movement.js');
 const {createFootballSimulation} = await import('../dist/football-simulation.js');
 const assets = new URL('../dist/assets/players/', import.meta.url);
 const manifest = JSON.parse(readFileSync(new URL('footballer-960.json', assets)));
@@ -208,6 +209,35 @@ test('running on the ball changes the trunk and arm carriage while keeping the s
     }
   }
   assert.ok(carrying.bones[7].quaternion.angleTo(running.bones[7].quaternion) < .01);
+});
+
+test('dribbling guides the swing boot toward the moving ball and leaves the planted boot alone', () => {
+  for (const hz of [12, 30, 60]) {
+    const contact = [0, 0];
+    const carrying = fixture(.55), base = fixture(.55), outOfReach = fixture(.55);
+    const options = {...field, onBall: true};
+    const player = {id: 'home-10', x: 0, z: 0, vx: 0, vz: 3.5, yaw: 0};
+    const ball = {x: 0, y: .11, z: .52};
+    const footIndices = [11, 17];
+    for (let frame = 0; frame < hz * 5; frame++) {
+      const time = frame / hz;
+      player.z = time * player.vz;
+      carryFootball(player, ball, 1 / hz, time);
+      carrying.pose(0, player.z, 0, time, true, 0, false, {...options, controlledBall: ball});
+      base.pose(0, player.z, 0, time, true, 0, false, options);
+      outOfReach.pose(0, player.z, 0, time, true, 0, false, {...options, controlledBall: {...ball, z: ball.z + 1.5}});
+      const heights = base.bootHeights();
+      assert.ok(Math.min(...carrying.bootHeights()) >= -.001);
+      for (const [side, foot] of footIndices.entries()) {
+        const original = base.position(foot), adjusted = carrying.position(foot);
+        assert.deepEqual(outOfReach.position(foot).toArray(), original.toArray());
+        if (heights[side] < .027) assert.deepEqual(adjusted.toArray(), original.toArray());
+        const distanceToBall = p => Math.hypot(p.x - ball.x, p.y - ball.y, p.z - (ball.z - .20));
+        if (distanceToBall(original) - distanceToBall(adjusted) > .016) contact[side]++;
+      }
+    }
+    assert.ok(contact.every(count => count > 1), JSON.stringify({hz, contact}));
+  }
 });
 
 test('running into a low pass preserves left support and blends into the carry through the actual trap pose', () => {
