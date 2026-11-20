@@ -4,10 +4,31 @@ import {TAU,seeded} from './kit.js';
 // with thousands of canvas operations during play.
 export function drawPitchArtwork(c,w,h){
  const random=seeded(902),px=x=>w*(x/72+.5),pz=z=>h*(z/111+.5);
- c.fillStyle='#426c39';c.fillRect(0,0,w,h);
+ c.fillStyle='#3f7044';c.fillRect(0,0,w,h);
  for(let i=0;i<20;i++){
   const y=pz(-52.5+i*5.25),height=h*5.25/111,g=c.createLinearGradient(0,y,0,y+height);
-  g.addColorStop(0,i%2?'#48733e':'#426e3a');g.addColorStop(.35,i%2?'#4d793f':'#46713c');g.addColorStop(1,i%2?'#4a743e':'#426b39');c.fillStyle=g;c.fillRect(0,y,w,height+.5);
+  g.addColorStop(0,i%2?'#507e46':'#3c6e3f');g.addColorStop(.46,i%2?'#55854b':'#437744');g.addColorStop(1,i%2?'#507f48':'#3d7041');c.fillStyle=g;c.fillRect(0,y,w,height+.5);
+ }
+ // The turning strip around the pitch is mown along its edges. Keep it
+ // inside the existing turf texture so its junction with the touchline is
+ // visible even when the near grass mesh is disabled on phones.
+ for(const side of[-1,1]){
+  const start=side<0?-36:34.15,end=side<0?-34.15:36;
+  const border=c.createLinearGradient(px(start),0,px(end),0);
+  border.addColorStop(0,side<0?'#355e3a':'#47754a');border.addColorStop(1,side<0?'#47754a':'#355e3a');
+  c.fillStyle=border;c.fillRect(px(start),0,px(end)-px(start),h);
+  const back=side<0?-55.5:52.65;
+  c.fillStyle='#406c42';c.fillRect(px(-34.15),pz(back),w*68.3/72,h*2.85/111);
+ }
+ // Slight longitudinal variation breaks the perfectly uniform colour on
+ // wide match cameras. The actual measured field lines are painted below.
+ for(let x=-33;x<34;x+=2.6){
+  const edge=px(x),width=w*1.4/72;
+  const roller=c.createLinearGradient(edge,0,edge+width,0);
+  roller.addColorStop(0,'rgba(193,205,158,0)');
+  roller.addColorStop(.55,'rgba(193,205,158,.045)');
+  roller.addColorStop(1,'rgba(193,205,158,0)');
+  c.fillStyle=roller;c.fillRect(edge,pz(-52.5),width,h*105/111);
  }
  // Variation in density and irrigation stays visible across wide shots.
  const edges=c.createLinearGradient(0,0,w,0);
@@ -15,8 +36,8 @@ export function drawPitchArtwork(c,w,h){
  edges.addColorStop(.83,'rgba(25,52,34,0)');edges.addColorStop(1,'rgba(25,52,34,.16)');
  c.fillStyle=edges;c.fillRect(0,0,w,h);
  for(let i=0;i<116;i++){
-  const x=random()*w,y=random()*h,r=34+random()*126,g=c.createRadialGradient(x,y,0,x,y,r);
-  g.addColorStop(0,i%3?'rgba(22,48,21,.055)':'rgba(180,164,85,.056)');g.addColorStop(1,'rgba(50,70,30,0)');c.fillStyle=g;c.fillRect(x-r,y-r,r*2,r*2);
+  const x=random()*w,y=random()*h,r=w*(.022+random()*.082),g=c.createRadialGradient(x,y,0,x,y,r);
+  g.addColorStop(0,i%3?'rgba(21,52,28,.080)':'rgba(190,179,103,.078)');g.addColorStop(1,'rgba(50,70,30,0)');c.fillStyle=g;c.fillRect(x-r,y-r,r*2,r*2);
  }
  // The goal mouths have a little wear, without looking like a bare dirt field.
  for(const sign of[-1,1])for(let i=0;i<230;i++){

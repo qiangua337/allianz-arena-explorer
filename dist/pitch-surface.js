@@ -42,7 +42,11 @@ bladeTint=mix(.76,1.10,grassTip)+.035*bladeSin;
 vMapUv=vec2(p.x/72.+.5,.5-p.y/111.);bladeFade=1.-smoothstep(2.2,3.8,length(localOffset));
 // The same fade test applies to every vertex of a blade. Collapse the fully
 // discarded blades before rasterization instead of shading invisible grass.
-transformed*=step(.15,bladeFade);`);shader.fragmentShader='varying float bladeFade;varying float bladeTint;\n'+shader.fragmentShader;shader.fragmentShader=shader.fragmentShader.replace('#include <clipping_planes_fragment>','#include <clipping_planes_fragment>\nif(vMapUv.x<.006||vMapUv.x>.994||vMapUv.y<.006||vMapUv.y>.994||bladeFade<.15)discard;');shader.fragmentShader=shader.fragmentShader.replace('#include <map_fragment>','#include <map_fragment>\ndiffuseColor.rgb*=bladeTint;');};material.customProgramCacheKey=()=> 'local-grass-fibres-v3';const tufts=mesh(blade,material,root);tufts.name='Nearby turf blades';tufts.frustumCulled=false;
+transformed*=step(.15,bladeFade);`);shader.fragmentShader='varying float bladeFade;varying float bladeTint;\n'+shader.fragmentShader;shader.fragmentShader=shader.fragmentShader.replace('#include <clipping_planes_fragment>','#include <clipping_planes_fragment>\nif(vMapUv.x<.006||vMapUv.x>.994||vMapUv.y<.006||vMapUv.y>.994||bladeFade<.15)discard;');shader.fragmentShader=shader.fragmentShader.replace('#include <map_fragment>','#include <map_fragment>\ndiffuseColor.rgb*=bladeTint;');
+  // Thin blades transmit light. Blend the two-sided normal toward the turf
+  // normal so that backlit strips do not turn into black pins at eye level.
+  shader.fragmentShader=shader.fragmentShader.replace('#include <normal_fragment_maps>','#include <normal_fragment_maps>\nnormal=normalize(viewMatrix[1].xyz + normal*0.34);');
+ };material.customProgramCacheKey=()=> 'local-grass-fibres-v4';const tufts=mesh(blade,material,root);tufts.name='Nearby turf blades';tufts.frustumCulled=false;
  return{ground,update(camera,high=false,low=false,mobile=false){
   tufts.visible=!low&&camera.position.y<5&&camera.position.y>.3&&Math.abs(camera.position.x)<43&&Math.abs(camera.position.z)<62;
   // At phone resolution the baked grass remains visible between the closest

@@ -9,6 +9,7 @@ registerHooks({resolve(name,context,next){
 const {THREE}=await import('../dist/kit.js');
 const {atlasGeometry}=await import('../dist/football-appearance.js');
 const {simplifySkinnedGeometry}=await import('../dist/player-lod.js');
+const {fitFootballKit}=await import('../dist/football-kit-fit.js');
 
 function load(version){
  const asset=extension=>new URL(`../dist/assets/players/footballer-${version}.${extension}`,import.meta.url);
@@ -65,7 +66,7 @@ test('each forefoot tapers toward the inside and every UV wrap edge lies below t
  }
 });
 
-function assemble(parts,hair,keeper){
+function assemble(parts,hair,keeper,fit=false){
  const raw=Object.fromEntries(Object.entries(parts).map(([name,part])=>{
   const geometry=new THREE.BufferGeometry(),all=vertices(part);
   const layout={position:[0,3],normal:[3,3],uv:[6,2],skinIndex:[8,4],skinWeight:[12,4]};
@@ -77,8 +78,35 @@ function assemble(parts,hair,keeper){
   geometry.setIndex(new THREE.BufferAttribute(part.indices,1));
   return [name,geometry];
  }));
+ if(fit)fitFootballKit(raw);
  return atlasGeometry(raw,hair,{keeper});
 }
+
+test('tailored match kit narrows the shorts hem, retains the waist and leaves the skinned boots untouched',()=>{
+ const before=assemble(current.parts,'crop',false),after=assemble(current.parts,'crop',false,true);
+ assert.equal(after.groups.length,0);
+ assert.deepEqual(before.index.array,after.index.array);
+ assert.deepEqual(before.attributes.skinIndex.array,after.attributes.skinIndex.array);
+ assert.deepEqual(before.attributes.skinWeight.array,after.attributes.skinWeight.array);
+ const old=before.attributes.position,next=after.attributes.position;
+ let oldHem=0,newHem=0;
+ for(const [name,part]of Object.entries(after.userData.parts)){
+  for(let i=part.start;i<part.start+part.count;i++){
+   if(name==='shorts'&&old.getY(i)<.74){
+    oldHem=Math.max(oldHem,Math.abs(old.getX(i)));newHem=Math.max(newHem,Math.abs(next.getX(i)));
+   }
+   if(name!=='shirt'&&(name!=='shorts'||old.getY(i)>1)){
+    assert.deepEqual(next.array.subarray(i*3,i*3+3),old.array.subarray(i*3,i*3+3),name);
+   }
+  }
+ }
+ assert.ok(oldHem-newHem>.019);
+ assert.ok(after.attributes.normal.array.every(Number.isFinite));
+ for(const cell of [.035,.085]){
+  const a=simplifySkinnedGeometry(before,cell),b=simplifySkinnedGeometry(after,cell);
+  assert.ok(b.index.count<=a.index.count*1.01,'match kit stays in the phone triangle budget');
+ }
+});
 
 test('the active 960 model keeps the single material and the phone LOD triangle budget',t=>{
  for(const hair of ['short02','crop'])for(const keeper of [false,true]){

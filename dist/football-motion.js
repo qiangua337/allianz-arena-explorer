@@ -1,9 +1,21 @@
 import {THREE} from './kit.js';
 import {entranceFloor} from './matchday-route.js';
-import {setFootballBootBounds,keepFootballBootsAboveFloor} from './football-kick-pose.js';
+import {setFootballBootBounds,keepFootballBootsAboveFloor,placeFootballPoseFoot} from './football-kick-pose.js';
 import {createFootballFootPlant} from './football-foot-plant.js';
 const forward=new THREE.Vector3(0,0,1);
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
+
+// The ball leaves on the input tick. Let the body finish turning into a
+// sideways pass instead of rotating the planted leg with the shot vector.
+export function strikeFacing(state,heading,dt,striking,reset=false){
+ if(!Number.isFinite(state.yaw)||reset||(!striking&&!state.turning)){
+  state.turning=false;return state.yaw=heading;
+ }
+ const delta=Math.atan2(Math.sin(heading-state.yaw),Math.cos(heading-state.yaw));
+ const step=(striking?9:14)*dt;
+ state.turning=Math.abs(delta)>step;
+ return state.yaw=state.turning?state.yaw+clamp(delta,-step,step):heading;
+}
 
 function receiveApproach(ball,px,pz,dx,dz,dt){
  if(!ball||ball.y>.70)return 0;
@@ -24,6 +36,8 @@ export function createFootballMotion(data,motion,bones,group,definition){
  const rest=data.bones.map(b=>new THREE.Vector3().fromArray(b.head)),world=data.bones.map(()=>new THREE.Quaternion()),q=new THREE.Quaternion(),a=new THREE.Quaternion(),b=new THREE.Quaternion(),hip=new THREE.Vector3(),knee=new THREE.Vector3(),ankle=new THREE.Vector3(),axis=new THREE.Vector3(),bend=new THREE.Vector3(),v=new THREE.Vector3(),u=new THREE.Vector3();
  let distance=0,hasLast=false,lastX=0,lastZ=0,blend=0,lastTime=null,travelSpeed=0,gaitDirection=1,lateralSteer=0,lateralBlend=0;
  let lastHeading=0,bodyPitch=0,bodyRoll=0,counterTurn=0,carrying=0,receiveLoad=0;
+ let receiveSide=-1;
+ const receiveFoot=new THREE.Vector3();
  let keeperShufflePhase=0,keeperShuffleSpeed=0;
  let heightScale=definition.height/1.86;const walk=motion.clips.Walk_Loop,jog=motion.clips.Jog_Fwd_Loop||walk,sprint=motion.clips.Sprint_Loop||jog,idle=motion.clips[definition.seated?'Sitting_Idle_Loop':definition.role==='coach'?'Idle_Talking_Loop':'Idle_Loop'];
  const rootWalk=new THREE.Vector3(),rootIdle=new THREE.Vector3(),rootOffset=new THREE.Vector3(),rootJog=new THREE.Vector3(),rootSprint=new THREE.Vector3(),jogQ=new THREE.Quaternion(),sprintQ=new THREE.Quaternion();
@@ -140,9 +154,25 @@ export function createFootballMotion(data,motion,bones,group,definition){
   group.position.set(px,floor+seatY,pz);group.rotation.y=heading;group.scale.setScalar(heightScale);
   const adaptivePlant=natural;
   const supported=adaptivePlant?moving&&travelSpeed>.55&&blend>.7:moving&&(travelSpeed>3.4||lateralBlend>.12&&travelSpeed>.8)&&blend>.9;
-  // The existing trap uses the right foot. Keep the left stance running and
-  // ease the right support out so the trap and locomotion do not fight.
-  footPlant?.update(px,pz,heading,heightScale,phase,fast,dt,supported,penaltyKick||stair||definition.seated||px< -39.6||discontinuity||step>=2,(adaptivePlant?1:lateralBlend)*(1-run),adaptivePlant,trapping?1:-1);
+  const touchBall=natural&&(options.incomingBall||(trapping&&options.controlledBall));
+  if(!validTravel||(!touchBall&&!trapping))receiveSide=-1;
+  const recover=trapping?1-THREE.MathUtils.smoothstep(options.action.elapsed/options.action.duration,.42,1):1;
+  let cushion=trapping&&!touchBall&&receiveSide>=0?receiveLoad*recover:0;
+  if(touchBall&&validTravel&&receiveLoad>.015&&touchBall.y<=.7){
+   const relativeX=touchBall.x-px,relativeZ=touchBall.z-pz,cos=Math.cos(heading),sin=Math.sin(heading);
+   const lateral=(relativeX*cos-relativeZ*sin)/heightScale,depth=(relativeX*sin+relativeZ*cos)/heightScale;
+   const proximity=1-THREE.MathUtils.smoothstep(Math.hypot(lateral,depth),.70,1.45);
+   cushion=receiveLoad*proximity*recover;
+   if(cushion>.001){
+    if(receiveSide<0)receiveSide=lateral>.12?0:1;
+    const side=receiveSide===0?1:-1;
+    receiveFoot.set(side*clamp(side*lateral+.08,.07,.43),clamp((touchBall.y-group.position.y)/heightScale-.012,.087,.32),clamp(depth-.12,-.24,.58));
+   }
+  }
+  const placed=cushion>.001;
+  if(options&&field)options.receiveFootPlaced=placed;
+  footPlant?.update(px,pz,heading,heightScale,phase,fast,dt,supported,penaltyKick||stair||definition.seated||px< -39.6||discontinuity||step>=2,(adaptivePlant?1:lateralBlend)*(1-run),adaptivePlant,placed?receiveSide:trapping?1:-1);
+  if(placed)placeFootballPoseFoot(bones,receiveSide,receiveFoot,.035,receiveSide===0?.52:-.52,Math.min(.9,cushion));
   // Interpolated clip rotations do not preserve the exporters' grounded soles.
   // Correct only mixed flat-ground poses; stairs retain their own real treads.
   if(footPlant&&!stair&&!definition.seated&&px>=-39.6&&(receiveLoad>.002||blend>.03&&blend<.995||run>.001&&run<.999||fast>.001&&fast<.999))keepFootballBootsAboveFloor(bones);
@@ -162,5 +192,5 @@ export function createFootballMotion(data,motion,bones,group,definition){
    group.updateMatrixWorld(true);let lowest=Infinity;for(const foot of[11,17])for(const x of[-.039,.039])for(const z of[-.08,.16]){v.set(rest[foot].x+x,.023,rest[foot].z+z).sub(rest[foot]).applyMatrix4(bones[foot].matrixWorld);lowest=Math.min(lowest,v.y-entranceFloor(v.x));}if(Number.isFinite(lowest)){bones[0].position.y-=clamp(lowest,-.20,.24)/heightScale;group.updateMatrixWorld(true);}
   }
  }
- return{pose,reset(){distance=0;hasLast=false;blend=0;lastTime=null;travelSpeed=0;gaitDirection=1;lateralSteer=lateralBlend=0;lastHeading=bodyPitch=bodyRoll=counterTurn=carrying=receiveLoad=keeperShufflePhase=keeperShuffleSpeed=0;footPlant?.reset();}};
+ return{pose,reset(){distance=0;hasLast=false;blend=0;lastTime=null;travelSpeed=0;gaitDirection=1;lateralSteer=lateralBlend=0;receiveSide=-1;lastHeading=bodyPitch=bodyRoll=counterTurn=carrying=receiveLoad=keeperShufflePhase=keeperShuffleSpeed=0;footPlant?.reset();}};
 }

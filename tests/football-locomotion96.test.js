@@ -10,7 +10,7 @@ registerHooks({resolve(specifier, context, next) {
 }});
 
 const {THREE} = await import('../dist/kit.js');
-const {createFootballMotion} = await import('../dist/football-motion.js');
+const {createFootballMotion,strikeFacing} = await import('../dist/football-motion.js');
 const {applyFootballAction} = await import('../dist/football-action-pose.js');
 const {createFootballSimulation} = await import('../dist/football-simulation.js');
 const assets = new URL('../dist/assets/players/', import.meta.url);
@@ -58,6 +58,49 @@ function percentile(values, fraction) {
   const sorted = [...values].sort((a, b) => a - b);
   return sorted[Math.floor((sorted.length - 1) * fraction)];
 }
+
+test('a rendered back pass turns progressively through contact and follows play on recovery',()=>{
+ for(const hz of [12,30,60]){
+  const state={};
+  let yaw=strikeFacing(state,0,0,false);
+  for(let frame=0;frame<hz;frame++){
+   const previous=yaw;
+   yaw=strikeFacing(state,Math.PI-.03,1/hz,frame/hz<.32);
+   assert.ok(Math.abs(yaw-previous)<=(frame/hz<.32?9:14)/hz+1e-9);
+  }
+  assert.equal(yaw,Math.PI-.03);
+  strikeFacing(state,1,1/hz,true);
+  assert.equal(strikeFacing(state,-2,0,true,true),-2,'a seek or new actor takes its own heading');
+  const wrapped={yaw:Math.PI-.02};
+  assert.equal(strikeFacing(wrapped,-Math.PI+.02,1/hz,true),-Math.PI+.02);
+ }
+});
+
+test('a low pass from either side draws the near boot toward the ball through reception',()=>{
+ for(const sign of [-1,1]){
+  const actor=fixture(.8),neutral=fixture(.8),ball={x:sign*.31,y:.15,z:0,vx:0,vz:-3};
+  let previous,working=false;
+  for(let i=0;i<60;i++){
+   const time=i/60,after=i>=30;
+   ball.z=after?.46:.46+(30-i)*.05;
+   const action=after&&i<46?{type:'trap',elapsed:(i-30)/60,duration:.26}:null;
+   const options={fieldLocomotion:true,onBall:after,incomingBall:after?null:ball,controlledBall:after?ball:null,action};
+   actor.pose(0,0,0,time,false,0,true,options);
+   if(action)applyFootballAction(actor.bones,action,options,actor.group);
+   actor.group.updateMatrixWorld(true);
+   neutral.pose(0,0,0,time,false,0,false,{fieldLocomotion:true});
+   const foot=sign===1?11:17,pos=actor.position(foot);
+   if(i>=29&&i<=34){
+    const incoming=new THREE.Vector3(ball.x,ball.y,ball.z);
+    working ||= options.receiveFootPlaced&&pos.distanceTo(incoming)+.08<neutral.position(foot).distanceTo(incoming);
+    if(previous)assert.ok(previous.distanceTo(pos)<.16,'no foot jump when possession changes');
+   }
+   assert.ok(Math.min(...actor.bootHeights())>-.001);
+   previous=pos;
+  }
+  assert.equal(working,true,'uses the receiving-side boot');
+ }
+});
 
 function steadyGait(hz, speed, phase, enhanced) {
   const actor = fixture(phase, phase ? 1.78 : 1.92);

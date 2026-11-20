@@ -11,7 +11,7 @@ registerHooks({
 });
 const {THREE}=await import('../dist/kit.js');
 const {applyFootballAction}=await import('../dist/football-action-pose.js');
-const {setFootballBootBounds}=await import('../dist/football-kick-pose.js');
+const {setFootballBootBounds,rememberKickSupport}=await import('../dist/football-kick-pose.js');
 const {samplePenaltyApproach}=await import('../dist/penalty-approach.js');
 const directory=new URL('../dist/assets/players/',import.meta.url);
 const data=JSON.parse(readFileSync(new URL('footballer-960.json',directory)));
@@ -37,12 +37,12 @@ function fixture(){
  const head=legs.map(index=>vector(...data.bones[index].head)),point=vector();
  return{
   group,bones,
-  pose(motion,{clip='Walk_Loop',phase=0,x=8,z=15,heading=0,scale=1,speed=0}={}){
+  pose(motion,{clip='Walk_Loop',phase=0,x=8,z=15,heading=0,scale=1,speed=0,poseTime}={}){
    const frame=clips[clip].frames[Math.round(phase*60)];
    group.position.set(x,0,z);group.rotation.y=heading;group.scale.setScalar(scale);
    bones[0].position.fromArray(data.bones[0].head).add(vector(...frame.slice(0,3)));
    for(let i=0;i<bones.length;i++)bones[i].quaternion.fromArray(frame,3+i*4);
-   if(motion)applyFootballAction(bones,motion,{speed},group);
+   if(motion)applyFootballAction(bones,motion,{speed,poseTime},group);
    group.updateMatrixWorld(true);
    return{
     feet:legs.map(i=>bones[i].getWorldPosition(vector())),
@@ -96,6 +96,19 @@ test('the support boot anchors as the skinned actor continues across the grass a
    assert.ok(f.boots().every(boot=>boot.lowest>=-.001),JSON.stringify({hz,heading,side,elapsed}));
    if(elapsed===motion.duration)assert.deepEqual(current,f.pose(null,frame),'the action returns to the exact locomotion sample');
   }
+ }
+});
+
+test('an immediate shot inherits the support foot from the last rendered preparation',()=>{
+ for(const heading of [-2.6,.7]){
+  const f=fixture(),frame={clip:'Idle_Loop',phase:.3,x:0,z:0,heading};
+  const before=f.pose({type:'prepareShot',elapsed:.65,duration:1,stroke:'drive'},frame);
+  rememberKickSupport(f.bones,f.group,4,true);
+  const ball=f.worldBall(-.18,.11,.55);
+  const shot=action('drive',{firstTime:true,contactX:ball.x,contactY:ball.y,contactZ:ball.z});
+  const after=f.pose(shot,{...frame,x:.018,heading:heading+.11,poseTime:4+1/60});
+  assert.ok(before.feet[0].distanceTo(after.feet[0])<.035,'the support does not jump to a fresh stance at release');
+  assert.ok(Math.abs(f.boots(ball)[1].contact-.11)<.035,'the other boot still meets the ball');
  }
 });
 

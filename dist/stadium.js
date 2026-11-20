@@ -73,6 +73,49 @@ function buildRoofFloodlightBanks(parent,locations,faceColor){
  return root;
 }
 
+function buildTierFascia(innerA,innerB,top,atFieldLevel){
+ // Distances in metres from the original fascia. The fold at the bottom
+ // catches less light underneath the overhang; block signs sit on its face.
+ const section=[
+  [.09,0,0xa3aead],[-.02,-.025,0xbbc2bc],[-.02,-.065,0x843044],
+  [0,-.10,0xd42a48],[0,-.79,0xb1233d],[.055,-.84,0x4f1829],
+  [.055,-1,0x5f2532]
+ ].map(([offset,y,tone])=>({offset,y,color:new THREE.Color(tone)}));
+ const position=[],colors=[],index=[],segments=192;
+ for(let j=0;j<=segments;j++){
+  const angle=j/segments*TAU;
+  for(const band of section){
+   const point=superpoint(innerA+band.offset,innerB+band.offset,angle,3.35);
+   position.push(point.x,top+band.y,point.z);
+   colors.push(band.color.r,band.color.g,band.color.b);
+  }
+  if(!j)continue;
+  if(atFieldLevel){
+   const start=superpoint(innerA,innerB,(j-1)/segments*TAU,3.35);
+   const end=superpoint(innerA,innerB,angle,3.35);
+   if(bowlOpening(start.x,start.z,0)||bowlOpening(end.x,end.z,0))continue;
+  }
+  const left=(j-1)*section.length,right=j*section.length;
+  for(let k=0;k<section.length-1;k++)index.push(left+k,right+k,left+k+1,right+k,right+k+1,left+k+1);
+ }
+ const geometry=new THREE.BufferGeometry();
+ geometry.setAttribute('position',new THREE.Float32BufferAttribute(position,3));
+ geometry.setAttribute('color',new THREE.Float32BufferAttribute(colors,3));
+ geometry.setIndex(index);
+ geometry.computeVertexNormals();
+ return geometry;
+}
+
+// The six vertices of each row quad are emitted in the same order by the
+// complete and portal-cut rings. Bake the darkening under the following row
+// once, including on phones where the stadium uses no shadow maps.
+function shadeDeckQuad(geometry,pattern){
+ const count=geometry.attributes.position.count,colors=new Float32Array(count*3);
+ for(let i=0;i<count;i++)colors.fill(pattern[i%6],i*3,i*3+3);
+ geometry.setAttribute('color',new THREE.BufferAttribute(colors,3));
+ return geometry;
+}
+
 export function buildStadium(scene){
  const root=new THREE.Group();root.name='Allianz Arena | metres';scene.add(root);
  const roof=new THREE.Group();roof.name='Roof and trusses';root.add(roof);
@@ -148,15 +191,18 @@ export function buildStadium(scene){
  // A three-tier bowl. Angles follow the published 24 / 30 / 34 degree sections.
  const tiers=seatingTiers;
  const rowGeometries=[];const seats=[];const aisleRails=new THREE.Group();aisleRails.name='Continuous stair handrails beside clear walking aisles';bowl.add(aisleRails);const closeLabels=new THREE.Group();bowl.add(closeLabels);
+ const treadTones=[.98,.73,.73,.98,.98,.73],riserTones=[.75,.75,.54,.75,.54,.54];
  const seatColor=buildArenaSeatMosaic(getCrestImage());
+ const fasciaMaterial=mat(0xffffff,{side:THREE.DoubleSide,vertexColors:true,roughness:.70});
  function openTunnelRing(a,b,aa,bb,y,row){const limit=Math.asin((2.6/b)**(3.35/2)),ts=Array.from({length:385},(_,i)=>i/384*TAU);ts.push(Math.PI-limit,Math.PI+limit);if(row<8)for(const x of[visitorPassage.x-visitorPassage.width/2-.35,visitorPassage.x+visitorPassage.width/2+.35])ts.push(Math.acos(Math.sign(x)*Math.abs(x/a)**(3.35/2)));ts.sort((a,b)=>a-b);const ps=[];for(let i=0;i<ts.length-1;i++){const t=ts[i],u=ts[i+1],mid=superpoint(a,b,(t+u)/2,3.35);if(bowlOpening(mid.x,mid.z,row))continue;const pts=[superpoint(a,b,t,3.35),superpoint(aa,bb,t,3.35),superpoint(aa,bb,u,3.35),superpoint(a,b,u,3.35)];for(const k of[0,2,1,0,3,2])ps.push(pts[k].x,y,pts[k].z);}const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(ps,3));g.computeVertexNormals();return g;}
  tiers.forEach((tier,ti)=>{
   const rise=tier.depth*Math.tan(tier.angle*Math.PI/180);
   for(let r=0;r<tier.rows;r++){
    const a=tier.a+r*tier.depth,b=tier.b+r*tier.depth,y=tier.y+r*rise;
-   rowGeometries.push(ti===0&&r<17?openTunnelRing(a-.1,b-.1,a+tier.depth+.02,b+tier.depth+.02,y,r):ringGeometry(a-.1,b-.1,a+tier.depth+.02,b+tier.depth+.02,y,3.35,192));
+   const tread=ti===0&&r<17?openTunnelRing(a-.1,b-.1,a+tier.depth+.02,b+tier.depth+.02,y,r):ringGeometry(a-.1,b-.1,a+tier.depth+.02,b+tier.depth+.02,y,3.35,192);
+   rowGeometries.push(shadeDeckQuad(tread,treadTones));
    // A low vertical riser creates readable horizontal shadow lines.
-   const positions=[];for(let j=0;j<192;j++){const t=j/192*TAU,u=(j+1)/192*TAU,p=superpoint(a,b,t,3.35),q=superpoint(a,b,u,3.35);if(ti===0&&(bowlOpening(p.x,p.z,r)||bowlOpening(q.x,q.z,r)))continue;positions.push(p.x,y,p.z,q.x,y,q.z,p.x,y-rise,p.z,q.x,y,q.z,q.x,y-rise,q.z,p.x,y-rise,p.z);}const rg=new THREE.BufferGeometry();rg.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));rg.computeVertexNormals();rowGeometries.push(rg);
+   const positions=[];for(let j=0;j<192;j++){const t=j/192*TAU,u=(j+1)/192*TAU,p=superpoint(a,b,t,3.35),q=superpoint(a,b,u,3.35);if(ti===0&&(bowlOpening(p.x,p.z,r)||bowlOpening(q.x,q.z,r)))continue;positions.push(p.x,y,p.z,q.x,y,q.z,p.x,y-rise,p.z,q.x,y,q.z,q.x,y-rise,q.z,p.x,y-rise,p.z);}const rg=new THREE.BufferGeometry();rg.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));rg.computeVertexNormals();rowGeometries.push(shadeDeckQuad(rg,riserTones));
    let last=superpoint(a+.3,b+.3,0,3.35),length=0;const path=[{p:last,t:0,d:0}];for(let j=1;j<=768;j++){const t=j/768*TAU,p=superpoint(a+.3,b+.3,t,3.35);length+=p.distanceTo(last);path.push({p,t,d:length});last=p;}
    const count=Math.floor(length/.5);let idx=0;for(let j=0;j<count;j++){
     const d=j/count*length;while(idx<path.length-2&&path[idx+1].d<d)idx++;const f=(d-path[idx].d)/(path[idx+1].d-path[idx].d),t=THREE.MathUtils.lerp(path[idx].t,path[idx+1].t,f);const p=path[idx].p.clone().lerp(path[idx+1].p,f);const block=(j/count*48)%1;
@@ -169,7 +215,8 @@ export function buildStadium(scene){
   }
   // Continuous red fascias, handrails, glass balustrades and section identifiers.
   const innerA=tier.a-.2,innerB=tier.b-.2,fasciaY=tier.y-.4;
-  const fasPos=[];for(let j=0;j<192;j++){const p=superpoint(innerA,innerB,j/192*TAU,3.35),q=superpoint(innerA,innerB,(j+1)/192*TAU,3.35);if(ti===0&&(bowlOpening(p.x,p.z,0)||bowlOpening(q.x,q.z,0)))continue;fasPos.push(p.x,fasciaY,p.z,q.x,fasciaY,q.z,p.x,fasciaY-1,p.z,q.x,fasciaY,q.z,q.x,fasciaY-1,q.z,p.x,fasciaY-1,p.z);}const fg=new THREE.BufferGeometry();fg.setAttribute('position',new THREE.Float32BufferAttribute(fasPos,3));fg.computeVertexNormals();mesh(fg,red,bowl);
+  const fascia=buildTierFascia(innerA,innerB,fasciaY,ti===0);
+  mesh(fascia,fasciaMaterial,bowl).name='Profiled tier front '+(ti+1);
   let pts=[];for(let j=0;j<=512;j++){const p=superpoint(innerA,innerB,j/512*TAU,3.35);p.y=tier.y+.95;if(ti===0&&bowlOpening(p.x,p.z,0)){if(pts.length>1)curveLine(bowl,pts,0xbec9cd,.8);pts=[];}else pts.push(p);}if(pts.length>1)curveLine(bowl,pts,0xbec9cd,.8);
   for(let j=0;j<48;j++){const t=(j+.5)/48*TAU,p=superpoint(innerA,innerB,t,3.35),n=supernormal(innerA,innerB,t,3.35),yaw=Math.atan2(n.x,n.z);if(ti===0&&bowlOpening(p.x,p.z,0))continue;batch.add(.04,1,.04,p.x,tier.y+.45,p.z,steel);const lab=sign(closeLabels,String(100+ti*100+j+1),1.8,.58,p.x-n.x*.06,tier.y-.66,p.z-n.z*.06,{w:128,h:64,font:38,fg:'#ffffff',bg:'#b51632'});lab.rotation.y=yaw+Math.PI;}
   // Radial stair aisles with intermediate handrail posts.
@@ -186,7 +233,8 @@ export function buildStadium(scene){
    }
   }
  });
- const steps=mesh(mergeGeometry(rowGeometries),concrete,bowl);steps.name='Seating decks and risers';steps.castShadow=true;
+ const deckConcrete=concrete.clone();deckConcrete.vertexColors=true;
+ const steps=mesh(mergeGeometry(rowGeometries),deckConcrete,bowl);steps.name='Seating decks and risers';steps.castShadow=true;
  const decks=partitionStaticMesh(steps);compactGroup(aisleRails);for(const part of [...aisleRails.children])if(part.isMesh)partitionStaticMesh(part);
  const seatGeom=seatShellGeometry(2),compactSeat=foldedSeatGeometry();
  const farSeat=new THREE.PlaneGeometry(.435,.77).rotateX(-.35).translate(0,.43,.12),coarseSeat=mergeGeometry([new THREE.PlaneGeometry(.435,.4).rotateX(-Math.PI/2).translate(0,.23,0),new THREE.PlaneGeometry(.435,.49).translate(0,.49,.17)]),seatMat=mat(0xffffff,{roughness:.53,metalness:.04,side:THREE.DoubleSide});const dummy=new THREE.Object3D(),seatInstances=[];

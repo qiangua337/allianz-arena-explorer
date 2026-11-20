@@ -3,7 +3,7 @@ import {applyFootballPenaltyKick} from './football-penalty-pose.js';
 import {applyPenaltyKeeperPose,applyPenaltyKeeperSet} from './football-keeper-penalty-pose.js';
 // Football strokes layer over the CC0 locomotion clips before the skeleton's
 // single world update. Kicks plant their support foot and begin at contact.
-export function applyFootballAction(bones,motion,{defending=false,speed=0,holdingBall=false,penaltyKeeper=false,keeperShuffleSpeed=0,keeperShufflePhase=0}={},group){
+export function applyFootballAction(bones,motion,{defending=false,speed=0,holdingBall=false,penaltyKeeper=false,keeperShuffleSpeed=0,keeperShufflePhase=0,receiveFootPlaced=false,poseTime}={},group){
  const t=motion?Math.max(0,Math.min(1,motion.elapsed/motion.duration)):0,pulse=Math.sin(t*Math.PI);
  if(motion?.type==='penaltyKick'&&group){applyFootballPenaltyKick(bones,motion,group);return;}
  if(penaltyKeeper&&(!motion||motion.penaltyDive)){
@@ -26,7 +26,10 @@ export function applyFootballAction(bones,motion,{defending=false,speed=0,holdin
   if(!applyFootballShotPreparation(bones,preload,motion,speed)){bones[15].rotateX(load);bones[16].rotateX(-load*.32);}
   return;
  }
- if(motion?.type==='trap'){bones[15].rotateX(-.17*pulse);bones[16].rotateX(.20*pulse);bones[17].rotateX(.13*pulse);bones[6].rotateZ(-.10*pulse);bones[12].rotateZ(.10*pulse);}
+ if(motion?.type==='trap'){
+  if(!receiveFootPlaced){bones[15].rotateX(-.17*pulse);bones[16].rotateX(.20*pulse);bones[17].rotateX(.13*pulse);}
+  bones[6].rotateZ(-.10*pulse);bones[12].rotateZ(.10*pulse);
+ }
  if(motion?.type==='celebrate'){const lift=Math.min(1,motion.elapsed/.40);bones[6].rotateX(-2.15*lift);bones[12].rotateX(-2.15*lift);bones[7].rotateX(-.35*lift);bones[13].rotateX(-.35*lift);bones[2].rotateY(Math.sin(motion.elapsed*3)*.035);return;}
  if(motion?.type==='shoot'||motion?.type==='pass'){
   if(motion.predicted&&!(Number.isFinite(motion.contactX)&&Number.isFinite(motion.contactZ))){
@@ -34,7 +37,7 @@ export function applyFootballAction(bones,motion,{defending=false,speed=0,holdin
    applyFootballShotPreparation(bones,load,motion,speed);
    return;
   }
-  if(applyFootballKick(bones,motion,t,group,speed))return;
+  if(applyFootballKick(bones,motion,t,group,speed,poseTime))return;
  }
  const kick=motion?.type==='shoot'?.82:motion?.type==='pass'?.55:motion?.type==='tackle'?.48:0;
  const strike=motion?.type==='tackle'?pulse:t<.18?Math.sin(t/.18*Math.PI/2):Math.cos((t-.18)/.82*Math.PI/2);

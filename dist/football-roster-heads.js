@@ -97,6 +97,23 @@ export function paintRosterHair(context,[x,y,w,h],profile) {
  roots.addColorStop(.64,color.getStyle());
  roots.addColorStop(1,color.clone().multiplyScalar(.66).getStyle());
  context.fillStyle=roots;context.fillRect(0,0,1,1);
+ const closeCut=profile.style==='buzz'||profile.style==='fade';
+ if(closeCut){
+  // Broken, short strands show the direction of growth through the sides
+  // and nape. The atlas is painted only when an actor's kit is prepared.
+  let seed=18273;
+  const sample=()=>((seed=(Math.imul(seed,1664525)+1013904223)>>>0)/4294967296);
+  for(let tone=0;tone<3;tone++){
+   context.beginPath();
+   context.strokeStyle=['rgba(222,205,181,.21)','rgba(27,23,22,.29)','rgba(165,145,124,.24)'][tone];
+   context.lineWidth=.004;
+   for(let i=0;i<240;i++){
+    const u=sample(),v=sample(),length=.008+.014*(1-v);
+    context.moveTo(u,v);context.lineTo(u+length*(.25+.75*Math.sin(u*3.8)),v-length);
+   }
+   context.stroke();
+  }
+ }
  for(let i=0;i<(braided?18:145);i++){
   const u=(i+.5)/(braided?18:145),v=.12+.78*(.5+.5*Math.sin(i*2.399963));
   context.strokeStyle=i%4===0?'rgba(232,205,180,.23)':'rgba(15,10,9,.21)';
@@ -110,8 +127,8 @@ export function paintRosterHair(context,[x,y,w,h],profile) {
  if(profile.hair==='crop'){
   const rootFade=context.createLinearGradient(0,0,0,1);
   rootFade.addColorStop(0,'#fff');
-  rootFade.addColorStop(.72,'#fff');
-  rootFade.addColorStop(.92,'rgba(255,255,255,.62)');
+  rootFade.addColorStop(closeCut?.56:.72,'#fff');
+  rootFade.addColorStop(closeCut?.85:.92,'rgba(255,255,255,.62)');
   rootFade.addColorStop(1,'rgba(255,255,255,0)');
   context.globalCompositeOperation='destination-in';
   context.fillStyle=rootFade;

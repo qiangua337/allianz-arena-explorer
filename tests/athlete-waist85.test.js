@@ -5,6 +5,7 @@ import {createHash} from 'node:crypto';
 import {registerHooks} from 'node:module';
 registerHooks({resolve(s,c,next){return s==='three'?{url:new URL('../dist/vendor/three.module.js',import.meta.url).href,shortCircuit:true}:next(s,c);}});
 const {THREE}=await import('../dist/kit.js'),{applyFootballAction}=await import('../dist/football-action-pose.js'),{atlasGeometry}=await import('../dist/football-appearance.js'),{simplifySkinnedGeometry}=await import('../dist/player-lod.js');
+const {fitFootballKit}=await import('../dist/football-kit-fit.js');
 const dir=new URL('../dist/assets/players/',import.meta.url),clips=JSON.parse(fs.readFileSync(new URL('walk-cycle.json',dir))).clips;
 function asset(version){const data=JSON.parse(fs.readFileSync(new URL(`footballer-${version}.json`,dir))),file=fs.readFileSync(new URL(`footballer-${version}.bin`,dir)),parts=Object.fromEntries(data.parts.map(p=>[p.name,{...p,rows:new Float32Array(file.buffer,file.byteOffset+p.offset,p.vertices*16),indices:new Uint16Array(file.buffer,file.byteOffset+p.indexOffset,p.indexCount)}]));return{data,file,parts};}
 const old=asset('840'),current=asset('850');
@@ -34,6 +35,7 @@ test('actual skinned waist cap seals formerly empty near-rim rays during standin
 });
 test('both actual atlas hairstyles and phone LODs retain a closed skinned waist inside the existing single material mesh',()=>{
  const raw=Object.fromEntries(Object.entries(current.parts).map(([name,p])=>{const g=new THREE.BufferGeometry();let offset=0;for(const[key,size]of Object.entries({position:3,normal:3,uv:2,skinIndex:4,skinWeight:4})){const values=new Float32Array(p.vertices*size);for(let i=0;i<p.vertices;i++)values.set(p.rows.slice(i*16+offset,i*16+offset+size),i*size);g.setAttribute(key,new THREE.BufferAttribute(key==='skinIndex'?new Uint16Array(values):values,size));offset+=size;}g.setIndex(new THREE.BufferAttribute(p.indices,1));return[name,g];}));
+ fitFootballKit(raw);
  for(const hair of['short02','crop']){const full=atlasGeometry(raw,hair);for(const geometry of[full,simplifySkinnedGeometry(full,.035),simplifySkinnedGeometry(full,.085)]){
   assert.equal(geometry.groups.length,0,'no material split or extra draw group');assert.deepEqual(Object.keys(geometry.userData.parts),Object.keys(full.userData.parts),'the closure stays in shorts, not another scene node');const range=geometry.userData.parts.shorts,p=geometry.attributes.position,weights=geometry.attributes.skinWeight,bones=geometry.attributes.skinIndex,index=geometry.index.array,edges=new Map();
   const vertexKey=i=>[p.getX(i),p.getY(i),p.getZ(i),...Array.from({length:4},(_,j)=>[bones.array[i*4+j],weights.array[i*4+j]]).sort((a,b)=>a[0]-b[0]).flat()].map(v=>v.toFixed(5)).join(',');let capFaces=0;

@@ -3,6 +3,7 @@ import {playerLikeness} from './football-likeness.js';
 import {rosterHeadProfile,paintRosterBeard,paintRosterHair} from './football-roster-heads.js';
 import {paintKaneHair,paintKaneEyes} from './football-likeness-kane.js';
 import {paintMusialaHair} from './football-likeness-musiala.js';
+import {drawKitLegPanel} from './football-kit-fit.js';
 export const faceTextureWindow=[.60,.15,1,.87];
 export const athleteAtlasCells={face:[0,0,.34,.5],skin:[.34,0,.16,.5],hands:[.34,0,.16,.5],wrists:[.34,0,.16,.5],keeperWrists:[.34,0,.16,.5],shirt:[.5,0,.5,.5],shorts:[0,.5,.25,.25],socks:[.25,.5,.25,.25],bootL:[.5,.5,.25,.25],bootR:[.5,.5,.25,.25],eyes:[.75,.5,.25,.25],eyebrows:[0,.75,.25,.25],short02:[.25,.75,.5,.25],crop:[.25,.75,.5,.25],gloves:[.75,.75,.25,.25],gloveCuffs:[.75,.75,.25,.25]};
 const cells=athleteAtlasCells;
@@ -85,6 +86,7 @@ export function characterAtlas(d,textures,jerseyTexture,size=1024){
    }else{
     const image=name==='shirt'?jersey.image:name==='eyes'?textures.eyes.image:name==='eyebrows'&&!face?textures.brows.image:name==='bootL'?textures.boot.image:null;
     if(image)c.drawImage(image,...cell);
+    if(name==='shorts'||name==='socks')drawKitLegPanel(c,cell,name,colors);
    }
    if(name==='eyes'&&id){
     c.globalCompositeOperation='multiply';
@@ -104,6 +106,9 @@ export function characterAtlas(d,textures,jerseyTexture,size=1024){
   const cell=cells.short02;c.save();c.beginPath();c.rect(...cell);c.clip();c.clearRect(...cell);if(id)drawLikenessHair(c,cell,id);else if(profile){
     c.save();paintRosterHair(c,cell,profile);c.restore();
     if(profile.hair==='short02'&&profile.style!=='shaved'){c.globalCompositeOperation='destination-in';c.drawImage(textures.short02.image,...cell);}
+   }else if(d.hair==='crop'&&!d.keeper){
+    const tint=new THREE.Color(d.hairColor??0x726152).multiplyScalar(.21);
+    paintRosterHair(c,cell,{style:'buzz',hair:'crop',hairColor:tint});
    }else if(d.hair==='crop'){c.fillStyle='#27231e';c.fillRect(...cell);}else{c.drawImage(textures.short02.image,...cell);c.globalCompositeOperation='multiply';c.fillStyle=new THREE.Color(d.hairColor||0x9a8476).getStyle();c.fillRect(...cell);c.globalCompositeOperation='destination-in';c.drawImage(textures.short02.image,...cell);}c.restore();
  });jersey.dispose();return texture;
 }

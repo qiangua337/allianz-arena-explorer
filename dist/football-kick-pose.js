@@ -53,6 +53,20 @@ function readFootballBootFloor(bones,rig,side,ankle){
 }
 
 export function placeFootballSupportFoot(bones,side,target,weight){const rig=rigFor(bones);if(!rig)return;placeFoot(bones,rig.legs[side],rig,target,null,weight,0);}
+export function rememberKickSupport(bones,group,time,preparing){
+ const rig=rigs.get(bones);
+ if(!rig)return;
+ if(!preparing){rig.readyFeetAt=undefined;return;}
+ rig.readyFeet??=[new THREE.Vector3(),new THREE.Vector3()];
+ const cos=Math.cos(group.rotation.y),sin=Math.sin(group.rotation.y),scale=group.scale.x;
+ for(let side=0;side<2;side++){
+  const foot=rig.readyFeet[side];
+  readFootballAnkle(bones,side,foot);
+  const {x,y,z}=foot;
+  foot.set(group.position.x+scale*(x*cos+z*sin),group.position.y+scale*y,group.position.z+scale*(z*cos-x*sin));
+ }
+ rig.readyFeetAt=time;
+}
 export function placeFootballPoseFoot(bones,side,target,pitch,yaw,weight){
  const rig=rigFor(bones);if(!rig)return false;
  placeFoot(bones,rig.legs[side],rig,target,pitch,weight,weight,yaw);
@@ -126,7 +140,7 @@ function setStrokeSupport(bones,rig,stroke,speed){
 
 // The render pose can sample an online stroke after contact. Keep its first
 // visible origin stable through interpolation, and invalidate it on replay seeks.
-function strokeOrigin(bones,rig,motion,group,speed){
+function strokeOrigin(bones,rig,motion,group,speed,poseTime){
  const stroke=rig.stroke,heading=group?.rotation.y||0,scale=group?.scale.x||1;
  const x=group?.position.x||0,z=group?.position.z||0;
  const ballX=motion.contactX,ballZ=motion.contactZ,recordedSpeed=motion.approachSpeed;
@@ -142,6 +156,18 @@ function strokeOrigin(bones,rig,motion,group,speed){
   stroke.localY=hasContact&&Number.isFinite(motion.contactY)?clamp((motion.contactY-group.position.y)/scale,.085,.47):.11;
   stroke.localZ=hasContact?clamp((dx*sin+dz*cos)/scale,-.38,.85):.65;
   setStrokeSupport(bones,rig,stroke,Number.isFinite(recordedSpeed)?recordedSpeed:speed);
+  // The last displayed receiving/charging pose already chose a stance.
+  // Carry a grounded support ankle through contact in world space.
+  const age=poseTime-rig.readyFeetAt;
+  if(group&&age>=0&&age<=.12){
+   const foot=rig.readyFeet[1-stroke.side],px=(foot.x-x)/scale,pz=(foot.z-z)/scale;
+   const height=(foot.y-group.position.y)/scale;
+   if(height>=0&&height<.19&&Math.hypot(px,pz)<.65){
+    stroke.plantX=px*cos-pz*sin;stroke.plantZ=px*sin+pz*cos;
+    stroke.plantY=height;
+   }
+  }
+  rig.readyFeetAt=undefined;
  }
  stroke.elapsed=motion.elapsed;
  return stroke;
@@ -160,15 +186,18 @@ function lockedGoal(goal,x,y,z,stroke,group,lock,limit){
  return goal;
 }
 
-export function applyFootballKick(bones,motion,progress,group,speed=0){
+export function applyFootballKick(bones,motion,progress,group,speed=0,poseTime){
  const rig=rigFor(bones);if(!rig)return false;
  const profile=profileFor(motion),t=clamp(progress,0,1),compact=motion.firstTime?.83:1;
  const weight=1-ramp(t,profile.release*compact,1);
  if(weight<=0)return true;
  // Contact is the first authoritative frame. Only the follow-through runs
  // after the ball has left, with no animation event gating the input.
- const stroke=strokeOrigin(bones,rig,motion,group,speed),side=stroke.side,sign=side===0?1:-1,plantSide=1-side;
- const peak=profile.peak*compact,follow=ramp(t,0,peak)*(1-.42*ramp(t,peak,1));
+ const stroke=strokeOrigin(bones,rig,motion,group,speed,poseTime),side=stroke.side,sign=side===0?1:-1,plantSide=1-side;
+ const peak=profile.peak*compact,swing=clamp(t/peak,0,1);
+ // The boot is already moving at release. Ease out at the end of the swing
+ // while the planted boot and the authoritative contact point stay fixed.
+ const follow=swing*(2-swing)*(1-.42*ramp(t,peak,1));
  const power=Number.isFinite(motion.power)?clamp(motion.power,0,1):.55,effort=(.77+power*.42)*compact;
  const reach=Math.max(0,stroke.localZ-.67),bodyTurn=profile.turn*effort*(.24+.76*follow)*weight;
  const settle=ramp(t,0,peak*.84),transfer=1-stroke.run*.62*(1-settle);

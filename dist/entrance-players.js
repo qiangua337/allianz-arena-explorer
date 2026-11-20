@@ -1,9 +1,10 @@
 import {squadDefinition,teamSquad} from './football-squads.js';
 import {applyFootballAction} from './football-action-pose.js';
+import {rememberKickSupport} from './football-kick-pose.js';
 import {defaultHomeClub,matchClubs} from './football-teams.js';
 import {THREE,mat,canvasTexture} from './kit.js';
 import {matchdayPeople} from './matchday-roster.js';
-import {createFootballMotion} from './football-motion.js';
+import {createFootballMotion,strikeFacing} from './football-motion.js';
 import {atlasGeometry,characterAtlas,drawJersey,drawBootTexture} from './football-appearance.js';
 import {simplifySkinnedGeometry} from './player-lod.js';
 import {sampleQueuePlayer} from './entrance-choreography.js';
@@ -12,6 +13,7 @@ import {createFramePacer} from './frame-pacing.js';
 import {entranceFloor} from './matchday-route.js';
 import {likenessParts,playerLikeness,makeRosterCrop,rosterCropStyles} from './football-likeness.js';
 import {shapeFootballBody} from './football-body-profile.js';
+import {fitFootballKit} from './football-kit-fit.js';
 import {rosterHeadProfile,shapeRosterHead} from './football-roster-heads.js';
 import {samplePenaltyApproach} from './penalty-approach.js';
 
@@ -23,7 +25,7 @@ function actorGeometry(geometries,definition){
  const profile=rosterHeadProfile(definition);
  const variant=profile?.hair==='crop'&&!definition.keeper?geometries['crop-'+profile.style]:null;
  const base=variant??geometries[(profile?.hair??definition.hair)+(definition.keeper?'Keeper':'')];
- if(!profile)return base;
+ if(!profile)return !definition.keeper&&definition.hair==='crop'?geometries['crop-buzz']:base;
  const key='home-'+definition.player.number;
  const geometry=geometries[key]??=shapeRosterHead(base,profile);
  if(base.userData.medium)geometry.userData.medium??=shapeRosterHead(base.userData.medium,profile);
@@ -128,6 +130,7 @@ function athlete(data,geometries,textures,definition,motion,atlasSize,cacheWorld
   if(cacheWorld)group.solvingPose=true;
   motionPlayer.pose(x,z,heading,time,moving,seatY,true,options);
   if(action||options.holdingBall||options.defending||options.penaltyKeeper||options.speed>5.5)applyFootballAction(bones,action,options,group);
+  if(definition.role==='player')rememberKickSupport(bones,group,time,options.fieldLocomotion&&(options.receiveFootPlaced||action?.type==='trap'||action?.type==='prepareShot'&&!action.penaltyReady));
   if(cacheWorld){
    group.solvingPose=false;
    group.invalidatePose();
@@ -157,6 +160,7 @@ export function buildEntrancePlayers(scene,{mobile=false}={}){
   const shadow=canvasTexture(64,64,c=>{const g=c.createRadialGradient(32,32,1,32,32,31);g.addColorStop(0,'rgba(0,0,0,.8)');g.addColorStop(.4,'rgba(0,0,0,.4)');g.addColorStop(1,'rgba(0,0,0,0)');c.fillStyle=g;c.fillRect(0,0,64,64);});
   const boot=canvasTexture(256,256,drawBootTexture);
   const raw=Object.fromEntries(data.parts.map(p=>[p.name,makeGeometry(binary,p)]));
+  fitFootballKit(raw);
   const geometries={short02:atlasGeometry(raw,'short02'),crop:atlasGeometry(raw,'crop'),short02Keeper:atlasGeometry(raw,'short02',{keeper:true}),cropKeeper:atlasGeometry(raw,'crop',{keeper:true})};
   for(const style of rosterCropStyles){
    const crop=makeRosterCrop(raw,style);
@@ -235,6 +239,7 @@ export function buildEntrancePlayers(scene,{mobile=false}={}){
   actor.group.userData.playerNumber=d.player.number;
   actor.group.name=d.team+' · '+d.role+' · '+d.player.name;
   actor.reset();
+  actor.fieldFacing=null;
  }
  function updateIdentity(actor,number,clubId,homeId){
   const d=actor.definition;
@@ -285,7 +290,14 @@ export function buildEntrancePlayers(scene,{mobile=false}={}){
    group.visible=distance<(d.role==='player'?160:mobile?92:130)&&!(controlled&&firstPerson)&&!group.offCamera;
    actor.body.geometry=distance>(mobile?22:32)?actor.geometry.userData.low:distance>(mobile?10:16)?actor.geometry.userData.medium:actor.geometry;
    const speed=d.role==='player'?Math.hypot(p.vx||0,p.vz||0):0,moving=d.role==='player'?speed>.16:!!p.moving;
-   const heading=p.yaw??(moving?Math.atan2(p.vx,p.vz):0);
+   let heading=p.yaw??(moving?Math.atan2(p.vx,p.vz):0);
+   if(d.role==='player'&&!p.keeper){
+    const facing=actor.fieldFacing??(actor.fieldFacing={});
+    const striking=p.motion?.type==='pass'||p.motion?.type==='shoot';
+    const reset=!!penalty||state.phase!=='playing'||(!group.visible&&!controlled)||wasOffCamera||actor.lastPoseTime==null||
+     time<actor.lastPoseTime||time-actor.lastPoseTime>.25||Math.hypot(p.x-group.position.x,p.z-group.position.z)>2;
+    heading=strikeFacing(facing,heading,dt,striking,reset);
+   }
    // Pose even a hidden first-person avatar, so its world position and future
    // third-person animation never fall back to the old entrance queue.
    const cadence=controlled||penaltyActor?0:d.role!=='player'?.10:distance>(mobile?28:35)?(mobile?1/12:.065):mobile&&distance>14?1/20:0,observable=actor.group.visible||controlled;
@@ -295,7 +307,8 @@ export function buildEntrancePlayers(scene,{mobile=false}={}){
    const animate=observable&&(cadence===0||actor.poseBudget.ready(time,1/cadence));
    if((actor.group.visible||controlled)&&animate){let action=null,options=noActionOptions,px=p.x,pz=p.z,yaw=heading;if(d.role==='player'){
     const celebrating=goal?.team===d.team&&!p.keeper&&(p.id===state.lastShot?.playerId||Math.hypot(p.x-state.ball.x,p.z-state.ball.z)<24);
-    const charging=controlled&&state.chargePower>0&&(!penalty||p.id===penalty.taker&&penalty.stage==='ready');
+    const receiving=!penalty&&((!state.ball.ownerId&&state.ball.targetId===p.id)||p.motion?.type==='trap');
+    const charging=controlled&&!receiving&&state.chargePower>0&&(!penalty||p.id===penalty.taker&&penalty.stage==='ready');
     if(p.motion?.type==='penaltyKick'){
      action=p.motion;
      // Smooth the deterministic pose between online snapshots, staying behind
@@ -314,7 +327,9 @@ export function buildEntrancePlayers(scene,{mobile=false}={}){
     options.penaltyKeeper=p.id===penalty?.keeper;
     options.keeperLateralSpeed=options.penaltyKeeper?(p.vx||0)*Math.cos(yaw):0;
     options.onBall=state.ball.ownerId===p.id;options.holdingBall=!!p.keeper&&options.onBall&&state.ball.y>.64;options.incomingBall=!state.ball.ownerId&&state.ball.targetId===p.id?state.ball:null;
-    options.action=action;
+    options.controlledBall=options.onBall&&action?.type==='trap'?state.ball:null;
+    options.receiveFootPlaced=false;
+    options.poseTime=time;options.action=action;
    }else if(d.role==='referee'&&card)action={type:'booking',elapsed:state.time-decision.at,duration:3};actor.pose(px,pz,yaw,time,moving,d.seated&&d.role==='assistant'?.45:0,action,options);actor.lastPoseTime=time;}else if(d.role==='player'||!actor.group.visible&&!controlled){actor.group.position.set(p.x,0,p.z);actor.group.rotation.y=heading;}
    updateActorContactShadows(root.userData.shadows,i,actor,animate);
   }
